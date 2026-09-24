@@ -28,8 +28,27 @@ import {
 } from "@/lib/session";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 import { canRevokeOfficerAccess } from "@/lib/settings/team-officer-revoke.shared";
+import {
+  listOpenMemberRoleNudges,
+  listTeamRoleHistory,
+} from "@/lib/member-role-nudges/actions.server";
+import { ALLIANCE_ADMIN_PERMISSION } from "@/lib/rbac/constants";
 
 export const dynamic = "force-dynamic";
+
+function canViewRoleNudges(rbac: {
+  isPlatformMaintainer: boolean;
+  roleName: string | null;
+  permissions: Set<string>;
+}): boolean {
+  if (rbac.isPlatformMaintainer) return true;
+  if (rbac.permissions.has(ALLIANCE_ADMIN_PERMISSION)) return true;
+  return (
+    rbac.roleName === "owner" ||
+    rbac.roleName === "maintainer" ||
+    rbac.roleName === "officer"
+  );
+}
 
 export async function generateMetadata() {
   const t = await getTranslations("team");
@@ -111,6 +130,15 @@ export default async function SettingsTeamPage({
 
   const tagLabel = allianceTag ?? allianceName ?? t("unknownAlliance");
 
+  const roleNudgesOpen =
+    rbac && canViewRoleNudges(rbac)
+      ? await listOpenMemberRoleNudges(allianceId, rbac)
+      : [];
+  const roleNudgesHistory =
+    rbac && canViewRoleNudges(rbac)
+      ? await listTeamRoleHistory(allianceId, 40)
+      : [];
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       <div>
@@ -140,6 +168,8 @@ export default async function SettingsTeamPage({
         initialTeam={team}
         canRefreshFromAshed={canRefreshFromAshed}
         ashedNote={canRefreshFromAshed ? t("ashedNote") : null}
+        roleNudgesOpen={roleNudgesOpen}
+        roleNudgesHistory={roleNudgesHistory}
       />
     </div>
   );

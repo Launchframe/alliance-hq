@@ -74,6 +74,21 @@ export async function syncAllianceMembersFromAshed(input: {
 
     const ashedStats = ashedMemberRecordToCommanderStats(record);
 
+    const [existingBefore] = await db
+      .select({
+        allianceRank: schema.allianceMembers.allianceRank,
+        currentName: schema.allianceMembers.currentName,
+      })
+      .from(schema.allianceMembers)
+      .where(
+        and(
+          eq(schema.allianceMembers.allianceId, input.hqAllianceId),
+          eq(schema.allianceMembers.ashedMemberId, ashedMemberId),
+        ),
+      )
+      .limit(1);
+    const previousRank = existingBefore?.allianceRank ?? null;
+
     const [savedRoster] = await db
       .insert(schema.allianceMembers)
       .values({
@@ -122,7 +137,44 @@ export async function syncAllianceMembersFromAshed(input: {
           syncedAt: now,
           updatedAt: now,
         },
-      }).returning({ status: schema.allianceMembers.status });
+      }).returning({
+        status: schema.allianceMembers.status,
+        allianceRank: schema.allianceMembers.allianceRank,
+      });
+
+    const nextRank = savedRoster?.allianceRank ?? null;
+    if (previousRank !== nextRank) {
+      let eventId: string | null = null;
+      try {
+        if (nextRank != null) {
+          eventId = nanoid();
+          const { getServerCalendarDate } = await import("@/lib/trains/game-time");
+          await db.insert(schema.memberAllianceRankEvents).values({
+            id: eventId,
+            allianceId: input.hqAllianceId,
+            ashedMemberId,
+            memberName: member.current_name,
+            allianceRank: nextRank,
+            allianceRankTitle: normalized.allianceRankTitle,
+            effectiveDate: getServerCalendarDate(),
+            source: "ashed_sync",
+            ashedSyncedAt: now,
+          });
+        }
+        const { evaluateMemberRoleNudgesOnRankChange } = await import(
+          "@/lib/member-role-nudges/evaluate-rank-change.server"
+        );
+        await evaluateMemberRoleNudgesOnRankChange({
+          allianceId: input.hqAllianceId,
+          ashedMemberId,
+          previousRank,
+          nextRank,
+          rankEventId: eventId,
+        });
+      } catch (error) {
+        console.error("[member-role-nudges] ashed sync evaluate failed", error);
+      }
+    }
 
     await seedMemberStatHistoriesFromAshed({
       allianceId: input.hqAllianceId,
@@ -135,7 +187,7 @@ export async function syncAllianceMembersFromAshed(input: {
     await syncTenureFromMemberStatus({
       allianceId: input.hqAllianceId,
       ashedMemberId,
-      status: savedRoster.status,
+      status: savedRoster?.status ?? status,
     });
 
     const syncResult = await syncCommanderFromAllianceMember({
@@ -317,7 +369,19 @@ export async function clearAllianceMemberRank(input: {
   ashedMemberId: string;
 }): Promise<void> {
   const db = getDb();
-  await db
+  const [existing] = await db
+    .select({ allianceRank: schema.allianceMembers.allianceRank })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.hqAllianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  const previousRank = existing?.allianceRank ?? null;
+
+  const updated = await db
     .update(schema.allianceMembers)
     .set({
       allianceRank: null,
@@ -330,7 +394,25 @@ export async function clearAllianceMemberRank(input: {
         eq(schema.allianceMembers.allianceId, input.hqAllianceId),
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
-    );
+    )
+    .returning({ id: schema.allianceMembers.id });
+
+  if (updated.length > 0) {
+    try {
+      const { evaluateMemberRoleNudgesOnRankChange } = await import(
+        "@/lib/member-role-nudges/evaluate-rank-change.server"
+      );
+      await evaluateMemberRoleNudgesOnRankChange({
+        allianceId: input.hqAllianceId,
+        ashedMemberId: input.ashedMemberId,
+        previousRank,
+        nextRank: null,
+        rankEventId: null,
+      });
+    } catch (error) {
+      console.error("[member-role-nudges] rank clear evaluate failed", error);
+    }
+  }
 
   await syncCommanderFromAllianceMember({
     allianceId: input.hqAllianceId,
