@@ -1,7 +1,8 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -22,6 +23,7 @@ import {
   videoJobFailureReviewMessageKey,
 } from "@/lib/video/video-job-failure-classification.shared";
 import {
+  videoQueueFileIdentity,
   videoQueueFrameProgress,
   videoQueueTargetLabelKey,
 } from "@/lib/video/video-queue-display.shared";
@@ -349,6 +351,11 @@ export function VideoQueueClient({
             <RecordDetailField label={t("table.target")}>
               {targetLabel(job.scoreTarget)}
             </RecordDetailField>
+            <RecordDetailField label={t("table.file")}>
+              <span className="wrap-break-word">
+                {videoQueueFileIdentity(job)}
+              </span>
+            </RecordDetailField>
             <RecordDetailField label={t("table.actions")}>
               <JobActions
                 job={job}
@@ -380,6 +387,7 @@ export function VideoQueueClient({
                   </th>
                   <th className="px-4 py-2 font-medium">{t("table.uploadedBy")}</th>
                   <th className="px-4 py-2 font-medium">{t("table.target")}</th>
+                  <th className="px-4 py-2 font-medium">{t("table.file")}</th>
                   <th className="px-4 py-2 font-medium">{t("table.actions")}</th>
                 </tr>
               </thead>
@@ -408,11 +416,17 @@ export function VideoQueueClient({
                         ) : null}
                       </div>
                     </td>
-                    <td className="max-w-[10rem] truncate px-4 py-2">
+                    <td
+                      className="max-w-[10rem] truncate px-4 py-2"
+                      title={job.enqueuedBy ?? undefined}
+                    >
                       {job.enqueuedBy ?? "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2">
                       {targetLabel(job.scoreTarget)}
+                    </td>
+                    <td className="max-w-[11rem] px-4 py-2 text-xs font-normal leading-snug wrap-break-word">
+                      {videoQueueFileIdentity(job)}
                     </td>
                     <td className="px-4 py-2">
                       <JobActions
@@ -450,18 +464,24 @@ function StatusDetailHint({
   detail: string;
   ariaLabel: string;
 }) {
+  const panelId = useId();
+  const descriptionId = useId();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(
     null,
   );
+  const mounted = typeof document !== "undefined";
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
@@ -495,20 +515,30 @@ function StatusDetailHint({
         type="button"
         className="inline-flex h-5 w-5 items-center justify-center rounded-full text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
         aria-expanded={open}
+        aria-controls={panelId}
+        aria-describedby={descriptionId}
         aria-label={ariaLabel}
         onClick={() => setOpen((value) => !value)}
       >
         <Info className="h-3.5 w-3.5" aria-hidden />
       </button>
-      {open && panelPos ? (
-        <div
-          role="tooltip"
-          style={{ top: panelPos.top, left: panelPos.left }}
-          className="fixed z-50 w-64 max-w-[min(16rem,calc(100vw-1rem))] rounded-lg border border-hq-border bg-hq-surface p-2 text-left text-xs font-normal normal-case leading-snug text-hq-fg shadow-lg"
-        >
-          {detail}
-        </div>
-      ) : null}
+      <span id={descriptionId} className="sr-only">
+        {detail}
+      </span>
+      {mounted && open && panelPos
+        ? createPortal(
+            <div
+              ref={panelRef}
+              id={panelId}
+              role="status"
+              style={{ top: panelPos.top, left: panelPos.left }}
+              className="fixed z-50 w-64 max-w-[min(16rem,calc(100vw-1rem))] rounded-lg border border-hq-border bg-hq-surface p-2 text-left text-xs font-normal normal-case leading-snug text-hq-fg shadow-lg"
+            >
+              {detail}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

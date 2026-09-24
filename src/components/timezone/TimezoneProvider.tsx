@@ -25,7 +25,7 @@ import {
   resolveAccountTimeZoneIana,
 } from "@/lib/timezone/account";
 import {
-  formatTimeZoneLabel,
+  formatTimeZoneColumnLabel,
   type TimeZoneDisplayMode,
 } from "@/lib/timezone/zone-label.shared";
 
@@ -106,7 +106,7 @@ export function useAccountTimezoneLabel() {
   const mode: TimeZoneDisplayMode = isServerTime(normalized)
     ? "server"
     : "local";
-  return formatTimeZoneLabel(
+  return formatTimeZoneColumnLabel(
     mode,
     new Date(),
     resolveAccountTimeZoneIana(normalized),

@@ -1716,6 +1716,7 @@
       "time": "Uploaded ({zone})",
       "uploadedBy": "Uploaded by",
       "target": "Target",
+      "file": "File",
       "actions": "Actions"
     },
     "targets": {

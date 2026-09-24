@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  videoQueueFileIdentity,
   videoQueueFrameProgress,
   videoQueueTargetLabelKey,
 } from "./video-queue-display.shared";
@@ -52,5 +53,19 @@ describe("videoQueueFrameProgress", () => {
         frameCount: 10,
       }),
     ).toBeNull();
+  });
+});
+
+describe("videoQueueFileIdentity", () => {
+  it("prefers the filename and falls back to the job id", () => {
+    expect(
+      videoQueueFileIdentity({ id: "job-1", fileName: "slip-a.mp4" }),
+    ).toBe("slip-a.mp4");
+    expect(videoQueueFileIdentity({ id: "job-1", fileName: "  " })).toBe(
+      "job-1",
+    );
+    expect(videoQueueFileIdentity({ id: "job-1", fileName: null })).toBe(
+      "job-1",
+    );
   });
 });

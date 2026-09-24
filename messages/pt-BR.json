@@ -1704,6 +1704,7 @@
       "time": "Enviado ({zone})",
       "uploadedBy": "Enviado por",
       "target": "Destino",
+      "file": "Arquivo",
       "actions": "Ações"
     },
     "targets": {

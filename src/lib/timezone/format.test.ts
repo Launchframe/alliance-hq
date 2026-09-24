@@ -150,6 +150,48 @@ describe("formatRelativeAccountDateTime", () => {
       }),
     ).toMatch(/7\/3[01]\/26/);
   });
+
+  it("uses server-time calendar days without a zone suffix", () => {
+    const serverNow = new Date("2026-09-23T20:00:00.000Z");
+    const today = formatRelativeAccountDateTime("2026-09-23T21:00:00.000Z", {
+      locale: "en-US",
+      timezoneId: DEFAULT_ACCOUNT_TIMEZONE_ID,
+      now: serverNow,
+      labels,
+    });
+    expect(today).toMatch(/^Today at /);
+    expect(today).not.toMatch(/\bST\b|Local/);
+  });
+
+  it("treats dayDiff 6 as weekday-at and 7 as last weekday", () => {
+    expect(
+      formatRelativeAccountDateTime("2026-09-17T20:00:00.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toMatch(/^Thursday at /);
+    expect(
+      formatRelativeAccountDateTime("2026-09-16T20:00:00.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toBe("Last Wednesday");
+  });
+
+  it("falls back to a short date for future timestamps", () => {
+    expect(
+      formatRelativeAccountDateTime("2026-09-25T20:00:00.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toMatch(/9\/25\/26/);
+  });
 });
 
 describe("formatAccountDate", () => {

@@ -22,3 +22,12 @@ export function videoQueueFrameProgress(job: {
   }
   return null;
 }
+
+/** Filename when present, otherwise the job id — for telling similar rows apart. */
+export function videoQueueFileIdentity(job: {
+  id: string;
+  fileName?: string | null;
+}): string {
+  const name = job.fileName?.trim();
+  return name ? name : job.id;
+}
