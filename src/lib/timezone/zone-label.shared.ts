@@ -34,6 +34,22 @@ export function getShortTimeZoneName(
   return timeZone;
 }
 
+/** "ST" or "PDT" — for table headers where "Local (…)" would nest inside `{zone}`. */
+export function formatTimeZoneColumnLabel(
+  mode: TimeZoneDisplayMode,
+  at: Date | string = new Date(),
+  timeZone?: string,
+): string {
+  if (mode === "server") {
+    return SERVER_TIME_SHORT_LABEL;
+  }
+  const iana = timeZone ?? getBrowserTimeZoneIana();
+  if (iana === SERVER_TIME_IANA) {
+    return SERVER_TIME_SHORT_LABEL;
+  }
+  return getShortTimeZoneName(iana, at);
+}
+
 /** "ST" or "Local (PDT)" — always English short labels for compact UI. */
 export function formatTimeZoneLabel(
   mode: TimeZoneDisplayMode,

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   DEFAULT_ACCOUNT_TIMEZONE_ID,
@@ -17,7 +17,17 @@ import {
 import {
   formatAccountDate,
   formatAccountDateTime,
+  formatRelativeAccountDateTime,
 } from "@/lib/timezone/format";
+import {
+  isServerTime,
+  normalizeAccountTimezoneId,
+  resolveAccountTimeZoneIana,
+} from "@/lib/timezone/account";
+import {
+  formatTimeZoneColumnLabel,
+  type TimeZoneDisplayMode,
+} from "@/lib/timezone/zone-label.shared";
 
 type TimezoneContextValue = {
   timezoneId: AccountTimezoneId;
@@ -87,6 +97,40 @@ export function useFormatAccountDate() {
         ...options,
       }),
     [locale, timezoneId],
+  );
+}
+
+export function useAccountTimezoneLabel() {
+  const { timezoneId } = useAccountTimezone();
+  const normalized = normalizeAccountTimezoneId(timezoneId);
+  const mode: TimeZoneDisplayMode = isServerTime(normalized)
+    ? "server"
+    : "local";
+  return formatTimeZoneColumnLabel(
+    mode,
+    new Date(),
+    resolveAccountTimeZoneIana(normalized),
+  );
+}
+
+export function useFormatRelativeAccountDateTime() {
+  const { timezoneId } = useAccountTimezone();
+  const locale = useLocale();
+  const t = useTranslations("relativeDateTime");
+
+  return useCallback(
+    (value: Date | string) =>
+      formatRelativeAccountDateTime(value, {
+        locale,
+        timezoneId,
+        labels: {
+          todayAt: (time) => t("todayAt", { time }),
+          yesterdayAt: (time) => t("yesterdayAt", { time }),
+          weekdayAt: (weekday, time) => t("weekdayAt", { weekday, time }),
+          lastWeekday: (weekday) => t("lastWeekday", { weekday }),
+        },
+      }),
+    [locale, t, timezoneId],
   );
 }
 
