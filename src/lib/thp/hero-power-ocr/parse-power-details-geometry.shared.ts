@@ -194,7 +194,7 @@ export function normalizeDigitsOnlyComponent(rawDigits: string): number | null {
   if (!digits) return null;
 
   const commaSevens = stripOcrCommaSevens(digits);
-  if (commaSevens) digits = commaSevens;
+  if (commaSevens) return parseDigitsOnlyComponent(commaSevens);
 
   // Same pattern when one separator slot is `1` instead of `7`
   // (`9,408,080` → `974081080`). Only for 7-digit values with a leading `9`

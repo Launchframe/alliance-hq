@@ -50,10 +50,12 @@ describe("parseDigitsOnlyValue", () => {
     expect(normalizeDigitsOnlyComponent("974081080")).toBe(9_408_080);
     expect(normalizeDigitsOnlyComponent("17051707")).toBe(7_051_707);
     expect(normalizeDigitsOnlyComponent("65811990")).toBe(6_581_990);
+    expect(normalizeDigitsOnlyComponent("17979827025")).toBe(179_982_025);
   });
 
   it("parseDigitsOnlyHeaderTotalLoose recovers one extra header digit", () => {
     expect(parseDigitsOnlyHeaderTotalLoose("1665817498")).toBe(166_581_498);
+    expect(parseDigitsOnlyHeaderTotalLoose("17979827025")).toBe(179_982_025);
   });
 
   it("parseDigitsOnlyHeaderTotalLoose accepts clean 9-digit header totals", () => {
