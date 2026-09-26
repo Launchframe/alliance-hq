@@ -19,12 +19,14 @@ import { runTesseract, type OcrLineResult } from "@/lib/members/roster-ocr/tesse
 import {
   assembleGeometryParse,
   coalesceLabelLines,
+  isHeroPowerHeaderLabel,
   normalizeDigitsOnlyComponent,
   normalizeGeometryLines,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
   zipLabelsToValues,
   type GeometryOcrLine,
+  type NormalizedGeometryLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import {
   toThpBreakdown,
@@ -65,7 +67,8 @@ function lineYNorm(line: OcrLineResult, cropHeight: number): number | null {
   return (box.y0 + box.y1) / 2 / Math.max(1, cropHeight);
 }
 
-function pickHeaderTotal(
+export function pickHeaderTotal(
+  labels: NormalizedGeometryLine[],
   headerLines: OcrLineResult[],
   headerCropHeight: number,
   invertedValueLines: OcrLineResult[],
@@ -73,17 +76,29 @@ function pickHeaderTotal(
   valueLines: OcrLineResult[],
   valueCropHeight: number,
 ): number | null {
-  return (
-    pickBestHeaderCandidate(headerLines, headerCropHeight) ??
-    pickBestHeaderCandidate(invertedValueLines.slice(0, 6), invertedCropHeight) ??
-    pickBestHeaderCandidate(valueLines.slice(0, 4), valueCropHeight)
-  );
+  const headerLabel = labels.find((line) => isHeroPowerHeaderLabel(line.text));
+  if (!headerLabel) {
+    return pickBestHeaderCandidate(headerLines, headerCropHeight);
+  }
+
+  const alignedCandidates = [
+    ...collectHeaderCandidates(invertedValueLines, invertedCropHeight),
+    ...collectHeaderCandidates(valueLines, valueCropHeight),
+  ]
+    .map((candidate) => ({
+      ...candidate,
+      distance: Math.abs(candidate.yNorm - headerLabel.yNorm),
+    }))
+    .filter((candidate) => candidate.distance <= 0.04)
+    .sort((a, b) => a.distance - b.distance);
+
+  return alignedCandidates[0]?.value ?? null;
 }
 
-function pickBestHeaderCandidate(
+function collectHeaderCandidates(
   lines: OcrLineResult[],
   cropHeight: number,
-): number | null {
+): Array<{ yNorm: number; value: number }> {
   const candidates: Array<{ yNorm: number; value: number }> = [];
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -105,7 +120,14 @@ function pickBestHeaderCandidate(
   }
 
   candidates.sort((a, b) => a.yNorm - b.yNorm);
-  return candidates[0]?.value ?? null;
+  return candidates;
+}
+
+function pickBestHeaderCandidate(
+  lines: OcrLineResult[],
+  cropHeight: number,
+): number | null {
+  return collectHeaderCandidates(lines, cropHeight)[0]?.value ?? null;
 }
 
 
@@ -159,6 +181,7 @@ export async function parsePowerDetailsImage(
       : normalValues;
 
   const headerTotal = pickHeaderTotal(
+    labels,
     headerLinesRaw,
     headerPre.height,
     valueInvLinesRaw,
