@@ -92,6 +92,8 @@ describe("parsePowerDetailsImage live fixture", () => {
       const parsed = await parsePowerDetailsImage(buffer);
 
       expect(parsed.heroPowerTotal).toBe(179_982_025);
+      expect(parsed.diagnostics.sampleLines).toContain("rowN:17979827025");
+      expect(parsed.diagnostics.sampleLines).toContain("rowI:17979827025");
     },
     120_000,
   );
