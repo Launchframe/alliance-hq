@@ -24,6 +24,7 @@ import { upsertAllianceAshedCredential } from "@/lib/vr/repository";
 export async function upsertAllianceAshedCredentialsFromSession(input: {
   sessionId: string;
   allianceId: string;
+  allowAshedMaintainer?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const session = await loadSession(input.sessionId);
   if (!session?.hqUserId) {
@@ -119,7 +120,7 @@ export async function upsertAllianceAshedCredentialsFromSession(input: {
       status: 403,
     };
   }
-  if (!canInstallAshedBotCredentials(ashedAlliance.accessRole)) {
+  if (!input.allowAshedMaintainer && !canInstallAshedBotCredentials(ashedAlliance.accessRole)) {
     return {
       ok: false,
       error: `Only the Ashed alliance owner can connect bot credentials for tag "${ashedAlliance.tag}". Ask the owner to install credentials, or use an owner connection key.`,
