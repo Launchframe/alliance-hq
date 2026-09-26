@@ -223,6 +223,50 @@ function tryNamedMonthRange(
   return null;
 }
 
+const WEEKDAY_PATTERN = Object.keys(WEEKDAY_NAMES).join("|");
+
+function resolveWeekday(
+  qualifier: string | undefined,
+  weekdayToken: string,
+  from: string,
+): string | null {
+  const dow = WEEKDAY_NAMES[weekdayToken.toLowerCase()];
+  if (dow === undefined) return null;
+  const includeFrom = !qualifier || qualifier.toLowerCase() === "this";
+  return nextWeekdayDate(from, dow, includeFrom);
+}
+
+function tryWeekdayRange(
+  text: string,
+  today: string,
+): { start: string; end: string } | null {
+  const range = text.match(
+    new RegExp(
+      `\\b(?:(this|next|upcoming)\\s+)?(${WEEKDAY_PATTERN})\\s*(?:to|through|thru|-|–)\\s*(?:(this|next|upcoming)\\s+)?(${WEEKDAY_PATTERN})\\b`,
+      "i",
+    ),
+  );
+  if (!range) return null;
+  const start = resolveWeekday(range[1], range[2], today);
+  if (!start) return null;
+  const end = resolveWeekday(range[3], range[4], start);
+  if (!end || end < start) return null;
+  return { start, end };
+}
+
+function tryStandaloneWeekday(
+  text: string,
+  today: string,
+): { start: string; end: string } | null {
+  const single = text.match(
+    new RegExp(`^\\s*(?:(this|next|upcoming)\\s+)?(${WEEKDAY_PATTERN})\\s*$`, "i"),
+  );
+  if (!single) return null;
+  const day = resolveWeekday(single[1], single[2], today);
+  if (!day) return null;
+  return { start: day, end: day };
+}
+
 function tryRelativePhrases(
   text: string,
   today: string,
@@ -364,7 +408,9 @@ export function parseTimeOffMessage(
     tryExplicitIsoRange(working) ??
     tryNamedMonthRange(working, referenceDate) ??
     portugueseRange ??
-    tryRelativePhrases(working, referenceDate);
+    tryWeekdayRange(working, referenceDate) ??
+    tryRelativePhrases(working, referenceDate) ??
+    tryStandaloneWeekday(working, referenceDate);
 
   if (!range) {
     return { ok: false, error: "unrecognized" };
