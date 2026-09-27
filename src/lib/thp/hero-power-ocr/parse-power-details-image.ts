@@ -20,7 +20,6 @@ import {
   assembleGeometryParse,
   coalesceLabelLines,
   isHeroPowerHeaderLabel,
-  normalizeDigitsOnlyComponent,
   normalizeGeometryLines,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
@@ -88,18 +87,13 @@ export function pickHeaderTotal(
     return pickBestHeaderCandidate(headerLines, headerCropHeight);
   }
 
-  const focusedTotals = focusedHeaderPasses.map((pass) =>
-    pickBestHeaderCandidate(pass.lines, pass.cropHeight),
-  );
+  const focusedTotals = focusedHeaderPasses
+    .map((pass) => pickBestHeaderCandidate(pass.lines, pass.cropHeight))
+    .filter((value): value is number => value != null);
   if (focusedTotals.length > 0) {
-    if (
-      focusedTotals.every(
-        (value) => value != null && value === focusedTotals[0],
-      )
-    ) {
-      return focusedTotals[0]!;
-    }
-    if (focusedTotals.some((value) => value != null)) return null;
+    return focusedTotals.every((value) => value === focusedTotals[0])
+      ? focusedTotals[0]!
+      : null;
   }
 
   const alignedCandidates = [
@@ -124,13 +118,9 @@ function collectHeaderCandidates(
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!;
-    const digitLen = line.text.replace(/\D/g, "").length;
-    let normalized =
+    const normalized =
       parseDigitsOnlyHeaderTotalLoose(line.text) ??
       parseDigitsOnlyHeaderTotal(line.text);
-    if (normalized == null && digitLen > 9) {
-      normalized = normalizeDigitsOnlyComponent(line.text);
-    }
     if (normalized == null) continue;
     if (normalized < 100_000_000 || normalized > 1_000_000_000) continue;
 

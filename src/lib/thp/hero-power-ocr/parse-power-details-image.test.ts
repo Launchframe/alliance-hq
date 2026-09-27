@@ -114,7 +114,7 @@ describe("pickHeaderTotal", () => {
     expect(result).toBeNull();
   });
 
-  it("fails closed when only one focused-row pass is readable", () => {
+  it("uses the only readable focused-row pass", () => {
     const labels: NormalizedGeometryLine[] = [
       { text: "(BD) HerolPowers", yNorm: 0.293, yCenterPx: 293 },
     ];
@@ -124,6 +124,50 @@ describe("pickHeaderTotal", () => {
       [
         { lines: [ocrLine("17979827025", 10)], cropHeight: 100 },
         { lines: [], cropHeight: 100 },
+      ],
+      [],
+      0,
+      [],
+      0,
+      [],
+      0,
+    );
+
+    expect(result).toBe(179_982_025);
+  });
+
+  it("repairs only separator slots in the reported 179979304 header", () => {
+    const labels: NormalizedGeometryLine[] = [
+      { text: "(BD) HerolPowers", yNorm: 0.293, yCenterPx: 293 },
+    ];
+
+    const result = pickHeaderTotal(
+      labels,
+      [
+        { lines: [ocrLine("17979795304", 10)], cropHeight: 100 },
+        { lines: [ocrLine("17979795304", 10)], cropHeight: 100 },
+      ],
+      [],
+      0,
+      [ocrLine("1797979304", 293)],
+      1000,
+      [],
+      0,
+    );
+
+    expect(result).toBe(179_979_304);
+  });
+
+  it("returns null when a focused blob cannot be repaired by separator slots", () => {
+    const labels: NormalizedGeometryLine[] = [
+      { text: "(BD) HerolPowers", yNorm: 0.293, yCenterPx: 293 },
+    ];
+
+    const result = pickHeaderTotal(
+      labels,
+      [
+        { lines: [ocrLine("179797573841", 10)], cropHeight: 100 },
+        { lines: [ocrLine("179797573841", 10)], cropHeight: 100 },
       ],
       [],
       0,
