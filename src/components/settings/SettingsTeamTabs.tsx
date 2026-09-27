@@ -8,6 +8,11 @@ import { usePathname, useRouter } from "@/i18n/navigation";
 import { CredentialSharePanel } from "@/components/settings/CredentialSharePanel";
 import { SettingsTeamClient } from "@/components/SettingsTeamClient";
 import { TeamInvitePanel } from "@/components/settings/TeamInvitePanel";
+import { TeamRoleNudgesPanel } from "@/components/settings/TeamRoleNudgesPanel";
+import type {
+  OpenRoleNudge,
+  RoleHistoryItem,
+} from "@/components/settings/TeamRoleNudgesPanel";
 import { VideoProcessorsPanel } from "@/components/settings/VideoProcessorsPanel";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import type { TeamMember } from "@/lib/rbac/sync-ashed-roles";
@@ -48,6 +53,8 @@ type Props = {
   initialTeam: TeamMember[];
   canRefreshFromAshed: boolean;
   ashedNote: string | null;
+  roleNudgesOpen: OpenRoleNudge[];
+  roleNudgesHistory: RoleHistoryItem[];
 };
 
 function SettingsTeamTabsInner(props: Props) {
@@ -66,6 +73,8 @@ function SettingsTeamTabsInner(props: Props) {
     initialTeam,
     canRefreshFromAshed,
     ashedNote,
+    roleNudgesOpen,
+    roleNudgesHistory,
   } = props;
   const t = useTranslations("team");
   const router = useRouter();
@@ -119,6 +128,11 @@ function SettingsTeamTabsInner(props: Props) {
 
   return (
     <div className="space-y-6">
+      <TeamRoleNudgesPanel
+        initialOpen={roleNudgesOpen}
+        initialHistory={roleNudgesHistory}
+      />
+
       <div
         className="inline-flex max-w-full flex-wrap rounded-lg border border-hq-border p-0.5 text-sm"
         role="tablist"

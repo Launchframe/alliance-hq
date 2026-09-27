@@ -1226,6 +1226,13 @@
       "when": 1790900000186,
       "tag": "0186_train_rule_template_active_names",
       "breakpoints": false
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1790900000187,
+      "tag": "0187_member_role_nudges",
+      "breakpoints": false
     }
   ]
 }
