@@ -959,6 +959,11 @@ test.describe("Team Access — R4 privilege nudges", () => {
       alliance.tag,
       "officer-ui",
     );
+    // (app) pages send HQ users without a linked commander to onboarding.
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officer.hqUserId,
+    });
     const targetName = `Elevate UI ${nanoid(4)}`;
     const target = await createAuthenticatedHqSession(
       sql,
@@ -992,6 +997,7 @@ test.describe("Team Access — R4 privilege nudges", () => {
 
     await page.context().addCookies(playwrightAuthCookies(officer));
     await page.goto("/settings/team");
+    await expect(page).toHaveURL(/\/settings\/team$/);
 
     await expect(page.getByTestId("team-settings-tab-members")).toHaveAttribute(
       "aria-selected",
