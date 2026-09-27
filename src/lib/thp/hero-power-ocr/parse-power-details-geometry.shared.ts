@@ -73,7 +73,7 @@ export function isHeroPowerHeaderLabel(line: string): boolean {
   if (HERO_POWER_HEADER_RE.test(trimmed)) return true;
   // OCR junk still anchors the grey header row: "(BJ [HerolPower", "HerolPower".
   const collapsed = trimmed.replace(/[^a-z]/gi, "");
-  return /herol?pow/i.test(collapsed) || /heldenkampfkraft/i.test(collapsed);
+  return /herol?pow/i.test(collapsed) || /he[li]denkampfkraft/i.test(collapsed);
 }
 
 export function isPowerDetailsSectionStop(line: string): boolean {
@@ -121,9 +121,8 @@ export function parseDigitsOnlyHeaderTotal(text: string): number | null {
 }
 
 /**
- * Header totals after digits-only OCR sometimes pick up one extra digit
- * (comma/separator mapped into the string). Try normalization, then a single
- * interior digit drop on 10-digit blobs before giving up.
+ * Header totals after digits-only OCR sometimes include separator glyphs forced
+ * into digits. Repair only structurally valid separator slots in overlong blobs.
  */
 export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
   const direct = parseDigitsOnlyHeaderTotal(text);
@@ -132,38 +131,24 @@ export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
   const digits = text.replace(/\D/g, "");
   if (!digits) return null;
 
-  const normalized = normalizeDigitsOnlyComponent(digits);
-  if (
-    normalized != null &&
-    normalized >= 100_000_000 &&
-    normalized <= 1_000_000_000
-  ) {
-    return normalized;
+  if (digits.length === 11) {
+    const repaired = [...digits];
+    for (let index = repaired.length - 4; index >= 0; index -= 4) {
+      repaired.splice(index, 1);
+    }
+    return parseDigitsOnlyHeaderTotal(repaired.join(""));
   }
 
   if (digits.length === 10) {
-    const head = digits.slice(0, 3);
-    const tail = digits.slice(-3);
     const commaLike = new Set(["1", "7", "8"]);
-    const anchored: Array<{ parsed: number; index: number }> = [];
-    const fallback: number[] = [];
-    // Thousand-separator slots in XXX,XXX,XXX — extra OCR digit usually lands here.
-    for (const i of [2, 3, 5, 6, 7]) {
-      const candidateDigits = `${digits.slice(0, i)}${digits.slice(i + 1)}`;
-      const parsed = parseDigitsOnlyHeaderTotal(candidateDigits);
-      if (parsed == null) continue;
-      if (candidateDigits.startsWith(head) && candidateDigits.endsWith(tail)) {
-        anchored.push({ parsed, index: i });
-        continue;
-      }
-      fallback.push(parsed);
-    }
-    const commaAnchored = anchored.filter((row) => commaLike.has(digits[row.index]!));
-    if (commaAnchored.length > 0) {
-      return commaAnchored[commaAnchored.length - 1]!.parsed;
-    }
-    if (anchored.length > 0) return anchored[0]!.parsed;
-    if (fallback.length > 0) return fallback[0]!;
+    const separatorSlots = [3, 6].filter((index) =>
+      commaLike.has(digits[index]!),
+    );
+    const separatorIndex = separatorSlots[separatorSlots.length - 1];
+    if (separatorIndex == null) return null;
+    return parseDigitsOnlyHeaderTotal(
+      `${digits.slice(0, separatorIndex)}${digits.slice(separatorIndex + 1)}`,
+    );
   }
 
   return null;
@@ -438,22 +423,10 @@ export function assembleGeometryParse(input: {
     breakdown[pair.key] = pair.value;
   }
 
-  let heroPowerTotal = input.headerTotal;
+  const heroPowerTotal = input.headerTotal;
   let working = breakdown;
   if (heroPowerTotal != null) {
     working = fillMissingComponentFromTotal(working, heroPowerTotal);
-  } else {
-    // Header crop often misses white-on-grey totals. If all seven components
-    // parsed, use their sum as the total (same number the UI shows on the bar).
-    const allPresent = THP_BREAKDOWN_KEYS.every(
-      (key) => typeof working[key] === "number" && working[key]! > 0,
-    );
-    if (allPresent) {
-      const sum = sumThpBreakdown(working as ThpBreakdown);
-      if (sum >= 1_000_000 && sum <= 1_000_000_000) {
-        heroPowerTotal = sum;
-      }
-    }
   }
 
   const allPresent = THP_BREAKDOWN_KEYS.every(

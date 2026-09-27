@@ -13,6 +13,14 @@ const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
 const JUL20_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-20.png");
 const JUL29_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-29.png");
 const SEP26_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-09-26.jpg");
+const SEP26_MIXED_SEPARATOR_FIXTURE = path.join(
+  fixtureDir,
+  "fixtures/power-details-2026-09-26-179979304.jpg",
+);
+const SEP26_GERMAN_FIXTURE = path.join(
+  fixtureDir,
+  "fixtures/power-details-2026-09-26-de-179979260.jpg",
+);
 
 /**
  * Live geometry-first OCR against a real phone screenshot.
@@ -94,6 +102,31 @@ describe("parsePowerDetailsImage live fixture", () => {
       expect(parsed.heroPowerTotal).toBe(179_982_025);
       expect(parsed.diagnostics.sampleLines).toContain("rowN:17979827025");
       expect(parsed.diagnostics.sampleLines).toContain("rowI:17979827025");
+    },
+    120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "repairs mixed separator artifacts without changing real header digits",
+    async () => {
+      const buffer = readFileSync(SEP26_MIXED_SEPARATOR_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.heroPowerTotal).toBe(179_979_304);
+      expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979304");
+    },
+    120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "repairs German period separators without locale-specific delimiter rules",
+    async () => {
+      const buffer = readFileSync(SEP26_GERMAN_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.heroPowerTotal).toBe(179_979_260);
+      expect(parsed.diagnostics.sampleLines).toContain("rowN:1797979260");
+      expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979260");
     },
     120_000,
   );
