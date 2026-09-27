@@ -15,7 +15,10 @@ import {
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
-import { isBankDepositSlipHistoryTarget } from "@/lib/video/score-targets";
+import {
+  isBankDepositSlipHistoryTarget,
+  isFrontlineBreakthroughVideoTarget,
+} from "@/lib/video/score-targets";
 import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
@@ -107,7 +110,11 @@ export async function POST(request: Request, { params }: Props) {
     position,
   );
 
-  const primarySortKey = reviewRowPrimarySortKey(parseSession?.scoreTarget);
+  const primarySortKey = isFrontlineBreakthroughVideoTarget(
+    parseSession?.scoreTarget ?? "",
+  )
+    ? null
+    : reviewRowPrimarySortKey(parseSession?.scoreTarget);
   let rank: number | null = null;
   let allianceRank: number | null = null;
   if (primarySortKey === "rank") {
@@ -149,6 +156,7 @@ export async function POST(request: Request, { params }: Props) {
       score: "",
       rank,
       allianceRank,
+      frontlineStage: null,
       frameIndex,
       memberId: null,
       memberName: null,

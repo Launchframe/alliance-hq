@@ -174,6 +174,35 @@ describe("parseVideoReviewDraft", () => {
       team: "A",
     });
   });
+
+  it("round-trips frontlineStage and still accepts older drafts without it", () => {
+    const withStage = makeDraft({
+      rows: [{ ...baseRow, frontlineStage: 5 }],
+    });
+    const parsed = parseVideoReviewDraft(JSON.stringify(withStage));
+    expect(parsed?.rows[0]?.frontlineStage).toBe(5);
+    const legacy = parseVideoReviewDraft(JSON.stringify(makeDraft()));
+    expect(legacy?.rows[0]?.frontlineStage).toBeUndefined();
+  });
+
+  it("round-trips invalid frontline stage and rank raw text", () => {
+    const draft = makeDraft({
+      rows: [
+        {
+          ...baseRow,
+          frontlineStage: null,
+          frontlineStageRaw: "abc",
+          rank: null,
+          frontlineRankRaw: "1.5",
+        },
+      ],
+    });
+    const parsed = parseVideoReviewDraft(JSON.stringify(draft));
+    expect(parsed?.rows[0]?.frontlineStageRaw).toBe("abc");
+    expect(parsed?.rows[0]?.frontlineRankRaw).toBe("1.5");
+    expect(parsed?.rows[0]?.frontlineStage).toBeNull();
+    expect(parsed?.rows[0]?.rank).toBeNull();
+  });
 });
 
 describe("isVideoReviewDraftApplicable", () => {

@@ -31,9 +31,11 @@ import { sortParsedRowsForInitialReview } from "@/lib/video/parsed-row-review-or
 import {
   getScoreTarget,
   isBankDepositSlipHistoryTarget,
+  isFrontlineBreakthroughVideoTarget,
   isMemberRosterVideoTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
@@ -90,6 +92,7 @@ export async function GET(_request: Request, { params }: Props) {
       ocrName: string;
       score: string | null;
       rank: number | null;
+      frontlineStage: number | null;
       rosterRankRaw: string | null;
       allianceRank: number | null;
       allianceRankTitle: string | null;
@@ -173,6 +176,7 @@ export async function GET(_request: Request, { params }: Props) {
           ocrName: r.ocrName,
           score: r.score,
           rank: r.rank,
+          frontlineStage: r.frontlineStage,
           rosterRankRaw: r.rosterRankRaw,
           allianceRank: r.allianceRank,
           allianceRankTitle: r.allianceRankTitle,
@@ -334,6 +338,12 @@ export async function GET(_request: Request, { params }: Props) {
       hasSourceVideo: storageKey != null,
       frameTimestamps,
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
+      ...(isFrontlineBreakthroughVideoTarget(scoreTargetId) && allianceIdForJob
+        ? {
+            nativeFrontlineSubmit:
+              (await getAllianceOperatingMode(allianceIdForJob)) === "native",
+          }
+        : {}),
       alliance: {
         jobId: allianceIdForJob ?? job.allianceId,
         currentId: session.currentAllianceId,

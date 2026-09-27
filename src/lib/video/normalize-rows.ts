@@ -2,6 +2,7 @@ export type OcrEntry = {
   name: string;
   score: string | number;
   rank?: number;
+  frontlineStage?: number | null;
   /** OCR saw multiple scores for this sanitized name — user must pick one. */
   scoreConflict?: boolean;
   /** Other score values seen for the same sanitized name. */

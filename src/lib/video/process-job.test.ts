@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   resolveHqAllianceIdFromStoredAllianceId: vi.fn(),
   resolveHqAllianceIdFromSession: vi.fn(), resolveSessionAllianceId: vi.fn(),
   loadMembersForApiContext: vi.fn(), ocrVsNativeFrames: vi.fn(), ocrAllFrames: vi.fn(),
+  ocrFrontlineNativeFrames: vi.fn(),
   mockOcrScoreFrames: vi.fn(), base44ListMembers: vi.fn(),
   listAllianceMembers: vi.fn(), emitVideoJobStatus: vi.fn(),
   maybeEnqueueShadowPass: vi.fn(), maybeEnqueueShadowPassEarly: vi.fn(),
@@ -29,6 +30,9 @@ vi.mock("@/lib/session", () => mocks);
 vi.mock("@/lib/ashed/load-ashed-connection.server", () => mocks);
 vi.mock("@/lib/base44/fetch", () => mocks);
 vi.mock("@/lib/video/ocr-vs-native", () => mocks);
+vi.mock("@/lib/video/ocr-frontline-native", () => ({
+  ocrFrontlineNativeFrames: mocks.ocrFrontlineNativeFrames,
+}));
 vi.mock("@/lib/video/ocr-pipeline", () => ({ ...mocks, defaultAshFrameConcurrency: () => 4 }));
 vi.mock("@/lib/video/ocr-mock", () => mocks);
 vi.mock("@/lib/video/enqueue-shadow-pass", () => mocks);
@@ -125,5 +129,91 @@ describe("processVideoJob native VS", () => {
     const result = await processVideoJob(job.id);
     expect(result).toMatchObject({ rowCount: 1, matchedCount: 1 });
     expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ status: "review" }));
+  });
+});
+
+describe("processVideoJob native Frontline Breakthrough", () => {
+  const frontlineJob = {
+    ...job,
+    id: "native-frontline-job",
+    scoreTarget: "frontline-breakthrough",
+  };
+
+  beforeEach(() => {
+    mocks.selectLimit.mockReset();
+    mocks.selectLimit.mockResolvedValue([{ tag: "HQ" }]).mockResolvedValueOnce([frontlineJob]);
+    mocks.ocrFrontlineNativeFrames.mockResolvedValue({
+      entries: [
+        { name: "Alpha", score: "2670", rank: 3, frontlineStage: 5, _sourceFrameIndex: 0 },
+      ],
+      frameTimings: [{ frameIndex: 0, ms: 1, uploadMs: 0, extractMs: 1, entryCount: 1, error: null, rawResult: null }],
+      concurrency: 1,
+    });
+  });
+
+  it("dispatches the frontline parser and persists stage with the job-alliance roster", async () => {
+    const result = await processVideoJob(frontlineJob.id);
+    expect(result).toMatchObject({ rowCount: 1, matchedCount: 1, ashedUploadTotalMs: 0, ashedExtractTotalMs: 0 });
+    expect(mocks.ocrFrontlineNativeFrames).toHaveBeenCalledOnce();
+    expect(mocks.ocrVsNativeFrames).not.toHaveBeenCalled();
+    expect(mocks.ocrAllFrames).not.toHaveBeenCalled();
+    expect(mocks.mockOcrScoreFrames).not.toHaveBeenCalled();
+    expect(mocks.loadMembersForApiContext).toHaveBeenCalledWith({ operatingMode: "native", hqAllianceId: "native-alliance", ashedAllianceId: "native-alliance", connection: null });
+    expect(mocks.insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      memberId: "member-alpha",
+      score: "2670",
+      rank: 3,
+      frontlineStage: 5,
+      frameIndex: 0,
+    }));
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ status: "review", allianceId: "native-alliance" }));
+  });
+
+  it("persists stage on the Ashed pipeline path without collapsing repeated rows early", async () => {
+    mocks.loadAllianceVideoOcrContext.mockResolvedValue({ allianceOperatingMode: "ashed", allianceHqOcrOnly: false });
+    mocks.loadAshedConnectionForAllianceCapability.mockResolvedValue({ token: "t" });
+    mocks.resolveSessionAllianceId.mockResolvedValue("ashed-al");
+    mocks.resolveHqAllianceIdFromSession.mockResolvedValue("native-alliance");
+    mocks.base44ListMembers.mockResolvedValue([]);
+    mocks.ocrAllFrames.mockResolvedValue({
+      entries: [
+        { name: "Alpha", score: "2670", rank: 3, frontlineStage: 5, _sourceFrameIndex: 0 },
+        { name: "Alpha", score: "2670", rank: 3, frontlineStage: 5, _sourceFrameIndex: 1 },
+      ],
+      observations: [],
+      frameTimings: [{ frameIndex: 0, ms: 1, uploadMs: 0, extractMs: 1, entryCount: 1, error: null, rawResult: null }],
+      concurrency: 1,
+    });
+
+    const result = await processVideoJob(frontlineJob.id);
+    expect(mocks.ocrAllFrames).toHaveBeenCalledOnce();
+    expect(mocks.ocrFrontlineNativeFrames).not.toHaveBeenCalled();
+    expect(result.rowCount).toBe(1);
+    expect(mocks.insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      score: "2670",
+      rank: 3,
+      frontlineStage: 5,
+    }));
+  });
+
+  it("persists stage from mock frames for Frontline", async () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "mock");
+    vi.stubEnv("VIDEO_OCR_ALLOW_NONPROD", "true");
+    mocks.listAllianceMembers.mockResolvedValue([
+      { id: "member-alpha", current_name: "Alpha" },
+    ]);
+    mocks.mockOcrScoreFrames.mockResolvedValue([
+      { name: "Alpha", score: "2670", rank: 3, frontlineStage: 5, _sourceFrameIndex: 0 },
+    ]);
+
+    const result = await processVideoJob(frontlineJob.id);
+    expect(mocks.mockOcrScoreFrames).toHaveBeenCalledOnce();
+    expect(mocks.ocrFrontlineNativeFrames).not.toHaveBeenCalled();
+    expect(mocks.ocrAllFrames).not.toHaveBeenCalled();
+    expect(result.rowCount).toBe(1);
+    expect(mocks.insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      score: "2670",
+      frontlineStage: 5,
+    }));
   });
 });

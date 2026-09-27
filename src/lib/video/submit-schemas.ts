@@ -6,6 +6,7 @@ export type SubmitRowInput = {
   memberName: string;
   score: string;
   rank?: number | null;
+  frontlineStage?: number | null;
 };
 
 export type VsScorePeriod = "daily" | "weekly";
