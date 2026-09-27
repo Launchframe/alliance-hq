@@ -222,7 +222,7 @@ function SettingsTeamTabsInner(props: Props) {
           <SettingsTeamClient
             team={team}
             onTeamChange={setTeam}
-            onRolesChanged={() => void reloadRoleNudges()}
+            onRolesChanged={() => reloadRoleNudges()}
             canRefreshFromAshed={canRefreshFromAshed}
             canRevokeOfficers={canRevokeOfficers}
             currentHqUserId={currentHqUserId}

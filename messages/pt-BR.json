@@ -1458,6 +1458,7 @@
     "refreshing": "Atualizando…",
     "loadFailed": "Não foi possível carregar a equipe.",
     "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
+    "rosterSyncSkipped": "As funções da aliança foram atualizadas, mas as patentes no jogo não. Os alertas de privilégio podem faltar até a sincronização do roster funcionar.",
     "empty": "Nenhum membro da equipe ainda.",
     "forbidden": "Membro da aliança necessário.",
     "revokeOfficer": "Remover acesso de oficial",

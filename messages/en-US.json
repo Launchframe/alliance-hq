@@ -1470,6 +1470,7 @@
     "refreshing": "Refreshing…",
     "loadFailed": "Could not load team roster.",
     "refreshFailed": "Refresh failed — check your Ashed token.",
+    "rosterSyncSkipped": "Alliance roles refreshed, but in-game ranks did not update. Privilege nudges may be missing until roster sync succeeds.",
     "empty": "No team members yet.",
     "forbidden": "Alliance membership required.",
     "revokeOfficer": "Remove officer access",
