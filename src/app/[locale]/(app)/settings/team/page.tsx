@@ -130,14 +130,14 @@ export default async function SettingsTeamPage({
 
   const tagLabel = allianceTag ?? allianceName ?? t("unknownAlliance");
 
+  const showRoleNudges = rbac ? canViewRoleNudges(rbac) : false;
   const roleNudgesOpen =
-    rbac && canViewRoleNudges(rbac)
+    rbac && showRoleNudges
       ? await listOpenMemberRoleNudges(allianceId, rbac)
       : [];
-  const roleNudgesHistory =
-    rbac && canViewRoleNudges(rbac)
-      ? await listTeamRoleHistory(allianceId, 40)
-      : [];
+  const roleNudgesHistory = showRoleNudges
+    ? await listTeamRoleHistory(allianceId, 40)
+    : [];
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
@@ -168,6 +168,7 @@ export default async function SettingsTeamPage({
         initialTeam={team}
         canRefreshFromAshed={canRefreshFromAshed}
         ashedNote={canRefreshFromAshed ? t("ashedNote") : null}
+        canViewRoleNudges={showRoleNudges}
         roleNudgesOpen={roleNudgesOpen}
         roleNudgesHistory={roleNudgesHistory}
       />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -53,6 +53,7 @@ type Props = {
   initialTeam: TeamMember[];
   canRefreshFromAshed: boolean;
   ashedNote: string | null;
+  canViewRoleNudges: boolean;
   roleNudgesOpen: OpenRoleNudge[];
   roleNudgesHistory: RoleHistoryItem[];
 };
@@ -73,6 +74,7 @@ function SettingsTeamTabsInner(props: Props) {
     initialTeam,
     canRefreshFromAshed,
     ashedNote,
+    canViewRoleNudges,
     roleNudgesOpen,
     roleNudgesHistory,
   } = props;
@@ -83,7 +85,40 @@ function SettingsTeamTabsInner(props: Props) {
   const activeTab = resolveTeamSettingsTab(searchParams.get("tab"), {
     canManageInvites,
     isAllianceAdmin,
+    hasInviteWizard: searchParams.has("inviteWizard"),
   });
+
+  const [team, setTeam] = useState(initialTeam);
+  const [nudgesOpen, setNudgesOpen] = useState(roleNudgesOpen);
+  const [nudgesHistory, setNudgesHistory] = useState(roleNudgesHistory);
+
+  const reloadRoleNudges = useCallback(async (): Promise<boolean> => {
+    if (!canViewRoleNudges) return true;
+    try {
+      const res = await fetch("/api/settings/team/role-nudges");
+      if (!res.ok) return false;
+      const data = (await res.json()) as {
+        open: OpenRoleNudge[];
+        history: RoleHistoryItem[];
+      };
+      setNudgesOpen(data.open);
+      setNudgesHistory(data.history);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [canViewRoleNudges]);
+
+  const reloadTeam = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/team");
+      if (!res.ok) return;
+      const data = (await res.json()) as { team: TeamMember[] };
+      setTeam(data.team);
+    } catch {
+      // Keep the current list; the next refresh or navigation reloads it.
+    }
+  }, []);
 
   const setTab = useCallback(
     (tab: TeamSettingsTab) => {
@@ -129,8 +164,10 @@ function SettingsTeamTabsInner(props: Props) {
   return (
     <div className="space-y-6">
       <TeamRoleNudgesPanel
-        initialOpen={roleNudgesOpen}
-        initialHistory={roleNudgesHistory}
+        open={nudgesOpen}
+        history={nudgesHistory}
+        onReload={reloadRoleNudges}
+        onRoleChanged={() => void reloadTeam()}
       />
 
       <div
@@ -183,7 +220,9 @@ function SettingsTeamTabsInner(props: Props) {
       {activeTab === "members" ? (
         <>
           <SettingsTeamClient
-            initialTeam={initialTeam}
+            team={team}
+            onTeamChange={setTeam}
+            onRolesChanged={() => void reloadRoleNudges()}
             canRefreshFromAshed={canRefreshFromAshed}
             canRevokeOfficers={canRevokeOfficers}
             currentHqUserId={currentHqUserId}

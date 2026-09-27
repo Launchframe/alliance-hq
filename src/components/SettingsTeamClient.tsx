@@ -12,7 +12,10 @@ import {
 import type { TeamMember } from "@/lib/rbac/sync-ashed-roles";
 
 type Props = {
-  initialTeam: TeamMember[];
+  team: TeamMember[];
+  onTeamChange: (team: TeamMember[]) => void;
+  /** Ranks or HQ roles may have changed (Ashed refresh, officer revoke). */
+  onRolesChanged?: () => void;
   canRefreshFromAshed?: boolean;
   canRevokeOfficers?: boolean;
   currentHqUserId?: string | null;
@@ -33,13 +36,14 @@ function CommanderOwnershipCell({
 }
 
 export function SettingsTeamClient({
-  initialTeam,
+  team,
+  onTeamChange,
+  onRolesChanged,
   canRefreshFromAshed = false,
   canRevokeOfficers = false,
   currentHqUserId = null,
 }: Props) {
   const t = useTranslations("team");
-  const [team, setTeam] = useState(initialTeam);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState<TeamMember | null>(null);
@@ -55,7 +59,8 @@ export function SettingsTeamClient({
         return;
       }
       const data = (await res.json()) as { team: TeamMember[] };
-      setTeam(data.team);
+      onTeamChange(data.team);
+      onRolesChanged?.();
     } finally {
       setRefreshing(false);
     }
@@ -79,13 +84,14 @@ export function SettingsTeamClient({
         setError(data.error ?? t("revokeOfficerFailed"));
         return;
       }
-      setTeam((current) =>
-        current.map((member) =>
+      onTeamChange(
+        team.map((member) =>
           member.membershipId === pendingRevoke.membershipId
             ? { ...member, roleName: "member", source: "manual" }
             : member,
         ),
       );
+      onRolesChanged?.();
       setPendingRevoke(null);
     } finally {
       setRevoking(false);

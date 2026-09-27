@@ -1482,7 +1482,7 @@
     "ashedNote": "Alliance admins: to add or remove maintainers from Ashed sync, update collaborators in Ashed → Alliances, then refresh here.",
     "roleNudges": {
       "title": "R4 privilege nudges",
-      "description": "When someone becomes or leaves in-game R4, HQ asks officers to invite, elevate, or demote HQ access. Rejecting a nudge vouchers that decision for the whole alliance until their rank situation changes.",
+      "description": "When someone becomes or leaves in-game R4, HQ asks officers to invite, elevate, or demote HQ access. Rejecting a nudge vouches for that decision for the whole alliance until their rank situation changes.",
       "loadFailed": "Could not load privilege nudges.",
       "actionFailed": "Could not update that nudge.",
       "emptyOpen": "No open privilege nudges.",
@@ -1499,6 +1499,9 @@
       "statusSuperseded": "Superseded",
       "inviteCreated": "Officer invite created — share this link:",
       "invitePassphrase": "Passphrase: {passphrase}",
+      "acceptedElevate": "{name} is now an officer.",
+      "acceptedDeescalate": "{name} is now a member.",
+      "rejected": "Nudge dismissed for {name}. Officers won't be asked again unless their rank changes.",
       "showHistory": "Show rank & role history",
       "hideHistory": "Hide history",
       "historyNudge": "{name}: {kind} ({status})",
