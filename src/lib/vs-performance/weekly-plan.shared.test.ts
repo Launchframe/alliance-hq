@@ -4,6 +4,7 @@ import {
   buildVsPlatformDraft,
   conductorRuleForVsPlanDay,
   vsPlanDraftSchema,
+  vsPlannedPushPoints,
   vsTrainDate,
   vsWeekStartSchema,
 } from "./weekly-plan.shared";
@@ -101,6 +102,36 @@ describe("conductorRuleForVsPlanDay", () => {
         day("unrestricted", { heavyHitterReward: true }),
       ),
     ).toEqual({ kind: "price_is_freight", board: "heavy_hitter" });
+  });
+});
+
+describe("vsPlannedPushPoints", () => {
+  it("sums 1/2/2/2/2/4 only on push days", () => {
+    expect(vsPlannedPushPoints(buildVsPlatformDraft(WEEK, "all_out_domination").days, WEEK)).toBe(13);
+    expect(vsPlannedPushPoints(buildVsPlatformDraft(WEEK, "strategic_victory").days, WEEK)).toBe(0);
+    expect(vsPlannedPushPoints(buildVsPlatformDraft(WEEK, "price_is_freight").days, WEEK)).toBe(0);
+    expect(vsPlannedPushPoints(buildVsPlatformDraft(WEEK, "save_week").days, WEEK)).toBe(0);
+  });
+
+  it("counts Saturday push as 4 and ignores duplicate-free non-push days", () => {
+    const draft = buildVsPlatformDraft(WEEK, "strategic_victory");
+    const days = draft.days.map((day, index) => ({
+      ...day,
+      strategy: index === 0 || index === 5 ? "push" as const : day.strategy,
+    }));
+    expect(vsPlannedPushPoints(days, WEEK)).toBe(5);
+  });
+
+  it("throws on duplicate score dates or dates outside the week", () => {
+    const draft = buildVsPlatformDraft(WEEK, "all_out_domination");
+    const dup = [draft.days[0]!, draft.days[0]!];
+    expect(() => vsPlannedPushPoints(dup, WEEK)).toThrow("invalid");
+    expect(() =>
+      vsPlannedPushPoints(
+        [{ ...draft.days[0]!, scoreDate: "2026-09-27" }],
+        WEEK,
+      ),
+    ).toThrow("invalid");
   });
 });
 

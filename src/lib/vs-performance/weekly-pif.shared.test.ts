@@ -266,6 +266,28 @@ describe("buildWeeklyPifBoard", () => {
     expect(board.provisional).toBe(true);
   });
 
+  it("does not count the in-progress PIF day even when scores exist", () => {
+    const specs = [
+      { pif: true, scores: { a: 7_210_000 }, eligible: ["a"] },
+      { pif: true, scores: { a: 7_250_000 }, eligible: ["a"] },
+      { pif: false },
+      { pif: false },
+      { pif: false },
+      { pif: false },
+    ];
+    const board = buildWeeklyPifBoard({
+      weekStart: WEEK,
+      serverToday: dates[1]!,
+      candidates: [{ memberId: "a", memberName: "A" }],
+      days: days(specs),
+    });
+    expect(board.countedDates).toEqual([dates[0]]);
+    expect(board.missingDates).toEqual([dates[1]]);
+    expect(board.provisional).toBe(true);
+    expect(board.entries[0]!.totalExcess).toBe("10000");
+    expect(board.entries[0]!.daysCounted).toBe(1);
+  });
+
   it("non-PIF (heavy-hitter) days are never counted", () => {
     const specs = [
       { pif: false, scores: { a: 9_000_000 }, eligible: ["a"] },
