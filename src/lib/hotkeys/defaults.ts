@@ -112,6 +112,8 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "trains.template.6": chord("6", ["shift"]),
   "trains.template.7": chord("7", ["shift"]),
   "trains.template.8": chord("8", ["shift"]),
+
+  "vsPerformance.editPlan": { key: "e" },
 } satisfies Record<HotkeyActionId, HotkeyBinding>;
 
 export const DEFAULT_HOTKEY_BINDINGS: Record<HotkeyActionId, HotkeyBinding> =

@@ -1973,6 +1973,9 @@
         "template6": "Apply template 6",
         "template7": "Apply template 7",
         "template8": "Apply template 8"
+      },
+      "vsPerformance": {
+        "editPlan": "Edit VS plan"
       }
     }
   },
@@ -7643,6 +7646,114 @@
       "alliance": "Select an alliance to continue.",
       "forbidden": "You don’t have permission to do that.",
       "conflict": "This note changed elsewhere. Reload it before saving."
+    }
+  },
+  "vsPerformance": {
+    "week": {
+      "title": "Week of {date}",
+      "previous": "Previous week",
+      "next": "Next week",
+      "current": "This week"
+    },
+    "plan": {
+      "title": "Weekly VS plan",
+      "empty": "No VS plan has been set for this week.",
+      "edit": "Edit VS plan",
+      "platform": "Weekly platform",
+      "strategy": "Day strategy",
+      "push": "Push",
+      "hardSave": "Hard save — The Price Is Freight",
+      "softSave": "Soft save — R3 lottery",
+      "undecided": "Undecided",
+      "unrestricted": "Unrestricted",
+      "breakDay": "Sunday — VS break",
+      "strategicHint": "Mix push, hard-save, and soft-save days as the matchup develops. Undecided days leave the train schedule unchanged.",
+      "freightHint": "Aim for 7.2M Monday through Thursday. Friday feeds the heavy-hitter draw; Saturday is unrestricted.",
+      "protected": "Completed VS days and past or locked trains stay unchanged."
+    },
+    "defaults": {
+      "title": "Push-day conductor rewards",
+      "body": "Choose the Top VS reward for each VS weekday. These defaults apply to new plans; saved plans keep their choices.",
+      "topN": "Top {count} VS"
+    },
+    "results": {
+      "title": "Daily results",
+      "label": "Result",
+      "won": "Won",
+      "lost": "Lost",
+      "pending": "Pending",
+      "hint": "Record completed days only. Planning a push does not count as a win.",
+      "ourTotal": "Our alliance’s final score",
+      "opponentTotal": "Opponent’s final score",
+      "totalsHint": "Enter the final totals shown in game. These determine the day’s result.",
+      "saveTotals": "Save final scores",
+      "equalTotals": "Equal totals do not determine a winner. Confirm the result shown in game.",
+      "invalidTotals": "Enter both final scores as non-negative whole numbers.",
+      "resultMismatch": "The selected result does not match the final scores. Check the scores and result.",
+      "sourceHq": "Recorded in HQ",
+      "sourceAshed": "Imported from Ashed",
+      "ashedConflict": "Ashed has a different result. Your HQ-confirmed result is unchanged.",
+      "reviewAshed": "Review Ashed result",
+      "useAshed": "Use Ashed result",
+      "keepHq": "Keep HQ result"
+    },
+    "points": {
+      "dayValue": "{count, plural, one {# point} other {# points}}",
+      "alliance": "Our alliance: {count}",
+      "opponent": "Opponent: {count}",
+      "target": "7 points wins the week.",
+      "planned": "Planned push points: {count}",
+      "saturdayPath": "Win Saturday to secure the week.",
+      "secured": "Weekly victory secured.",
+      "opponentSecured": "The opponent has secured the week."
+    },
+    "podium": {
+      "title": "The Price Is Freight — weekly podium",
+      "subtitle": "R3 commanders ranked by average distance above 7.2M on qualifying Price Is Freight days.",
+      "averageScore": "Average VS: {score}",
+      "averageOver": "Average above goal: {points}",
+      "coverage": "{count} of {total} days counted",
+      "provisional": "Provisional — some Price Is Freight days are unfinished or missing scores.",
+      "qualification": "Reach at least 7.2M on every counted day to qualify.",
+      "noPif": "No weekday Price Is Freight source days are scheduled for this week.",
+      "noData": "No completed Price Is Freight days have scores yet.",
+      "noQualifiers": "No R3 commanders qualify across all counted days yet.",
+      "aria": "Top three weekly Price Is Freight commanders",
+      "listAria": "Weekly Price Is Freight places four through ten"
+    },
+    "sync": {
+      "preview": "Review train changes",
+      "apply": "Save plan and update trains",
+      "body": "Review the conductor rules below. VIP rules will not change.",
+      "trainDate": "Train: {date}",
+      "before": "Current rule",
+      "after": "Planned rule",
+      "override": "Train override",
+      "overrideHint": "This train’s rule differs from the VS plan. Review before applying the plan again.",
+      "clearDraft": "This change will clear an ineligible pending conductor.",
+      "leadTimeChanged": "Train lead time has changed. Review the affected train dates before saving."
+    },
+    "matchup": {
+      "opponentName": "Opponent alliance name",
+      "opponentTag": "Opponent alliance tag",
+      "unknown": "Opponent not recorded",
+      "import": "Refresh matchup from Ashed",
+      "importFailed": "Could not load matchup details from Ashed. Saved HQ results are unchanged."
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "Saved",
+      "saving": "Saving…",
+      "loading": "Loading…",
+      "retry": "Retry"
+    },
+    "errors": {
+      "load": "Could not load this week’s VS plan and standings.",
+      "save": "Could not save your changes. Your edits have been kept.",
+      "stale": "The plan or train schedule changed. Refresh and review your changes again.",
+      "invalid": "Check the selected dates, strategies, and rewards, then try again.",
+      "forbidden": "You do not have permission to make this change."
     }
   }
 }

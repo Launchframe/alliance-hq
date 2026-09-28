@@ -291,6 +291,7 @@ export function HotkeyProvider({
             return false;
           }
           if (action.scope === "page:notes" && pathname !== "/notes" && !pathname.startsWith("/notes/")) return false;
+          if (action.scope === "page:vs-performance" && pathname !== "/vs-performance" && !pathname.endsWith("/vs-performance")) return false;
           return true;
         });
 

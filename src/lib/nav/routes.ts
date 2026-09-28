@@ -191,7 +191,8 @@ export const NAV_GROUPS: NavGroupDef[] = [
         id: "vs-performance",
         labelKey: "vsPerformance",
         href: "/vs-performance",
-        kind: "iframe",
+        kind: "native",
+        requiredPermission: "scores:read",
       },
       {
         id: "donations",
