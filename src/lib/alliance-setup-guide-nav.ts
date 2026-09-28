@@ -1,5 +1,6 @@
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status.shared";
+import { teamSettingsHref } from "@/lib/settings/team-settings-tabs.shared";
 
 /**
  * Destination for a setup-guide task's primary action. Shared by the settings
@@ -20,7 +21,7 @@ export function allianceSetupGuideTaskHref(
     case "owner_commander_link":
       return "/onboard";
     case "team_invites":
-      return "/settings/team";
+      return teamSettingsHref("invites");
     case "discord_guild":
       return "/guides/discord-train";
     default:
