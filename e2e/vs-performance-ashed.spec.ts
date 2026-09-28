@@ -792,7 +792,7 @@ test.describe("VS Ashed sync and capture UI", () => {
     await page.context().addCookies(playwrightAuthCookies(auth));
 
     await page.goto(`/en-US/vs-performance?week=${pastWeek}`);
-    const results = page.getByTestId("vs-matchup-results").first();
+    const results = page.getByTestId("vs-matchup-results").locator("visible=true");
     await expect(results.getByText("Opponent").first()).toBeVisible();
     await expect(
       page.getByTestId("vs-sync-status").first(),
@@ -832,7 +832,7 @@ test.describe("VS Ashed sync and capture UI", () => {
     await page.getByTestId("vs-capture-right-score").fill("0");
     await page.getByTestId("vs-capture-save").click();
     await expect(dialog).toBeHidden({ timeout: 30_000 });
-    const results = page.getByTestId("vs-matchup-results").first();
+    const results = page.getByTestId("vs-matchup-results").locator("visible=true");
     await expect(
       results.getByText("Won", { exact: true }),
     ).toHaveCount(0);

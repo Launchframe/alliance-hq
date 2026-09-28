@@ -332,6 +332,15 @@ export function WeeklyVsPlan({
         setReviewed(null);
         return;
       }
+      if (
+        body.contextScope !== payload.contextScope ||
+        body.weekStart !== payload.weekStart
+      ) {
+        setError(t("errors.stale"));
+        setPreview(null);
+        setReviewed(null);
+        return;
+      }
       setPreview(null);
       setReviewed(null);
       onEditingChange(false);

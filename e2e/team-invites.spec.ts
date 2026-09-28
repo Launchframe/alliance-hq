@@ -13,6 +13,7 @@ import {
   createNativeAlliance,
   getE2eSql,
 } from "./fixtures/db";
+import { playwrightAuthCookies } from "./fixtures/auth";
 
 function uniqueEmail(prefix: string): string {
   return `${prefix}-${randomBytes(4).toString("hex")}@e2e.test`;
@@ -942,6 +943,87 @@ test.describe("Team Access — R4 privilege nudges", () => {
         hq_user_id: officer.hqUserId,
       },
     ]);
+  });
+
+  test("Team Access opens on Members; accepting an elevate nudge confirms and updates the list", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `NU${nanoid(3)}`,
+      name: "Nudge UI Alliance",
+    });
+    const officer = await seedOfficerSession(
+      sql,
+      alliance.allianceId,
+      alliance.tag,
+      "officer-ui",
+    );
+    // (app) pages send HQ users without a linked commander to onboarding.
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officer.hqUserId,
+    });
+    const targetName = `Elevate UI ${nanoid(4)}`;
+    const target = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("elevate-ui"),
+      { displayName: targetName },
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: target.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    const { ashedMemberId } = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: targetName,
+      allianceRank: 4,
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: target.hqUserId,
+      ashedMemberId,
+    });
+    const nudgeId = await seedOpenNudge(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId,
+      hqUserId: target.hqUserId,
+      kind: "escalate_elevate",
+      fromRank: 3,
+      toRank: 4,
+    });
+
+    await page.context().addCookies(playwrightAuthCookies(officer));
+    await page.goto("/settings/team");
+    await expect(page).toHaveURL(/\/settings\/team$/);
+
+    await expect(page.getByTestId("team-settings-tab-members")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const targetRow = page.getByRole("row", { name: new RegExp(targetName) });
+    await expect(targetRow).toContainText(/member/i);
+
+    const nudge = page.locator(`#role-nudge-${nudgeId}`);
+    await nudge.getByRole("button", { name: "Accept" }).click();
+
+    await expect(page.getByTestId("role-nudge-notice")).toHaveText(
+      `${targetName} is now an officer.`,
+    );
+    await expect(nudge).toHaveCount(0);
+    await expect(targetRow).toContainText(/officer/i);
+
+    const [membership] = await sql`
+      SELECT r.name AS role_name
+      FROM alliance_memberships m
+      INNER JOIN roles r ON r.id = m.role_id
+      WHERE m.alliance_id = ${alliance.allianceId}
+        AND m.hq_user_id = ${target.hqUserId}
+        AND m.status = 'active'
+    `;
+    expect(membership?.role_name).toBe("officer");
   });
 
   test("concurrent accepts create at most one invite and one success", async ({

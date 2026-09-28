@@ -35,6 +35,16 @@ function errorKeyOf(body: ApiError): string {
   return ["stale", "invalid", "forbidden"].includes(code) ? code : "save";
 }
 
+function weekPayloadMatchesView(
+  body: VsWeekPayload,
+  payload: VsWeekPayload,
+): boolean {
+  return (
+    body.contextScope === payload.contextScope &&
+    body.weekStart === payload.weekStart
+  );
+}
+
 function outcomeKey(outcome: VsOutcome): string {
   return `results.${outcome}`;
 }
@@ -873,9 +883,14 @@ function DayResultRow({
         setError(t("errors.load"));
         return;
       }
+      const refreshedBody = (await refreshed.json()) as VsWeekPayload;
+      if (!weekPayloadMatchesView(refreshedBody, payload)) {
+        setError(t("errors.stale"));
+        return;
+      }
       requestRef.current = null;
       setOpen(false);
-      onSaved((await refreshed.json()) as VsWeekPayload);
+      onSaved(refreshedBody);
     } catch {
       setError(t("errors.save"));
     } finally {
@@ -1132,8 +1147,13 @@ function ConflictRow({
         setError(t("errors.load"));
         return;
       }
+      const refreshedBody = (await refreshed.json()) as VsWeekPayload;
+      if (!weekPayloadMatchesView(refreshedBody, payload)) {
+        setError(t("errors.stale"));
+        return;
+      }
       setResolved(true);
-      onSaved((await refreshed.json()) as VsWeekPayload);
+      onSaved(refreshedBody);
     } catch {
       setError(t("errors.save"));
     } finally {

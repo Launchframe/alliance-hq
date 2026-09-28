@@ -6,6 +6,7 @@ import { POST as previewPOST } from "./preview/route";
 import { PATCH as matchupPATCH } from "../matchup/route";
 import { PATCH as dayResultPATCH } from "../matchup/days/[recordedDate]/route";
 import { POST as conflictPOST } from "../matchup/conflicts/[observationId]/route";
+import { POST as importPOST } from "../matchup/import/route";
 import { PATCH as preferencesPATCH } from "../preferences/route";
 import { VsPerformanceError } from "@/lib/vs-performance/weekly-plan.shared";
 import { vsScope } from "@/lib/vs-performance/vs-scope.server";
@@ -519,4 +520,105 @@ describe("/api/vs-performance/matchup", () => {
       }),
     );
   });
+});
+
+describe("/api/vs-performance mutating routes deny anonymous and unprivileged sessions", () => {
+  const json = { method: "PATCH", body: "{}" };
+  const cases: Array<{
+    name: string;
+    run: () => Promise<Response>;
+  }> = [
+    {
+      name: "PATCH /week",
+      run: () =>
+        PATCH(new Request("http://localhost/api/vs-performance/week", json)),
+    },
+    {
+      name: "POST /week/preview",
+      run: () =>
+        previewPOST(
+          new Request("http://localhost/api/vs-performance/week/preview", {
+            method: "POST",
+            body: "{}",
+          }),
+        ),
+    },
+    {
+      name: "PATCH /matchup",
+      run: () =>
+        matchupPATCH(
+          new Request("http://localhost/api/vs-performance/matchup", json),
+        ),
+    },
+    {
+      name: "PATCH /matchup/days",
+      run: () =>
+        dayResultPATCH(
+          new Request(
+            "http://localhost/api/vs-performance/matchup/days/2099-06-08",
+            json,
+          ),
+          { params: Promise.resolve({ recordedDate: "2099-06-08" }) },
+        ),
+    },
+    {
+      name: "POST /matchup/conflicts",
+      run: () =>
+        conflictPOST(
+          new Request(
+            "http://localhost/api/vs-performance/matchup/conflicts/obs9",
+            { method: "POST", body: "{}" },
+          ),
+          { params: Promise.resolve({ observationId: "obs9" }) },
+        ),
+    },
+    {
+      name: "POST /matchup/import",
+      run: () => importPOST(new Request("http://localhost/api/vs-performance/matchup/import", { method: "POST", body: "{}" })),
+    },
+    {
+      name: "PATCH /preferences",
+      run: () =>
+        preferencesPATCH(
+          new Request("http://localhost/api/vs-performance/preferences", json),
+        ),
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each(cases)("$name returns 401 without a session", async ({ run }) => {
+    requireApiSession.mockResolvedValue(denied(401));
+    const res = await run();
+    expect(res.status).toBe(401);
+    expect(saveVsWeekPlan).not.toHaveBeenCalled();
+    expect(previewVsWeekPlan).not.toHaveBeenCalled();
+    expect(saveVsMatchupIdentity).not.toHaveBeenCalled();
+    expect(saveVsMatchDayResult).not.toHaveBeenCalled();
+    expect(resolveVsMatchConflict).not.toHaveBeenCalled();
+    expect(saveVsStrategyPreferences).not.toHaveBeenCalled();
+  });
+
+  it.each(cases)(
+    "$name returns 403 for a bootstrap session without trains:write",
+    async ({ run }) => {
+      requireApiSession.mockResolvedValue({
+        id: "sess-bootstrap",
+        hqUserId: null,
+        currentAllianceId: "a1",
+        allianceId: "a1",
+      });
+      requireTrainOfficer.mockResolvedValue(denied(403));
+      const res = await run();
+      expect(res.status).toBe(403);
+      expect(saveVsWeekPlan).not.toHaveBeenCalled();
+      expect(previewVsWeekPlan).not.toHaveBeenCalled();
+      expect(saveVsMatchupIdentity).not.toHaveBeenCalled();
+      expect(saveVsMatchDayResult).not.toHaveBeenCalled();
+      expect(resolveVsMatchConflict).not.toHaveBeenCalled();
+      expect(saveVsStrategyPreferences).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -1156,7 +1156,11 @@ export async function prepareTrainPaints(
       db,
       updateSeason: options?.readOnly ? false : options?.updateSeason,
     });
-    if (!schedule && !options?.readOnly) continue;
+    if (!schedule && !options?.readOnly) {
+      throw new Error(
+        `Missing week schedule after baseline for ${weekStart}`,
+      );
+    }
 
     const previousDayConfig = await resolveRollDayConfig(
       allianceId,
