@@ -31,47 +31,36 @@ type AcceptResult = {
 };
 
 type Props = {
-  initialOpen: OpenRoleNudge[];
-  initialHistory: RoleHistoryItem[];
+  open: OpenRoleNudge[];
+  history: RoleHistoryItem[];
+  /** Reloads open nudges + history; resolves false when the load failed. */
+  onReload: () => Promise<boolean>;
+  /** An accepted nudge changed someone's HQ role. */
+  onRoleChanged?: () => void;
 };
 
 export function TeamRoleNudgesPanel({
-  initialOpen,
-  initialHistory,
+  open,
+  history,
+  onReload,
+  onRoleChanged,
 }: Props) {
   const t = useTranslations("team.roleNudges");
   const locale = useLocale();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get("nudge");
 
-  const [open, setOpen] = useState(initialOpen);
-  const [history, setHistory] = useState(initialHistory);
   const [historyOpen, setHistoryOpen] = useState(Boolean(highlightId));
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [inviteResult, setInviteResult] = useState<AcceptResult | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await fetch("/api/settings/team/role-nudges");
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        setError(data.error ?? t("loadFailed"));
-        return;
-      }
-      const data = (await res.json()) as {
-        open: OpenRoleNudge[];
-        history: RoleHistoryItem[];
-      };
-      setOpen(data.open);
-      setHistory(data.history);
-    } catch {
+    if (!(await onReload())) {
       setError(t("loadFailed"));
     }
-  }, [t]);
+  }, [onReload, t]);
 
   useEffect(() => {
     if (!highlightId) return;
@@ -79,10 +68,13 @@ export function TeamRoleNudgesPanel({
     el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [highlightId, open]);
 
-  async function act(nudgeId: string, action: "accept" | "reject") {
+  async function act(nudge: OpenRoleNudge, action: "accept" | "reject") {
+    const nudgeId = nudge.id;
+    const name = nudge.memberName;
     setBusyId(nudgeId);
     setError(null);
     setInviteResult(null);
+    setNotice(null);
     try {
       const res = await fetch(
         `/api/settings/team/role-nudges/${encodeURIComponent(nudgeId)}/${action}`,
@@ -97,6 +89,15 @@ export function TeamRoleNudgesPanel({
       }
       if (action === "accept" && data.kind === "escalate_invite") {
         setInviteResult(data);
+      }
+      if (action === "reject") {
+        setNotice(t("rejected", { name }));
+      } else if (data.kind === "escalate_elevate") {
+        setNotice(t("acceptedElevate", { name }));
+        onRoleChanged?.();
+      } else if (data.kind === "deescalate") {
+        setNotice(t("acceptedDeescalate", { name }));
+        onRoleChanged?.();
       }
       await reload();
     } catch {
@@ -147,7 +148,7 @@ export function TeamRoleNudgesPanel({
     });
   }
 
-  if (open.length === 0 && history.length === 0 && !error) {
+  if (open.length === 0 && history.length === 0 && !error && !notice) {
     return null;
   }
 
@@ -161,6 +162,16 @@ export function TeamRoleNudgesPanel({
       {error ? (
         <p className="text-sm text-hq-danger" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {notice ? (
+        <p
+          className="rounded-lg border border-hq-success/40 bg-hq-success/10 p-3 text-sm text-hq-fg"
+          role="status"
+          data-testid="role-nudge-notice"
+        >
+          {notice}
         </p>
       ) : null}
 
@@ -206,7 +217,7 @@ export function TeamRoleNudgesPanel({
                   className="mt-3 flex flex-wrap gap-2"
                   onSubmit={(event) => {
                     preventDefaultFormSubmit(event);
-                    void act(nudge.id, "accept");
+                    void act(nudge, "accept");
                   }}
                 >
                   <button
@@ -219,7 +230,7 @@ export function TeamRoleNudgesPanel({
                   <button
                     type="button"
                     disabled={busyId === nudge.id}
-                    onClick={() => void act(nudge.id, "reject")}
+                    onClick={() => void act(nudge, "reject")}
                     className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
                   >
                     {t("reject")}

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { InviteInventoryPanel } from "@/components/settings/InviteInventoryPanel";
 import { InviteWizard } from "@/components/settings/InviteWizard";
 import type { SystemRoleName } from "@/lib/rbac/constants";
+import { COMMANDER_CLAIM_INVITES_ANCHOR } from "@/lib/settings/team-invites-path.shared";
 
 type Props = {
   assignableRoles: SystemRoleName[];
@@ -49,7 +50,10 @@ export function TeamInvitePanel({ assignableRoles, allianceName }: Props) {
   }
 
   return (
-    <div className="space-y-6 rounded-xl border border-hq-border bg-hq-surface p-5">
+    <div
+      id={COMMANDER_CLAIM_INVITES_ANCHOR}
+      className="space-y-6 rounded-xl border border-hq-border bg-hq-surface p-5"
+    >
       <div>
         <h2 className="text-lg font-semibold">{t("title")}</h2>
         <p className="mt-1 text-sm text-hq-fg-muted">{t("description")}</p>
