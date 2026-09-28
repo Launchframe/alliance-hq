@@ -116,7 +116,12 @@ export function VsPerformanceClient({
           return;
         }
         const body = (await res.json()) as VsWeekPayload;
-        if (stillActive() && body.contextScope === ctx) {
+        const expectedWeek = getWeekStartMonday(target);
+        if (
+          stillActive() &&
+          body.contextScope === ctx &&
+          body.weekStart === expectedWeek
+        ) {
           failedTarget.current = null;
           if (body.weekStart !== weekStart) {
             setEditing(false);
