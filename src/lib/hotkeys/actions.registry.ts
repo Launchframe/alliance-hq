@@ -599,6 +599,14 @@ const VS_PERFORMANCE_ACTIONS: HotkeyActionDef[] = [
     kind: "custom",
     requiredPermission: "trains:write",
   },
+  {
+    id: "vsPerformance.capture",
+    labelKey: "actions.vsPerformance.capture",
+    category: "tools",
+    scope: "page:vs-performance",
+    kind: "custom",
+    requiredPermission: "trains:write",
+  },
 ];
 
 const GLOBAL_ACTIONS: HotkeyActionDef[] = [

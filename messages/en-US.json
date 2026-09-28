@@ -1975,7 +1975,8 @@
         "template8": "Apply template 8"
       },
       "vsPerformance": {
-        "editPlan": "Edit VS plan"
+        "editPlan": "Edit VS plan",
+        "capture": "Upload VS screenshot"
       }
     }
   },
@@ -7738,7 +7739,15 @@
       "opponentTag": "Opponent alliance tag",
       "unknown": "Opponent not recorded",
       "import": "Refresh matchup from Ashed",
-      "importFailed": "Could not load matchup details from Ashed. Saved HQ results are unchanged."
+      "importFailed": "Could not load matchup details from Ashed. Saved HQ results are unchanged.",
+      "opponentServer": "Opponent server",
+      "weekOutcome": "Recorded week outcome",
+      "opponentScore": "Opponent score",
+      "opponentOnlyHint": "Opponent scores do not determine daily wins until a final day result is confirmed.",
+      "confirmedDayHint": "Edit the confirmed day result to change its scores.",
+      "previousOpponents": "Previous opponents",
+      "selectPrevious": "Select a previous opponent",
+      "day": "Day {day}"
     },
     "actions": {
       "save": "Save",
@@ -7754,6 +7763,55 @@
       "stale": "The plan or train schedule changed. Refresh and review your changes again.",
       "invalid": "Check the selected dates, strategies, and rewards, then try again.",
       "forbidden": "You do not have permission to make this change."
+    },
+    "ashedSync": {
+      "action": "Sync with Ashed",
+      "hint": "Opponent information saved in HQ also syncs to Ashed. Unrelated weekly settings stay unchanged.",
+      "pending": "Saved in HQ. Ashed sync is pending.",
+      "synced": "Synced with Ashed.",
+      "failed": "Saved in HQ, but Ashed sync failed. Retry to sync.",
+      "credentials": "Connect an authorized Ashed account to sync opponent information.",
+      "conflict": "Opponent information changed in Ashed. Review it before syncing your HQ changes.",
+      "tooLarge": "This score is too large to sync to Ashed without losing precision. It is saved exactly in HQ.",
+      "useAshed": "Use Ashed values",
+      "keepHq": "Keep HQ values",
+      "uncertain": "Could not confirm whether Ashed saved this change. Refresh before retrying."
+    },
+    "reconcile": {
+      "title": "Member-score check",
+      "match": "Uploaded member scores match the confirmed total.",
+      "mismatch": "Uploaded member scores total {uploaded}; confirmed total {confirmed}. Difference: {difference}.",
+      "hint": "Check for missing or incorrect member rows. The confirmed total stays authoritative.",
+      "noRows": "No individual member scores are available for this day.",
+      "unavailable": "Could not check individual member scores. The confirmed total is unchanged."
+    },
+    "capture": {
+      "open": "Upload VS screenshot",
+      "type": "Screenshot type",
+      "weekType": "Weekly overview",
+      "dayType": "Duel Themes — daily scores",
+      "title": "Review VS screenshot",
+      "hint": "Check the week, alliance sides, and every value before saving. Unreadable or unfinished results stay pending.",
+      "week": "VS week",
+      "ourSide": "Our alliance",
+      "left": "Left alliance",
+      "right": "Right alliance",
+      "confirmSides": "I confirm the selected side is our alliance.",
+      "ourPoints": "Our victory points",
+      "opponentPoints": "Opponent victory points",
+      "finalDay": "I confirm these are the final scores for this completed day.",
+      "unknown": "Not visible or not finished",
+      "read": "Read screenshot",
+      "reading": "Reading screenshot…",
+      "save": "Save reviewed results",
+      "imageHint": "Choose a PNG or JPEG image under 20 MB.",
+      "partial": "Some values could not be read. Check the screenshot and enter them.",
+      "failed": "Could not read this screenshot. Try another image.",
+      "expired": "This screenshot review expired or changed. Upload it again.",
+      "invalid": "Check the week, day, alliance sides, and scores before saving.",
+      "pointMismatch": "The daily results do not match the weekly victory points. Check the review.",
+      "ongoing": "This appears to be an ongoing duel. Zero scores and blank results remain pending.",
+      "noFinals": "No final day results are confirmed. Only the reviewed matchup information will be saved."
     }
   }
 }

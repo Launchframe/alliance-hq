@@ -5,6 +5,12 @@ import type {
   VsNormalizedResult,
   VsResultSource,
 } from "./match-results.shared";
+import type { VsMemberScoreCheck } from "./member-score-check.shared";
+import type {
+  VsOpponentField,
+  VsOpponentScores,
+  VsWeekOutcome,
+} from "./opponent-info.shared";
 import { calculateVsWeekPoints } from "./match-results.shared";
 import type {
   VsPlanDay,
@@ -30,11 +36,40 @@ export type VsSavedDayResult = VsDayResult & {
   hqConfirmed: boolean;
 };
 
+export type VsMatchupSyncStatus =
+  | "idle"
+  | "pending"
+  | "synced"
+  | "conflict"
+  | "credentials_required"
+  | "failed"
+  | "uncertain";
+
+export type VsMatchupSyncConflict = {
+  field: VsOpponentField;
+  hqValue: string | number | null;
+  ashedValue: string | number | null;
+};
+
+export type VsMatchupSyncView = {
+  status: VsMatchupSyncStatus;
+  errorCode: string | null;
+  lastSyncedAt: string | null;
+  conflicts: VsMatchupSyncConflict[];
+  conflictToken: string | null;
+};
+
 export type VsMatchupView = {
   id: string;
   version: number;
   opponentName: string | null;
   opponentTag: string | null;
+  opponentServer: number | null;
+  opponentDailyScores: VsOpponentScores;
+  weekOutcome: VsWeekOutcome;
+  reportedOurPoints: number | null;
+  reportedOpponentPoints: number | null;
+  reportedPointsAt: string | null;
   days: VsSavedDayResult[];
   conflicts: Array<{
     id: string;
@@ -42,6 +77,7 @@ export type VsMatchupView = {
     result: VsNormalizedResult;
     nativeVersion: number;
   }>;
+  sync: VsMatchupSyncView;
 };
 
 export type VsPlanAppliedMeta = {
@@ -71,6 +107,13 @@ export type VsWeekPayload = {
   pif: WeeklyPifBoard | null;
   pifError: string | null;
   canImportAshed: boolean;
+  ashedLinked: boolean;
+  memberScoreChecks: Record<string, VsMemberScoreCheck>;
+  allianceIdentity: {
+    tag: string | null;
+    name: string | null;
+    server: number | null;
+  };
 };
 
 export type VsPlanPreview = {
@@ -98,4 +141,5 @@ export type TrustedVsResultEvidence = {
   sourceRef?: string | null;
   sourceRevision?: string | null;
   reviewJobId?: string | null;
+  reviewCaptureId?: string | null;
 };

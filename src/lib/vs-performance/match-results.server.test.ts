@@ -32,6 +32,7 @@ vi.mock("@/lib/db", () => ({
   schema: {
     vsMatchups: { id: "id", allianceId: "allianceId" },
     vsMatchDayResults: { id: "id" },
+    vsMatchupAshedSync: { matchupId: "m", allianceId: "a" },
   },
 }));
 
@@ -54,6 +55,8 @@ vi.mock("@/lib/vs-performance/match-results.repository.server", () => ({
   markVsObservationDisposition: mocks.markVsObservationDisposition,
   upsertVsMatchup: mocks.upsertVsMatchup,
   writeVsMatchDayResult: mocks.writeVsMatchDayResult,
+  markVsOpponentFieldsDirty: vi.fn(async () => undefined),
+  ensureVsMatchupSyncRow: vi.fn(async () => null),
 }));
 
 vi.mock("@/lib/trains/game-time", async (importOriginal) => {

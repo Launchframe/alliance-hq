@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
@@ -7,18 +6,9 @@ import {
   vsActorForSession,
   vsErrorResponse,
 } from "@/lib/vs-performance/api-helpers.server";
-import { pullAshedOpponentInfo } from "@/lib/vs-performance/matchup-sync.server";
-import { vsWeekStartSchema } from "@/lib/vs-performance/weekly-plan.shared";
+import { syncAshedOpponentInfo } from "@/lib/vs-performance/matchup-sync.server";
 
 export const dynamic = "force-dynamic";
-
-const pullBodySchema = z
-  .object({
-    weekStart: vsWeekStartSchema,
-    scope: z.string().min(1).max(200),
-    reason: z.enum(["auto", "refresh"]).default("refresh"),
-  })
-  .strict();
 
 export async function POST(request: Request) {
   const sessionOrError = await requireApiSession();
@@ -39,13 +29,7 @@ export async function POST(request: Request) {
     );
   }
   try {
-    const input = pullBodySchema.parse(body);
-    const payload = await pullAshedOpponentInfo(
-      actor,
-      input.weekStart,
-      input.scope,
-      input.reason,
-    );
+    const payload = await syncAshedOpponentInfo(actor, body);
     return NextResponse.json(payload);
   } catch (error) {
     return vsErrorResponse(error);

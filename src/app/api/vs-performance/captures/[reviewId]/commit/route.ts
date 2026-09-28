@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
@@ -7,20 +6,14 @@ import {
   vsActorForSession,
   vsErrorResponse,
 } from "@/lib/vs-performance/api-helpers.server";
-import { pullAshedOpponentInfo } from "@/lib/vs-performance/matchup-sync.server";
-import { vsWeekStartSchema } from "@/lib/vs-performance/weekly-plan.shared";
+import { commitVsCaptureReview } from "@/lib/vs-performance/vs-capture.server";
 
 export const dynamic = "force-dynamic";
 
-const pullBodySchema = z
-  .object({
-    weekStart: vsWeekStartSchema,
-    scope: z.string().min(1).max(200),
-    reason: z.enum(["auto", "refresh"]).default("refresh"),
-  })
-  .strict();
-
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ reviewId: string }> },
+) {
   const sessionOrError = await requireApiSession();
   if (sessionOrError instanceof NextResponse) return sessionOrError;
   const session = sessionOrError;
@@ -29,6 +22,7 @@ export async function POST(request: Request) {
   const actor = vsActorForSession(session);
   if (actor instanceof NextResponse) return actor;
 
+  const { reviewId } = await params;
   let body: unknown;
   try {
     body = await request.json();
@@ -39,14 +33,7 @@ export async function POST(request: Request) {
     );
   }
   try {
-    const input = pullBodySchema.parse(body);
-    const payload = await pullAshedOpponentInfo(
-      actor,
-      input.weekStart,
-      input.scope,
-      input.reason,
-    );
-    return NextResponse.json(payload);
+    return NextResponse.json(await commitVsCaptureReview(actor, reviewId, body));
   } catch (error) {
     return vsErrorResponse(error);
   }

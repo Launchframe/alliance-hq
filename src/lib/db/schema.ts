@@ -5534,6 +5534,13 @@ export const vsMatchups = pgTable("vs_matchups", {
   opponentTag: text("opponent_tag"),
   externalOpponentId: text("external_opponent_id"),
   externalCompetitionId: text("external_competition_id"),
+  opponentServer: integer("opponent_server"),
+  opponentDailyScores: jsonb("opponent_daily_scores").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentScores>().notNull().default([null, null, null, null, null, null]),
+  weekOutcome: text("week_outcome").$type<import("@/lib/vs-performance/opponent-info.shared").VsWeekOutcome>().notNull().default("pending"),
+  opponentInfoOwnedFields: jsonb("opponent_info_owned_fields").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentField[]>().notNull().default([]),
+  reportedOurPoints: integer("reported_our_points"),
+  reportedOpponentPoints: integer("reported_opponent_points"),
+  reportedPointsAt: timestamp("reported_points_at", { withTimezone: true }),
   identitySource: text("identity_source").$type<"hq_manual" | "ashed_import">().notNull().default("hq_manual"),
   version: integer("version").notNull().default(1),
   createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
@@ -5546,6 +5553,10 @@ export const vsMatchups = pgTable("vs_matchups", {
   check("vs_matchups_week_start_monday_check", sql`extract(isodow from ${table.weekStart}::date) = 1`),
   check("vs_matchups_version_check", sql`${table.version} > 0`),
   check("vs_matchups_identity_source_check", sql`${table.identitySource} in ('hq_manual', 'ashed_import')`),
+  check("vs_matchups_week_outcome_check", sql`${table.weekOutcome} in ('pending', 'win', 'loss')`),
+  check("vs_matchups_opponent_scores_check", sql`jsonb_typeof(${table.opponentDailyScores}) = 'array' and jsonb_array_length(${table.opponentDailyScores}) = 6 and (${table.opponentDailyScores}->0 is null or jsonb_typeof(${table.opponentDailyScores}->0) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->0) = 'string' and (${table.opponentDailyScores}->>0) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->1 is null or jsonb_typeof(${table.opponentDailyScores}->1) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->1) = 'string' and (${table.opponentDailyScores}->>1) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->2 is null or jsonb_typeof(${table.opponentDailyScores}->2) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->2) = 'string' and (${table.opponentDailyScores}->>2) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->3 is null or jsonb_typeof(${table.opponentDailyScores}->3) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->3) = 'string' and (${table.opponentDailyScores}->>3) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->4 is null or jsonb_typeof(${table.opponentDailyScores}->4) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->4) = 'string' and (${table.opponentDailyScores}->>4) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->5 is null or jsonb_typeof(${table.opponentDailyScores}->5) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->5) = 'string' and (${table.opponentDailyScores}->>5) ~ '^(0|[1-9][0-9]{0,29})$'))`),
+  check("vs_matchups_reported_points_check", sql`(${table.reportedOurPoints} is null) = (${table.reportedOpponentPoints} is null) and (${table.reportedOurPoints} is null or (${table.reportedOurPoints} between 0 and 13 and ${table.reportedOpponentPoints} between 0 and 13 and ${table.reportedOurPoints} + ${table.reportedOpponentPoints} <= 13))`),
+  check("vs_matchups_owned_fields_check", sql`jsonb_typeof(${table.opponentInfoOwnedFields}) = 'array' and ${table.opponentInfoOwnedFields} <@ '["day:1","day:2","day:3","day:4","day:5","day:6","opponentName","opponentServer","opponentTag","weekOutcome"]'::jsonb`),
 ]);
 
 export const vsMatchDayResults = pgTable("vs_match_day_results", {
@@ -5611,6 +5622,57 @@ export const vsMatchObservations = pgTable("vs_match_observations", {
   check("vs_match_observations_source_check", sql`${table.source} in ('hq_manual', 'ashed_import', 'reviewed_upload')`),
   check("vs_match_observations_disposition_check", sql`${table.disposition} in ('applied', 'conflict', 'reviewed_keep_hq', 'reviewed_use_ashed', 'superseded')`),
   check("vs_match_observations_recorded_weekday_check", sql`${table.recordedDate} is null or extract(isodow from ${table.recordedDate}::date) between 1 and 6`),
+]);
+
+export const vsMatchupAshedSync = pgTable("vs_matchup_ashed_sync", {
+  matchupId: text("matchup_id").notNull(),
+  allianceId: text("alliance_id").notNull(),
+  baselineSnapshot: jsonb("baseline_snapshot").$type<import("@/lib/vs-performance/opponent-info.shared").AshedOpponentSnapshot | null>(),
+  observedSnapshot: jsonb("observed_snapshot").$type<import("@/lib/vs-performance/opponent-info.shared").AshedOpponentSnapshot | null>(),
+  dirtyFields: jsonb("dirty_fields").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentField[]>().notNull().default([]),
+  conflictFields: jsonb("conflict_fields").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentField[]>().notNull().default([]),
+  requestedVersion: integer("requested_version").notNull().default(0),
+  processedVersion: integer("processed_version").notNull().default(0),
+  status: text("status").$type<import("@/lib/vs-performance/weekly-view.shared").VsMatchupSyncStatus>().notNull().default("idle"),
+  errorCode: text("error_code"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.matchupId, table.allianceId], name: "vs_matchup_ashed_sync_pk" }),
+  foreignKey({
+    columns: [table.matchupId, table.allianceId],
+    foreignColumns: [vsMatchups.id, vsMatchups.allianceId],
+    name: "vs_matchup_ashed_sync_matchup_alliance_fk",
+  }).onDelete("cascade"),
+  index("vs_matchup_ashed_sync_alliance_idx").on(table.allianceId),
+  check("vs_matchup_ashed_sync_status_check", sql`${table.status} in ('idle', 'pending', 'synced', 'conflict', 'credentials_required', 'failed', 'uncertain')`),
+  check("vs_matchup_ashed_sync_dirty_fields_check", sql`jsonb_typeof(${table.dirtyFields}) = 'array' and ${table.dirtyFields} <@ '["day:1","day:2","day:3","day:4","day:5","day:6","opponentName","opponentServer","opponentTag","weekOutcome"]'::jsonb`),
+  check("vs_matchup_ashed_sync_conflict_fields_check", sql`jsonb_typeof(${table.conflictFields}) = 'array' and ${table.conflictFields} <@ '["day:1","day:2","day:3","day:4","day:5","day:6","opponentName","opponentServer","opponentTag","weekOutcome"]'::jsonb`),
+  check("vs_matchup_ashed_sync_versions_check", sql`${table.requestedVersion} >= 0 and ${table.processedVersion} >= 0`),
+]);
+
+export const vsCaptureReviews = pgTable("vs_capture_reviews", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  kind: text("kind").$type<import("@/lib/vs-performance/vs-capture.shared").VsCaptureKind>().notNull(),
+  imageSha256: text("image_sha256").notNull(),
+  candidate: jsonb("candidate").$type<import("@/lib/vs-performance/vs-capture.shared").VsCaptureCandidate>().notNull(),
+  status: text("status").$type<"review" | "complete">().notNull().default("review"),
+  version: integer("version").notNull().default(1),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedRequestId: text("completed_request_id"),
+  completedBodyHash: text("completed_body_hash"),
+  completedResult: jsonb("completed_result").$type<Record<string, unknown> | null>(),
+}, (table) => [
+  index("vs_capture_reviews_alliance_idx").on(table.allianceId, table.createdAt),
+  index("vs_capture_reviews_expires_idx").on(table.expiresAt),
+  check("vs_capture_reviews_kind_check", sql`${table.kind} in ('weekly_overview', 'daily_totals')`),
+  check("vs_capture_reviews_status_check", sql`${table.status} in ('review', 'complete')`),
+  check("vs_capture_reviews_version_check", sql`${table.version} > 0`),
 ]);
 
 export type PerformanceNote = typeof performanceNotes.$inferSelect;

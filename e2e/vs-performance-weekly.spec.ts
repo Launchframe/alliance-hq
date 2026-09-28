@@ -187,13 +187,22 @@ test.describe("VS weekly planner API", () => {
     expect([401, 403]).toContain(res.status());
   });
 
-  test("remote Ashed import stays disabled", async ({ request }) => {
+  test("Ashed pull is rejected for a native-only alliance", async ({
+    request,
+  }) => {
     const { cookieHeader } = await setupVsAlliance(request, "officer");
+    const week = (await (
+      await request.get("/api/vs-performance/week", {
+        headers: { Cookie: cookieHeader },
+      })
+    ).json()) as VsWeekPayload;
+    expect(week.canImportAshed).toBe(false);
     const res = await request.post("/api/vs-performance/matchup/import", {
       headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
-      data: {},
+      data: { weekStart: week.weekStart, scope: week.scope },
     });
-    expect(res.status()).toBe(501);
+    expect(res.status()).toBe(400);
+    expect((await res.json()).code).toBe("ashed_unavailable");
   });
 
   test("native page loads for a member without an Ashed connection", async ({
@@ -1310,16 +1319,29 @@ test.describe("VS weekly planner UI", () => {
     const nextWeek = getWeekStartMonday(addCalendarDays(currentWeek, 7));
     await page.route("**/api/vs-performance/week**", () => new Promise(() => {}));
     await page.goto("/en-US/vs-performance");
-    await expect(page.getByTestId("weekly-vs-plan")).toBeVisible();
-    await page.getByLabel("Next week").click();
+    await expect(
+      page.locator('[data-testid="weekly-vs-plan"]:visible'),
+    ).toHaveCount(1);
+    await page
+      .getByRole("button", { name: "Next week" })
+      .locator("visible=true")
+      .click();
     const nextTitle = new Date(`${nextWeek}T12:00:00`).toLocaleDateString(
       "en-US",
       { month: "short", day: "numeric" },
     );
     await expect(
-      page.getByRole("heading", { name: new RegExp(nextTitle.replace(/\./g, "\\.")) }),
-    ).toBeVisible();
-    await expect(page.getByLabel("Previous week")).toBeEnabled();
-    await expect(page.getByLabel("Next week")).toBeEnabled();
+      page
+        .getByRole("heading", {
+          name: new RegExp(nextTitle.replace(/\./g, "\\.")),
+        })
+        .locator("visible=true"),
+    ).toHaveCount(1);
+    await expect(
+      page.getByLabel("Previous week").locator("visible=true"),
+    ).toBeEnabled();
+    await expect(
+      page.getByLabel("Next week").locator("visible=true"),
+    ).toBeEnabled();
   });
 });

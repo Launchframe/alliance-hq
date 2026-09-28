@@ -1254,6 +1254,13 @@
       "when": 1790900000190,
       "tag": "0190_vs_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1790900000191,
+      "tag": "0191_vs_opponent_sync_capture",
+      "breakpoints": true
     }
   ]
 }

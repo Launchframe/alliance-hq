@@ -88,6 +88,7 @@ function prepareEnvFile(dbUrl) {
       `AUTH_SECRET=${authSecret()}`,
       "HQ_ASHED_INVITE_REQUIRED=false",
       "E2E_TEST=true",
+      `ASHED_API_BASE_ORIGIN=${process.env.ASHED_API_BASE_ORIGIN?.trim() || "http://127.0.0.1:14789"}`,
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
       ...e2eOAuthEnvLines(),
       ...Object.entries(e2eOcrWorkerEnv()).map(([key, value]) => `${key}=${value}`),
@@ -120,6 +121,8 @@ function buildEnv(dbUrl) {
     AUTH_SECRET: authSecret(),
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
+    ASHED_API_BASE_ORIGIN:
+      process.env.ASHED_API_BASE_ORIGIN?.trim() || "http://127.0.0.1:14789",
     NEXT_PUBLIC_APP_URL: appOrigin,
     CALENDAR_APP_ORIGIN: appOrigin,
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",

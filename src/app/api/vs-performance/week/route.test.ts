@@ -59,6 +59,14 @@ vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: (...args: unknown[]) => writeAuditLog(...args),
 }));
 
+vi.mock("@/lib/vs-performance/match-results.repository.server", () => ({
+  loadVsMatchup: vi.fn(async () => ({ id: "m1" })),
+}));
+
+vi.mock("@/lib/vs-performance/matchup-sync.server", () => ({
+  attemptVsOpponentSync: vi.fn(async () => null),
+}));
+
 const session = {
   id: "sess-1",
   hqUserId: "u1",

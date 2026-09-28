@@ -8,6 +8,7 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { AshedEmbedPane } from "@/components/hybrid-ashed/AshedEmbedPane";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { VsMatchupResults } from "@/components/vs-performance/VsMatchupResults";
+import { VsScreenshotCapture } from "@/components/vs-performance/VsScreenshotCapture";
 import { WeeklyPriceIsFreightPodium } from "@/components/vs-performance/WeeklyPriceIsFreightPodium";
 import { WeeklyVsPlan } from "@/components/vs-performance/WeeklyVsPlan";
 import { addCalendarDays, getWeekStartMonday } from "@/lib/trains/game-time";
@@ -42,6 +43,10 @@ export function VsPerformanceClient({
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<"native" | "ashed">("native");
   const [flags, setFlags] = useState<Record<string, boolean>>({});
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [autoPull, setAutoPull] = useState<{ attemptedScope: string | null; pullingScope: string | null; errorScope: string | null }>({ attemptedScope: null, pullingScope: null, errorScope: null });
+  const autoPullSeq = useRef(0);
+  const payloadRevision = useRef(0);
   const requestSeq = useRef(0);
   const failedTarget = useRef<string | null>(null);
   const attemptedTarget = useRef<string | null>(null);
@@ -53,7 +58,8 @@ export function VsPerformanceClient({
     );
   }, []);
   const hasDraft = editing || Object.values(flags).some(Boolean);
-  const navLocked = hasDraft || loading;
+  const needsAutoPull = tab === "native" && payload.canImportAshed && payload.canEdit && autoPull.attemptedScope !== payload.scope;
+  const navLocked = hasDraft || loading || needsAutoPull || autoPull.pullingScope === payload.scope;
   const hasDraftRef = useRef(hasDraft);
   useEffect(() => {
     hasDraftRef.current = hasDraft;
@@ -65,6 +71,9 @@ export function VsPerformanceClient({
     prevInitial.current = initial;
     if (initial.contextScope !== contextRef.current) {
       requestSeq.current += 1;
+      payloadRevision.current += 1;
+      autoPullSeq.current += 1;
+      setAutoPull({ attemptedScope: null, pullingScope: null, errorScope: null });
       contextRef.current = initial.contextScope;
       failedTarget.current = null;
       attemptedTarget.current = initial.weekStart;
@@ -73,10 +82,12 @@ export function VsPerformanceClient({
       setEditing(false);
       setFlags({});
       setTab("native");
+      setCaptureOpen(false);
       setLoadError(null);
       setLoading(false);
     } else if (!hasDraftRef.current) {
       requestSeq.current += 1;
+      payloadRevision.current += 1;
       failedTarget.current = null;
       attemptedTarget.current = initial.weekStart;
       setPayload(initial);
@@ -87,6 +98,8 @@ export function VsPerformanceClient({
   }, [initial]);
 
   const handleSaved = useCallback((next: VsWeekPayload) => {
+    if (next.contextScope !== contextRef.current) return;
+    payloadRevision.current += 1;
     setPayload((current) =>
       next.scope === current.scope &&
       next.weekStart === current.weekStart &&
@@ -158,9 +171,45 @@ export function VsPerformanceClient({
   }, [payload.canEdit, editing, navLocked, tab]);
 
   useRegisterPageHotkeys(
-    { "vsPerformance.editPlan": () => startEditing() },
+    {
+      "vsPerformance.editPlan": () => startEditing(),
+      "vsPerformance.capture": () => {
+        if (payload.canEdit && !navLocked && tab === "native")
+          setCaptureOpen(true);
+      },
+    },
     payload.canEdit && !navLocked,
   );
+
+  useEffect(() => {
+    if (!needsAutoPull || loading || hasDraftRef.current) return;
+    const seq = ++autoPullSeq.current;
+    const revision = payloadRevision.current;
+    const ctx = payload.contextScope;
+    const scope = payload.scope;
+    const active = () => seq === autoPullSeq.current && ctx === contextRef.current;
+    setAutoPull({ attemptedScope: scope, pullingScope: scope, errorScope: null });
+    void (async () => {
+      try {
+        const res = await fetch("/api/vs-performance/matchup/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weekStart: payload.weekStart, scope, reason: "auto" }),
+        });
+        const body = (await res.json()) as VsWeekPayload;
+        if (!active() || revision !== payloadRevision.current || hasDraftRef.current) return;
+        if (!res.ok || body.contextScope !== ctx || body.scope !== scope) {
+          setAutoPull(previous => ({ ...previous, errorScope: scope }));
+          return;
+        }
+        handleSaved(body);
+      } catch {
+        if (active() && revision === payloadRevision.current) setAutoPull(previous => ({ ...previous, errorScope: scope }));
+      } finally {
+        if (active()) setAutoPull(previous => previous.pullingScope === scope ? { ...previous, pullingScope: null } : previous);
+      }
+    })();
+  }, [needsAutoPull, loading, payload, handleSaved]);
 
   useEffect(() => {
     if (navLocked) return;
@@ -234,6 +283,19 @@ export function VsPerformanceClient({
           ) : null}
         </div>
         <div className="flex items-center gap-2">
+          {payload.canEdit && tab === "native" ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (!navLocked) setCaptureOpen(true);
+              }}
+              disabled={navLocked}
+              className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50"
+              data-testid="vs-capture-open"
+            >
+              {t("capture.open")}
+            </button>
+          ) : null}
           {scoreTargetId ? (
             <Link
               href={buildVideoUploadHref(scoreTargetId)}
@@ -301,15 +363,17 @@ export function VsPerformanceClient({
         </div>
       ) : (
         <div className={loading ? "space-y-4 opacity-60" : "space-y-4"}>
+          {autoPull.errorScope === payload.scope ? <p role="alert" className="text-sm text-hq-danger">{t("matchup.importFailed")}</p> : null}
+          {autoPull.pullingScope === payload.scope ? <p role="status" className="text-sm text-hq-fg-muted">{t("actions.loading")}</p> : null}
           <VsMatchupResults
-            key={payload.scope}
+            key={`${payload.scope}:results`}
             payload={payload}
             onSaved={handleSaved}
             setDraftFlag={setDraftFlag}
             navBusy={navLocked}
           />
           <WeeklyVsPlan
-            key={payload.scope}
+            key={`${payload.scope}:plan`}
             payload={payload}
             editing={editing}
             onEditingChange={setEditing}
@@ -323,6 +387,14 @@ export function VsPerformanceClient({
               error={payload.pifError}
             />
           ) : null}
+          <VsScreenshotCapture
+            key={payload.contextScope}
+            payload={payload}
+            onSaved={handleSaved}
+            setDraftFlag={setDraftFlag}
+            open={captureOpen}
+            onOpenChange={setCaptureOpen}
+          />
         </div>
       )}
     </div>

@@ -26,16 +26,30 @@ const mocks = vi.hoisted(() => ({
   selectLimit: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  getDb: () => ({
-    transaction: mocks.transaction,
-    select: () => ({
-      from: () => ({
-        where: () => ({ limit: mocks.selectLimit }),
+vi.mock("@/lib/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/db")>();
+  return {
+    getDb: () => ({
+      transaction: mocks.transaction,
+      select: () => ({
+        from: () => ({
+          where: () => ({ limit: mocks.selectLimit }),
+        }),
       }),
     }),
-  }),
-  schema: { hqMemberLinks: { ashedMemberId: "m", allianceId: "a", hqUserId: "u" } },
+    schema: actual.schema,
+  };
+});
+vi.mock("@/lib/vs-performance/ashed-opponent-sync.server", () => ({
+  loadVsAllianceLink: vi.fn(async () => null),
+  resolveVsScoreReadContext: vi.fn(async () => null),
+  vsAshedSyncEligibility: vi.fn(async () => false),
+}));
+vi.mock("@/lib/trains/vs-scores.server", () => ({
+  fetchAlliancePriorDayVsScoresByMember: vi.fn(async () => new Map()),
+}));
+vi.mock("@/lib/bff/officer-action-audit.server", () => ({
+  writeTrainsOfficerAudit: mocks.writeAuditLog,
 }));
 
 vi.mock("@/lib/session", () => ({

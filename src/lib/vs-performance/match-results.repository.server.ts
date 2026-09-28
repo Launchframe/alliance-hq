@@ -9,8 +9,20 @@ import type {
   VsNormalizedResult,
   VsResultSource,
 } from "@/lib/vs-performance/match-results.shared";
+import {
+  VS_OPPONENT_FIELDS,
+  vsOpponentFieldValue,
+  type VsOpponentField,
+  type VsOpponentInfo,
+} from "@/lib/vs-performance/opponent-info.shared";
 import { VsPerformanceError } from "@/lib/vs-performance/weekly-plan.shared";
+import {
+  vsOpponentConflictToken,
+  vsScope,
+} from "@/lib/vs-performance/vs-scope.server";
 import type {
+  VsActor,
+  VsMatchupSyncConflict,
   VsMatchupView,
   VsSavedDayResult,
 } from "@/lib/vs-performance/weekly-view.shared";
@@ -20,6 +32,58 @@ export type VsDb = ReturnType<typeof getDb> | AvailabilityTransaction;
 type MatchupRow = typeof schema.vsMatchups.$inferSelect;
 type DayResultRow = typeof schema.vsMatchDayResults.$inferSelect;
 type ObservationRow = typeof schema.vsMatchObservations.$inferSelect;
+export type VsMatchupSyncRow = typeof schema.vsMatchupAshedSync.$inferSelect;
+
+const VS_OPPONENT_FIELD_SET = new Set<string>(VS_OPPONENT_FIELDS);
+
+export function matchupOpponentInfo(matchup: MatchupRow): VsOpponentInfo {
+  return {
+    opponentServer: matchup.opponentServer,
+    opponentName: matchup.opponentName,
+    opponentTag: matchup.opponentTag,
+    weekOutcome: matchup.weekOutcome,
+    opponentDailyScores: matchup.opponentDailyScores,
+  };
+}
+
+function syncConflicts(
+  matchup: MatchupRow,
+  sync: VsMatchupSyncRow | null,
+): VsMatchupSyncConflict[] {
+  if (!sync || sync.status !== "conflict" || !sync.observedSnapshot) {
+    return [];
+  }
+  const local = matchupOpponentInfo(matchup);
+  return sync.conflictFields
+    .filter((field) => VS_OPPONENT_FIELD_SET.has(field))
+    .map((field) => ({
+      field,
+      hqValue: vsOpponentFieldValue(local, field as VsOpponentField),
+      ashedValue: vsOpponentFieldValue(sync.observedSnapshot!, field as VsOpponentField),
+    }));
+}
+
+function conflictToken(input: {
+  matchup: MatchupRow;
+  days: DayResultRow[];
+  sync: VsMatchupSyncRow | null;
+  scope: string;
+}): string | null {
+  if (
+    input.sync?.status !== "conflict" ||
+    !input.sync.observedSnapshot ||
+    input.sync.conflictFields.length === 0
+  ) {
+    return null;
+  }
+  return vsOpponentConflictToken({
+    remote: input.sync.observedSnapshot,
+    matchupVersion: input.matchup.version,
+    days: input.days.map((day) => [day.id, day.version] as const),
+    fields: input.sync.conflictFields,
+    scope: input.scope,
+  });
+}
 
 function dayResultToView(row: DayResultRow): VsSavedDayResult {
   const totals =
@@ -45,12 +109,20 @@ export function matchupToView(
   matchup: MatchupRow,
   days: DayResultRow[],
   conflicts: ObservationRow[],
+  sync: VsMatchupSyncRow | null = null,
+  scope: string | null = null,
 ): VsMatchupView {
   return {
     id: matchup.id,
     version: matchup.version,
     opponentName: matchup.opponentName,
     opponentTag: matchup.opponentTag,
+    opponentServer: matchup.opponentServer,
+    opponentDailyScores: matchup.opponentDailyScores,
+    weekOutcome: matchup.weekOutcome,
+    reportedOurPoints: matchup.reportedOurPoints,
+    reportedOpponentPoints: matchup.reportedOpponentPoints,
+    reportedPointsAt: matchup.reportedPointsAt?.toISOString() ?? null,
     days: days.map(dayResultToView),
     conflicts: conflicts.map((row) => ({
       id: row.id,
@@ -58,6 +130,15 @@ export function matchupToView(
       result: row.snapshot as VsNormalizedResult,
       nativeVersion: row.nativeVersion,
     })),
+    sync: {
+      status: sync?.status ?? "idle",
+      errorCode: sync?.errorCode ?? null,
+      lastSyncedAt: sync?.lastSyncedAt?.toISOString() ?? null,
+      conflicts: syncConflicts(matchup, sync),
+      conflictToken: scope
+        ? conflictToken({ matchup, days, sync, scope })
+        : null,
+    },
   };
 }
 
@@ -65,6 +146,7 @@ export async function loadVsMatchup(
   allianceId: string,
   weekStart: string,
   db: VsDb = getDb(),
+  actor?: VsActor | null,
 ): Promise<VsMatchupView | null> {
   const [matchup] = await db
     .select()
@@ -77,7 +159,7 @@ export async function loadVsMatchup(
     )
     .limit(1);
   if (!matchup) return null;
-  const [days, observations] = await Promise.all([
+  const [days, observations, syncRows] = await Promise.all([
     db
       .select()
       .from(schema.vsMatchDayResults)
@@ -88,6 +170,16 @@ export async function loadVsMatchup(
       .from(schema.vsMatchObservations)
       .where(eq(schema.vsMatchObservations.matchupId, matchup.id))
       .orderBy(asc(schema.vsMatchObservations.sequence)),
+    db
+      .select()
+      .from(schema.vsMatchupAshedSync)
+      .where(
+        and(
+          eq(schema.vsMatchupAshedSync.matchupId, matchup.id),
+          eq(schema.vsMatchupAshedSync.allianceId, allianceId),
+        ),
+      )
+      .limit(1),
   ]);
   const headVersionByDate = new Map(
     days.map((day) => [day.recordedDate, day.version] as const),
@@ -102,7 +194,13 @@ export async function loadVsMatchup(
       row.disposition === "conflict" &&
       row.nativeVersion === headVersionByDate.get(row.recordedDate ?? ""),
   );
-  return matchupToView(matchup, days, conflicts);
+  return matchupToView(
+    matchup,
+    days,
+    conflicts,
+    syncRows[0] ?? null,
+    actor ? vsScope(actor, weekStart) : null,
+  );
 }
 
 export async function loadVsMatchupRowForUpdate(
@@ -131,6 +229,12 @@ export async function upsertVsMatchup(
     weekStart: string;
     opponentName?: string | null;
     opponentTag?: string | null;
+    opponentServer?: number | null;
+    opponentDailyScores?: MatchupRow["opponentDailyScores"];
+    weekOutcome?: MatchupRow["weekOutcome"];
+    reportedOurPoints?: number | null;
+    reportedOpponentPoints?: number | null;
+    addOwnedFields?: readonly VsOpponentField[];
     externalOpponentId?: string | null;
     externalCompetitionId?: string | null;
     identitySource: "hq_manual" | "ashed_import";
@@ -143,6 +247,12 @@ export async function upsertVsMatchup(
     input.allianceId,
     input.weekStart,
   );
+  const mergeOwned = (current: VsOpponentField[]): VsOpponentField[] => {
+    if (!input.addOwnedFields?.length) return current;
+    const next = new Set<string>(current);
+    for (const field of input.addOwnedFields) next.add(field);
+    return [...next] as VsOpponentField[];
+  };
   if (existing) {
     if (
       input.expectedVersion != null &&
@@ -159,6 +269,26 @@ export async function upsertVsMatchup(
         input.opponentTag !== undefined
           ? input.opponentTag
           : existing.opponentTag,
+      opponentServer:
+        input.opponentServer !== undefined
+          ? input.opponentServer
+          : existing.opponentServer,
+      opponentDailyScores:
+        input.opponentDailyScores !== undefined
+          ? input.opponentDailyScores
+          : existing.opponentDailyScores,
+      weekOutcome:
+        input.weekOutcome !== undefined
+          ? input.weekOutcome
+          : existing.weekOutcome,
+      reportedOurPoints:
+        input.reportedOurPoints !== undefined
+          ? input.reportedOurPoints
+          : existing.reportedOurPoints,
+      reportedOpponentPoints:
+        input.reportedOpponentPoints !== undefined
+          ? input.reportedOpponentPoints
+          : existing.reportedOpponentPoints,
       externalOpponentId:
         input.externalOpponentId !== undefined
           ? input.externalOpponentId
@@ -167,12 +297,21 @@ export async function upsertVsMatchup(
         input.externalCompetitionId !== undefined
           ? input.externalCompetitionId
           : existing.externalCompetitionId,
+      opponentInfoOwnedFields: mergeOwned(existing.opponentInfoOwnedFields),
     };
     if (
       merged.opponentName === existing.opponentName &&
       merged.opponentTag === existing.opponentTag &&
+      merged.opponentServer === existing.opponentServer &&
+      merged.weekOutcome === existing.weekOutcome &&
+      merged.reportedOurPoints === existing.reportedOurPoints &&
+      merged.reportedOpponentPoints === existing.reportedOpponentPoints &&
       merged.externalOpponentId === existing.externalOpponentId &&
       merged.externalCompetitionId === existing.externalCompetitionId &&
+      JSON.stringify(merged.opponentDailyScores) ===
+        JSON.stringify(existing.opponentDailyScores) &&
+      JSON.stringify([...merged.opponentInfoOwnedFields].sort()) ===
+        JSON.stringify([...existing.opponentInfoOwnedFields].sort()) &&
       input.identitySource === existing.identitySource
     ) {
       return existing;
@@ -202,8 +341,16 @@ export async function upsertVsMatchup(
       weekStart: input.weekStart,
       opponentName: input.opponentName ?? null,
       opponentTag: input.opponentTag ?? null,
+      opponentServer: input.opponentServer ?? null,
+      opponentDailyScores:
+        input.opponentDailyScores ??
+        ([null, null, null, null, null, null] as MatchupRow["opponentDailyScores"]),
+      weekOutcome: input.weekOutcome ?? "pending",
+      reportedOurPoints: input.reportedOurPoints ?? null,
+      reportedOpponentPoints: input.reportedOpponentPoints ?? null,
       externalOpponentId: input.externalOpponentId ?? null,
       externalCompetitionId: input.externalCompetitionId ?? null,
+      opponentInfoOwnedFields: mergeOwned([]),
       identitySource: input.identitySource,
       createdByHqUserId: input.actorHqUserId,
       updatedByHqUserId: input.actorHqUserId,
@@ -420,4 +567,80 @@ export async function markVsObservationDisposition(
     .update(schema.vsMatchObservations)
     .set({ disposition })
     .where(eq(schema.vsMatchObservations.id, observationId));
+}
+
+export async function loadVsMatchupSyncRowForUpdate(
+  tx: AvailabilityTransaction,
+  matchupId: string,
+  allianceId: string,
+): Promise<VsMatchupSyncRow | null> {
+  const [row] = await tx
+    .select()
+    .from(schema.vsMatchupAshedSync)
+    .where(
+      and(
+        eq(schema.vsMatchupAshedSync.matchupId, matchupId),
+        eq(schema.vsMatchupAshedSync.allianceId, allianceId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  return row ?? null;
+}
+
+export async function ensureVsMatchupSyncRow(
+  tx: AvailabilityTransaction,
+  matchupId: string,
+  allianceId: string,
+): Promise<VsMatchupSyncRow> {
+  const existing = await loadVsMatchupSyncRowForUpdate(
+    tx,
+    matchupId,
+    allianceId,
+  );
+  if (existing) return existing;
+  const [row] = await tx
+    .insert(schema.vsMatchupAshedSync)
+    .values({ matchupId, allianceId })
+    .returning();
+  return row!;
+}
+
+export async function markVsOpponentFieldsDirty(
+  tx: AvailabilityTransaction,
+  matchupId: string,
+  allianceId: string,
+  fields: readonly VsOpponentField[],
+): Promise<void> {
+  if (fields.length === 0) return;
+  const [alliance] = await tx
+    .select({
+      ashedAllianceId: schema.alliances.ashedAllianceId,
+      operatingMode: schema.alliances.operatingMode,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  if (!alliance?.ashedAllianceId || alliance.operatingMode === "native") {
+    return;
+  }
+  const row = await ensureVsMatchupSyncRow(tx, matchupId, allianceId);
+  const dirty = new Set<string>(row.dirtyFields);
+  for (const field of fields) dirty.add(field);
+  await tx
+    .update(schema.vsMatchupAshedSync)
+    .set({
+      dirtyFields: [...dirty] as VsOpponentField[],
+      status:
+        row.status === "synced" || row.status === "idle"
+          ? "pending"
+          : row.status,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.vsMatchupAshedSync.matchupId, matchupId),
+        eq(schema.vsMatchupAshedSync.allianceId, allianceId),
+      ),
+    );
 }

@@ -1963,7 +1963,8 @@
         "template8": "Aplicar modelo 8"
       },
       "vsPerformance": {
-        "editPlan": "Editar plano VS"
+        "editPlan": "Editar plano VS",
+        "capture": "Enviar captura de tela do VS"
       }
     }
   },
@@ -7719,7 +7720,15 @@
       "opponentTag": "Tag da aliança adversária",
       "unknown": "Adversário não registrado",
       "import": "Atualizar confronto da Ashed",
-      "importFailed": "Não foi possível carregar os dados do confronto da Ashed. Os resultados salvos no HQ não foram alterados."
+      "importFailed": "Não foi possível carregar os dados do confronto da Ashed. Os resultados salvos no HQ não foram alterados.",
+      "opponentServer": "Servidor do oponente",
+      "weekOutcome": "Resultado da semana registrado",
+      "opponentScore": "Pontuação do oponente",
+      "opponentOnlyHint": "As pontuações do oponente não determinam vitórias diárias até que um resultado final do dia seja confirmado.",
+      "confirmedDayHint": "Edite o resultado confirmado do dia para alterar suas pontuações.",
+      "previousOpponents": "Oponentes anteriores",
+      "selectPrevious": "Selecionar um oponente anterior",
+      "day": "Dia {day}"
     },
     "actions": {
       "save": "Salvar",
@@ -7735,6 +7744,55 @@
       "stale": "O plano ou a escala de trens mudou. Atualize e revise suas alterações novamente.",
       "invalid": "Verifique as datas, estratégias e recompensas selecionadas e tente novamente.",
       "forbidden": "Você não tem permissão para fazer esta alteração."
+    },
+    "ashedSync": {
+      "action": "Sincronizar com o Ashed",
+      "hint": "As informações do oponente salvas no HQ também são sincronizadas com o Ashed. Configurações semanais não relacionadas permanecem inalteradas.",
+      "pending": "Salvo no HQ. A sincronização com o Ashed está pendente.",
+      "synced": "Sincronizado com o Ashed.",
+      "failed": "Salvo no HQ, mas a sincronização com o Ashed falhou. Tente novamente para sincronizar.",
+      "credentials": "Conecte uma conta Ashed autorizada para sincronizar as informações do oponente.",
+      "conflict": "As informações do oponente foram alteradas no Ashed. Revise-as antes de sincronizar suas alterações do HQ.",
+      "tooLarge": "Esta pontuação é grande demais para sincronizar com o Ashed sem perder precisão. Ela foi salva exatamente no HQ.",
+      "useAshed": "Usar valores do Ashed",
+      "keepHq": "Manter valores do HQ",
+      "uncertain": "Não foi possível confirmar se o Ashed salvou esta alteração. Atualize antes de tentar novamente."
+    },
+    "reconcile": {
+      "title": "Verificação de pontuações dos membros",
+      "match": "As pontuações enviadas dos membros correspondem ao total confirmado.",
+      "mismatch": "As pontuações enviadas dos membros somam {uploaded}; total confirmado {confirmed}. Diferença: {difference}.",
+      "hint": "Verifique se há linhas de membros ausentes ou incorretas. O total confirmado permanece autoritativo.",
+      "noRows": "Não há pontuações individuais de membros disponíveis para este dia.",
+      "unavailable": "Não foi possível verificar as pontuações individuais dos membros. O total confirmado permanece inalterado."
+    },
+    "capture": {
+      "open": "Enviar captura de tela do VS",
+      "type": "Tipo de captura de tela",
+      "weekType": "Visão geral semanal",
+      "dayType": "Duel Themes — pontuações diárias",
+      "title": "Revisar captura de tela do VS",
+      "hint": "Verifique a semana, os lados das alianças e cada valor antes de salvar. Resultados ilegíveis ou não concluídos permanecem pendentes.",
+      "week": "Semana VS",
+      "ourSide": "Nossa aliança",
+      "left": "Aliança da esquerda",
+      "right": "Aliança da direita",
+      "confirmSides": "Confirmo que o lado selecionado é a nossa aliança.",
+      "ourPoints": "Nossos pontos de vitória",
+      "opponentPoints": "Pontos de vitória do oponente",
+      "finalDay": "Confirmo que estas são as pontuações finais deste dia concluído.",
+      "unknown": "Não visível ou não concluído",
+      "read": "Ler captura de tela",
+      "reading": "Lendo captura de tela…",
+      "save": "Salvar resultados revisados",
+      "imageHint": "Escolha uma imagem PNG ou JPEG com menos de 20 MB.",
+      "partial": "Alguns valores não puderam ser lidos. Verifique a captura de tela e insira-os.",
+      "failed": "Não foi possível ler esta captura de tela. Tente outra imagem.",
+      "expired": "Esta revisão de captura de tela expirou ou foi alterada. Envie-a novamente.",
+      "invalid": "Verifique a semana, o dia, os lados das alianças e as pontuações antes de salvar.",
+      "pointMismatch": "Os resultados diários não correspondem aos pontos de vitória semanais. Verifique a revisão.",
+      "ongoing": "Isto parece ser um duelo em andamento. Pontuações zeradas e resultados em branco permanecem pendentes.",
+      "noFinals": "Nenhum resultado final de dia foi confirmado. Apenas as informações de confronto revisadas serão salvas."
     }
   }
 }

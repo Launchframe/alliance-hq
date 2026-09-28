@@ -13,6 +13,7 @@ import {
   assertVsResultDate,
   normalizeVsResult,
   vsResultInputSchema,
+  vsTotalSchema,
   type VsNormalizedResult,
 } from "@/lib/vs-performance/match-results.shared";
 import {
@@ -24,12 +25,20 @@ import {
   listVsObservationsForDate,
   insertVsObservation,
   markVsObservationDisposition,
+  markVsOpponentFieldsDirty,
   upsertVsMatchup,
   writeVsMatchDayResult,
 } from "@/lib/vs-performance/match-results.repository.server";
+import type { AvailabilityTransaction } from "@/lib/time-off/availability.server";
+import {
+  VS_WEEK_OUTCOMES,
+  type VsOpponentField,
+  type VsOpponentScores,
+} from "@/lib/vs-performance/opponent-info.shared";
 import {
   VsPerformanceError,
   isVsCalendarDate,
+  vsDatesForWeek,
   vsWeekStartSchema,
 } from "@/lib/vs-performance/weekly-plan.shared";
 import { assertVsScope } from "@/lib/vs-performance/vs-scope.server";
@@ -101,6 +110,193 @@ function savedFromRow(
   };
 }
 
+export async function saveVsMatchDayResultTx(
+  tx: AvailabilityTransaction,
+  input: {
+    actor: VsActor;
+    matchupId: string;
+    recordedDate: string;
+    expectedVersion: number;
+    requestId: string;
+    scope: string;
+    normalized: VsNormalizedResult;
+    hqConfirmed: boolean;
+    evidence: TrustedVsResultEvidence;
+    markOpponentDirty?: boolean;
+  },
+): Promise<{
+  saved: VsSavedDayResult;
+  replayed: boolean;
+  previous: VsSavedDayResult | null;
+  weekStart: string;
+}> {
+  const { actor, normalized } = input;
+  await lockAllianceAvailability(tx, actor.allianceId);
+
+  const [matchup] = await tx
+    .select()
+    .from(schema.vsMatchups)
+    .where(
+      and(
+        eq(schema.vsMatchups.id, input.matchupId),
+        eq(schema.vsMatchups.allianceId, actor.allianceId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  if (!matchup) throw new VsPerformanceError("invalid", 404);
+  assertVsScope(actor, matchup.weekStart, input.scope);
+
+  assertVsResultDate(
+    matchup.weekStart,
+    input.recordedDate,
+    getServerCalendarDate(),
+    normalized.finality,
+  );
+
+  const sourceRevision = canonicalVsSourceRevision(
+    input.evidence.sourceRevision,
+  );
+  const contentHash = vsResultContentHash(normalized);
+  const prior = await loadVsObservation(
+    tx,
+    matchup.id,
+    input.recordedDate,
+    input.requestId,
+    actor.allianceId,
+  );
+  if (prior) {
+    if (
+      prior.contentHash !== contentHash ||
+      prior.source !== input.evidence.kind
+    ) {
+      throw new VsPerformanceError("stale", 409);
+    }
+    const head = await loadVsMatchDayResultForUpdate(
+      tx,
+      matchup.id,
+      input.recordedDate,
+      actor.allianceId,
+    );
+    if (!head) throw new VsPerformanceError("stale", 409);
+    return {
+      saved: savedFromRow(head),
+      replayed: true,
+      previous: null,
+      weekStart: matchup.weekStart,
+    };
+  }
+
+  if (input.evidence.kind === "ashed_import") {
+    const head = await loadVsMatchDayResultForUpdate(
+      tx,
+      matchup.id,
+      input.recordedDate,
+      actor.allianceId,
+    );
+    if (head?.hqConfirmed === 1) {
+      const headNormalized = normalizedFromRow(head);
+      const disposition =
+        headNormalized && !resultsEquivalent(headNormalized, normalized)
+          ? "conflict"
+          : "applied";
+      await insertVsObservation(tx, {
+        allianceId: actor.allianceId,
+        matchupId: matchup.id,
+        recordedDate: input.recordedDate,
+        source: input.evidence.kind,
+        sourceRef: input.evidence.sourceRef ?? null,
+        sourceRevision,
+        requestId: input.requestId,
+        contentHash,
+        snapshot: normalized,
+        nativeVersion: head.version,
+        disposition,
+        actorHqUserId: actor.hqUserId,
+      });
+      return {
+        saved: savedFromRow(head),
+        replayed: false,
+        previous: null,
+        weekStart: matchup.weekStart,
+      };
+    }
+  }
+
+  const previous = await loadVsMatchDayResultForUpdate(
+    tx,
+    matchup.id,
+    input.recordedDate,
+    actor.allianceId,
+  );
+  const head = await writeVsMatchDayResult(tx, {
+    allianceId: actor.allianceId,
+    matchupId: matchup.id,
+    recordedDate: input.recordedDate,
+    result: normalized,
+    source: input.evidence.kind,
+    sourceRef: input.evidence.sourceRef ?? null,
+    sourceRevision,
+    hqConfirmed: input.hqConfirmed,
+    expectedVersion: input.expectedVersion,
+    actorHqUserId: actor.hqUserId,
+  });
+
+  await insertVsObservation(tx, {
+    allianceId: actor.allianceId,
+    matchupId: matchup.id,
+    recordedDate: input.recordedDate,
+    source: input.evidence.kind,
+    sourceRef: input.evidence.sourceRef ?? null,
+    sourceRevision,
+    requestId: input.requestId,
+    contentHash,
+    snapshot: normalized,
+    nativeVersion: head.version,
+    disposition: "applied",
+    actorHqUserId: actor.hqUserId,
+  });
+
+  if (
+    input.markOpponentDirty &&
+    normalized.finality === "final" &&
+    normalized.totals != null
+  ) {
+    const dayIndex = vsDatesForWeek(matchup.weekStart).indexOf(
+      input.recordedDate,
+    );
+    if (dayIndex >= 0) {
+      const field = `day:${dayIndex + 1}` as VsOpponentField;
+      const opponentDailyScores: VsOpponentScores = matchup.opponentDailyScores
+        ? ([...matchup.opponentDailyScores] as VsOpponentScores)
+        : [null, null, null, null, null, null];
+      opponentDailyScores[dayIndex] = normalized.totals.opponentScore;
+      const owned = new Set<string>(matchup.opponentInfoOwnedFields ?? []);
+      owned.add(field);
+      await tx
+        .update(schema.vsMatchups)
+        .set({
+          opponentDailyScores,
+          opponentInfoOwnedFields: [...owned] as VsOpponentField[],
+          version: matchup.version + 1,
+          updatedByHqUserId: actor.hqUserId,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.vsMatchups.id, matchup.id));
+      await markVsOpponentFieldsDirty(tx, matchup.id, actor.allianceId, [
+        field,
+      ]);
+    }
+  }
+
+  return {
+    saved: savedFromRow(head),
+    replayed: false,
+    previous: previous ? savedFromRow(previous) : null,
+    weekStart: matchup.weekStart,
+  };
+}
+
 export async function saveVsMatchDayResult(input: {
   actor: VsActor;
   matchupId: string;
@@ -134,133 +330,37 @@ export async function saveVsMatchDayResult(input: {
     finality: input.finality,
   });
   const normalized = normalizeVsResult(parsed);
-  const today = getServerCalendarDate();
   const hqConfirmed =
     input.evidence.kind === "hq_manual" ||
     input.evidence.kind === "reviewed_upload";
   const db = getDb();
 
-  const { saved, replayed, previous } = await db.transaction(async (tx) => {
-    await lockAllianceAvailability(tx, actor.allianceId);
+  const { saved, replayed, previous, weekStart } = await db.transaction(
+    async (tx) => {
+      return saveVsMatchDayResultTx(tx, {
+        actor,
+        matchupId: input.matchupId,
+        recordedDate: input.recordedDate,
+        expectedVersion: input.expectedVersion,
+        requestId: `${actor.hqUserId}:${input.requestId.trim()}`,
+        scope: input.scope,
+        normalized,
+        hqConfirmed,
+        evidence: input.evidence,
+        markOpponentDirty: hqConfirmed,
+      });
+    },
+  );
 
-    const [matchup] = await tx
-      .select()
-      .from(schema.vsMatchups)
-      .where(
-        and(
-          eq(schema.vsMatchups.id, input.matchupId),
-          eq(schema.vsMatchups.allianceId, actor.allianceId),
-        ),
-      )
-      .for("update")
-      .limit(1);
-    if (!matchup) throw new VsPerformanceError("invalid", 404);
-    assertVsScope(actor, matchup.weekStart, input.scope);
-
-    assertVsResultDate(
-      matchup.weekStart,
-      input.recordedDate,
-      today,
-      normalized.finality,
-    );
-
-    const sourceRevision = canonicalVsSourceRevision(
-      input.evidence.sourceRevision,
-    );
-    const requestId = `${actor.hqUserId}:${input.requestId.trim()}`;
-    const contentHash = vsResultContentHash(normalized);
-    const prior = await loadVsObservation(
-      tx,
-      matchup.id,
-      input.recordedDate,
-      requestId,
-      actor.allianceId,
-    );
-    if (prior) {
-      if (prior.contentHash !== contentHash || prior.source !== input.evidence.kind) {
-        throw new VsPerformanceError("stale", 409);
-      }
-      const head = await loadVsMatchDayResultForUpdate(
-        tx,
-        matchup.id,
-        input.recordedDate,
-        actor.allianceId,
+  if (hqConfirmed && !replayed) {
+    try {
+      const { attemptVsOpponentSync } = await import(
+        "@/lib/vs-performance/matchup-sync.server"
       );
-      if (!head) throw new VsPerformanceError("stale", 409);
-      return { saved: savedFromRow(head), replayed: true, previous: null };
+      await attemptVsOpponentSync(actor, weekStart);
+    } catch {
     }
-
-    if (input.evidence.kind === "ashed_import") {
-      const head = await loadVsMatchDayResultForUpdate(
-        tx,
-        matchup.id,
-        input.recordedDate,
-        actor.allianceId,
-      );
-      if (head?.hqConfirmed === 1) {
-        const headNormalized = normalizedFromRow(head);
-        const disposition =
-          headNormalized && !resultsEquivalent(headNormalized, normalized)
-            ? "conflict"
-            : "applied";
-        await insertVsObservation(tx, {
-          allianceId: actor.allianceId,
-          matchupId: matchup.id,
-          recordedDate: input.recordedDate,
-          source: input.evidence.kind,
-          sourceRef: input.evidence.sourceRef ?? null,
-          sourceRevision,
-          requestId,
-          contentHash,
-          snapshot: normalized,
-          nativeVersion: head.version,
-          disposition,
-          actorHqUserId: actor.hqUserId,
-        });
-        return { saved: savedFromRow(head), replayed: false, previous: null };
-      }
-    }
-
-    const previous = await loadVsMatchDayResultForUpdate(
-      tx,
-      matchup.id,
-      input.recordedDate,
-      actor.allianceId,
-    );
-    const head = await writeVsMatchDayResult(tx, {
-      allianceId: actor.allianceId,
-      matchupId: matchup.id,
-      recordedDate: input.recordedDate,
-      result: normalized,
-      source: input.evidence.kind,
-      sourceRef: input.evidence.sourceRef ?? null,
-      sourceRevision,
-      hqConfirmed,
-      expectedVersion: input.expectedVersion,
-      actorHqUserId: actor.hqUserId,
-    });
-
-    await insertVsObservation(tx, {
-      allianceId: actor.allianceId,
-      matchupId: matchup.id,
-      recordedDate: input.recordedDate,
-      source: input.evidence.kind,
-      sourceRef: input.evidence.sourceRef ?? null,
-      sourceRevision,
-      requestId,
-      contentHash,
-      snapshot: normalized,
-      nativeVersion: head.version,
-      disposition: "applied",
-      actorHqUserId: actor.hqUserId,
-    });
-
-    return {
-      saved: savedFromRow(head),
-      replayed: false,
-      previous: previous ? savedFromRow(previous) : null,
-    };
-  });
+  }
 
   if (!replayed) {
     await writeTrainsOfficerAudit({
@@ -290,6 +390,19 @@ const matchupIdentitySchema = z
     weekStart: vsWeekStartSchema,
     opponentName: z.string().trim().max(120).nullable(),
     opponentTag: z.string().trim().max(24).nullable(),
+    opponentServer: z.number().int().positive().max(2_147_483_647).nullable().optional(),
+    weekOutcome: z.enum(VS_WEEK_OUTCOMES).optional(),
+    opponentScores: z
+      .array(
+        z
+          .object({
+            day: z.number().int().min(1).max(6),
+            score: vsTotalSchema.nullable(),
+          })
+          .strict(),
+      )
+      .max(6)
+      .optional(),
     expectedVersion: z.number().int().min(0),
     scope: z.string().min(1),
   })
@@ -301,6 +414,12 @@ export async function saveVsMatchupIdentity(
 ): Promise<VsMatchupView> {
   const body = matchupIdentitySchema.parse(input);
   assertVsScope(actor, body.weekStart, body.scope);
+  const weekDays = vsDatesForWeek(body.weekStart);
+  const scoreDays = new Set<number>();
+  for (const entry of body.opponentScores ?? []) {
+    if (scoreDays.has(entry.day)) throw new VsPerformanceError("invalid", 400);
+    scoreDays.add(entry.day);
+  }
   const db = getDb();
   const { before, after, identityChanged } = await db.transaction(
     async (tx) => {
@@ -310,21 +429,94 @@ export async function saveVsMatchupIdentity(
         actor.allianceId,
         body.weekStart,
       );
+      if (!existing && body.expectedVersion !== 0) {
+        throw new VsPerformanceError("stale", 409);
+      }
+      const nameValue = body.opponentName?.trim() || null;
+      const tagValue = body.opponentTag?.trim() || null;
+      const dirtyFields: VsOpponentField[] = [];
+      const addOwnedFields: VsOpponentField[] = [];
+      if (!existing || existing.opponentName !== nameValue) {
+        dirtyFields.push("opponentName");
+        addOwnedFields.push("opponentName");
+      }
+      if (!existing || existing.opponentTag !== tagValue) {
+        dirtyFields.push("opponentTag");
+        addOwnedFields.push("opponentTag");
+      }
+      let opponentDailyScores: VsOpponentScores | undefined;
+      if (body.opponentScores !== undefined) {
+        opponentDailyScores = existing
+          ? ([...existing.opponentDailyScores] as VsOpponentScores)
+          : [null, null, null, null, null, null];
+        const matchupId = existing?.id;
+        for (const entry of body.opponentScores) {
+          if (matchupId) {
+            const head = await loadVsMatchDayResultForUpdate(
+              tx,
+              matchupId,
+              weekDays[entry.day - 1]!,
+              actor.allianceId,
+            );
+            if (head && head.finality === "final" && head.hqConfirmed === 1 && head.ourScore != null && head.opponentScore != null) {
+              throw new VsPerformanceError("confirmed_day", 409);
+            }
+          }
+          if (opponentDailyScores[entry.day - 1] === entry.score) continue;
+          opponentDailyScores[entry.day - 1] = entry.score;
+          const field = `day:${entry.day}` as VsOpponentField;
+          dirtyFields.push(field);
+          addOwnedFields.push(field);
+        }
+      }
+      if (
+        body.opponentServer !== undefined &&
+        body.opponentServer !== (existing?.opponentServer ?? null)
+      ) {
+        dirtyFields.push("opponentServer");
+        addOwnedFields.push("opponentServer");
+      }
+      if (
+        body.weekOutcome !== undefined &&
+        body.weekOutcome !== (existing?.weekOutcome ?? "pending")
+      ) {
+        dirtyFields.push("weekOutcome");
+        addOwnedFields.push("weekOutcome");
+      }
       const matchup = await upsertVsMatchup(tx, {
         allianceId: actor.allianceId,
         weekStart: body.weekStart,
         opponentName: body.opponentName?.trim() || null,
         opponentTag: body.opponentTag?.trim() || null,
+        ...(body.opponentServer !== undefined
+          ? { opponentServer: body.opponentServer }
+          : {}),
+        ...(body.weekOutcome !== undefined
+          ? { weekOutcome: body.weekOutcome }
+          : {}),
+        ...(opponentDailyScores !== undefined
+          ? { opponentDailyScores }
+          : {}),
+        addOwnedFields,
         identitySource: "hq_manual",
         expectedVersion: body.expectedVersion,
         actorHqUserId: actor.hqUserId,
       });
+      await markVsOpponentFieldsDirty(
+        tx,
+        matchup.id,
+        actor.allianceId,
+        dirtyFields,
+      );
       const before = existing
-        ? { opponentName: existing.opponentName, opponentTag: existing.opponentTag }
+        ? { opponentName: existing.opponentName, opponentTag: existing.opponentTag, opponentServer: existing.opponentServer, weekOutcome: existing.weekOutcome, opponentDailyScores: existing.opponentDailyScores }
         : null;
       const after = {
         opponentName: matchup.opponentName,
         opponentTag: matchup.opponentTag,
+        opponentServer: matchup.opponentServer,
+        weekOutcome: matchup.weekOutcome,
+        opponentDailyScores: matchup.opponentDailyScores,
       };
       const identityChanged =
         matchup.version !== existing?.version;
@@ -369,6 +561,8 @@ export async function saveVsMatchupIdentity(
       previousOpponentTag: before?.opponentTag ?? null,
       opponentName: after.opponentName,
       opponentTag: after.opponentTag,
+      previous: before,
+      next: after,
       changed: identityChanged,
     },
   });

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
 
-import { vsScope, assertVsScope, vsContextScope } from "@/lib/vs-performance/vs-scope.server";
+import { vsScope, assertVsScope, vsContextScope, assertVsActorCurrent } from "@/lib/vs-performance/vs-scope.server";
 
 import { getDb, schema } from "@/lib/db";
 import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
@@ -33,7 +33,17 @@ import {
   type TrainPaintPatch,
 } from "@/lib/trains/service";
 import { calculateVsWeekPoints } from "@/lib/vs-performance/match-results.shared";
+import {
+  compareVsMemberScores,
+  unavailableVsMemberScoreCheck,
+} from "@/lib/vs-performance/member-score-check.shared";
+import {
+  loadVsAllianceLink,
+  vsAshedSyncEligibility,
+} from "@/lib/vs-performance/ashed-opponent-sync.server";
+import { loadVsMemberScoreEvidence } from "@/lib/vs-performance/member-score-check.server";
 import { loadVsMatchup } from "@/lib/vs-performance/match-results.repository.server";
+import type { VsMemberScoreCheck } from "@/lib/vs-performance/member-score-check.shared";
 import {
   buildVsPlatformDraft,
   VsPerformanceError,
@@ -291,10 +301,19 @@ function previewFromResolved(input: {
 export async function loadVsPerformanceWeek(
   sessionId: string,
   weekStart: string,
+  expectedActor?: VsActor,
 ): Promise<VsWeekPayload> {
   const session = await loadSession(sessionId);
   const allianceId = session?.currentAllianceId ?? session?.allianceId;
   if (!allianceId || !session) throw new VsPerformanceError("forbidden", 403);
+  if (
+    expectedActor &&
+    (expectedActor.sessionId !== sessionId ||
+      expectedActor.allianceId !== allianceId ||
+      expectedActor.hqUserId !== (session.hqUserId ?? null))
+  ) {
+    throw new VsPerformanceError("forbidden", 403);
+  }
   const monday = vsWeekStartSchema.parse(weekStart);
   const today = getServerCalendarDate();
   const actor: VsActor = {
@@ -310,14 +329,29 @@ export async function loadVsPerformanceWeek(
     preferences,
     matchup,
     viewerMemberId,
+    allianceRow,
+    ashedLink,
+    canSyncAshed,
   ] = await Promise.all([
     sessionHasPermission(sessionId, "trains:write"),
     loadAllianceTrainLeadTimeDays(allianceId),
     resolveTrainSeasonKey(allianceId),
     loadVsWeekPlan(allianceId, monday),
     loadVsStrategyPreferences(allianceId),
-    loadVsMatchup(allianceId, monday),
+    loadVsMatchup(allianceId, monday, undefined, actor),
     resolveViewerMemberId(session.hqUserId ?? null, allianceId),
+    getDb()
+      .select({
+        tag: schema.alliances.tag,
+        name: schema.alliances.name,
+        gameServerNumber: schema.alliances.gameServerNumber,
+      })
+      .from(schema.alliances)
+      .where(eq(schema.alliances.id, allianceId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    loadVsAllianceLink(allianceId),
+    vsAshedSyncEligibility(actor).catch(() => false),
   ]);
 
   const plan = planRow ? planDraftFromRow(planRow) : null;
@@ -375,6 +409,36 @@ export async function loadVsPerformanceWeek(
     pifError = "load";
   }
 
+  const memberScoreChecks: Record<string, VsMemberScoreCheck> = {};
+  const confirmedHeads = (matchup?.days ?? []).filter(
+    (day) => day.finality === "final" && day.totals != null,
+  );
+  if (confirmedHeads.length > 0) {
+    const scoreCache = new Map<string, Promise<Map<string, number>>>();
+    const scoresForDate = (date: string): Promise<Map<string, number>> => {
+      let pending = scoreCache.get(date);
+      if (!pending) {
+        pending = loadVsMemberScoreEvidence(actor, date);
+        scoreCache.set(date, pending);
+      }
+      return pending;
+    };
+    for (const head of confirmedHeads) {
+      try {
+        const scores = await scoresForDate(head.recordedDate);
+        memberScoreChecks[head.recordedDate] = compareVsMemberScores(
+          head.totals!.ourScore,
+          scores,
+        );
+      } catch {
+        memberScoreChecks[head.recordedDate] = unavailableVsMemberScoreCheck(
+          head.totals!.ourScore,
+        );
+      }
+    }
+  }
+
+  if (expectedActor) await assertVsActorCurrent(expectedActor, "scores:read");
   return {
     weekStart: monday,
     today,
@@ -389,7 +453,14 @@ export async function loadVsPerformanceWeek(
     points,
     pif,
     pifError,
-    canImportAshed: false,
+    canImportAshed: canSyncAshed,
+    ashedLinked: ashedLink != null,
+    memberScoreChecks,
+    allianceIdentity: {
+      tag: allianceRow?.tag ?? null,
+      name: allianceRow?.name ?? null,
+      server: allianceRow?.gameServerNumber ?? null,
+    },
   };
 }
 
