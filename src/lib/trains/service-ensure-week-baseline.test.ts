@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   replaceDayConfigs: vi.fn(),
 }));
 
+vi.mock("@/lib/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db")>()),
+  getDb: () => ({}),
+}));
+
 vi.mock("@/lib/trains/repository", () => ({
   clearConductorAssignment: vi.fn(),
   clearVipAssignment: vi.fn(),

@@ -15,8 +15,8 @@ export type AllianceTrainLeadTimeSettings = {
 
 export async function loadAllianceTrainLeadTimeDays(
   allianceId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<number> {
-  const db = getDb();
   const [row] = await db
     .select({
       trainConductorLeadTimeDays: schema.alliances.trainConductorLeadTimeDays,

@@ -162,8 +162,16 @@ export async function resolveMemberAllianceRankAsOf(
   date: string,
   syncedRank?: number | null,
   syncedTitle?: string | null,
+  db?: Parameters<typeof getMemberRankAsOf>[3],
+  options?: { lock?: boolean },
 ): Promise<ResolvedMemberAllianceRank> {
-  const rankEvent = await getMemberRankAsOf(allianceId, ashedMemberId, date);
+  const rankEvent = await getMemberRankAsOf(
+    allianceId,
+    ashedMemberId,
+    date,
+    db,
+    options,
+  );
   if (rankEvent) {
     return {
       rank: rankEvent.allianceRank,
@@ -189,9 +197,10 @@ export async function getMemberRankAsOf(
   allianceId: string,
   ashedMemberId: string,
   date: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
+  options?: { lock?: boolean },
 ): Promise<(typeof schema.memberAllianceRankEvents.$inferSelect) | null> {
-  const db = getDb();
-  const [row] = await db
+  const query = db
     .select()
     .from(schema.memberAllianceRankEvents)
     .where(
@@ -207,6 +216,7 @@ export async function getMemberRankAsOf(
       desc(schema.memberAllianceRankEvents.id),
     )
     .limit(1);
+  const [row] = await (options?.lock ? query.for("update") : query);
   return row ?? null;
 }
 
@@ -214,8 +224,8 @@ export async function getAllianceRanksAsOf(
   allianceId: string,
   date: string,
   filter?: { minRank?: number; maxRank?: number; exactRank?: number },
+  db: Parameters<typeof getMemberRankAsOf>[3] = getDb(),
 ): Promise<Array<(typeof schema.memberAllianceRankEvents.$inferSelect)>> {
-  const db = getDb();
 
   const latestPerMember = db
     .select({

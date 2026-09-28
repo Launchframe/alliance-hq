@@ -24,7 +24,33 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/time-off/availability.server", () => ({
   loadTimeOffAvailability: vi.fn(async () => ({ awayMemberIds: new Set() })),
+  lockAllianceAvailability: vi.fn(async () => undefined),
 }));
+
+vi.mock("@/lib/db", () => {
+  const rows = [{ id: "a1" }];
+  const tx = {
+    __tx: true,
+    rollback: () => {},
+    execute: async () => [],
+    select: () => ({
+      from: () => ({
+        where: () =>
+          Object.assign(Promise.resolve(rows), {
+            for: () => ({ limit: async () => rows }),
+            limit: async () => rows,
+          }),
+      }),
+    }),
+  };
+  return {
+    getDb: () => ({
+      transaction: async (run: (txArg: unknown) => Promise<unknown>) =>
+        run(tx),
+    }),
+    schema: { alliances: { id: {} } },
+  };
+});
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
@@ -50,6 +76,8 @@ vi.mock("@/lib/trains/repository", () => ({
   upsertDayConfigOverride: mocks.upsertDayConfigOverride,
   upsertWeekSchedule: mocks.upsertWeekSchedule,
   restampConductorRules: mocks.restampConductorRules,
+  isAvailabilityTransaction: (db: unknown) =>
+    typeof (db as { rollback?: unknown })?.rollback === "function",
 }));
 
 vi.mock("@/lib/trains/day-config-resolve.server", () => ({
@@ -128,6 +156,10 @@ vi.mock("@/lib/members/game-roster", () => ({
   loadAllianceRow: mocks.loadAllianceRow,
 }));
 
+vi.mock("@/lib/members/roster.server", () => ({
+  listActiveAllianceMembersForPool: mocks.loadActiveAlliancePoolMembers,
+}));
+
 vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: vi.fn(),
 }));
@@ -201,6 +233,7 @@ describe("applyPaint partial patches", () => {
       "sched-1",
       expect.objectContaining({ conductorRule: r4, vipRule: eventVip }),
       true,
+      expect.anything(),
     );
     expect(mocks.restampConductorRules).not.toHaveBeenCalled();
     expect(mocks.clearConductorAssignment).not.toHaveBeenCalled();
@@ -232,6 +265,7 @@ describe("applyPaint partial patches", () => {
         vipRule: { kind: "donations_second" },
       }),
       true,
+      expect.anything(),
     );
     expect(mocks.restampConductorRules).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -271,6 +305,7 @@ describe("applyPaint partial patches", () => {
         vipRule: { kind: "none" },
       }),
       true,
+      expect.anything(),
     );
     expect(mocks.restampConductorRules).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -303,8 +338,9 @@ describe("applyPaint partial patches", () => {
       "a1",
       DATE,
       "1",
+      { db: expect.anything() },
     );
-    expect(mocks.clearVipAssignment).toHaveBeenCalledWith("a1", DATE, "1");
+    expect(mocks.clearVipAssignment).toHaveBeenCalledWith("a1", DATE, "1", expect.anything());
   });
 
   it("rejects an empty patch without touching the repository", async () => {
@@ -361,6 +397,7 @@ describe("applyPaint partial patches", () => {
       "a1",
       DATE,
       "1",
+      { db: expect.anything() },
     );
   });
 

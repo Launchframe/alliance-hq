@@ -3,7 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { getWeekSchedule } from "@/lib/trains/repository";
+import { getWeekSchedule, type TrainsDb } from "@/lib/trains/repository";
 import { parseTemplateWeekRules } from "@/lib/trains/rules/template-days.shared";
 import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
 import { scheduleWeekStart } from "@/lib/trains/train-week-calendar.shared";
@@ -36,12 +36,13 @@ export function createWeekTemplateCache(): TemplateCache {
 export async function loadWeekFillTemplateById(
   templateId: string | null,
   cache?: TemplateCache,
+  db: TrainsDb = getDb(),
 ): Promise<WeekFillTemplate> {
   if (!templateId) return CUSTOM_FALLBACK;
   const cached = cache?.get(templateId);
   if (cached) return cached;
 
-  const [row] = await getDb()
+  const [row] = await (db ?? getDb())
     .select({ days: schema.trainRuleTemplates.days })
     .from(schema.trainRuleTemplates)
     .where(eq(schema.trainRuleTemplates.id, templateId))
@@ -61,9 +62,15 @@ export async function resolveWeekFillTemplate(
   weekStart: string,
   seasonKey?: string | null,
   cache?: TemplateCache,
+  options?: { db?: TrainsDb; updateSeason?: boolean },
 ): Promise<WeekFillTemplate> {
-  const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  return loadWeekFillTemplateById(schedule?.templateId ?? null, cache);
+  const schedule = await getWeekSchedule(
+    allianceId,
+    weekStart,
+    seasonKey,
+    options,
+  );
+  return loadWeekFillTemplateById(schedule?.templateId ?? null, cache, options?.db ?? getDb());
 }
 
 /**
@@ -78,12 +85,19 @@ export async function resolveWeekFillTemplateResolver(
   dates: readonly string[],
   seasonKey?: string | null,
   cache?: TemplateCache,
+  options?: { db?: TrainsDb; updateSeason?: boolean },
 ): Promise<WeekFillTemplateResolver> {
   const byMonday = new Map<string, WeekFillTemplate>();
   for (const monday of new Set(dates.map((date) => scheduleWeekStart(date)))) {
     byMonday.set(
       monday,
-      await resolveWeekFillTemplate(allianceId, monday, seasonKey, cache),
+      await resolveWeekFillTemplate(
+        allianceId,
+        monday,
+        seasonKey,
+        cache,
+        options,
+      ),
     );
   }
   return (date) => byMonday.get(scheduleWeekStart(date)) ?? CUSTOM_FALLBACK;

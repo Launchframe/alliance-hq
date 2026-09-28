@@ -556,8 +556,8 @@ export async function releasePoolSelectionForDate(
   allianceId: string,
   date: string,
   memberId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<void> {
-  const db = getDb();
   await db
     .update(schema.conductorPoolEntries)
     .set({

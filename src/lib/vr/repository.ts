@@ -779,8 +779,8 @@ export async function countSeasonReporters(
 export async function countAllianceSeasonVrReporters(
   allianceId: string,
   seasonKey: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<number> {
-  const db = getDb();
   const [row] = await db
     .select({
       count: sql<number>`cast(count(*) as integer)`,

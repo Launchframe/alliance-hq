@@ -283,9 +283,10 @@ export async function listAllianceMembersWithAshedSyncIfNeeded(input: {
 
 export async function listActiveAllianceMembersForPool(
   hqAllianceId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
+  options?: { lock?: boolean },
 ): Promise<AllianceMember[]> {
-  const db = getDb();
-  return db
+  const query = db
     .select()
     .from(schema.allianceMembers)
     .where(
@@ -293,7 +294,9 @@ export async function listActiveAllianceMembersForPool(
         eq(schema.allianceMembers.allianceId, hqAllianceId),
         ne(schema.allianceMembers.status, "former"),
       ),
-    );
+    )
+    .orderBy(schema.allianceMembers.id);
+  return options?.lock ? query.for("update") : query;
 }
 
 export async function listActiveAllianceMembersForPoolWithSync(input: {
