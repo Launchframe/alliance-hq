@@ -7,6 +7,10 @@ import {
 import { getAshedConnection, loadSession, readSessionId } from "@/lib/session";
 import { requireAllianceAdmin } from "@/lib/rbac/require-permission";
 import {
+  RosterSyncUnavailableError,
+  syncAllianceRosterForSession,
+} from "@/lib/members/roster-sync.server";
+import {
   getAllianceTeam,
   syncAshedAllianceRoles,
 } from "@/lib/rbac/sync-ashed-roles";
@@ -102,7 +106,25 @@ export async function POST() {
   const allianceId = refreshed
     ? resolveSessionAllianceId(refreshed)
     : null;
+
+  // In-game ranks (and R4 privilege nudges) come from the roster, not the
+  // collaborator role sync above.
+  let rosterSynced = false;
+  if (allianceId) {
+    try {
+      await syncAllianceRosterForSession({ sessionId, allianceId });
+      rosterSynced = true;
+    } catch (error) {
+      if (!(error instanceof RosterSyncUnavailableError)) {
+        console.error("[settings/team] roster sync failed", {
+          allianceId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
   const team = allianceId ? await getAllianceTeam(allianceId) : [];
 
-  return NextResponse.json({ ok: true, team });
+  return NextResponse.json({ ok: true, team, rosterSynced });
 }

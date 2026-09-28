@@ -20,13 +20,22 @@ export function isTeamSettingsTab(
 
 /**
  * Resolve the active Team settings tab from a query param.
- * Unknown tabs and unauthorized tabs fall back to a visible tab.
+ * Missing or unknown tabs land on Members, except invite-wizard deep links
+ * (which carry no `tab`). Unauthorized tabs fall back to a visible tab.
  */
 export function resolveTeamSettingsTab(
   raw: string | null | undefined,
-  options: { canManageInvites: boolean; isAllianceAdmin: boolean },
+  options: {
+    canManageInvites: boolean;
+    isAllianceAdmin: boolean;
+    hasInviteWizard?: boolean;
+  },
 ): TeamSettingsTab {
-  const tab = isTeamSettingsTab(raw) ? raw : "invites";
+  const tab = isTeamSettingsTab(raw)
+    ? raw
+    : options.hasInviteWizard
+      ? "invites"
+      : "members";
 
   if (tab === "invites" && !options.canManageInvites) {
     if (options.isAllianceAdmin) return "processors";

@@ -87,6 +87,24 @@ test("0190 vs constraints apply cleanly on a fresh install and the week guards f
       `,
     ).rejects.toThrow(/invalid_vs_match_day/);
 
+    const otherAllianceId = nanoid(16);
+    await sql`
+      INSERT INTO ${sql(`${schemaName}.alliances`)} (id) VALUES (${otherAllianceId})
+    `;
+    await expect(
+      sql`
+        INSERT INTO ${sql(`${schemaName}.vs_match_day_results`)}
+          (id, alliance_id, matchup_id, recorded_date)
+        VALUES (${nanoid(16)}, ${otherAllianceId}, ${matchupId}, '2026-09-22')
+      `,
+    ).rejects.toThrow();
+
+    await sql`
+      INSERT INTO ${sql(`${schemaName}.vs_match_observations`)}
+        (id, alliance_id, matchup_id, recorded_date, source, request_id, content_hash, snapshot)
+      VALUES (${nanoid(16)}, ${allianceId}, ${matchupId}, NULL, 'hq_manual', 'identity', 'h0', '{"kind":"identity"}')
+    `;
+
     await expect(
       sql`
         UPDATE ${sql(`${schemaName}.vs_matchups`)} SET week_start = '2026-09-28'

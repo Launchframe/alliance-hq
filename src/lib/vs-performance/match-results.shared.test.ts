@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertVsResultDate,
   calculateVsWeekPoints,
+  formatVsTotal,
   normalizeVsResult,
   parseLocalizedVsTotal,
   type VsDayResult,
@@ -121,6 +123,59 @@ describe("parseLocalizedVsTotal", () => {
   });
 });
 
+describe("formatVsTotal", () => {
+  it("formats grouping for en-US and pt-BR", () => {
+    expect(formatVsTotal("1234567", "en-US")).toBe("1,234,567");
+    expect(formatVsTotal("1234567", "pt-BR")).toBe("1.234.567");
+  });
+
+  it("formats zero and values beyond JS-safe integers", () => {
+    expect(formatVsTotal("0", "en-US")).toBe("0");
+    expect(formatVsTotal("9007199254740993", "en-US")).toBe("9,007,199,254,740,993");
+  });
+
+  it("rejects leading zeros, negatives, decimals, and empty input", () => {
+    for (const bad of ["", "01", "-1", "1.5", "1,234"]) {
+      expect(() => formatVsTotal(bad, "en-US")).toThrow("invalidTotals");
+    }
+  });
+});
+
+describe("assertVsResultDate", () => {
+  it("allows unconfirmed results on server today and final results only on past match days", () => {
+    expect(() =>
+      assertVsResultDate(WEEK, dates[2]!, "2026-09-23", "unconfirmed"),
+    ).not.toThrow();
+    expect(() =>
+      assertVsResultDate(WEEK, dates[1]!, "2026-09-23", "final"),
+    ).not.toThrow();
+  });
+
+  it("rejects final results on server today", () => {
+    expect(() =>
+      assertVsResultDate(WEEK, dates[2]!, "2026-09-23", "final"),
+    ).toThrow("invalid");
+  });
+
+  it("rejects dates after server today for any finality", () => {
+    expect(() =>
+      assertVsResultDate(WEEK, dates[3]!, "2026-09-23", "unconfirmed"),
+    ).toThrow("invalid");
+    expect(() =>
+      assertVsResultDate(WEEK, dates[3]!, "2026-09-23", "final"),
+    ).toThrow("invalid");
+  });
+
+  it("rejects dates outside the week and invalid server today", () => {
+    expect(() =>
+      assertVsResultDate(WEEK, "2026-09-27", "2026-09-28", "unconfirmed"),
+    ).toThrow("invalid");
+    expect(() =>
+      assertVsResultDate(WEEK, dates[0]!, "not-a-date", "unconfirmed"),
+    ).toThrow("invalid");
+  });
+});
+
 describe("calculateVsWeekPoints", () => {
   it("Mon+Tue wins => 3:0, no victory, saturday path open", () => {
     const points = calculateVsWeekPoints(
@@ -130,6 +185,7 @@ describe("calculateVsWeekPoints", () => {
     );
     expect(points.alliancePoints).toBe(3);
     expect(points.opponentPoints).toBe(0);
+    expect(points.remainingPoints).toBe(10);
     expect(points.victory).toBeNull();
     expect(points.saturdayWinSecuresWeek).toBe(true);
   });
@@ -141,6 +197,13 @@ describe("calculateVsWeekPoints", () => {
       "2026-09-23",
     );
     expect(points.saturdayWinSecuresWeek).toBe(false);
+  });
+
+  it("weekday weights are 1/2/2/2/2 and Saturday is 4", () => {
+    const weights = dates.map((d) =>
+      calculateVsWeekPoints(WEEK, [result(d, "won")], "2026-09-27").alliancePoints,
+    );
+    expect(weights).toEqual([1, 2, 2, 2, 2, 4]);
   });
 
   it("Mon–Thu wins => 7 points and alliance victory", () => {

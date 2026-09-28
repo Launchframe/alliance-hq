@@ -12,7 +12,13 @@ import {
 import type { TeamMember } from "@/lib/rbac/sync-ashed-roles";
 
 type Props = {
-  initialTeam: TeamMember[];
+  team: TeamMember[];
+  onTeamChange: (team: TeamMember[]) => void;
+  /**
+   * Ranks or HQ roles may have changed (Ashed refresh, officer revoke).
+   * Return false when the follow-up reload failed.
+   */
+  onRolesChanged?: () => void | Promise<boolean | void>;
   canRefreshFromAshed?: boolean;
   canRevokeOfficers?: boolean;
   currentHqUserId?: string | null;
@@ -33,14 +39,16 @@ function CommanderOwnershipCell({
 }
 
 export function SettingsTeamClient({
-  initialTeam,
+  team,
+  onTeamChange,
+  onRolesChanged,
   canRefreshFromAshed = false,
   canRevokeOfficers = false,
   currentHqUserId = null,
 }: Props) {
   const t = useTranslations("team");
-  const [team, setTeam] = useState(initialTeam);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState<TeamMember | null>(null);
   const [revoking, setRevoking] = useState(false);
@@ -48,14 +56,27 @@ export function SettingsTeamClient({
   async function refreshFromAshed() {
     setRefreshing(true);
     setError(null);
+    setWarning(null);
     try {
       const res = await fetch("/api/settings/team", { method: "POST" });
       if (!res.ok) {
         setError(t("refreshFailed"));
         return;
       }
-      const data = (await res.json()) as { team: TeamMember[] };
-      setTeam(data.team);
+      const data = (await res.json()) as {
+        team: TeamMember[];
+        rosterSynced?: boolean;
+      };
+      onTeamChange(data.team);
+      if (data.rosterSynced === false) {
+        setWarning(t("rosterSyncSkipped"));
+      }
+      const reloaded = await onRolesChanged?.();
+      if (reloaded === false) {
+        setError(t("roleNudges.loadFailed"));
+      }
+    } catch {
+      setError(t("refreshFailed"));
     } finally {
       setRefreshing(false);
     }
@@ -79,13 +100,17 @@ export function SettingsTeamClient({
         setError(data.error ?? t("revokeOfficerFailed"));
         return;
       }
-      setTeam((current) =>
-        current.map((member) =>
+      onTeamChange(
+        team.map((member) =>
           member.membershipId === pendingRevoke.membershipId
             ? { ...member, roleName: "member", source: "manual" }
             : member,
         ),
       );
+      const reloaded = await onRolesChanged?.();
+      if (reloaded === false) {
+        setError(t("roleNudges.loadFailed"));
+      }
       setPendingRevoke(null);
     } finally {
       setRevoking(false);
@@ -113,6 +138,16 @@ export function SettingsTeamClient({
             {refreshing ? t("refreshing") : t("refreshFromAshed")}
           </button>
         </div>
+      ) : null}
+
+      {warning ? (
+        <p
+          className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning"
+          role="status"
+          data-testid="team-roster-sync-warning"
+        >
+          {warning}
+        </p>
       ) : null}
 
       {error ? (
