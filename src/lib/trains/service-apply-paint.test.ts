@@ -182,7 +182,12 @@ vi.mock("@/lib/trains/game-time", async (importOriginal) => {
 });
 
 import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
-import { applyPaint, applyTemplateToWeek } from "@/lib/trains/service";
+import {
+  applyPaint,
+  applyTemplateToWeek,
+  prepareTrainPaints,
+} from "@/lib/trains/service";
+import { DEFAULT_ALLIANCE_TRAIN_WEEK } from "@/lib/trains/train-week-calendar.shared";
 import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
 
 function stubTemplateId(id: string) {
@@ -485,6 +490,54 @@ describe("applyPaint partial patches", () => {
 
     expect(mocks.upsertDayConfigOverride).not.toHaveBeenCalled();
     expect(mocks.restampConductorRules).not.toHaveBeenCalled();
+  });
+
+  it("throws when a write paint cannot see the week schedule after baseline", async () => {
+    mocks.getWeekSchedule.mockResolvedValue(null);
+    mocks.upsertWeekSchedule.mockResolvedValue({
+      id: "sched-new",
+      templateId: null,
+      isPivot: 0,
+    });
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: "dc1",
+    });
+
+    await expect(
+      applyPaint("a1", {
+        dates: [DATE],
+        conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      }),
+    ).rejects.toThrow(/Missing week schedule after baseline/);
+
+    expect(mocks.upsertDayConfigOverride).not.toHaveBeenCalled();
+  });
+
+  it("read-only prepare still builds patches when no week schedule exists", async () => {
+    mocks.getWeekSchedule.mockResolvedValue(null);
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: null,
+    });
+
+    const prepared = await prepareTrainPaints(
+      "a1",
+      [{ date: DATE, conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" } }],
+      {
+        seasonKey: "1",
+        trainWeekConfig: DEFAULT_ALLIANCE_TRAIN_WEEK,
+        weekStarts: ["2099-06-15"],
+        activeMemberIds: new Set(),
+      },
+      { readOnly: true },
+    );
+
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0]?.scheduleId).toBe("");
+    expect(mocks.upsertWeekSchedule).not.toHaveBeenCalled();
   });
 });
 
