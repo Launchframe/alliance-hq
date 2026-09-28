@@ -181,6 +181,7 @@ vi.mock("@/lib/trains/game-time", async (importOriginal) => {
   };
 });
 
+import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
 import { applyPaint, applyTemplateToWeek } from "@/lib/trains/service";
 import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
 
@@ -206,6 +207,28 @@ describe("applyPaint partial patches", () => {
       { ashedMemberId: "m1" },
     ]);
     mocks.getConductorRecord.mockResolvedValue(null);
+  });
+
+  it("serializes paint under the alliance availability lock", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: "dc1",
+    });
+
+    await applyPaint("a1", {
+      dates: [DATE],
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+    });
+
+    expect(lockAllianceAvailability).toHaveBeenCalledTimes(1);
+    expect(mocks.upsertDayConfigOverride).toHaveBeenCalledWith(
+      "a1",
+      "sched-1",
+      expect.anything(),
+      true,
+      expect.objectContaining({ rollback: expect.any(Function) }),
+    );
   });
 
   it("reapplying the same conductor rule leaves the event VIP intact", async () => {
