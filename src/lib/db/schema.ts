@@ -1,5 +1,6 @@
 import {
   bigint,
+  bigserial,
   boolean,
   customType,
   doublePrecision,
@@ -8,6 +9,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   real,
@@ -5488,6 +5490,128 @@ export const knowledgeIntakeAnalyses = pgTable("knowledge_intake_analyses", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, (table) => [index("knowledge_intake_analyses_rate_idx").on(table.principalKey, table.createdAt)]);
+
+export const vsWeekPlans = pgTable("vs_week_plans", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  weekStart: text("week_start").notNull(),
+  platform: text("platform").$type<import("@/lib/vs-performance/weekly-plan.shared").VsPlatform>().notNull(),
+  days: jsonb("days").$type<import("@/lib/vs-performance/weekly-plan.shared").VsPlanDay[]>().notNull(),
+  leadDays: integer("lead_days").notNull().default(0),
+  appliedMeta: jsonb("applied_meta").$type<{
+    appliedAt: string | null;
+    leadDays: number;
+    rules: Record<string, import("@/lib/trains/rules/catalog.shared").ConductorRule | null>;
+  }>(),
+  version: integer("version").notNull().default(1),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("vs_week_plans_alliance_week_unique").on(table.allianceId, table.weekStart),
+  check("vs_week_plans_lead_days_check", sql`${table.leadDays} between 0 and 7`),
+  check("vs_week_plans_version_check", sql`${table.version} > 0`),
+  check("vs_week_plans_week_start_monday_check", sql`extract(isodow from ${table.weekStart}::date) = 1`),
+]);
+
+export const vsStrategyPreferences = pgTable("vs_strategy_preferences", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  pushDefaults: jsonb("push_defaults").$type<import("@/lib/vs-performance/weekly-plan.shared").VsPushDefaults>().notNull(),
+  version: integer("version").notNull().default(1),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check("vs_strategy_preferences_version_check", sql`${table.version} > 0`),
+]);
+
+export const vsMatchups = pgTable("vs_matchups", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  weekStart: text("week_start").notNull(),
+  opponentName: text("opponent_name"),
+  opponentTag: text("opponent_tag"),
+  externalOpponentId: text("external_opponent_id"),
+  externalCompetitionId: text("external_competition_id"),
+  identitySource: text("identity_source").$type<"hq_manual" | "ashed_import">().notNull().default("hq_manual"),
+  version: integer("version").notNull().default(1),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("vs_matchups_alliance_week_unique").on(table.allianceId, table.weekStart),
+  unique("vs_matchups_id_alliance_unique").on(table.id, table.allianceId),
+  check("vs_matchups_week_start_monday_check", sql`extract(isodow from ${table.weekStart}::date) = 1`),
+  check("vs_matchups_version_check", sql`${table.version} > 0`),
+  check("vs_matchups_identity_source_check", sql`${table.identitySource} in ('hq_manual', 'ashed_import')`),
+]);
+
+export const vsMatchDayResults = pgTable("vs_match_day_results", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  matchupId: text("matchup_id").notNull(),
+  recordedDate: text("recorded_date").notNull(),
+  ourScore: numeric("our_score", { precision: 30, scale: 0 }),
+  opponentScore: numeric("opponent_score", { precision: 30, scale: 0 }),
+  outcome: text("outcome").$type<import("@/lib/vs-performance/match-results.shared").VsOutcome>().notNull().default("pending"),
+  finality: text("finality").$type<import("@/lib/vs-performance/match-results.shared").VsFinality>().notNull().default("unconfirmed"),
+  source: text("source").$type<import("@/lib/vs-performance/match-results.shared").VsResultSource>().notNull().default("hq_manual"),
+  sourceRef: text("source_ref"),
+  sourceRevision: text("source_revision"),
+  hqConfirmed: integer("hq_confirmed").notNull().default(0),
+  version: integer("version").notNull().default(1),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.matchupId, table.allianceId],
+    foreignColumns: [vsMatchups.id, vsMatchups.allianceId],
+    name: "vs_match_day_results_matchup_alliance_fk",
+  }).onDelete("cascade"),
+  unique("vs_match_day_results_matchup_date_unique").on(table.matchupId, table.recordedDate),
+  index("vs_match_day_results_alliance_idx").on(table.allianceId, table.recordedDate),
+  check("vs_match_day_results_scores_paired_check", sql`(${table.ourScore} is null) = (${table.opponentScore} is null)`),
+  check("vs_match_day_results_scores_nonnegative_check", sql`${table.ourScore} >= 0 and ${table.opponentScore} >= 0`),
+  check("vs_match_day_results_outcome_check", sql`${table.outcome} in ('pending', 'won', 'lost')`),
+  check("vs_match_day_results_finality_check", sql`${table.finality} in ('unconfirmed', 'final')`),
+  check("vs_match_day_results_source_check", sql`${table.source} in ('hq_manual', 'ashed_import', 'reviewed_upload')`),
+  check("vs_match_day_results_version_check", sql`${table.version} > 0`),
+  check("vs_match_day_results_recorded_weekday_check", sql`extract(isodow from ${table.recordedDate}::date) between 1 and 6`),
+]);
+
+export const vsMatchObservations = pgTable("vs_match_observations", {
+  id: text("id").primaryKey(),
+  sequence: bigserial("sequence", { mode: "bigint" }).notNull(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  matchupId: text("matchup_id").notNull(),
+  recordedDate: text("recorded_date"),
+  source: text("source").$type<import("@/lib/vs-performance/match-results.shared").VsResultSource>().notNull(),
+  sourceRef: text("source_ref"),
+  sourceRevision: text("source_revision"),
+  requestId: text("request_id").notNull(),
+  contentHash: text("content_hash").notNull(),
+  snapshot: jsonb("snapshot").$type<import("@/lib/vs-performance/match-results.shared").VsNormalizedResult | import("@/lib/vs-performance/match-results.shared").VsIdentitySnapshot>().notNull(),
+  nativeVersion: integer("native_version").notNull().default(0),
+  disposition: text("disposition").$type<"applied" | "conflict" | "reviewed_keep_hq" | "reviewed_use_ashed" | "superseded">().notNull().default("applied"),
+  observedAt: timestamp("observed_at", { withTimezone: true }).defaultNow().notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+  actorHqUserId: text("actor_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+}, (table) => [
+  foreignKey({
+    columns: [table.matchupId, table.allianceId],
+    foreignColumns: [vsMatchups.id, vsMatchups.allianceId],
+    name: "vs_match_observations_matchup_alliance_fk",
+  }).onDelete("cascade"),
+  unique("vs_match_observations_request_unique").on(table.matchupId, table.recordedDate, table.requestId),
+  uniqueIndex("vs_match_observations_sequence_unique").on(table.sequence),
+  index("vs_match_observations_matchup_idx").on(table.matchupId, table.recordedDate),
+  check("vs_match_observations_source_check", sql`${table.source} in ('hq_manual', 'ashed_import', 'reviewed_upload')`),
+  check("vs_match_observations_disposition_check", sql`${table.disposition} in ('applied', 'conflict', 'reviewed_keep_hq', 'reviewed_use_ashed', 'superseded')`),
+  check("vs_match_observations_recorded_weekday_check", sql`${table.recordedDate} is null or extract(isodow from ${table.recordedDate}::date) between 1 and 6`),
+]);
 
 export type PerformanceNote = typeof performanceNotes.$inferSelect;
 export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;
