@@ -68,6 +68,14 @@ export async function GET(request: Request) {
         controller.close();
       };
 
+      request.signal.addEventListener("abort", () => {
+        closeStream();
+      }, { once: true });
+      if (request.signal.aborted) {
+        closeStream();
+        return;
+      }
+
       const handleListenFailure = () => {
         send("error", { message: "Live updates unavailable" });
         closeStream({ reconnect: true });
@@ -85,6 +93,7 @@ export async function GET(request: Request) {
         });
       }
 
+      if (closed) return;
       listenClient = createVideoJobListenClient();
 
       reconnectTimer = setTimeout(
@@ -120,10 +129,7 @@ export async function GET(request: Request) {
           onDisconnect: handleListenFailure,
         },
       );
-
-      request.signal.addEventListener("abort", () => {
-        closeStream();
-      });
+      if (closed) stopProbe();
     },
     cancel() {
       intentionalClose = true;
