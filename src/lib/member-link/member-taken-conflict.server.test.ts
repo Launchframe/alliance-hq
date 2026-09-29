@@ -82,7 +82,7 @@ describe("surfaceWebMemberLinkTakenConflict", () => {
     });
 
     expect(result.outcome).toBe("member_taken");
-    expect(result.message).toContain("notified");
+    expect(result.message).toContain("unlink this Commander");
     expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         context: "claim_conflict",

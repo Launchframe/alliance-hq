@@ -444,5 +444,16 @@ export async function commitRosterImport(
     },
   });
 
+  try {
+    const { rematerializeFormerSeatLinksForAlliance } = await import(
+      "@/lib/members/uid-seat-handoff.server"
+    );
+    await rematerializeFormerSeatLinksForAlliance(input.allianceId);
+  } catch {
+    console.error("[roster-commit] former-seat rematerialize failed", {
+      allianceId: input.allianceId,
+    });
+  }
+
   return { created, updated, inactivated, rankEvents };
 }

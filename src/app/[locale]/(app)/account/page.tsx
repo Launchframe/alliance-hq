@@ -3,11 +3,13 @@ import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.se
 import { getTranslations } from "next-intl/server";
 
 import { CredentialSharesCard } from "@/components/account/CredentialSharesCard";
+import { LinkedCommandersCard } from "@/components/account/LinkedCommandersCard";
 import { AccountSettingsForm } from "@/components/AccountSettingsForm";
 import { Link } from "@/i18n/navigation";
 import { hqUserHasOAuthProvider, loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
 import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
+import { listLinkedCommandersForHqUser } from "@/lib/members/linked-commanders.server";
 import {
   getAshedConnectionMeta,
   getSessionStateFor,
@@ -57,6 +59,10 @@ export default async function AccountPage({ searchParams }: Props) {
     ? await loadSignInMethodSnapshot(hqUserId)
     : null;
 
+  const linkedCommanders = hqUserId
+    ? await listLinkedCommandersForHqUser(hqUserId)
+    : [];
+
   const discordLinked = Boolean(discordBotLink || hasDiscordOAuth);
   const canEditScoreboardOffers = canEditScoreboardReviewPreferences({
     roleName: sessionState.rbac?.roleName,
@@ -94,6 +100,7 @@ export default async function AccountPage({ searchParams }: Props) {
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       {hqUserId ? <Link href="/account/calendars" className="block rounded-xl border border-hq-border bg-hq-surface p-4 text-hq-accent underline">{calendar("title")}</Link> : null}
+      {hqUserId ? <LinkedCommandersCard commanders={linkedCommanders} /> : null}
       {hqUserId ? <CredentialSharesCard currentHqUserId={hqUserId} /> : null}
       <AccountSettingsForm
       initialAshed={ashed}

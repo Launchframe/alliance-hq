@@ -2254,7 +2254,7 @@
     "claimConflictReason": {
       "label": "Tipo de conflito",
       "name_collision": "Outro comandante já está vinculado com este nome no jogo",
-      "commander_taken": "Este comandante já está vinculado a outra conta",
+      "commander_taken": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
       "discord_hq_unlinked": "Este UID está vinculado no Discord, mas ainda não foi associado a uma conta HQ",
       "server_mismatch": "O UID pertence a um servidor de jogo diferente desta aliança",
       "target_mismatch": "O nome do UID não corresponde ao comandante convidado"
@@ -2791,7 +2791,18 @@
     "discordUnlinkFailed": "Não foi possível desvincular o bot do Discord.",
     "discordUnlinkLastMethod": "Adicione outro método de login antes de desvincular o Discord.",
     "discordLinkErrorNoOAuth": "Conclua o login com Discord para finalizar a vinculação.",
-    "discordLinkErrorGeneric": "Não foi possível vincular o bot do Discord. Tente novamente."
+    "discordLinkErrorGeneric": "Não foi possível vincular o bot do Discord. Tente novamente.",
+    "linkedCommanders": {
+      "title": "Meus comandantes vinculados",
+      "body": "Desvincule um comandante para outra pessoa poder reivindicá-lo após a transferência da conta no jogo. Você também pode pedir ajuda a um R4.",
+      "linkAnother": "Vincular outro comandante",
+      "unlink": "Desvincular",
+      "unlinking": "Desvinculando…",
+      "unlinkConfirm": "Desvincular este comandante?",
+      "cancel": "Cancelar",
+      "empty": "Você ainda não vinculou um comandante.",
+      "unlinkFailed": "Não foi possível desvincular este comandante."
+    }
   },
   "profile": {
     "title": "Perfil",
@@ -5514,8 +5525,8 @@
     "usage": "Informe seu nome no jogo e UID do perfil Last War.",
     "linked": "Vinculado a {name}. Bem-vindo à aliança!",
     "updated": "Vínculo atualizado para {name}.",
-    "memberTaken": "Esse membro do jogo já está vinculado a outra conta.",
-    "memberTakenEscalated": "Esse UID já está vinculado a outra conta. Os oficiais da sua aliança foram notificados — tente outra conta ou fale com o suporte.",
+    "memberTaken": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
+    "memberTakenEscalated": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
     "crossLayerDiscordFirst": "Esse UID de jogador já está vinculado no Discord. Se for você, execute /link no Discord para conectar esta conta HQ e tente novamente. Os oficiais da sua aliança foram notificados para ajudar se precisar.",
     "fuzzyPrompt": "Verificamos {gameName}, mas não achamos correspondência exata no roster. Escolha seu membro:",
     "rosterMiss": "Verificamos o roster **{tag}** e não encontramos esse nome. Tente **Recomeçar** para ajuda com o nome ou peça ajuda a um oficial.",
@@ -5614,7 +5625,7 @@
     "serverNumberInvalid": "Informe um número de servidor válido (1–9999).",
     "submitServer": "Continuar com este servidor",
     "backToForm": "Voltar ao nome e UID",
-    "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os oficiais da sua aliança foram notificados — tente outra conta ou fale com o suporte.",
+    "memberTakenBody": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
     "claimTitle": "Confirme seu comandante",
     "claimSubtitle": "Sua aliança convidou você para reivindicar {name}. Informe seu UID para confirmar que é você.",
     "claimSubmit": "Confirmar e vincular",
@@ -5719,7 +5730,7 @@
       "updated": "Vínculo do comandante atualizado para **{name}**.",
       "replaced": "Vínculo trocado para o comandante **{name}**.",
       "capReached": "Você já atingiu o máximo de comandantes vinculados ({max}). Use `/unlink` ou `/link-commander replace:true`.",
-      "memberTaken": "Esse comandante no jogo já está vinculado a outra conta do Discord.",
+      "memberTaken": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
       "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu comandante:",
       "rosterMiss": "Verificamos o roster **{tag}** e não encontramos esse comandante. Toque em **Começar de novo** para tentar outra vez ou peça ajuda a um oficial.",
       "rosterMissGeneric": "Não encontramos esse comandante no roster. Toque em **Começar de novo** para tentar outra vez ou peça ajuda a um oficial.",
@@ -6418,8 +6429,8 @@
           "body": "After adding the bot to a new server, Discord may take a few minutes to register global slash commands.\n\nTry:\n• Wait 5–15 minutes and type /link in the server again.\n• Confirm the bot appears online in the member list.\n• If commands never appear, ask a maintainer to verify command registration for the bot application."
         },
         "memberTaken": {
-          "title": "Commander already linked",
-          "body": "That in-game character is linked to a different Discord account. The bot cannot transfer links — contact your alliance leadership if this was a mistake."
+          "title": "Comandante já vinculado",
+          "body": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4."
         },
         "notOfficer": {
           "title": "Officer command denied",
@@ -6561,7 +6572,7 @@
       "substring": "Roster name overlap",
       "fuzzy": "Similar roster name"
     },
-    "targetAlreadyClaimed": "That roster member is already linked to another HQ account.",
+    "targetAlreadyClaimed": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
     "targetNotFound": "That roster member could not be found.",
     "pendingCount": "{count, plural, one {# to review} other {# to review}}",
     "ownerOnlyGate": "Only the alliance owner can review onboarding links for this alliance.",
