@@ -128,3 +128,114 @@ test("0191 vs constraints apply cleanly on a fresh install and the week guards f
     await sql.end({ timeout: 5 });
   }
 });
+
+test("0192 applies on a fresh install and backfills opponent scores from pre-0192 HQ-confirmed final heads", async () => {
+  const url =
+    process.env.E2E_DATABASE_URL?.trim() ||
+    process.env.LOCAL_DATABASE_URL?.trim();
+  if (!url) throw new Error("E2E database URL is not configured.");
+  assertE2eDatabaseUrl(url);
+  const sql = postgres(url, { max: 1, prepare: false });
+  const schemaName = `vs_mig_${nanoid(8).toLowerCase().replace(/[^a-z0-9]/g, "x")}`;
+  await sql.unsafe(`CREATE SCHEMA "${schemaName}"`);
+  try {
+    await sql.unsafe(
+      `CREATE TABLE "${schemaName}".alliances (id text PRIMARY KEY);
+       CREATE TABLE "${schemaName}".hq_users (id text PRIMARY KEY)`,
+    );
+    for (const file of [
+      "0190_vs_weekly_strategy_podium.sql",
+      "0191_vs_constraints.sql",
+    ]) {
+      for (const statement of migrationStatements(file, schemaName)) {
+        await sql.unsafe(
+          `SET search_path TO "${schemaName}";\n${statement}`,
+        );
+      }
+    }
+
+    const allianceId = nanoid(16);
+    const matchupId = nanoid(16);
+    const importedMatchupId = nanoid(16);
+    await sql`
+      INSERT INTO ${sql(`${schemaName}.alliances`)} (id) VALUES (${allianceId})
+    `;
+    await sql`
+      INSERT INTO ${sql(`${schemaName}.vs_matchups`)}
+        (id, alliance_id, week_start, opponent_name, opponent_tag, identity_source)
+      VALUES
+        (${matchupId}, ${allianceId}, '2026-09-21', 'Rival', 'RVL', 'hq_manual'),
+        (${importedMatchupId}, ${allianceId}, '2026-09-28', 'Other', 'OTH', 'ashed_import')
+    `;
+    await sql`
+      INSERT INTO ${sql(`${schemaName}.vs_match_day_results`)}
+        (id, alliance_id, matchup_id, recorded_date, our_score, opponent_score, outcome, finality, hq_confirmed)
+      VALUES
+        (${nanoid(16)}, ${allianceId}, ${matchupId}, '2026-09-21', 100, 42, 'won', 'final', 1),
+        (${nanoid(16)}, ${allianceId}, ${matchupId}, '2026-09-22', 50, 7, 'pending', 'unconfirmed', 0)
+    `;
+
+    for (const statement of migrationStatements(
+      "0192_vs_opponent_sync_capture.sql",
+      schemaName,
+    )) {
+      await sql.unsafe(`SET search_path TO "${schemaName}";\n${statement}`);
+    }
+
+    const rows = await sql<
+      {
+        id: string;
+        opponent_daily_scores: unknown;
+        opponent_info_owned_fields: unknown;
+      }[]
+    >`
+      SELECT id, opponent_daily_scores, opponent_info_owned_fields
+      FROM ${sql(`${schemaName}.vs_matchups`)}
+      ORDER BY week_start
+    `;
+    expect(rows).toHaveLength(2);
+    const manual = rows.find((row) => row.id === matchupId)!;
+    const imported = rows.find((row) => row.id === importedMatchupId)!;
+    expect(manual.opponent_daily_scores).toEqual([
+      "42",
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(manual.opponent_info_owned_fields).toEqual([
+      "day:1",
+      "opponentName",
+      "opponentTag",
+    ]);
+    expect(imported.opponent_daily_scores).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(imported.opponent_info_owned_fields).toEqual([]);
+
+    await expect(
+      sql`
+        UPDATE ${sql(`${schemaName}.vs_matchups`)}
+        SET opponent_daily_scores = jsonb_build_array('007', null, null, null, null, null)
+        WHERE id = ${matchupId}
+      `,
+    ).rejects.toThrow(/vs_matchups_opponent_scores_check/);
+
+    await expect(
+      sql`
+        INSERT INTO ${sql(`${schemaName}.vs_matchup_ashed_sync`)}
+          (matchup_id, alliance_id, dirty_fields)
+        VALUES (${matchupId}, ${allianceId}, '["bogus"]'::jsonb)
+      `,
+    ).rejects.toThrow(/vs_matchup_ashed_sync_dirty_fields_check/);
+  } finally {
+    await sql.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+    await sql.end({ timeout: 5 });
+  }
+});

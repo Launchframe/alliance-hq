@@ -25,6 +25,7 @@ const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/battle-plan", heading: /battle plan/i },
   { path: "/bank-management", heading: /bank management/i },
   { path: "/time-off", heading: /^my time off$/i },
+  { path: "/vs-performance", heading: /^week of/i },
   { path: "/plunder-plan", heading: /^plunder plan$/i },
   { path: "/professions", heading: /^profession$/i },
   { path: "/my-vr", heading: /^my vr$/i },
@@ -45,6 +46,7 @@ const IFRAME_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
 /** Read permissions the default view-only member fixture already has. */
 const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set([
   "members:read",
+  "scores:read",
   "notes:read",
   "battle_plan:read",
   "bank:read",

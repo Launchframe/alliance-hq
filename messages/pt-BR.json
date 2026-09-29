@@ -1965,6 +1965,10 @@
         "template6": "Aplicar modelo 6",
         "template7": "Aplicar modelo 7",
         "template8": "Aplicar modelo 8"
+      },
+      "vsPerformance": {
+        "editPlan": "Editar plano VS",
+        "capture": "Enviar captura de tela do VS"
       }
     }
   },
@@ -7641,6 +7645,171 @@
       "alliance": "Selecione uma aliança para continuar.",
       "forbidden": "Você não tem permissão para fazer isso.",
       "conflict": "Esta nota foi alterada em outro lugar. Recarregue-a antes de salvar."
+    }
+  },
+  "vsPerformance": {
+    "week": {
+      "title": "Semana de {date}",
+      "previous": "Semana anterior",
+      "next": "Próxima semana",
+      "current": "Esta semana"
+    },
+    "plan": {
+      "title": "Plano VS semanal",
+      "empty": "Nenhum plano VS foi definido para esta semana.",
+      "edit": "Editar plano VS",
+      "platform": "Plataforma da semana",
+      "strategy": "Estratégia do dia",
+      "push": "Push",
+      "hardSave": "Economia pesada — The Price Is Freight",
+      "softSave": "Economia leve — Loteria R3",
+      "undecided": "Indeciso",
+      "unrestricted": "Livre",
+      "breakDay": "Domingo — pausa do VS",
+      "strategicHint": "Misture dias de push, economia pesada e economia leve conforme a disputa evolui. Dias indecisos não alteram a escala de trens.",
+      "freightHint": "Mire 7,2M de segunda a quinta. Sexta alimenta o sorteio de heavy hitter; sábado é livre.",
+      "protected": "Dias de VS concluídos e trens passados ou travados permanecem inalterados."
+    },
+    "defaults": {
+      "title": "Recompensas de condutor em dias de push",
+      "body": "Escolha a recompensa Top VS para cada dia de VS. Esses padrões valem para novos planos; planos salvos mantêm suas escolhas.",
+      "topN": "Top {count} VS"
+    },
+    "results": {
+      "title": "Resultados diários",
+      "label": "Resultado",
+      "won": "Vitória",
+      "lost": "Derrota",
+      "pending": "Pendente",
+      "hint": "Registre apenas dias concluídos. Planejar um push não conta como vitória.",
+      "ourTotal": "Pontuação final da nossa aliança",
+      "opponentTotal": "Pontuação final do adversário",
+      "totalsHint": "Digite os totais finais mostrados no jogo. Eles determinam o resultado do dia.",
+      "saveTotals": "Salvar pontuações finais",
+      "equalTotals": "Totais iguais não definem um vencedor. Confirme o resultado mostrado no jogo.",
+      "invalidTotals": "Digite as duas pontuações finais como números inteiros não negativos.",
+      "resultMismatch": "O resultado selecionado não corresponde às pontuações finais. Verifique as pontuações e o resultado.",
+      "sourceHq": "Registrado no HQ",
+      "sourceAshed": "Importado da Ashed",
+      "ashedConflict": "A Ashed tem um resultado diferente. Seu resultado confirmado no HQ permanece inalterado.",
+      "reviewAshed": "Revisar resultado Ashed",
+      "useAshed": "Usar resultado Ashed",
+      "keepHq": "Manter resultado HQ"
+    },
+    "points": {
+      "dayValue": "{count, plural, one {# ponto} other {# pontos}}",
+      "alliance": "Nossa aliança: {count}",
+      "opponent": "Adversário: {count}",
+      "target": "7 pontos vencem a semana.",
+      "planned": "Pontos de push planejados: {count}",
+      "saturdayPath": "Vença sábado para garantir a semana.",
+      "secured": "Vitória semanal garantida.",
+      "opponentSecured": "O adversário garantiu a semana."
+    },
+    "podium": {
+      "title": "The Price Is Freight — pódio semanal",
+      "subtitle": "Comandantes R3 classificados pela distância média acima de 7,2M nos dias de Price Is Freight válidos.",
+      "averageScore": "Média de VS: {score}",
+      "averageOver": "Média acima da meta: {points}",
+      "coverage": "{count} de {total} dias contados",
+      "provisional": "Provisório — alguns dias de Price Is Freight estão incompletos ou sem pontuações.",
+      "qualification": "Alcance pelo menos 7,2M em todos os dias contados para se classificar.",
+      "noPif": "Nenhum dia de Price Is Freight em dia de semana está agendado para esta semana.",
+      "noData": "Ainda não há pontuações de dias de Price Is Freight concluídos.",
+      "noQualifiers": "Nenhum comandante R3 se classificou em todos os dias contados ainda.",
+      "aria":"Três melhores comandantes semanais do Price Is Freight",
+      "listAria": "Posições quatro a dez do Price Is Freight semanal"
+    },
+    "sync": {
+      "preview": "Revisar alterações dos trens",
+      "apply": "Salvar plano e atualizar trens",
+      "body": "Revise as regras de condutor abaixo. As regras de VIP não serão alteradas.",
+      "trainDate": "Trem: {date}",
+      "before": "Regra atual",
+      "after": "Regra planejada",
+      "override": "Substituição de trem",
+      "overrideHint": "A regra deste trem difere do plano VS. Revise antes de aplicar o plano novamente.",
+      "clearDraft": "Esta alteração removerá um condutor pendente inelegível.",
+      "leadTimeChanged": "A defasagem dos trens mudou. Revise as datas de trem afetadas antes de salvar."
+    },
+    "matchup": {
+      "opponentName": "Nome da aliança adversária",
+      "opponentTag": "Tag da aliança adversária",
+      "unknown": "Adversário não registrado",
+      "import": "Atualizar confronto da Ashed",
+      "importFailed": "Não foi possível carregar os dados do confronto da Ashed. Os resultados salvos no HQ não foram alterados.",
+      "opponentServer": "Servidor do oponente",
+      "weekOutcome": "Resultado da semana registrado",
+      "opponentScore": "Pontuação do oponente",
+      "opponentOnlyHint": "As pontuações do oponente não determinam vitórias diárias até que um resultado final do dia seja confirmado.",
+      "confirmedDayHint": "Edite o resultado confirmado do dia para alterar suas pontuações.",
+      "previousOpponents": "Oponentes anteriores",
+      "selectPrevious": "Selecionar um oponente anterior",
+      "day": "Dia {day}"
+    },
+    "actions": {
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "saved": "Salvo",
+      "saving": "Salvando…",
+      "loading": "Carregando…",
+      "retry": "Tentar novamente"
+    },
+    "errors": {
+      "load": "Não foi possível carregar o plano VS e a classificação desta semana.",
+      "save": "Não foi possível salvar suas alterações. Suas edições foram mantidas.",
+      "stale": "O plano ou a escala de trens mudou. Atualize e revise suas alterações novamente.",
+      "invalid": "Verifique as datas, estratégias e recompensas selecionadas e tente novamente.",
+      "forbidden": "Você não tem permissão para fazer esta alteração."
+    },
+    "ashedSync": {
+      "action": "Sincronizar com o Ashed",
+      "hint": "As informações do oponente salvas no HQ também são sincronizadas com o Ashed. Configurações semanais não relacionadas permanecem inalteradas.",
+      "pending": "Salvo no HQ. A sincronização com o Ashed está pendente.",
+      "synced": "Sincronizado com o Ashed.",
+      "failed": "Salvo no HQ, mas a sincronização com o Ashed falhou. Tente novamente para sincronizar.",
+      "credentials": "Conecte uma conta Ashed autorizada para sincronizar as informações do oponente.",
+      "conflict": "As informações do oponente foram alteradas no Ashed. Revise-as antes de sincronizar suas alterações do HQ.",
+      "tooLarge": "Esta pontuação é grande demais para sincronizar com o Ashed sem perder precisão. Ela foi salva exatamente no HQ.",
+      "useAshed": "Usar valores do Ashed",
+      "keepHq": "Manter valores do HQ",
+      "uncertain": "Não foi possível confirmar se o Ashed salvou esta alteração. Atualize antes de tentar novamente."
+    },
+    "reconcile": {
+      "title": "Verificação de pontuações dos membros",
+      "match": "As pontuações enviadas dos membros correspondem ao total confirmado.",
+      "mismatch": "As pontuações enviadas dos membros somam {uploaded}; total confirmado {confirmed}. Diferença: {difference}.",
+      "hint": "Verifique se há linhas de membros ausentes ou incorretas. O total confirmado permanece autoritativo.",
+      "noRows": "Não há pontuações individuais de membros disponíveis para este dia.",
+      "unavailable": "Não foi possível verificar as pontuações individuais dos membros. O total confirmado permanece inalterado."
+    },
+    "capture": {
+      "open": "Enviar captura de tela do VS",
+      "type": "Tipo de captura de tela",
+      "weekType": "Visão geral semanal",
+      "dayType": "Duel Themes — pontuações diárias",
+      "title": "Revisar captura de tela do VS",
+      "hint": "Verifique a semana, os lados das alianças e cada valor antes de salvar. Resultados ilegíveis ou não concluídos permanecem pendentes.",
+      "week": "Semana VS",
+      "ourSide": "Nossa aliança",
+      "left": "Aliança da esquerda",
+      "right": "Aliança da direita",
+      "confirmSides": "Confirmo que o lado selecionado é a nossa aliança.",
+      "ourPoints": "Nossos pontos de vitória",
+      "opponentPoints": "Pontos de vitória do oponente",
+      "finalDay": "Confirmo que estas são as pontuações finais deste dia concluído.",
+      "unknown": "Não visível ou não concluído",
+      "read": "Ler captura de tela",
+      "reading": "Lendo captura de tela…",
+      "save": "Salvar resultados revisados",
+      "imageHint": "Escolha uma imagem PNG ou JPEG com menos de 20 MB.",
+      "partial": "Alguns valores não puderam ser lidos. Verifique a captura de tela e insira-os.",
+      "failed": "Não foi possível ler esta captura de tela. Tente outra imagem.",
+      "expired": "Esta revisão de captura de tela expirou ou foi alterada. Envie-a novamente.",
+      "invalid": "Verifique a semana, o dia, os lados das alianças e as pontuações antes de salvar.",
+      "pointMismatch": "Os resultados diários não correspondem aos pontos de vitória semanais. Verifique a revisão.",
+      "ongoing": "Isto parece ser um duelo em andamento. Pontuações zeradas e resultados em branco permanecem pendentes.",
+      "noFinals": "Nenhum resultado final de dia foi confirmado. Apenas as informações de confronto revisadas serão salvas."
     }
   }
 }

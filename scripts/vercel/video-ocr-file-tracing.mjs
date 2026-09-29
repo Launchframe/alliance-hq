@@ -130,6 +130,7 @@ export const videoOcrTracedRoutes = {
   // sharp/tesseract stack — worker-script + LSTM WASM must be on disk.
   "/api/webhooks/discord/interactions": videoOcrFileTracing,
   "/api/thp/me/submit": videoOcrFileTracing,
+  "/api/vs-performance/captures/parse": videoOcrFileTracing,
   "/api/internal/notes/process": videoOcrFileTracing,
   "/api/notes/imports/[id]/process": videoOcrFileTracing,
 };
@@ -163,6 +164,19 @@ export const ocrControlPlaneRoutes = [
  * Fat OCR gate: video-process [jobId]. Queue must stay dispatch-only (no ffmpeg/tesseract).
  */
 export const functionTraceBudgets = [
+  {
+    route: "/api/vs-performance/captures/parse",
+    nftPath: ".next/server/app/api/vs-performance/captures/parse/route.js.nft.json",
+    maxUncompressedBytes: 200 * 1024 * 1024,
+    requireLibvips: true,
+    requireWorkerScript: true,
+  },
+  ...["/api/vs-performance/captures/[reviewId]/commit", "/api/vs-performance/week", "/api/vs-performance/matchup/sync"].map(route => ({
+    route,
+    nftPath: `.next/server/app${route}/route.js.nft.json`,
+    maxUncompressedBytes: 120 * 1024 * 1024,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src"],
+  })),
   ...ocrControlPlaneRoutes.map((route) => ({
     route,
     nftPath: `.next/server/app${route}/route.js.nft.json`,

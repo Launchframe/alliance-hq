@@ -90,6 +90,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/vs-performance",
+    requiredPermission: "scores:read",
   },
   {
     id: "nav.donations",
@@ -589,6 +590,25 @@ const TRAIN_ACTIONS: HotkeyActionDef[] = [
   })),
 ];
 
+const VS_PERFORMANCE_ACTIONS: HotkeyActionDef[] = [
+  {
+    id: "vsPerformance.editPlan",
+    labelKey: "actions.vsPerformance.editPlan",
+    category: "tools",
+    scope: "page:vs-performance",
+    kind: "custom",
+    requiredPermission: "trains:write",
+  },
+  {
+    id: "vsPerformance.capture",
+    labelKey: "actions.vsPerformance.capture",
+    category: "tools",
+    scope: "page:vs-performance",
+    kind: "custom",
+    requiredPermission: "trains:write",
+  },
+];
+
 const GLOBAL_ACTIONS: HotkeyActionDef[] = [
   {
     id: "global.openPalette",
@@ -627,6 +647,7 @@ export const HOTKEY_ACTIONS: HotkeyActionDef[] = [
   ...NAV_ACTIONS,
   ...ADMIN_ACTIONS,
   ...TRAIN_ACTIONS,
+  ...VS_PERFORMANCE_ACTIONS,
 ];
 
 export type HotkeyActionId = (typeof HOTKEY_ACTIONS)[number]["id"];
