@@ -104,6 +104,14 @@ export function isNativeAllianceVsTarget(
     context?.allianceOperatingMode === "native";
 }
 
+export function isNativeAllianceScoreTarget(
+  id: string,
+  context?: VideoOcrResolutionContext,
+): boolean {
+  return (id === "vs-performance" || id === "frontline-breakthrough") &&
+    context?.allianceOperatingMode === "native";
+}
+
 export function shouldEnqueueAshedOcrShadowPasses(engine: VideoOcrEngine): boolean {
   return engine === "ashed";
 }
@@ -131,8 +139,9 @@ export function resolveVideoOcrEngineForJob(
 ): VideoOcrEngine {
   const forceNative =
     options?.forceNative ||
-    isNativeAllianceVsTarget(scoreTargetId, context) ||
-    (scoreTargetId === "vs-performance" &&
+    isNativeAllianceScoreTarget(scoreTargetId, context) ||
+    ((scoreTargetId === "vs-performance" ||
+      scoreTargetId === "frontline-breakthrough") &&
       resolveEffectiveVideoOcrProvider(context) === "local");
   return videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), {
     useNativeWhenLocal: isRoster || Boolean(forceNative),

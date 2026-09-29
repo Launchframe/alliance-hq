@@ -1,6 +1,7 @@
 import { normalizeScoreValue } from "@/lib/video/normalize-rows";
 import {
   getScoreTarget,
+  isFrontlineBreakthroughVideoTarget,
   isMemberRosterVideoTarget,
   usesReviewRowNumberIndicator,
 } from "@/lib/video/score-targets";
@@ -21,6 +22,7 @@ export function reviewRowPrimarySortKey(
 ): "allianceRank" | "rank" | null {
   if (!scoreTargetId) return null;
   if (isMemberRosterVideoTarget(scoreTargetId)) return "allianceRank";
+  if (isFrontlineBreakthroughVideoTarget(scoreTargetId)) return "rank";
   const target = getScoreTarget(scoreTargetId);
   if (!target) return null;
   if (target.leaderboardModel === "podium-commendation") {

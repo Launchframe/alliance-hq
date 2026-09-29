@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import {
@@ -35,6 +35,7 @@ import {
 
 export function CommanderProfileView({ initial, donationLaunchError }: Props) {
   const t = useTranslations("members.profile");
+  const locale = useLocale();
   const tInvites = useTranslations("team.invites");
   const tNotes = useTranslations("notes");
   const { member, alliance } = initial;
@@ -466,10 +467,13 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
         <ProfileSection title={t("eventScores")}>
           <ul className="space-y-2 text-sm">
             {initial.eventScores.map((row) => (
-              <li key={`${row.eventId}-${row.updatedAt}`} className="text-[#c9d1d9]">
+              <li key={`${row.eventId}-${row.updatedAt}`} className="text-hq-fg">
                 {row.eventName}
-                {row.score != null ? ` · ${row.score.toLocaleString()}` : ""}
-                {row.rank != null ? ` · #${row.rank}` : ""}
+                {row.score != null ? ` · ${row.score.toLocaleString(locale)}` : ""}
+                {row.frontlineStage != null
+                  ? ` · ${t("frontlineStage", { stage: row.frontlineStage.toLocaleString(locale) })}`
+                  : ""}
+                {row.rank != null ? ` · #${row.rank.toLocaleString(locale)}` : ""}
               </li>
             ))}
           </ul>

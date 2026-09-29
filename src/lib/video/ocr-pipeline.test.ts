@@ -139,3 +139,65 @@ describe("ocrAllFrames", () => {
     expect(result.entries).toHaveLength(1);
   });
 });
+
+describe("ocrAllFrames Frontline Breakthrough", () => {
+  const frontlineTarget = {
+    ...target,
+    id: "frontline-breakthrough",
+  } satisfies ScoreTargetDef;
+
+  beforeEach(() => {
+    upload.mockResolvedValue({ file_url: "https://example.com/frame.jpg" });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("extracts stage, rank, and score when the alliance tab is selected", async () => {
+    extract.mockResolvedValue({
+      selectedTab: "alliance",
+      entries: [
+        { name: "Alpha", stage: 5, score: "x2670", rank: 3 },
+        { name: "Beta", stage: 4, score: "x1,234", rank: 8 },
+      ],
+    });
+
+    const result = await ocrAllFrames({} as never, frontlineTarget, [
+      { index: 0, buffer: Buffer.from("a") },
+    ]);
+
+    expect(result.entries).toEqual([
+      { name: "Alpha", score: "2670", rank: 3, frontlineStage: 5, _sourceFrameIndex: 0 },
+      { name: "Beta", score: "1234", rank: 8, frontlineStage: 4, _sourceFrameIndex: 0 },
+    ]);
+  });
+
+  it("returns no entries for non-alliance tabs", async () => {
+    extract.mockResolvedValue({
+      selectedTab: "warzone",
+      entries: [{ name: "Alpha", stage: 5, score: "x100", rank: 1 }],
+    });
+
+    const result = await ocrAllFrames({} as never, frontlineTarget, [
+      { index: 0, buffer: Buffer.from("a") },
+    ]);
+
+    expect(result.entries).toEqual([]);
+  });
+
+  it("flattens per-frame batches instead of score-merging them", async () => {
+    extract.mockResolvedValue({
+      selectedTab: "alliance",
+      entries: [{ name: "Alpha", stage: 5, score: "x2670", rank: 3 }],
+    });
+
+    const result = await ocrAllFrames({} as never, frontlineTarget, [
+      { index: 0, buffer: Buffer.from("a") },
+      { index: 1, buffer: Buffer.from("b") },
+    ]);
+
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries.map((entry) => entry._sourceFrameIndex)).toEqual([0, 1]);
+  });
+});
