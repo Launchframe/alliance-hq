@@ -702,7 +702,7 @@ export async function syncAshedOpponentInfo(
     const days = await tx
       .select()
       .from(schema.vsMatchDayResults)
-      .where(eq(schema.vsMatchDayResults.matchupId, matchup.id));
+      .where(and(eq(schema.vsMatchDayResults.matchupId, matchup.id), eq(schema.vsMatchDayResults.allianceId, actor.allianceId)));
     return { matchup, sync, days };
   });
   const { matchup, sync } = stage;
@@ -1265,7 +1265,7 @@ async function applyObservedAshedValues(input: {
     const freshDays = await tx
       .select()
       .from(schema.vsMatchDayResults)
-      .where(eq(schema.vsMatchDayResults.matchupId, matchup.id));
+      .where(and(eq(schema.vsMatchDayResults.matchupId, matchup.id), eq(schema.vsMatchDayResults.allianceId, actor.allianceId)));
     const expectedToken = vsOpponentConflictToken({
       remote: sync.observedSnapshot,
       matchupVersion: matchup.version,
@@ -1458,9 +1458,7 @@ export async function attemptVsOpponentSync(
 
 export async function listPreviousVsOpponents(
   actor: VsActor,
-): Promise<
-  Array<{ server: number | null; tag: string | null; name: string | null }>
-> {
+): Promise<{ opponents: Array<{ server: number | null; tag: string | null; name: string | null }>; ashedUnavailable: boolean }> {
   const local = await getDb()
     .select({
       opponentServer: schema.vsMatchups.opponentServer,
@@ -1505,6 +1503,7 @@ export async function listPreviousVsOpponents(
       name: row.opponentName,
     });
   }
+  let ashedUnavailable = false;
   const link = await loadVsAllianceLink(actor.allianceId);
   if (link) {
     try {
@@ -1518,11 +1517,14 @@ export async function listPreviousVsOpponents(
             name: row.opponentName,
           });
         }
+      } else {
+        ashedUnavailable = true;
       }
     } catch {
+      ashedUnavailable = true;
     }
   }
-  return out;
+  return { opponents: out, ashedUnavailable };
 }
 
 export function vsSyncAuditMetadata(

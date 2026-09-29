@@ -20,7 +20,7 @@ function migrationStatements(file: string, schemaName: string): string[] {
     );
 }
 
-test("0190 vs constraints apply cleanly on a fresh install and the week guards fire", async () => {
+test("0191 vs constraints apply cleanly on a fresh install and the week guards fire", async () => {
   const url =
     process.env.E2E_DATABASE_URL?.trim() ||
     process.env.LOCAL_DATABASE_URL?.trim();
@@ -35,8 +35,8 @@ test("0190 vs constraints apply cleanly on a fresh install and the week guards f
        CREATE TABLE "${schemaName}".hq_users (id text PRIMARY KEY)`,
     );
     for (const file of [
-      "0189_vs_weekly_strategy_podium.sql",
-      "0190_vs_constraints.sql",
+      "0190_vs_weekly_strategy_podium.sql",
+      "0191_vs_constraints.sql",
     ]) {
       for (const statement of migrationStatements(file, schemaName)) {
         await sql.unsafe(
@@ -129,7 +129,7 @@ test("0190 vs constraints apply cleanly on a fresh install and the week guards f
   }
 });
 
-test("0191 applies on a fresh install and backfills opponent scores from pre-0191 HQ-confirmed final heads", async () => {
+test("0192 applies on a fresh install and backfills opponent scores from pre-0192 HQ-confirmed final heads", async () => {
   const url =
     process.env.E2E_DATABASE_URL?.trim() ||
     process.env.LOCAL_DATABASE_URL?.trim();
@@ -144,8 +144,8 @@ test("0191 applies on a fresh install and backfills opponent scores from pre-019
        CREATE TABLE "${schemaName}".hq_users (id text PRIMARY KEY)`,
     );
     for (const file of [
-      "0189_vs_weekly_strategy_podium.sql",
-      "0190_vs_constraints.sql",
+      "0190_vs_weekly_strategy_podium.sql",
+      "0191_vs_constraints.sql",
     ]) {
       for (const statement of migrationStatements(file, schemaName)) {
         await sql.unsafe(
@@ -176,7 +176,7 @@ test("0191 applies on a fresh install and backfills opponent scores from pre-019
     `;
 
     for (const statement of migrationStatements(
-      "0191_vs_opponent_sync_capture.sql",
+      "0192_vs_opponent_sync_capture.sql",
       schemaName,
     )) {
       await sql.unsafe(`SET search_path TO "${schemaName}";\n${statement}`);

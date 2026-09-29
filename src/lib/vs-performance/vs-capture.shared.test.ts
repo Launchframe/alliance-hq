@@ -103,6 +103,12 @@ describe("buildVsCaptureCommit daily", () => {
       totals: { ourScore: "11000000", opponentScore: "12345678" },
     });
   });
+
+  it("rejects raw OCR/image extras and unbounded identity values before audit", () => {
+    for (const extra of [{ rawOcr: "unbounded raw text" }, { image: "data:image/png;base64,AA==" }, { left: { ...alliance("US"), name: "x".repeat(121) } }]) {
+      expect(() => buildVsCaptureCommit(dailyReview(extra), TODAY)).toThrow(expect.objectContaining({ code: "capture_invalid" }));
+    }
+  });
 });
 
 describe("buildVsCaptureCommit weekly", () => {

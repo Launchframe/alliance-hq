@@ -103,6 +103,11 @@ describe("normalizeVsResult", () => {
       ).toThrow();
     }
   });
+
+  it.each(["won", "lost"] as const)("keeps an explicitly confirmed %s on equal final totals", (outcome) => {
+    expect(normalizeVsResult({ totals: { ourScore: "100", opponentScore: "100" }, reportedOutcome: outcome, finality: "final" }).outcome).toBe(outcome);
+    expect(() => normalizeVsResult({ totals: { ourScore: "100", opponentScore: "100" }, reportedOutcome: outcome, finality: "unconfirmed" })).toThrow("resultMismatch");
+  });
 });
 
 describe("parseLocalizedVsTotal", () => {

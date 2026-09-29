@@ -305,7 +305,7 @@ export async function loadVsPerformanceWeek(
 ): Promise<VsWeekPayload> {
   const session = await loadSession(sessionId);
   const allianceId = session?.currentAllianceId ?? session?.allianceId;
-  if (!allianceId || !session) throw new VsPerformanceError("forbidden", 403);
+  if (!allianceId || !session?.hqUserId) throw new VsPerformanceError("forbidden", 403);
   if (
     expectedActor &&
     (expectedActor.sessionId !== sessionId ||

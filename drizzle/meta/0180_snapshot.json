@@ -1,6 +1,6 @@
 {
-  "id": "a2dee8d6-a68f-43ef-8b41-83c99d29dc29",
-  "prevId": "c526069f-d427-4ab4-bfaa-cccabdc7301f",
+  "id": "a13cc00a-2b33-4e50-b453-1be17992eeb9",
+  "prevId": "79c4e692-e812-4ba8-9bbf-d199c1637c49",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -25071,6 +25071,177 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.vs_capture_reviews": {
+      "name": "vs_capture_reviews",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "alliance_id": {
+          "name": "alliance_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_hq_user_id": {
+          "name": "created_by_hq_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_sha256": {
+          "name": "image_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "candidate": {
+          "name": "candidate",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'review'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_request_id": {
+          "name": "completed_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_body_hash": {
+          "name": "completed_body_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_result": {
+          "name": "completed_result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "vs_capture_reviews_alliance_idx": {
+          "name": "vs_capture_reviews_alliance_idx",
+          "columns": [
+            {
+              "expression": "alliance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "vs_capture_reviews_expires_idx": {
+          "name": "vs_capture_reviews_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "vs_capture_reviews_alliance_id_alliances_id_fk": {
+          "name": "vs_capture_reviews_alliance_id_alliances_id_fk",
+          "tableFrom": "vs_capture_reviews",
+          "tableTo": "alliances",
+          "columnsFrom": [
+            "alliance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "vs_capture_reviews_created_by_hq_user_id_hq_users_id_fk": {
+          "name": "vs_capture_reviews_created_by_hq_user_id_hq_users_id_fk",
+          "tableFrom": "vs_capture_reviews",
+          "tableTo": "hq_users",
+          "columnsFrom": [
+            "created_by_hq_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "vs_capture_reviews_kind_check": {
+          "name": "vs_capture_reviews_kind_check",
+          "value": "\"vs_capture_reviews\".\"kind\" in ('weekly_overview', 'daily_totals')"
+        },
+        "vs_capture_reviews_status_check": {
+          "name": "vs_capture_reviews_status_check",
+          "value": "\"vs_capture_reviews\".\"status\" in ('review', 'complete')"
+        },
+        "vs_capture_reviews_version_check": {
+          "name": "vs_capture_reviews_version_check",
+          "value": "\"vs_capture_reviews\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.vs_compliance_actions": {
       "name": "vs_compliance_actions",
       "schema": "",
@@ -25865,6 +26036,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_revision": {
+          "name": "source_revision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "hq_confirmed": {
           "name": "hq_confirmed",
           "type": "integer",
@@ -25937,19 +26114,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "vs_match_day_results_matchup_id_vs_matchups_id_fk": {
-          "name": "vs_match_day_results_matchup_id_vs_matchups_id_fk",
-          "tableFrom": "vs_match_day_results",
-          "tableTo": "vs_matchups",
-          "columnsFrom": [
-            "matchup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "vs_match_day_results_recorded_by_hq_user_id_hq_users_id_fk": {
           "name": "vs_match_day_results_recorded_by_hq_user_id_hq_users_id_fk",
           "tableFrom": "vs_match_day_results",
@@ -25961,6 +26125,21 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "vs_match_day_results_matchup_alliance_fk": {
+          "name": "vs_match_day_results_matchup_alliance_fk",
+          "tableFrom": "vs_match_day_results",
+          "tableTo": "vs_matchups",
+          "columnsFrom": [
+            "matchup_id",
+            "alliance_id"
+          ],
+          "columnsTo": [
+            "id",
+            "alliance_id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -25976,7 +26155,36 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_match_day_results_scores_paired_check": {
+          "name": "vs_match_day_results_scores_paired_check",
+          "value": "(\"vs_match_day_results\".\"our_score\" is null) = (\"vs_match_day_results\".\"opponent_score\" is null)"
+        },
+        "vs_match_day_results_scores_nonnegative_check": {
+          "name": "vs_match_day_results_scores_nonnegative_check",
+          "value": "\"vs_match_day_results\".\"our_score\" >= 0 and \"vs_match_day_results\".\"opponent_score\" >= 0"
+        },
+        "vs_match_day_results_outcome_check": {
+          "name": "vs_match_day_results_outcome_check",
+          "value": "\"vs_match_day_results\".\"outcome\" in ('pending', 'won', 'lost')"
+        },
+        "vs_match_day_results_finality_check": {
+          "name": "vs_match_day_results_finality_check",
+          "value": "\"vs_match_day_results\".\"finality\" in ('unconfirmed', 'final')"
+        },
+        "vs_match_day_results_source_check": {
+          "name": "vs_match_day_results_source_check",
+          "value": "\"vs_match_day_results\".\"source\" in ('hq_manual', 'ashed_import', 'reviewed_upload')"
+        },
+        "vs_match_day_results_version_check": {
+          "name": "vs_match_day_results_version_check",
+          "value": "\"vs_match_day_results\".\"version\" > 0"
+        },
+        "vs_match_day_results_recorded_weekday_check": {
+          "name": "vs_match_day_results_recorded_weekday_check",
+          "value": "extract(isodow from \"vs_match_day_results\".\"recorded_date\"::date) between 1 and 6"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_match_observations": {
@@ -25987,6 +26195,12 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
           "notNull": true
         },
         "alliance_id": {
@@ -26005,7 +26219,7 @@
           "name": "recorded_date",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "source": {
           "name": "source",
@@ -26015,6 +26229,12 @@
         },
         "source_ref": {
           "name": "source_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_revision": {
+          "name": "source_revision",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -26073,6 +26293,21 @@
         }
       },
       "indexes": {
+        "vs_match_observations_sequence_unique": {
+          "name": "vs_match_observations_sequence_unique",
+          "columns": [
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "vs_match_observations_matchup_idx": {
           "name": "vs_match_observations_matchup_idx",
           "columns": [
@@ -26109,19 +26344,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "vs_match_observations_matchup_id_vs_matchups_id_fk": {
-          "name": "vs_match_observations_matchup_id_vs_matchups_id_fk",
-          "tableFrom": "vs_match_observations",
-          "tableTo": "vs_matchups",
-          "columnsFrom": [
-            "matchup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "vs_match_observations_actor_hq_user_id_hq_users_id_fk": {
           "name": "vs_match_observations_actor_hq_user_id_hq_users_id_fk",
           "tableFrom": "vs_match_observations",
@@ -26133,6 +26355,21 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "vs_match_observations_matchup_alliance_fk": {
+          "name": "vs_match_observations_matchup_alliance_fk",
+          "tableFrom": "vs_match_observations",
+          "tableTo": "vs_matchups",
+          "columnsFrom": [
+            "matchup_id",
+            "alliance_id"
+          ],
+          "columnsTo": [
+            "id",
+            "alliance_id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -26149,7 +26386,180 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_match_observations_source_check": {
+          "name": "vs_match_observations_source_check",
+          "value": "\"vs_match_observations\".\"source\" in ('hq_manual', 'ashed_import', 'reviewed_upload')"
+        },
+        "vs_match_observations_disposition_check": {
+          "name": "vs_match_observations_disposition_check",
+          "value": "\"vs_match_observations\".\"disposition\" in ('applied', 'conflict', 'reviewed_keep_hq', 'reviewed_use_ashed', 'superseded')"
+        },
+        "vs_match_observations_recorded_weekday_check": {
+          "name": "vs_match_observations_recorded_weekday_check",
+          "value": "\"vs_match_observations\".\"recorded_date\" is null or extract(isodow from \"vs_match_observations\".\"recorded_date\"::date) between 1 and 6"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.vs_matchup_ashed_sync": {
+      "name": "vs_matchup_ashed_sync",
+      "schema": "",
+      "columns": {
+        "matchup_id": {
+          "name": "matchup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alliance_id": {
+          "name": "alliance_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "baseline_snapshot": {
+          "name": "baseline_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observed_snapshot": {
+          "name": "observed_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dirty_fields": {
+          "name": "dirty_fields",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "conflict_fields": {
+          "name": "conflict_fields",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "requested_version": {
+          "name": "requested_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "processed_version": {
+          "name": "processed_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'idle'"
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_token": {
+          "name": "lease_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_synced_at": {
+          "name": "last_synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "vs_matchup_ashed_sync_alliance_idx": {
+          "name": "vs_matchup_ashed_sync_alliance_idx",
+          "columns": [
+            {
+              "expression": "alliance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "vs_matchup_ashed_sync_matchup_alliance_fk": {
+          "name": "vs_matchup_ashed_sync_matchup_alliance_fk",
+          "tableFrom": "vs_matchup_ashed_sync",
+          "tableTo": "vs_matchups",
+          "columnsFrom": [
+            "matchup_id",
+            "alliance_id"
+          ],
+          "columnsTo": [
+            "id",
+            "alliance_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "vs_matchup_ashed_sync_pk": {
+          "name": "vs_matchup_ashed_sync_pk",
+          "columns": [
+            "matchup_id",
+            "alliance_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "vs_matchup_ashed_sync_status_check": {
+          "name": "vs_matchup_ashed_sync_status_check",
+          "value": "\"vs_matchup_ashed_sync\".\"status\" in ('idle', 'pending', 'synced', 'conflict', 'credentials_required', 'failed', 'uncertain')"
+        },
+        "vs_matchup_ashed_sync_dirty_fields_check": {
+          "name": "vs_matchup_ashed_sync_dirty_fields_check",
+          "value": "jsonb_typeof(\"vs_matchup_ashed_sync\".\"dirty_fields\") = 'array' and \"vs_matchup_ashed_sync\".\"dirty_fields\" <@ '[\"day:1\",\"day:2\",\"day:3\",\"day:4\",\"day:5\",\"day:6\",\"opponentName\",\"opponentServer\",\"opponentTag\",\"weekOutcome\"]'::jsonb"
+        },
+        "vs_matchup_ashed_sync_conflict_fields_check": {
+          "name": "vs_matchup_ashed_sync_conflict_fields_check",
+          "value": "jsonb_typeof(\"vs_matchup_ashed_sync\".\"conflict_fields\") = 'array' and \"vs_matchup_ashed_sync\".\"conflict_fields\" <@ '[\"day:1\",\"day:2\",\"day:3\",\"day:4\",\"day:5\",\"day:6\",\"opponentName\",\"opponentServer\",\"opponentTag\",\"weekOutcome\"]'::jsonb"
+        },
+        "vs_matchup_ashed_sync_versions_check": {
+          "name": "vs_matchup_ashed_sync_versions_check",
+          "value": "\"vs_matchup_ashed_sync\".\"requested_version\" >= 0 and \"vs_matchup_ashed_sync\".\"processed_version\" >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_matchups": {
@@ -26195,6 +26605,51 @@
         "external_competition_id": {
           "name": "external_competition_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opponent_server": {
+          "name": "opponent_server",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opponent_daily_scores": {
+          "name": "opponent_daily_scores",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[null,null,null,null,null,null]'::jsonb"
+        },
+        "week_outcome": {
+          "name": "week_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "opponent_info_owned_fields": {
+          "name": "opponent_info_owned_fields",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "reported_our_points": {
+          "name": "reported_our_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reported_opponent_points": {
+          "name": "reported_opponent_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reported_points_at": {
+          "name": "reported_points_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -26290,10 +26745,47 @@
             "alliance_id",
             "week_start"
           ]
+        },
+        "vs_matchups_id_alliance_unique": {
+          "name": "vs_matchups_id_alliance_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "alliance_id"
+          ]
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_matchups_week_start_monday_check": {
+          "name": "vs_matchups_week_start_monday_check",
+          "value": "extract(isodow from \"vs_matchups\".\"week_start\"::date) = 1"
+        },
+        "vs_matchups_version_check": {
+          "name": "vs_matchups_version_check",
+          "value": "\"vs_matchups\".\"version\" > 0"
+        },
+        "vs_matchups_identity_source_check": {
+          "name": "vs_matchups_identity_source_check",
+          "value": "\"vs_matchups\".\"identity_source\" in ('hq_manual', 'ashed_import')"
+        },
+        "vs_matchups_week_outcome_check": {
+          "name": "vs_matchups_week_outcome_check",
+          "value": "\"vs_matchups\".\"week_outcome\" in ('pending', 'win', 'loss')"
+        },
+        "vs_matchups_opponent_scores_check": {
+          "name": "vs_matchups_opponent_scores_check",
+          "value": "jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\") = 'array' and jsonb_array_length(\"vs_matchups\".\"opponent_daily_scores\") = 6 and (\"vs_matchups\".\"opponent_daily_scores\"->0 is null or jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->0) = 'null' or (jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->0) = 'string' and (\"vs_matchups\".\"opponent_daily_scores\"->>0) ~ '^(0|[1-9][0-9]{0,29})$')) and (\"vs_matchups\".\"opponent_daily_scores\"->1 is null or jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->1) = 'null' or (jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->1) = 'string' and (\"vs_matchups\".\"opponent_daily_scores\"->>1) ~ '^(0|[1-9][0-9]{0,29})$')) and (\"vs_matchups\".\"opponent_daily_scores\"->2 is null or jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->2) = 'null' or (jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->2) = 'string' and (\"vs_matchups\".\"opponent_daily_scores\"->>2) ~ '^(0|[1-9][0-9]{0,29})$')) and (\"vs_matchups\".\"opponent_daily_scores\"->3 is null or jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->3) = 'null' or (jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->3) = 'string' and (\"vs_matchups\".\"opponent_daily_scores\"->>3) ~ '^(0|[1-9][0-9]{0,29})$')) and (\"vs_matchups\".\"opponent_daily_scores\"->4 is null or jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->4) = 'null' or (jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->4) = 'string' and (\"vs_matchups\".\"opponent_daily_scores\"->>4) ~ '^(0|[1-9][0-9]{0,29})$')) and (\"vs_matchups\".\"opponent_daily_scores\"->5 is null or jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->5) = 'null' or (jsonb_typeof(\"vs_matchups\".\"opponent_daily_scores\"->5) = 'string' and (\"vs_matchups\".\"opponent_daily_scores\"->>5) ~ '^(0|[1-9][0-9]{0,29})$'))"
+        },
+        "vs_matchups_reported_points_check": {
+          "name": "vs_matchups_reported_points_check",
+          "value": "(\"vs_matchups\".\"reported_our_points\" is null) = (\"vs_matchups\".\"reported_opponent_points\" is null) and (\"vs_matchups\".\"reported_our_points\" is null or (\"vs_matchups\".\"reported_our_points\" between 0 and 13 and \"vs_matchups\".\"reported_opponent_points\" between 0 and 13 and \"vs_matchups\".\"reported_our_points\" + \"vs_matchups\".\"reported_opponent_points\" <= 13))"
+        },
+        "vs_matchups_owned_fields_check": {
+          "name": "vs_matchups_owned_fields_check",
+          "value": "jsonb_typeof(\"vs_matchups\".\"opponent_info_owned_fields\") = 'array' and \"vs_matchups\".\"opponent_info_owned_fields\" <@ '[\"day:1\",\"day:2\",\"day:3\",\"day:4\",\"day:5\",\"day:6\",\"opponentName\",\"opponentServer\",\"opponentTag\",\"weekOutcome\"]'::jsonb"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_score_heads": {
@@ -26877,7 +27369,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_strategy_preferences_version_check": {
+          "name": "vs_strategy_preferences_version_check",
+          "value": "\"vs_strategy_preferences\".\"version\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_week_plans": {
@@ -27015,7 +27512,20 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_week_plans_lead_days_check": {
+          "name": "vs_week_plans_lead_days_check",
+          "value": "\"vs_week_plans\".\"lead_days\" between 0 and 7"
+        },
+        "vs_week_plans_version_check": {
+          "name": "vs_week_plans_version_check",
+          "value": "\"vs_week_plans\".\"version\" > 0"
+        },
+        "vs_week_plans_week_start_monday_check": {
+          "name": "vs_week_plans_week_start_monday_check",
+          "value": "extract(isodow from \"vs_week_plans\".\"week_start\"::date) = 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.wl_eng_assignments": {

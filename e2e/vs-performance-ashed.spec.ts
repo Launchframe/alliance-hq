@@ -874,6 +874,319 @@ test.describe("VS Ashed sync and capture UI", () => {
       page.getByTestId("vs-capture-open").first(),
     ).toContainText("Enviar captura de tela do VS");
   });
+
+  test("a local metadata save stays saved when the Ashed read fails", async ({
+    page,
+    request,
+  }) => {
+    const { auth, cookieHeader, externalId } = await setupAshedAlliance(
+      request,
+      "officer",
+    );
+    const pastWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), -7));
+    mockState.records = [metaRecord(pastWeek, externalId)];
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto(`/en-US/vs-performance?week=${pastWeek}`);
+    const results = page
+      .getByTestId("vs-matchup-results")
+      .locator("visible=true");
+    await expect(results.getByText("Opponent").first()).toBeVisible();
+
+    const historyResponse = page.waitForResponse(
+      "**/api/vs-performance/matchup/opponents**",
+    );
+    await page
+      .getByRole("button", { name: "Opponent alliance name", exact: true })
+      .locator("visible=true")
+      .click();
+    await historyResponse;
+    mockState.metaGetErrorStatus = 500;
+    await page
+      .getByLabel("Opponent alliance name", { exact: true })
+      .fill("HQ Renamed");
+    const patchResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/vs-performance/matchup") &&
+        res.request().method() === "PATCH",
+    );
+    await page
+      .getByRole("button", { name: "Save", exact: true })
+      .locator("visible=true")
+      .click();
+    const patchRes = await patchResponse;
+    expect(patchRes.status()).toBe(200);
+    const patchBody = (await patchRes.json()) as {
+      opponentName: string | null;
+      week: VsWeekPayload;
+    };
+    expect(patchBody.opponentName).toBe("HQ Renamed");
+    expect(patchBody.week.matchup?.sync?.status).toBe("failed");
+    const status = page
+      .getByTestId("vs-sync-status")
+      .locator("visible=true");
+    await expect(status).toContainText(
+      "Saved in HQ, but Ashed sync failed. Retry to sync.",
+    );
+    await expect(status).toBeInViewport();
+    await expect(
+      page.getByTestId("vs-sync-action").locator("visible=true"),
+    ).toBeEnabled();
+    const persisted = await fetchWeek(request, cookieHeader, pastWeek);
+    expect(persisted.matchup?.opponentName).toBe("HQ Renamed");
+  });
+
+  test("previous opponent history stays usable when the Ashed read fails", async ({
+    page,
+    request,
+  }) => {
+    const { auth, cookieHeader, externalId } = await setupAshedAlliance(
+      request,
+      "officer",
+    );
+    const pastWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), -7));
+    mockState.records = [metaRecord(pastWeek, externalId)];
+    const seeded = await fetchWeek(request, cookieHeader, pastWeek);
+    const patchRes = await request.patch("/api/vs-performance/matchup", {
+      headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
+      data: {
+        weekStart: pastWeek,
+        opponentName: "Local Foe",
+        opponentTag: "LFO",
+        opponentServer: 1234,
+        expectedVersion: seeded.matchup?.version ?? 0,
+        scope: seeded.scope,
+      },
+    });
+    expect(patchRes.ok(), await patchRes.text()).toBeTruthy();
+    mockState.metaGetErrorStatus = 500;
+
+    let historyCalls = 0;
+    let historyFails = false;
+    await page.route("**/api/vs-performance/matchup/opponents**", (route) => {
+      historyCalls += 1;
+      if (historyFails) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ code: "load" }),
+        });
+      }
+      return route.continue();
+    });
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto(`/en-US/vs-performance?week=${pastWeek}`);
+    const results = page
+      .getByTestId("vs-matchup-results")
+      .locator("visible=true");
+    await expect(results.getByText("Local Foe").first()).toBeVisible();
+
+    const firstHistory = page.waitForResponse(
+      "**/api/vs-performance/matchup/opponents**",
+    );
+    await page
+      .getByRole("button", { name: "Opponent alliance name", exact: true })
+      .locator("visible=true")
+      .click();
+    const historyRes = await firstHistory;
+    expect(historyRes.status()).toBe(200);
+    const historyBody = (await historyRes.json()) as {
+      opponents: Array<{
+        server: number | null;
+        tag: string | null;
+        name: string | null;
+      }>;
+      ashedUnavailable?: boolean;
+    };
+    expect(historyBody.ashedUnavailable).toBe(true);
+    expect(historyBody.opponents).toContainEqual(
+      expect.objectContaining({
+        name: "Local Foe",
+        tag: "LFO",
+        server: 1234,
+      }),
+    );
+    await expect(
+      page.getByTestId("vs-matchup-previous").locator("visible=true"),
+    ).toContainText("Local Foe");
+    const identityError = page
+      .getByTestId("vs-matchup-identity-error")
+      .locator("visible=true");
+    await expect(identityError).toContainText(
+      "Could not load matchup details from Ashed",
+    );
+    await expect(identityError).toBeInViewport();
+
+    await page
+      .getByRole("button", { name: "Cancel", exact: true })
+      .locator("visible=true")
+      .click();
+    const secondHistory = page.waitForResponse(
+      "**/api/vs-performance/matchup/opponents**",
+    );
+    await page
+      .getByRole("button", { name: "Opponent alliance name", exact: true })
+      .locator("visible=true")
+      .click();
+    await secondHistory;
+    expect(historyCalls).toBe(2);
+    await page
+      .getByRole("button", { name: "Cancel", exact: true })
+      .locator("visible=true")
+      .click();
+
+    historyFails = true;
+    const thirdHistory = page.waitForResponse(
+      "**/api/vs-performance/matchup/opponents**",
+    );
+    await page
+      .getByRole("button", { name: "Opponent alliance name", exact: true })
+      .locator("visible=true")
+      .click();
+    const thirdRes = await thirdHistory;
+    expect(thirdRes.status()).toBe(500);
+    expect(historyCalls).toBe(3);
+    const loadError = page
+      .getByTestId("vs-matchup-identity-error")
+      .locator("visible=true");
+    await expect(loadError).toContainText("Could not load");
+    await expect(loadError).not.toContainText("Could not save");
+    await expect(loadError).toBeInViewport();
+    await page
+      .getByRole("button", { name: "Cancel", exact: true })
+      .locator("visible=true")
+      .click();
+  });
+
+  test("an expired credential state shows the connect action beside sync controls", async ({
+    page,
+    request,
+  }) => {
+    const { auth, cookieHeader, externalId } = await setupAshedAlliance(
+      request,
+      "officer",
+    );
+    const pastWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), -7));
+    mockState.records = [metaRecord(pastWeek, externalId)];
+    const seeded = await fetchWeek(request, cookieHeader, pastWeek);
+    const patchRes = await request.patch("/api/vs-performance/matchup", {
+      headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
+      data: {
+        weekStart: pastWeek,
+        opponentName: "Opponent",
+        opponentTag: "FOE",
+        opponentServer: 1236,
+        expectedVersion: seeded.matchup?.version ?? 0,
+        scope: seeded.scope,
+      },
+    });
+    expect(patchRes.ok(), await patchRes.text()).toBeTruthy();
+    const week = await fetchWeek(request, cookieHeader, pastWeek);
+    expect(week.canImportAshed).toBe(true);
+    expect(week.matchup).not.toBeNull();
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto(`/en-US/vs-performance?week=${pastWeek}`);
+    const syncAction = page
+      .getByTestId("vs-sync-action")
+      .locator("visible=true");
+    await expect(syncAction).toBeEnabled();
+    mockState.metaGetErrorStatus = 403;
+    const syncResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/vs-performance/matchup/sync") &&
+        res.request().method() === "POST",
+    );
+    await syncAction.click();
+    await syncResponse;
+    await expect(
+      page.getByTestId("vs-sync-status").locator("visible=true"),
+    ).toContainText(
+      "Connect an authorized Ashed account to sync opponent information.",
+    );
+    await expect(
+      page.getByTestId("vs-sync-connect").locator("visible=true"),
+    ).toBeVisible();
+    await expect(syncAction).toBeEnabled();
+  });
+
+  test("the legacy conflict notice uses HQ warning tokens in both themes", async ({
+    page,
+    request,
+  }) => {
+    const { auth, cookieHeader, externalId } = await setupAshedAlliance(
+      request,
+      "officer",
+    );
+    const currentWeek = getWeekStartMonday(todayLocalDate());
+    const pastWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), -7));
+    mockState.records = [metaRecord(pastWeek, externalId)];
+    const seeded = await fetchWeek(request, cookieHeader, pastWeek);
+    const patchRes = await request.patch("/api/vs-performance/matchup", {
+      headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
+      data: {
+        weekStart: pastWeek,
+        opponentName: "Theme Conflict Foe",
+        opponentTag: "TCF",
+        opponentServer: 1234,
+        expectedVersion: seeded.matchup?.version ?? 0,
+        scope: seeded.scope,
+      },
+    });
+    expect(patchRes.ok(), await patchRes.text()).toBeTruthy();
+    const week = await fetchWeek(request, cookieHeader, pastWeek);
+    expect(week.matchup).not.toBeNull();
+    const themed: VsWeekPayload = {
+      ...week,
+      matchup: {
+        ...week.matchup!,
+        conflicts: [
+          {
+            id: "theme-conflict",
+            recordedDate: pastWeek,
+            nativeVersion: 0,
+            result: { totals: null, outcome: "lost", finality: "final" },
+          },
+        ],
+      },
+    };
+    let weekGets = 0;
+    await page.route("**/api/vs-performance/week**", (route) => {
+      weekGets += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(themed),
+      });
+    });
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto(`/en-US/vs-performance?week=${currentWeek}`);
+    await expect(
+      page.getByTestId("vs-matchup-results").locator("visible=true"),
+    ).toBeVisible();
+    await page.evaluate(
+      (week) =>
+        window.history.pushState({ vsThemeProbe: true }, "", `?week=${week}`),
+      pastWeek,
+    );
+    await expect.poll(() => weekGets).toBe(1);
+    await expect(
+      page
+        .getByTestId("vs-matchup-results")
+        .locator("visible=true")
+        .getByText("Theme Conflict Foe")
+        .first(),
+    ).toBeVisible();
+    const row = page
+      .getByTestId("vs-conflict-theme-conflict")
+      .locator("visible=true");
+    await expect(row).toBeVisible();
+    expect(await row.getAttribute("class")).toContain("border-hq-warning/40");
+    expect(await row.getAttribute("class")).toContain("bg-hq-warning/10");
+    const header = row.locator("p").first();
+    await expect(header).toHaveCSS("color", "rgb(154, 103, 0)");
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
+    await expect(header).toHaveCSS("color", "rgb(210, 153, 34)");
+  });
 });
 
 function cookieHeaderFor(auth: {
@@ -2332,7 +2645,7 @@ test.describe("VS capture parsing and merge matrix", () => {
       cookieHeader,
       currentWeek,
     );
-    const todayIsMonday = today === currentWeek;
+    const noDaysElapsed = currentPayload.today <= currentWeek;
     const denied = await stageReviewRow(sql, {
       allianceId: alliance.allianceId,
       hqUserId: auth.hqUserId,
@@ -2356,7 +2669,7 @@ test.describe("VS capture parsing and merge matrix", () => {
         scope: currentPayload.scope,
       },
     );
-    if (todayIsMonday) {
+    if (noDaysElapsed) {
       expect(currentAttempt.ok()).toBeFalsy();
     } else {
       expect(currentAttempt.ok(), await currentAttempt.text()).toBeTruthy();

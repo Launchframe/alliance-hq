@@ -267,12 +267,12 @@ test.describe("VS weekly planner UI", () => {
       .getByTestId("vs-plan-platform")
       .first()
       .selectOption("price_is_freight");
-    await page.getByTestId("vs-plan-preview").click();
-    await expect(page.getByTestId("vs-plan-preview-dialog")).toBeVisible();
+    await page.getByTestId("vs-plan-preview").locator("visible=true").click();
+    await expect(page.getByTestId("vs-plan-preview-dialog").locator("visible=true")).toBeVisible();
     await expect(
-      page.getByTestId("vs-plan-preview-dialog").getByText("Planned rule").first(),
+      page.getByTestId("vs-plan-preview-dialog").locator("visible=true").getByText("Planned rule").first(),
     ).toBeVisible();
-    await page.getByTestId("vs-plan-apply").click();
+    await page.getByTestId("vs-plan-apply").locator("visible=true").click();
     await expect(page.getByTestId("vs-plan-edit").locator("visible=true")).toBeVisible();
     await expect(
       page
@@ -341,7 +341,7 @@ test.describe("VS weekly planner UI", () => {
     ).toBeVisible();
     for (let i = 0; i < 6; i += 1) {
       await expect(
-        page.getByTestId(`vs-plan-day-${i}`).getByRole("combobox").first(),
+        page.getByTestId(`vs-plan-day-${i}`).locator("visible=true").getByRole("combobox").first(),
       ).toBeDisabled();
     }
   });
@@ -355,7 +355,7 @@ test.describe("VS weekly planner UI", () => {
     await page.goto(`/en-US/vs-performance?week=${futureWeek}`);
     await page.getByTestId("vs-plan-edit").locator("visible=true").click();
     await page
-      .getByTestId("vs-plan-day-0")
+      .getByTestId("vs-plan-day-0").locator("visible=true")
       .getByRole("combobox")
       .first()
       .selectOption("push");
@@ -679,11 +679,11 @@ test.describe("VS weekly planner UI", () => {
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
     const weekStart = getWeekStartMonday(todayLocalDate());
     await page.goto("/en-US/vs-performance");
-    const firstDay = page.getByTestId("vs-plan-day-0");
+    const firstDay = page.getByTestId("vs-plan-day-0").locator("visible=true");
     await expect(firstDay.getByText("Radar Training")).toBeVisible();
     await expect(firstDay.getByText("1 point")).toBeVisible();
     await expect(firstDay.getByText(/Train:/)).toBeVisible();
-    const lastDay = page.getByTestId("vs-plan-day-5");
+    const lastDay = page.getByTestId("vs-plan-day-5").locator("visible=true");
     await expect(lastDay.getByText("Buster Day")).toBeVisible();
     await expect(lastDay.getByText("4 points")).toBeVisible();
     await expect(page.getByText(/Planned push points/)).toBeVisible();
@@ -781,12 +781,12 @@ test.describe("VS weekly planner UI", () => {
     await page.goto(`/en-US/vs-performance?week=${futureWeek}`);
     await page.getByTestId("vs-plan-edit").locator("visible=true").click();
     await page
-      .getByTestId("vs-plan-day-3")
+      .getByTestId("vs-plan-day-3").locator("visible=true")
       .getByRole("combobox")
       .first()
       .selectOption("push");
-    await page.getByTestId("vs-plan-preview").click();
-    await page.getByTestId("vs-plan-apply").click();
+    await page.getByTestId("vs-plan-preview").locator("visible=true").click();
+    await page.getByTestId("vs-plan-apply").locator("visible=true").click();
     await expect(page.getByTestId("vs-plan-edit").locator("visible=true")).toBeVisible();
     expect((await trainRule())?.kind).toBe("vs_top_n");
 
@@ -799,19 +799,19 @@ test.describe("VS weekly planner UI", () => {
 
     await page.getByTestId("vs-plan-edit").locator("visible=true").click();
     await page
-      .getByTestId("vs-plan-day-4")
+      .getByTestId("vs-plan-day-4").locator("visible=true")
       .getByRole("combobox")
       .first()
       .selectOption("push");
-    await page.getByTestId("vs-plan-preview").click();
-    await page.getByTestId("vs-plan-apply").click();
+    await page.getByTestId("vs-plan-preview").locator("visible=true").click();
+    await page.getByTestId("vs-plan-apply").locator("visible=true").click();
     await expect(page.getByTestId("vs-plan-edit").locator("visible=true")).toBeVisible();
     expect(await trainRule()).toEqual(overrideRule);
 
     await page.getByTestId("vs-plan-edit").locator("visible=true").click();
-    await page.getByTestId("vs-plan-day-3").getByRole("checkbox").check();
-    await page.getByTestId("vs-plan-preview").click();
-    await page.getByTestId("vs-plan-apply").click();
+    await page.getByTestId("vs-plan-day-3").locator("visible=true").getByRole("checkbox").check();
+    await page.getByTestId("vs-plan-preview").locator("visible=true").click();
+    await page.getByTestId("vs-plan-apply").locator("visible=true").click();
     await expect(page.getByTestId("vs-plan-edit").locator("visible=true")).toBeVisible();
     expect((await trainRule())?.kind).toBe("vs_top_n");
   });
@@ -1114,7 +1114,7 @@ test.describe("VS weekly planner UI", () => {
     await page.waitForURL(/week=/);
     await page.getByTestId("vs-plan-edit").locator("visible=true").click();
     const select = page
-      .getByTestId("vs-plan-day-0")
+      .getByTestId("vs-plan-day-0").locator("visible=true")
       .getByRole("combobox")
       .first();
     await select.selectOption("push");
@@ -1199,19 +1199,20 @@ test.describe("VS weekly planner UI", () => {
     const scenario = await createNativeVsScenario(getE2eSql());
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
     const futureWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), 7));
-    await page.goto("/en-US/vs-performance");
+    const refreshWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), 14));
+    await page.goto(`/en-US/vs-performance?week=${futureWeek}`);
     await page.getByTestId("vs-plan-edit").locator("visible=true").click();
     const select = page
-      .getByTestId("vs-plan-day-0")
+      .getByTestId("vs-plan-day-0").locator("visible=true")
       .getByRole("combobox")
       .first();
     await select.selectOption("push");
     await page.evaluate(
       (week) => window.history.pushState({}, "", `?week=${week}`),
-      futureWeek,
+      refreshWeek,
     );
     await expect(select).toHaveValue("push");
-    const futureTitle = new Date(`${futureWeek}T12:00:00`).toLocaleDateString(
+    const futureTitle = new Date(`${refreshWeek}T12:00:00`).toLocaleDateString(
       "en-US",
       { month: "short", day: "numeric" },
     );
@@ -1254,7 +1255,7 @@ test.describe("VS weekly planner UI", () => {
     await expect(page.locator('text="Foe Alliance":visible')).toHaveCount(0);
     await expect(page.getByTestId("vs-plan-edit").locator("visible=true")).toBeVisible();
     await expect(
-      page.getByTestId("vs-plan-day-0").first().getByRole("combobox"),
+      page.getByTestId("vs-plan-day-0").locator("visible=true").first().getByRole("combobox"),
     ).toHaveCount(0);
   });
 
@@ -1271,10 +1272,11 @@ test.describe("VS weekly planner UI", () => {
       .join("; ");
     const currentWeek = getWeekStartMonday(todayLocalDate());
     const nextWeek = getWeekStartMonday(addCalendarDays(currentWeek, 7));
+    await seedOpponent(request, cookieHeader, currentWeek, "Foe Alliance");
     const aPayload = await seedOpponent(
       request,
       cookieHeader,
-      currentWeek,
+      nextWeek,
       "Foe Alliance",
     );
     let release!: () => void;
@@ -1283,6 +1285,12 @@ test.describe("VS weekly planner UI", () => {
     });
     let apiCalls = 0;
     await page.route("**/api/vs-performance/week**", async (route) => {
+      const target = new URL(route.request().url()).searchParams.get(
+        "weekStart",
+      );
+      if (target !== nextWeek) {
+        return route.continue();
+      }
       apiCalls += 1;
       await gate;
       await route.fulfill({
@@ -1294,7 +1302,8 @@ test.describe("VS weekly planner UI", () => {
     await page.goto("/en-US/vs-performance");
     await expect(page.getByText("Foe Alliance").first()).toBeVisible();
     await page.evaluate(
-      (week) => window.history.pushState({}, "", `?week=${week}`),
+      (week) =>
+        window.history.pushState({ hqWeekProbe: true }, "", `?week=${week}`),
       nextWeek,
     );
     await expect.poll(() => apiCalls).toBe(1);
@@ -1303,8 +1312,11 @@ test.describe("VS weekly planner UI", () => {
       scenario.officer.hqUserId,
     );
     await page.goBack();
+    const lateResponse = page.waitForResponse((res) =>
+      res.url().includes(`weekStart=${nextWeek}`),
+    );
     release();
-    await page.waitForTimeout(800);
+    await lateResponse;
     await expect(page.locator('text="Foe Alliance":visible')).toHaveCount(0);
     await expect(page.getByLabel("Next week").locator("visible=true")).toBeEnabled();
     await expect(page.getByTestId("weekly-vs-plan").locator("visible=true")).toBeVisible();

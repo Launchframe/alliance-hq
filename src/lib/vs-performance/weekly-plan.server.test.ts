@@ -495,4 +495,11 @@ describe("loadVsPerformanceWeek", () => {
       loadVsPerformanceWeek("s1", "2026-09-22"),
     ).rejects.toThrow();
   });
+
+  it("denies a workspace without an HQ principal before loading week data", async () => {
+    mocks.loadSession.mockResolvedValue({ id: "s1", hqUserId: null, currentAllianceId: "a1", allianceId: "a1" });
+    await expect(loadVsPerformanceWeek("s1", WEEK)).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    expect(mocks.loadVsWeekPlan).not.toHaveBeenCalled();
+    expect(mocks.loadVsMatchup).not.toHaveBeenCalled();
+  });
 });

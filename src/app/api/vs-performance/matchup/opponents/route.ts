@@ -20,8 +20,7 @@ export async function GET() {
   if (actor instanceof NextResponse) return actor;
 
   try {
-    const opponents = await listPreviousVsOpponents(actor);
-    return NextResponse.json({ opponents });
+    return NextResponse.json(await listPreviousVsOpponents(actor));
   } catch (error) {
     return vsErrorResponse(error);
   }

@@ -75,6 +75,8 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
   const [previousLoaded, setPreviousLoaded] = useState(false);
   const importErrorRef = useRef<HTMLParagraphElement | null>(null);
   const syncErrorRef = useRef<HTMLParagraphElement | null>(null);
+  const identityErrorRef = useRef<HTMLParagraphElement | null>(null);
+  const syncStatusRef = useRef<HTMLParagraphElement | null>(null);
 
   useEffect(() => {
     if (importError)
@@ -84,6 +86,18 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
     if (syncError)
       syncErrorRef.current?.scrollIntoView({ block: "nearest" });
   }, [syncError]);
+  useEffect(() => {
+    if (identityError)
+      identityErrorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [identityError]);
+
+  const syncNeedsAttention = Boolean(payload.ashedLinked && matchup && (
+    ["failed", "uncertain", "credentials_required", "conflict"].includes(matchup.sync.status) ||
+    ["credentials_required", "score_too_large"].includes(matchup.sync.errorCode ?? "")
+  ));
+  useEffect(() => {
+    if (syncNeedsAttention) syncStatusRef.current?.scrollIntoView({ block: "nearest" });
+  }, [syncNeedsAttention, matchup?.sync]);
 
   const inputCls =
     "rounded-md border border-hq-border bg-hq-surface px-2 py-1 text-sm text-hq-fg disabled:opacity-50";
@@ -131,19 +145,26 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
       void (async () => {
         try {
           const res = await fetch("/api/vs-performance/matchup/opponents");
-          if (!res.ok) {
-            setIdentityError(t("errors.load"));
-            return;
-          }
           const body = (await res.json()) as {
             opponents: Array<{
               server: number | null;
               tag: string | null;
               name: string | null;
             }>;
-          };
+            ashedUnavailable?: boolean;
+          } & ApiError;
+          if (!res.ok) {
+            setPreviousLoaded(false);
+            setIdentityError(body.code === "forbidden" ? t("errors.forbidden") : body.code === "stale" ? t("errors.stale") : t("errors.load"));
+            return;
+          }
           setPreviousOpponents(body.opponents);
+          if (body.ashedUnavailable) {
+            setPreviousLoaded(false);
+            setIdentityError(t("matchup.importFailed"));
+          }
         } catch {
+          setPreviousLoaded(false);
           setIdentityError(t("errors.load"));
         }
       })();
@@ -236,11 +257,21 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
           scope: payload.scope,
         }),
       });
+      const body = (await res.json()) as VsWeekPayload & ApiError;
       if (!res.ok) {
-        setImportError(t("matchup.importFailed"));
+        setImportError(
+          body.code === "forbidden"
+            ? t("errors.forbidden")
+            : body.code === "stale"
+              ? t("errors.stale")
+              : t("matchup.importFailed"),
+        );
         return;
       }
-      const body = (await res.json()) as VsWeekPayload;
+      if (!weekPayloadMatchesView(body, payload)) {
+        setImportError(t("errors.stale"));
+        return;
+      }
       onSaved(body);
     } catch {
       setImportError(t("matchup.importFailed"));
@@ -299,6 +330,10 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
               : matchup?.sync.status === "uncertain"
                 ? "uncertain"
                 : "failed";
+
+  const syncCredentialsRequired =
+    matchup?.sync.errorCode === "credentials_required" ||
+    matchup?.sync.status === "credentials_required";
 
   return (
     <section
@@ -403,14 +438,16 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
                     {t("ashedSync.action")}
                   </button>
                 </>
-              ) : (
+              ) : null}
+              {!payload.canImportAshed || syncCredentialsRequired ? (
                 <Link
                   href="/connect"
+                  data-testid="vs-sync-connect"
                   className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-border"
                 >
                   {tConnect("title")}
                 </Link>
-              )}
+              ) : null}
             </>
           ) : null}
         </div>
@@ -435,7 +472,9 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
       ) : null}
       {matchup && syncStatusKey ? (
         <p
-          className="mt-2 text-xs text-hq-fg-muted"
+          ref={syncStatusRef}
+          className={`mt-2 text-xs ${syncNeedsAttention ? "text-hq-warning" : "text-hq-fg-muted"}`}
+          role={syncNeedsAttention ? "alert" : "status"}
           data-testid="vs-sync-status"
         >
           {t(`ashedSync.${syncStatusKey}`)}
@@ -660,7 +699,12 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
               {t("actions.cancel")}
             </button>
             {identityError ? (
-              <p className="text-xs text-hq-danger" role="alert">
+              <p
+                ref={identityErrorRef}
+                className="text-xs text-hq-danger"
+                role="alert"
+                data-testid="vs-matchup-identity-error"
+              >
                 {identityError}
               </p>
             ) : null}
@@ -1163,10 +1207,10 @@ function ConflictRow({
 
   return (
     <li
-      className="rounded-lg border border-[#b08800]/40 bg-[#b08800]/10 px-3 py-2 text-sm"
+      className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm"
       data-testid={`vs-conflict-${conflict.id}`}
     >
-      <p className="font-medium text-[#8a6a00] dark:text-[#e3b341]">
+      <p className="font-medium text-hq-warning">
         {dateLabel} — {t("results.ashedConflict")}
       </p>
       <p className="mt-1 text-xs text-hq-fg-muted">

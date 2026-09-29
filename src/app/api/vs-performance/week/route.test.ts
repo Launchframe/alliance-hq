@@ -7,6 +7,9 @@ import { PATCH as matchupPATCH } from "../matchup/route";
 import { PATCH as dayResultPATCH } from "../matchup/days/[recordedDate]/route";
 import { POST as conflictPOST } from "../matchup/conflicts/[observationId]/route";
 import { POST as importPOST } from "../matchup/import/route";
+import { POST as syncPOST } from "../matchup/sync/route";
+import { POST as parsePOST } from "../captures/parse/route";
+import { POST as capturePOST } from "../captures/[reviewId]/commit/route";
 import { PATCH as preferencesPATCH } from "../preferences/route";
 import { VsPerformanceError } from "@/lib/vs-performance/weekly-plan.shared";
 import { vsScope } from "@/lib/vs-performance/vs-scope.server";
@@ -23,6 +26,9 @@ const resolveVsMatchConflict = vi.fn();
 const saveVsStrategyPreferences = vi.fn();
 const loadVsStrategyPreferences = vi.fn();
 const writeAuditLog = vi.fn();
+const syncAshedOpponentInfo = vi.fn();
+const stageVsCaptureReview = vi.fn();
+const commitVsCaptureReview = vi.fn();
 
 vi.mock("@/lib/session", () => ({
   requireApiSession: (...args: unknown[]) => requireApiSession(...args),
@@ -66,6 +72,14 @@ vi.mock("@/lib/vs-performance/match-results.repository.server", () => ({
 
 vi.mock("@/lib/vs-performance/matchup-sync.server", () => ({
   attemptVsOpponentSync: vi.fn(async () => null),
+  syncAshedOpponentInfo: (...args: unknown[]) =>
+    syncAshedOpponentInfo(...args),
+}));
+
+vi.mock("@/lib/vs-performance/vs-capture.server", () => ({
+  stageVsCaptureReview: (...args: unknown[]) => stageVsCaptureReview(...args),
+  commitVsCaptureReview: (...args: unknown[]) =>
+    commitVsCaptureReview(...args),
 }));
 
 const session = {
@@ -577,6 +591,37 @@ describe("/api/vs-performance mutating routes deny anonymous and unprivileged se
       run: () => importPOST(new Request("http://localhost/api/vs-performance/matchup/import", { method: "POST", body: "{}" })),
     },
     {
+      name: "POST /matchup/sync",
+      run: () =>
+        syncPOST(
+          new Request("http://localhost/api/vs-performance/matchup/sync", {
+            method: "POST",
+            body: "{}",
+          }),
+        ),
+    },
+    {
+      name: "POST /captures/parse",
+      run: () =>
+        parsePOST(
+          new Request("http://localhost/api/vs-performance/captures/parse", {
+            method: "POST",
+            body: "{}",
+          }),
+        ),
+    },
+    {
+      name: "POST /captures/[reviewId]/commit",
+      run: () =>
+        capturePOST(
+          new Request(
+            "http://localhost/api/vs-performance/captures/review-1/commit",
+            { method: "POST", body: "{}" },
+          ),
+          { params: Promise.resolve({ reviewId: "review-1" }) },
+        ),
+    },
+    {
       name: "PATCH /preferences",
       run: () =>
         preferencesPATCH(
@@ -599,6 +644,9 @@ describe("/api/vs-performance mutating routes deny anonymous and unprivileged se
     expect(saveVsMatchDayResult).not.toHaveBeenCalled();
     expect(resolveVsMatchConflict).not.toHaveBeenCalled();
     expect(saveVsStrategyPreferences).not.toHaveBeenCalled();
+    expect(syncAshedOpponentInfo).not.toHaveBeenCalled();
+    expect(stageVsCaptureReview).not.toHaveBeenCalled();
+    expect(commitVsCaptureReview).not.toHaveBeenCalled();
   });
 
   it.each(cases)(
@@ -619,6 +667,9 @@ describe("/api/vs-performance mutating routes deny anonymous and unprivileged se
       expect(saveVsMatchDayResult).not.toHaveBeenCalled();
       expect(resolveVsMatchConflict).not.toHaveBeenCalled();
       expect(saveVsStrategyPreferences).not.toHaveBeenCalled();
+      expect(syncAshedOpponentInfo).not.toHaveBeenCalled();
+      expect(stageVsCaptureReview).not.toHaveBeenCalled();
+      expect(commitVsCaptureReview).not.toHaveBeenCalled();
     },
   );
 });
