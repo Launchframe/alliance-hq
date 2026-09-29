@@ -44,7 +44,7 @@ export function normalizeVsResult(input: VsResultInput): VsNormalizedResult {
 
 export function assertVsResultDate(weekStart: string, recordedDate: string, serverToday: string, finality: VsFinality): void {
   vsDayIndex(weekStart, recordedDate);
-  if (!isVsCalendarDate(serverToday) || recordedDate > serverToday || finality === "final" && recordedDate >= serverToday) {
+  if (!isVsCalendarDate(serverToday) || recordedDate > serverToday || (finality === "final" && recordedDate >= serverToday)) {
     throw new VsPerformanceError("invalid");
   }
 }

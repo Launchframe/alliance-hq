@@ -20,7 +20,7 @@ function migrationStatements(file: string, schemaName: string): string[] {
     );
 }
 
-test("0190 vs constraints apply cleanly on a fresh install and the week guards fire", async () => {
+test("0191 vs constraints apply cleanly on a fresh install and the week guards fire", async () => {
   const url =
     process.env.E2E_DATABASE_URL?.trim() ||
     process.env.LOCAL_DATABASE_URL?.trim();
@@ -35,8 +35,8 @@ test("0190 vs constraints apply cleanly on a fresh install and the week guards f
        CREATE TABLE "${schemaName}".hq_users (id text PRIMARY KEY)`,
     );
     for (const file of [
-      "0189_vs_weekly_strategy_podium.sql",
-      "0190_vs_constraints.sql",
+      "0190_vs_weekly_strategy_podium.sql",
+      "0191_vs_constraints.sql",
     ]) {
       for (const statement of migrationStatements(file, schemaName)) {
         await sql.unsafe(
