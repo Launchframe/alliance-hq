@@ -15,11 +15,20 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/db", () => ({
-  getDb: () => ({
-    select: mocks.select,
-    update: mocks.update,
-    insert: mocks.insert,
-  }),
+  getDb: () => {
+    const tx = {
+      select: mocks.select,
+      update: mocks.update,
+      insert: mocks.insert,
+      execute: async () => [],
+      rollback: () => {},
+    };
+    return {
+      ...tx,
+      transaction: async (run: (txArg: unknown) => Promise<unknown>) =>
+        run(tx),
+    };
+  },
   schema: {
     trainConductorRecords: {
       id: "id",

@@ -1,7 +1,13 @@
+import { eq } from "drizzle-orm";
+
+import { getDb, schema } from "@/lib/db";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { resolveEffectiveSeasonFromRow } from "@/lib/game-season/resolve";
+import { lockAllianceAvailability, type AvailabilityTransaction } from "@/lib/time-off/availability.server";
 import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import { CoverageConflictError } from "@/lib/time-off/coverage.server";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
+import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 import type {
   ConductorMechanismType,
   DayConfigInput,
@@ -24,7 +30,7 @@ import {
 } from "@/lib/trains/trains-day-actions.shared";
 import {
   allianceTrainWeekFromRow,
-  getTrainWeekStart,
+  scheduleWeekStart,
   weekDatesInTrainWeek,
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
@@ -97,7 +103,7 @@ import { loadWeekFillTemplateById } from "@/lib/trains/rules/week-template-resol
 import { getRuleTemplateByPresetKey } from "@/lib/trains/rules/templates.server";
 import { templateRulesForDate } from "@/lib/trains/rules/template-days.shared";
 import type { WeekFillTemplate } from "@/lib/trains/week-schedule-day-configs.shared";
-import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+import { clampTrainConductorLeadTimeDays, vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import {
   effectiveConductorRuleForTrainDate,
   resolveVsBoardForTrainDate,
@@ -130,6 +136,7 @@ import {
   deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
   getWeekSchedule,
+  type TrainsDb,
   listConductorRecordsForWeek,
   listConductorRecordsInRange,
   listDayConfigsForWeek,
@@ -140,12 +147,17 @@ import {
   upsertDayConfigOverride,
   upsertWeekSchedule,
   restampConductorRules,
+  withTrainScheduleWriteLock,
+  isAvailabilityTransaction,
 } from "@/lib/trains/repository";
 import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared";
 import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
 
-async function resolveTrainSeasonKey(allianceId: string): Promise<string> {
-  const effective = await getEffectiveSeasonForAlliance(allianceId);
+export async function resolveTrainSeasonKey(
+  allianceId: string,
+  db?: Parameters<typeof getEffectiveSeasonForAlliance>[1],
+): Promise<string> {
+  const effective = await getEffectiveSeasonForAlliance(allianceId, db);
   return effective.seasonKey;
 }
 
@@ -173,8 +185,9 @@ export class LockedDayPaintBlockedError extends Error {
 
 export async function loadAllianceTrainWeekConfig(
   allianceId: string,
+  db?: Parameters<typeof loadAllianceRow>[1],
 ): Promise<AllianceTrainWeekConfig> {
-  const row = await loadAllianceRow(allianceId);
+  const row = await loadAllianceRow(allianceId, db);
   return allianceTrainWeekFromRow(row ?? {});
 }
 
@@ -883,13 +896,15 @@ export async function setWeekTemplate(
   templateId: string,
   isPivot = false,
 ): Promise<void> {
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  return withTrainScheduleWriteLock(allianceId, undefined, async (tx) => {
+  const seasonKey = await resolveTrainSeasonKey(allianceId, tx);
   const weekEnd = addCalendarDays(weekStart, 6);
   const records = await listConductorRecordsForWeek(
     allianceId,
     weekStart,
     weekEnd,
     seasonKey,
+    tx,
   );
   const preserveThroughDate = latestLockedDateInWeek(
     records.map((record) => ({
@@ -906,9 +921,10 @@ export async function setWeekTemplate(
     templateId,
     seasonKey,
     isPivot,
+    db: tx,
   });
   const configs = weekDayConfigsForTemplate(
-    await loadWeekFillTemplateById(templateId),
+    await loadWeekFillTemplateById(templateId, undefined, tx),
     weekStart,
   );
   const configsToApply = preserveThroughDate
@@ -916,8 +932,35 @@ export async function setWeekTemplate(
     : configs;
 
   if (configsToApply.length > 0) {
-    await replaceDayConfigs(allianceId, schedule.id, configsToApply);
+    await replaceDayConfigs(allianceId, schedule.id, configsToApply, tx);
   }
+  });
+}
+
+export type LockedAllianceTrainSettings = {
+  leadDays: number;
+  trainWeekConfig: AllianceTrainWeekConfig;
+  seasonKey: string;
+};
+
+export async function lockAllianceTrainSettings(
+  tx: AvailabilityTransaction,
+  allianceId: string,
+): Promise<LockedAllianceTrainSettings | null> {
+  const [row] = await tx
+    .select()
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .for("update")
+    .limit(1);
+  if (!row) return null;
+  return {
+    leadDays: clampTrainConductorLeadTimeDays(
+      row.trainConductorLeadTimeDays ?? 0,
+    ),
+    trainWeekConfig: allianceTrainWeekFromRow(row),
+    seasonKey: resolveEffectiveSeasonFromRow(row).seasonKey,
+  };
 }
 
 /**
@@ -928,9 +971,14 @@ export async function ensureWeekScheduleBaseline(
   allianceId: string,
   weekStart: string,
   preferredTemplateId?: string | null,
+  db?: AvailabilityTransaction,
+  seasonKey?: string,
 ): Promise<(typeof import("@/lib/db/schema").trainWeekSchedules.$inferSelect)> {
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
-  let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+  const resolvedSeasonKey =
+    seasonKey ?? (await resolveTrainSeasonKey(allianceId, db ?? getDb()));
+  let schedule = await getWeekSchedule(allianceId, weekStart, resolvedSeasonKey, {
+    db,
+  });
   if (!schedule) {
     // No template is a valid state: painting one day should not silently
     // declare a preset for the other six.
@@ -938,7 +986,8 @@ export async function ensureWeekScheduleBaseline(
       allianceId,
       weekStart,
       templateId: preferredTemplateId ?? null,
-      seasonKey,
+      seasonKey: resolvedSeasonKey,
+      db,
     });
   }
   return schedule;
@@ -959,16 +1008,26 @@ export async function clearWeekSchedule(
 export async function recomputeWeekPivotFlag(
   allianceId: string,
   weekStart: string,
+  db?: AvailabilityTransaction,
+  seasonKey?: string,
 ): Promise<void> {
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
-  const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  const vsPushWeek = await getRuleTemplateByPresetKey("vs_push_week");
+  const resolvedSeasonKey =
+    seasonKey ?? (await resolveTrainSeasonKey(allianceId, db ?? getDb()));
+  const schedule = await getWeekSchedule(allianceId, weekStart, resolvedSeasonKey, {
+    db,
+  });
+  const vsPushWeek = await getRuleTemplateByPresetKey("vs_push_week", db ?? getDb());
   if (!schedule || !vsPushWeek || schedule.templateId !== vsPushWeek.id) {
     return;
   }
 
   const weekEnd = addCalendarDays(weekStart, 6);
-  const configs = await listDayConfigsForWeek(allianceId, weekStart, weekEnd);
+  const configs = await listDayConfigsForWeek(
+    allianceId,
+    weekStart,
+    weekEnd,
+    db ?? getDb(),
+  );
   const hasEconomyOverride = configs.some((config) => {
     if (config.isOverride !== 1) return false;
     const idx = weekDatesFromMonday(weekStart).indexOf(config.date);
@@ -984,9 +1043,290 @@ export async function recomputeWeekPivotFlag(
     allianceId,
     weekStart,
     templateId: schedule.templateId,
-    seasonKey,
+    seasonKey: resolvedSeasonKey,
     isPivot: hasEconomyOverride,
+    db,
   });
+}
+
+export type TrainPaintPatch = {
+  date: string;
+  conductorRule?: ConductorRule | null;
+  vipRule?: VipRule | null;
+  sourceTemplateId?: string | null;
+};
+
+export type PreparedTrainPaint = {
+  date: string;
+  scheduleId: string;
+  paintedConfig: DayConfigInput;
+  mergedRules: {
+    conductorRule: ConductorRule | null;
+    vipRule: VipRule | null;
+  };
+  previousConductorRule: ConductorRule | null;
+  previousVipRule: VipRule | null;
+  record: Awaited<ReturnType<typeof getConductorRecord>>;
+  conductorChanged: boolean;
+  snapshotMismatch: boolean;
+  keepAssigned: boolean;
+};
+
+export type TrainPaintInputs = {
+  seasonKey: string;
+  trainWeekConfig: AllianceTrainWeekConfig;
+  weekStarts: string[];
+  activeMemberIds: ReadonlySet<string>;
+};
+
+export async function loadTrainPaintInputs(
+  allianceId: string,
+  patches: readonly TrainPaintPatch[],
+): Promise<TrainPaintInputs> {
+  const [seasonKey, trainWeekConfig] = await Promise.all([
+    resolveTrainSeasonKey(allianceId),
+    loadAllianceTrainWeekConfig(allianceId),
+  ]);
+  const weekStarts = [
+    ...new Set(patches.map((patch) => scheduleWeekStart(patch.date))),
+  ].sort();
+  const activeMemberIds = new Set(
+    patches.every((patch) => patch.conductorRule === undefined)
+      ? []
+      : (await loadActiveAlliancePoolMembers({ allianceId })).map(
+          (member) => member.ashedMemberId,
+        ),
+  );
+  return { seasonKey, trainWeekConfig, weekStarts, activeMemberIds };
+}
+
+export async function prepareTrainPaints(
+  allianceId: string,
+  patches: readonly TrainPaintPatch[],
+  inputs: TrainPaintInputs,
+  options?: {
+    db?: TrainsDb;
+    updateSeason?: boolean;
+    readOnly?: boolean;
+    platformAdminPastOverride?: boolean;
+    preferredWeekTemplate?: string | null;
+    today?: string;
+  },
+): Promise<PreparedTrainPaint[]> {
+  const db = options?.db;
+  const today = options?.today ?? getServerCalendarDate();
+  const isPlatformAdmin = options?.platformAdminPastOverride ?? false;
+  const seasonKey = inputs.seasonKey;
+
+  const uniqueDates = [...new Set(patches.map((patch) => patch.date))].sort();
+  let reporterCount: number | null = null;
+  for (const patch of patches) {
+    if (patch.conductorRule?.kind === "vr_top_n") {
+      reporterCount ??= await countAllianceVrReporters(allianceId, db);
+      if (!isVrTopScopeUnlocked(patch.conductorRule.topN, reporterCount)) {
+        throw new Error(
+          `Need ${2 * patch.conductorRule.topN} VR reports for Top ${patch.conductorRule.topN} (have ${reporterCount}).`,
+        );
+      }
+    }
+  }
+  for (const date of uniqueDates) {
+    assertTemplateChangeAllowed(date, isPlatformAdmin, today);
+  }
+
+  if (!options?.readOnly) {
+    const writeTx =
+      db && isAvailabilityTransaction(db) ? db : undefined;
+    for (const weekStart of inputs.weekStarts) {
+      await ensureWeekScheduleBaseline(
+        allianceId,
+        weekStart,
+        options?.preferredWeekTemplate,
+        writeTx,
+        seasonKey,
+      );
+    }
+  }
+
+  const prepared: PreparedTrainPaint[] = [];
+  for (const patch of patches) {
+    const { date } = patch;
+    const weekStart = scheduleWeekStart(date);
+    const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey, {
+      db,
+      updateSeason: options?.readOnly ? false : options?.updateSeason,
+    });
+    if (!schedule && !options?.readOnly) {
+      throw new Error(
+        `Missing week schedule after baseline for ${weekStart}`,
+      );
+    }
+
+    const previousDayConfig = await resolveRollDayConfig(
+      allianceId,
+      date,
+      seasonKey,
+      { db, updateSeason: options?.readOnly ? false : options?.updateSeason },
+    );
+    const mergedRules = mergeDayRulePatch(
+      {
+        conductorRule: previousDayConfig.conductorRule,
+        vipRule: previousDayConfig.vipRule,
+      },
+      patch,
+    );
+
+    const paintedConfig: DayConfigInput = {
+      date,
+      conductorRule: mergedRules.conductorRule,
+      vipRule: mergedRules.vipRule,
+      sourceTemplateId: patch.sourceTemplateId ?? null,
+    };
+
+    const conductorChanged = conductorRuleChanged(
+      previousDayConfig.conductorRule,
+      mergedRules.conductorRule,
+    );
+    const record = await getConductorRecord(allianceId, date, seasonKey, db);
+    const snapshotMismatch = Boolean(
+      record?.conductorMemberId &&
+        conductorRuleChanged(
+          parseConductorRule(record.conductorRule),
+          mergedRules.conductorRule,
+        ),
+    );
+
+    let keepAssigned = true;
+    if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
+      const resolved = await resolveMemberAllianceRankAsOf(
+        allianceId,
+        record.conductorMemberId,
+        date,
+        null,
+        null,
+        db,
+        { lock: db !== undefined && isAvailabilityTransaction(db) },
+      );
+      keepAssigned = shouldKeepAssignedConductorOnPaint({
+        ruleChanged: conductorChanged || snapshotMismatch,
+        memberId: record.conductorMemberId,
+        onRoster: inputs.activeMemberIds.has(record.conductorMemberId),
+        allianceRank: resolved.rank,
+        nextRule: mergedRules.conductorRule,
+      });
+      if (!keepAssigned && record.lockedAt) {
+        throw new LockedDayPaintBlockedError(date, record.conductorMemberName);
+      }
+    }
+
+    prepared.push({
+      date,
+      scheduleId: schedule?.id ?? "",
+      paintedConfig,
+      mergedRules,
+      previousConductorRule: previousDayConfig.conductorRule,
+      previousVipRule: previousDayConfig.vipRule,
+      record,
+      conductorChanged,
+      snapshotMismatch,
+      keepAssigned,
+    });
+  }
+  return prepared;
+}
+
+export async function commitTrainPaints(
+  db: AvailabilityTransaction,
+  allianceId: string,
+  prepared: readonly PreparedTrainPaint[],
+  inputs: TrainPaintInputs,
+  options?: { updateWeekTemplate?: string | null },
+): Promise<void> {
+  const seasonKey = inputs.seasonKey;
+  for (const paint of prepared) {
+    const {
+      date,
+      paintedConfig,
+      mergedRules,
+      previousVipRule,
+      scheduleId,
+      record,
+      conductorChanged,
+      snapshotMismatch,
+      keepAssigned,
+    } = paint;
+
+    await upsertDayConfigOverride(
+      allianceId,
+      scheduleId,
+      paintedConfig,
+      true,
+      db,
+    );
+
+    if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
+      if (keepAssigned) {
+        await restampConductorRules({
+          allianceId,
+          date,
+          seasonKey,
+          conductorRule: mergedRules.conductorRule,
+          vipRule: mergedRules.vipRule,
+          db,
+        });
+      } else {
+        await clearConductorAssignment(allianceId, date, seasonKey, {
+          db,
+        });
+        if (record.vipMemberId) {
+          await clearVipAssignment(allianceId, date, seasonKey, db);
+        }
+      }
+    } else if (
+      record &&
+      !record.lockedAt &&
+      record.vipMemberId &&
+      conductorChanged
+    ) {
+      await clearVipAssignment(allianceId, date, seasonKey, db);
+    } else if (
+      record &&
+      vipRuleIdentity(previousVipRule) !==
+        vipRuleIdentity(mergedRules.vipRule)
+    ) {
+      await restampConductorRules({
+        allianceId,
+        date,
+        seasonKey,
+        conductorRule: mergedRules.conductorRule,
+        vipRule: mergedRules.vipRule,
+        db,
+      });
+    }
+  }
+
+  const nextWeekTemplate = options?.updateWeekTemplate;
+  for (const weekStart of inputs.weekStarts) {
+    if (nextWeekTemplate) {
+      const schedule = await getWeekSchedule(
+        allianceId,
+        weekStart,
+        seasonKey,
+        { db },
+      );
+      if (schedule) {
+        await upsertWeekSchedule({
+          allianceId,
+          weekStart,
+          templateId: nextWeekTemplate,
+          seasonKey,
+          isPivot: schedule.isPivot === 1,
+          db,
+        });
+      }
+    }
+    await recomputeWeekPivotFlag(allianceId, weekStart, db, seasonKey);
+  }
 }
 
 /**
@@ -1020,196 +1360,46 @@ export async function applyPaint(
   if (input.dates.length === 0) return;
   if (input.conductorRule === undefined && input.vipRule === undefined) return;
 
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
-  const trainWeekConfig = await loadAllianceTrainWeekConfig(allianceId);
-  const uniqueDates = [...new Set(input.dates)].sort();
-  const today = getServerCalendarDate();
-  const isPlatformAdmin = options?.platformAdminPastOverride ?? false;
-
-  if (input.conductorRule?.kind === "vr_top_n") {
-    const reporterCount = await countAllianceVrReporters(allianceId);
-    if (!isVrTopScopeUnlocked(input.conductorRule.topN, reporterCount)) {
-      throw new Error(
-        `Need ${2 * input.conductorRule.topN} VR reports for Top ${input.conductorRule.topN} (have ${reporterCount}).`,
-      );
-    }
-  }
-
-  for (const date of uniqueDates) {
-    assertTemplateChangeAllowed(date, isPlatformAdmin, today);
-  }
-
-  const weekStarts = [
-    ...new Set(uniqueDates.map((d) => getTrainWeekStart(d, trainWeekConfig))),
-  ];
-  for (const weekStart of weekStarts) {
-    await ensureWeekScheduleBaseline(
-      allianceId,
-      weekStart,
-      options?.preferredWeekTemplate,
-    );
-  }
-
-  const activeMemberIds = new Set(
-    input.conductorRule === undefined
-      ? []
-      : (await loadActiveAlliancePoolMembers({ allianceId })).map(
-          (member) => member.ashedMemberId,
-        ),
-  );
-
-  const pendingPaints: Array<{
-    date: string;
-    seasonKey: string;
-    paintedConfig: DayConfigInput;
-    mergedRules: { conductorRule: ConductorRule | null; vipRule: VipRule | null };
-    previousVipRule: VipRule | null;
-    scheduleId: string;
-    record: Awaited<ReturnType<typeof getConductorRecord>>;
-    conductorChanged: boolean;
-    snapshotMismatch: boolean;
-    keepAssigned: boolean;
-  }> = [];
-
-  for (const date of uniqueDates) {
-    const weekStart = getTrainWeekStart(date, trainWeekConfig);
-    const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-    if (!schedule) continue;
-
-    const previousDayConfig = await resolveRollDayConfig(
-      allianceId,
+  const patches: TrainPaintPatch[] = [...new Set(input.dates)]
+    .sort()
+    .map((date) => ({
       date,
-      seasonKey,
-    );
-    const mergedRules = mergeDayRulePatch(
-      {
-        conductorRule: previousDayConfig.conductorRule,
-        vipRule: previousDayConfig.vipRule,
-      },
-      input,
-    );
-
-    const paintedConfig: DayConfigInput = {
-      date,
-      conductorRule: mergedRules.conductorRule,
-      vipRule: mergedRules.vipRule,
-      sourceTemplateId: input.sourceTemplateId ?? null,
+      conductorRule: input.conductorRule,
+      vipRule: input.vipRule,
+      sourceTemplateId: input.sourceTemplateId,
+    }));
+  const inputs = await loadTrainPaintInputs(allianceId, patches);
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    await lockAllianceAvailability(tx, allianceId);
+    const settings = await lockAllianceTrainSettings(tx, allianceId);
+    const txInputs: TrainPaintInputs = {
+      seasonKey: settings?.seasonKey ?? inputs.seasonKey,
+      trainWeekConfig: settings?.trainWeekConfig ?? inputs.trainWeekConfig,
+      weekStarts: inputs.weekStarts,
+      activeMemberIds: patches.every(
+        (patch) => patch.conductorRule === undefined,
+      )
+        ? inputs.activeMemberIds
+        : new Set(
+            (
+              await listActiveAllianceMembersForPool(allianceId, tx, {
+                lock: true,
+              })
+            ).map(
+              (member) => member.ashedMemberId,
+            ),
+          ),
     };
-
-    const conductorChanged = conductorRuleChanged(
-      previousDayConfig.conductorRule,
-      mergedRules.conductorRule,
-    );
-    const record = await getConductorRecord(allianceId, date, seasonKey);
-    const snapshotMismatch = Boolean(
-      record?.conductorMemberId &&
-        conductorRuleChanged(
-          parseConductorRule(record.conductorRule),
-          mergedRules.conductorRule,
-        ),
-    );
-
-    let keepAssigned = true;
-    if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
-      const resolved = await resolveMemberAllianceRankAsOf(
-        allianceId,
-        record.conductorMemberId,
-        date,
-      );
-      keepAssigned = shouldKeepAssignedConductorOnPaint({
-        ruleChanged: conductorChanged || snapshotMismatch,
-        memberId: record.conductorMemberId,
-        onRoster: activeMemberIds.has(record.conductorMemberId),
-        allianceRank: resolved.rank,
-        nextRule: mergedRules.conductorRule,
-      });
-      if (!keepAssigned && record.lockedAt) {
-        throw new LockedDayPaintBlockedError(date, record.conductorMemberName);
-      }
-    }
-
-    pendingPaints.push({
-      date,
-      seasonKey,
-      paintedConfig,
-      mergedRules,
-      previousVipRule: previousDayConfig.vipRule,
-      scheduleId: schedule.id,
-      record,
-      conductorChanged,
-      snapshotMismatch,
-      keepAssigned,
+    const prepared = await prepareTrainPaints(allianceId, patches, txInputs, {
+      db: tx,
+      platformAdminPastOverride: options?.platformAdminPastOverride,
+      preferredWeekTemplate: options?.preferredWeekTemplate,
     });
-  }
-
-  for (const paint of pendingPaints) {
-    const {
-      date,
-      paintedConfig,
-      mergedRules,
-      previousVipRule,
-      scheduleId,
-      record,
-      conductorChanged,
-      snapshotMismatch,
-      keepAssigned,
-    } = paint;
-
-    await upsertDayConfigOverride(allianceId, scheduleId, paintedConfig, true);
-
-    if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
-      if (keepAssigned) {
-        await restampConductorRules({
-          allianceId,
-          date,
-          seasonKey,
-          conductorRule: mergedRules.conductorRule,
-          vipRule: mergedRules.vipRule,
-        });
-      } else {
-        await clearConductorAssignment(allianceId, date, seasonKey);
-        if (record.vipMemberId) {
-          await clearVipAssignment(allianceId, date, seasonKey);
-        }
-      }
-    } else if (
-      record &&
-      !record.lockedAt &&
-      record.vipMemberId &&
-      conductorChanged
-    ) {
-      await clearVipAssignment(allianceId, date, seasonKey);
-    } else if (
-      record &&
-      vipRuleIdentity(previousVipRule) !==
-        vipRuleIdentity(mergedRules.vipRule)
-    ) {
-      await restampConductorRules({
-        allianceId,
-        date,
-        seasonKey,
-        conductorRule: mergedRules.conductorRule,
-        vipRule: mergedRules.vipRule,
-      });
-    }
-  }
-
-  const nextWeekTemplate = options?.updateWeekTemplate;
-  for (const weekStart of weekStarts) {
-    if (nextWeekTemplate) {
-      const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-      if (schedule) {
-        await upsertWeekSchedule({
-          allianceId,
-          weekStart,
-          templateId: nextWeekTemplate,
-          seasonKey,
-          isPivot: schedule.isPivot === 1,
-        });
-      }
-    }
-    await recomputeWeekPivotFlag(allianceId, weekStart);
-  }
+    await commitTrainPaints(tx, allianceId, prepared, txInputs, {
+      updateWeekTemplate: options?.updateWeekTemplate,
+    });
+  });
 }
 
 /** Apply a whole template to a week: seven independent day paints. */

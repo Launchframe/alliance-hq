@@ -23,8 +23,9 @@ export type ResolvedRollDayConfig = DayConfigInput & {
 async function trainWeekStartForAlliance(
   allianceId: string,
   date: string,
+  db?: Parameters<typeof loadAllianceRow>[1],
 ): Promise<string> {
-  const row = await loadAllianceRow(allianceId);
+  const row = await loadAllianceRow(allianceId, db);
   return getTrainWeekStart(date, allianceTrainWeekFromRow(row ?? {}));
 }
 
@@ -37,18 +38,25 @@ export async function resolveDisplayMergedDayConfigForDate(
   allianceId: string,
   date: string,
   seasonKey: string,
+  options?: {
+    db?: import("@/lib/trains/repository").TrainsDb;
+    updateSeason?: boolean;
+  },
 ): Promise<ResolvedRollDayConfig> {
-  const weekStart = await trainWeekStartForAlliance(allianceId, date);
+  const weekStart = await trainWeekStartForAlliance(allianceId, date, options?.db);
   const weekEnd = addCalendarDays(weekStart, 6);
   const templateForDate = await resolveWeekFillTemplateResolver(
     allianceId,
     [...weekDatesInTrainWeek(weekStart), date],
     seasonKey,
+    undefined,
+    options,
   );
   const dayConfigRows = await listDayConfigsForWeek(
     allianceId,
     weekStart,
     weekEnd,
+    options?.db,
   );
   const merged = resolveWeekDisplayDayConfigs(
     weekStart,
@@ -85,6 +93,15 @@ export async function resolveRollDayConfig(
   allianceId: string,
   date: string,
   seasonKey: string,
+  options?: {
+    db?: import("@/lib/trains/repository").TrainsDb;
+    updateSeason?: boolean;
+  },
 ): Promise<ResolvedRollDayConfig> {
-  return resolveDisplayMergedDayConfigForDate(allianceId, date, seasonKey);
+  return resolveDisplayMergedDayConfigForDate(
+    allianceId,
+    date,
+    seasonKey,
+    options,
+  );
 }

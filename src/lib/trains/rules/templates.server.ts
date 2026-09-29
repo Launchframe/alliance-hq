@@ -116,8 +116,9 @@ export async function getRuleTemplateForAlliance(
 
 export async function getRuleTemplateByPresetKey(
   presetKey: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<typeof schema.trainRuleTemplates.$inferSelect | null> {
-  const [row] = await getDb()
+  const [row] = await db
     .select()
     .from(schema.trainRuleTemplates)
     .where(eq(schema.trainRuleTemplates.presetKey, presetKey))

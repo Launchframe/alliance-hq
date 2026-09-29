@@ -25,7 +25,14 @@ describe("countAllianceVrReporters", () => {
     mocks.countAllianceSeasonVrReporters.mockResolvedValue(7);
 
     await expect(countAllianceVrReporters("a1")).resolves.toBe(7);
-    expect(mocks.getEffectiveSeasonForAlliance).toHaveBeenCalledWith("a1");
-    expect(mocks.countAllianceSeasonVrReporters).toHaveBeenCalledWith("a1", "3");
+    expect(mocks.getEffectiveSeasonForAlliance).toHaveBeenCalledWith(
+      "a1",
+      undefined,
+    );
+    expect(mocks.countAllianceSeasonVrReporters).toHaveBeenCalledWith(
+      "a1",
+      "3",
+      undefined,
+    );
   });
 });

@@ -21,6 +21,26 @@ import type { DayConfigInput } from "@/lib/trains/types";
 const TRAIN_CAR_COUNT = 5;
 const SLOTS_PER_CAR = 6;
 
+export type TrainsDb = ReturnType<typeof getDb> | AvailabilityTransaction;
+
+export async function withTrainScheduleWriteLock<T>(
+  allianceId: string,
+  db: AvailabilityTransaction | undefined,
+  fn: (tx: AvailabilityTransaction) => Promise<T>,
+): Promise<T> {
+  if (db) return fn(db);
+  return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, allianceId);
+    return fn(tx);
+  });
+}
+
+export function isAvailabilityTransaction(
+  db: TrainsDb,
+): db is AvailabilityTransaction {
+  return typeof (db as AvailabilityTransaction).rollback === "function";
+}
+
 /**
  * Week schedule rows are keyed by the **Monday** calendar week.
  *
@@ -32,8 +52,9 @@ export async function getWeekSchedule(
   allianceId: string,
   weekStart: string,
   seasonKey?: string | null,
+  options?: { db?: TrainsDb; updateSeason?: boolean },
 ): Promise<(typeof schema.trainWeekSchedules.$inferSelect) | null> {
-  const db = getDb();
+  const db = options?.db ?? getDb();
   const [row] = await db
     .select()
     .from(schema.trainWeekSchedules)
@@ -50,7 +71,12 @@ export async function getWeekSchedule(
 
   if (!row) return null;
 
-  if (seasonKey && row.seasonKey && row.seasonKey !== seasonKey) {
+  if (
+    options?.updateSeason !== false &&
+    seasonKey &&
+    row.seasonKey &&
+    row.seasonKey !== seasonKey
+  ) {
     await db
       .update(schema.trainWeekSchedules)
       .set({ seasonKey, updatedAt: new Date() })
@@ -66,9 +92,10 @@ export async function deleteWeekScheduleAndDayConfigs(
   allianceId: string,
   weekStart: string,
   weekEnd: string,
+  db?: AvailabilityTransaction,
 ): Promise<{ deletedSchedule: boolean; deletedDayConfigs: number }> {
-  const db = getDb();
-  const deletedDayConfigs = await db
+  return withTrainScheduleWriteLock(allianceId, db, async (tx) => {
+  const deletedDayConfigs = await tx
     .delete(schema.trainDayConfigs)
     .where(
       and(
@@ -79,7 +106,7 @@ export async function deleteWeekScheduleAndDayConfigs(
     )
     .returning({ id: schema.trainDayConfigs.id });
 
-  const deletedSchedules = await db
+  const deletedSchedules = await tx
     .delete(schema.trainWeekSchedules)
     .where(
       and(
@@ -96,6 +123,7 @@ export async function deleteWeekScheduleAndDayConfigs(
     deletedSchedule: deletedSchedules.length > 0,
     deletedDayConfigs: deletedDayConfigs.length,
   };
+  });
 }
 
 export async function upsertWeekSchedule(input: {
@@ -106,16 +134,18 @@ export async function upsertWeekSchedule(input: {
   seasonKey?: string | null;
   notes?: string | null;
   isPivot?: boolean;
+  db?: AvailabilityTransaction;
 }): Promise<(typeof schema.trainWeekSchedules.$inferSelect)> {
-  const db = getDb();
+  return withTrainScheduleWriteLock(input.allianceId, input.db, async (tx) => {
   const existing = await getWeekSchedule(
     input.allianceId,
     input.weekStart,
     input.seasonKey,
+    { db: tx },
   );
 
   if (existing) {
-    await db
+    await tx
       .update(schema.trainWeekSchedules)
       .set({
         templateId: input.templateId,
@@ -129,7 +159,7 @@ export async function upsertWeekSchedule(input: {
   }
 
   const id = nanoid();
-  await db.insert(schema.trainWeekSchedules).values({
+  await tx.insert(schema.trainWeekSchedules).values({
     id,
     allianceId: input.allianceId,
     weekStart: scheduleWeekStart(input.weekStart),
@@ -139,22 +169,24 @@ export async function upsertWeekSchedule(input: {
     isPivot: input.isPivot ? 1 : 0,
   });
 
-  const [row] = await db
+  const [row] = await tx
     .select()
     .from(schema.trainWeekSchedules)
     .where(eq(schema.trainWeekSchedules.id, id))
     .limit(1);
   return row!;
+  });
 }
 
 export async function replaceDayConfigs(
   allianceId: string,
   weekScheduleId: string,
   configs: DayConfigInput[],
+  db?: AvailabilityTransaction,
 ): Promise<void> {
-  const db = getDb();
+  return withTrainScheduleWriteLock(allianceId, db, async (tx) => {
   for (const config of configs) {
-    await db
+    await tx
       .insert(schema.trainDayConfigs)
       .values({
         id: nanoid(),
@@ -179,6 +211,7 @@ export async function replaceDayConfigs(
         },
       });
   }
+  });
 }
 
 export async function getDayConfig(
@@ -203,16 +236,17 @@ export async function listDayConfigsForWeek(
   allianceId: string,
   weekStart: string,
   weekEnd: string,
+  db: TrainsDb = getDb(),
 ): Promise<Array<(typeof schema.trainDayConfigs.$inferSelect)>> {
-  return listDayConfigsInRange(allianceId, weekStart, weekEnd);
+  return listDayConfigsInRange(allianceId, weekStart, weekEnd, db);
 }
 
 export async function listDayConfigsInRange(
   allianceId: string,
   rangeStart: string,
   rangeEnd: string,
+  db: TrainsDb = getDb(),
 ): Promise<Array<(typeof schema.trainDayConfigs.$inferSelect)>> {
-  const db = getDb();
   return db
     .select()
     .from(schema.trainDayConfigs)
@@ -231,9 +265,10 @@ export async function upsertDayConfigOverride(
   weekScheduleId: string,
   config: DayConfigInput,
   isOverride: boolean,
+  db?: AvailabilityTransaction,
 ): Promise<void> {
-  const db = getDb();
-  await db
+  return withTrainScheduleWriteLock(allianceId, db, async (tx) => {
+  await tx
     .insert(schema.trainDayConfigs)
     .values({
       id: nanoid(),
@@ -258,16 +293,17 @@ export async function upsertDayConfigOverride(
         isOverride: isOverride ? 1 : 0,
       },
     });
+  });
 }
 
 export async function getConductorRecord(
   allianceId: string,
   date: string,
   seasonKey?: string | null,
+  db: TrainsDb = getDb(),
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
   // One row per alliance+date; seasonKey is metadata updated on upsert, not a lookup filter.
   void seasonKey;
-  const db = getDb();
   const [row] = await db
     .select()
     .from(schema.trainConductorRecords)
@@ -288,12 +324,14 @@ export async function listConductorRecordsForWeek(
   weekStart: string,
   weekEnd: string,
   seasonKey?: string | null,
+  db: TrainsDb = getDb(),
 ): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
   return listConductorRecordsInRange(
     allianceId,
     weekStart,
     weekEnd,
     seasonKey,
+    db,
   );
 }
 
@@ -302,8 +340,8 @@ export async function listConductorRecordsInRange(
   rangeStart: string,
   rangeEnd: string,
   seasonKey?: string | null,
+  db: TrainsDb = getDb(),
 ): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
-  const db = getDb();
   const rows = await db
     .select()
     .from(schema.trainConductorRecords)
@@ -582,10 +620,10 @@ export async function clearConductorAssignment(
   allianceId: string,
   date: string,
   seasonKey?: string | null,
-  options?: { releasePool?: boolean },
+  options?: { releasePool?: boolean; db?: AvailabilityTransaction },
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
-  const db = getDb();
-  const existing = await getConductorRecord(allianceId, date, seasonKey);
+  return withTrainScheduleWriteLock(allianceId, options?.db, async (db) => {
+  const existing = await getConductorRecord(allianceId, date, seasonKey, db);
   if (!existing) return null;
   if (existing.lockedAt) {
     throw new Error("Conductor is already locked for this day.");
@@ -624,10 +662,11 @@ export async function clearConductorAssignment(
   }
 
   if (memberIdToRelease) {
-    await releasePoolSelectionForDate(allianceId, date, memberIdToRelease);
+    await releasePoolSelectionForDate(allianceId, date, memberIdToRelease, db);
   }
 
   return cleared[0] ?? null;
+  });
 }
 
 /**
@@ -641,15 +680,16 @@ export async function restampConductorRules(input: {
   conductorRule: ConductorRule | null;
   vipRule: VipRule | null;
   dayConfigId?: string | null;
+  db?: AvailabilityTransaction;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  return withTrainScheduleWriteLock(input.allianceId, input.db, async (db) => {
   const existing = await getConductorRecord(
     input.allianceId,
     input.date,
     input.seasonKey,
+    db,
   );
   if (!existing) return null;
-
-  const db = getDb();
   await db
     .update(schema.trainConductorRecords)
     .set({
@@ -671,6 +711,7 @@ export async function restampConductorRules(input: {
     .where(eq(schema.trainConductorRecords.id, existing.id))
     .limit(1);
   return row ?? null;
+  });
 }
 
 /**
@@ -743,9 +784,10 @@ export async function clearVipAssignment(
   allianceId: string,
   date: string,
   seasonKey?: string | null,
+  db?: AvailabilityTransaction,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
-  const db = getDb();
-  const existing = await getConductorRecord(allianceId, date, seasonKey);
+  return withTrainScheduleWriteLock(allianceId, db, async (db) => {
+  const existing = await getConductorRecord(allianceId, date, seasonKey, db);
   if (!existing) return null;
   if (existing.lockedAt) {
     throw new Error("Conductor is already locked for this day.");
@@ -774,10 +816,11 @@ export async function clearVipAssignment(
   }
 
   if (vipToRelease) {
-    await releasePoolSelectionForDate(allianceId, date, vipToRelease);
+    await releasePoolSelectionForDate(allianceId, date, vipToRelease, db);
   }
 
   return cleared[0] ?? null;
+  });
 }
 
 /**

@@ -24,7 +24,33 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/time-off/availability.server", () => ({
   loadTimeOffAvailability: vi.fn(async () => ({ awayMemberIds: new Set() })),
+  lockAllianceAvailability: vi.fn(async () => undefined),
 }));
+
+vi.mock("@/lib/db", () => {
+  const rows = [{ id: "a1" }];
+  const tx = {
+    __tx: true,
+    rollback: () => {},
+    execute: async () => [],
+    select: () => ({
+      from: () => ({
+        where: () =>
+          Object.assign(Promise.resolve(rows), {
+            for: () => ({ limit: async () => rows }),
+            limit: async () => rows,
+          }),
+      }),
+    }),
+  };
+  return {
+    getDb: () => ({
+      transaction: async (run: (txArg: unknown) => Promise<unknown>) =>
+        run(tx),
+    }),
+    schema: { alliances: { id: {} } },
+  };
+});
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
@@ -50,6 +76,8 @@ vi.mock("@/lib/trains/repository", () => ({
   upsertDayConfigOverride: mocks.upsertDayConfigOverride,
   upsertWeekSchedule: mocks.upsertWeekSchedule,
   restampConductorRules: mocks.restampConductorRules,
+  isAvailabilityTransaction: (db: unknown) =>
+    typeof (db as { rollback?: unknown })?.rollback === "function",
 }));
 
 vi.mock("@/lib/trains/day-config-resolve.server", () => ({
@@ -128,6 +156,10 @@ vi.mock("@/lib/members/game-roster", () => ({
   loadAllianceRow: mocks.loadAllianceRow,
 }));
 
+vi.mock("@/lib/members/roster.server", () => ({
+  listActiveAllianceMembersForPool: mocks.loadActiveAlliancePoolMembers,
+}));
+
 vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: vi.fn(),
 }));
@@ -149,7 +181,13 @@ vi.mock("@/lib/trains/game-time", async (importOriginal) => {
   };
 });
 
-import { applyPaint, applyTemplateToWeek } from "@/lib/trains/service";
+import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
+import {
+  applyPaint,
+  applyTemplateToWeek,
+  prepareTrainPaints,
+} from "@/lib/trains/service";
+import { DEFAULT_ALLIANCE_TRAIN_WEEK } from "@/lib/trains/train-week-calendar.shared";
 import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
 
 function stubTemplateId(id: string) {
@@ -174,6 +212,28 @@ describe("applyPaint partial patches", () => {
       { ashedMemberId: "m1" },
     ]);
     mocks.getConductorRecord.mockResolvedValue(null);
+  });
+
+  it("serializes paint under the alliance availability lock", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: "dc1",
+    });
+
+    await applyPaint("a1", {
+      dates: [DATE],
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+    });
+
+    expect(lockAllianceAvailability).toHaveBeenCalledTimes(1);
+    expect(mocks.upsertDayConfigOverride).toHaveBeenCalledWith(
+      "a1",
+      "sched-1",
+      expect.anything(),
+      true,
+      expect.objectContaining({ rollback: expect.any(Function) }),
+    );
   });
 
   it("reapplying the same conductor rule leaves the event VIP intact", async () => {
@@ -201,6 +261,7 @@ describe("applyPaint partial patches", () => {
       "sched-1",
       expect.objectContaining({ conductorRule: r4, vipRule: eventVip }),
       true,
+      expect.anything(),
     );
     expect(mocks.restampConductorRules).not.toHaveBeenCalled();
     expect(mocks.clearConductorAssignment).not.toHaveBeenCalled();
@@ -232,6 +293,7 @@ describe("applyPaint partial patches", () => {
         vipRule: { kind: "donations_second" },
       }),
       true,
+      expect.anything(),
     );
     expect(mocks.restampConductorRules).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -271,6 +333,7 @@ describe("applyPaint partial patches", () => {
         vipRule: { kind: "none" },
       }),
       true,
+      expect.anything(),
     );
     expect(mocks.restampConductorRules).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -303,8 +366,9 @@ describe("applyPaint partial patches", () => {
       "a1",
       DATE,
       "1",
+      { db: expect.anything() },
     );
-    expect(mocks.clearVipAssignment).toHaveBeenCalledWith("a1", DATE, "1");
+    expect(mocks.clearVipAssignment).toHaveBeenCalledWith("a1", DATE, "1", expect.anything());
   });
 
   it("rejects an empty patch without touching the repository", async () => {
@@ -361,6 +425,7 @@ describe("applyPaint partial patches", () => {
       "a1",
       DATE,
       "1",
+      { db: expect.anything() },
     );
   });
 
@@ -425,6 +490,54 @@ describe("applyPaint partial patches", () => {
 
     expect(mocks.upsertDayConfigOverride).not.toHaveBeenCalled();
     expect(mocks.restampConductorRules).not.toHaveBeenCalled();
+  });
+
+  it("throws when a write paint cannot see the week schedule after baseline", async () => {
+    mocks.getWeekSchedule.mockResolvedValue(null);
+    mocks.upsertWeekSchedule.mockResolvedValue({
+      id: "sched-new",
+      templateId: null,
+      isPivot: 0,
+    });
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: "dc1",
+    });
+
+    await expect(
+      applyPaint("a1", {
+        dates: [DATE],
+        conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      }),
+    ).rejects.toThrow(/Missing week schedule after baseline/);
+
+    expect(mocks.upsertDayConfigOverride).not.toHaveBeenCalled();
+  });
+
+  it("read-only prepare still builds patches when no week schedule exists", async () => {
+    mocks.getWeekSchedule.mockResolvedValue(null);
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: null,
+    });
+
+    const prepared = await prepareTrainPaints(
+      "a1",
+      [{ date: DATE, conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" } }],
+      {
+        seasonKey: "1",
+        trainWeekConfig: DEFAULT_ALLIANCE_TRAIN_WEEK,
+        weekStarts: ["2099-06-15"],
+        activeMemberIds: new Set(),
+      },
+      { readOnly: true },
+    );
+
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0]?.scheduleId).toBe("");
+    expect(mocks.upsertWeekSchedule).not.toHaveBeenCalled();
   });
 });
 
