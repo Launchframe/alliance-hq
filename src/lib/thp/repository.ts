@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -258,6 +258,10 @@ export async function getCommanderMembershipInAlliance(
         eq(schema.commanderAllianceMemberships.commanderId, commanderId),
         eq(schema.commanderAllianceMemberships.allianceId, allianceId),
       ),
+    )
+    .orderBy(
+      sql`case when ${schema.commanderAllianceMemberships.status} = 'active' then 0 else 1 end`,
+      desc(schema.commanderAllianceMemberships.updatedAt),
     )
     .limit(1);
   return row ?? null;
