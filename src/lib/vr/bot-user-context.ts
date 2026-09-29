@@ -70,7 +70,9 @@ export async function resolveDiscordBotUserContext(input: {
   const [anyLinks, memberLinks] = await Promise.all([
     listDiscordLinksForUserAnyAlliance(input.discordUserId),
     allianceId
-      ? listDiscordLinksForUser(allianceId, input.discordUserId)
+      ? listDiscordLinksForUser(allianceId, input.discordUserId, {
+          rematerializeFormer: true,
+        })
       : Promise.resolve([]),
   ]);
 
