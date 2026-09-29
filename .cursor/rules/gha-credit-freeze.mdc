@@ -1,43 +1,22 @@
 ---
-description: GitHub Actions credit freeze — local Pre-PR gate and Playwright; do not rely on CI to catch lint/build/test failures
+description: Local validation under the Actions credit freeze — tip-only stack gates, cache preservation, and safe browser parallelism
 alwaysApply: true
 ---
 
-# GitHub Actions credit freeze (through 1 Sep 2026)
+# Local gates under the GitHub Actions credit freeze
 
-Launchframe’s Actions budget is **$0 with prevent-further-usage**. Included minutes are exhausted. **CI** (`.github/workflows/ci.yml`: check, function-trace, e2e) and **Cleanup Neon preview branch** are **disabled** on `alliance-hq`. **Do not wait for GitHub checks.** They will not run. A red or missing check is not a reason to skip local gates.
+Launchframe's Actions budget is **$0 with prevent-further-usage**. **CI** and **Cleanup Neon preview branch** are disabled on `alliance-hq`. Do not wait for missing checks or treat them as passing. A Vercel deploy is not a substitute for local validation.
 
-Vercel preview/production deploys are not a substitute for the local gate. **Do not use a preview deploy as the first lint / unit / build / e2e signal.**
+Read and follow [PRE_COMMIT_GATE.md](../../PRE_COMMIT_GATE.md), the canonical gate and efficiency policy shared by Cursor and Devin. It supersedes older per-PR full-gate instructions in global skills.
 
-## Before `gh pr create` (including drafts)
-
-`npm test` must have passed on current `HEAD` in this session. Husky already runs it on commit; still re-run if you have uncommitted work or skipped hooks.
-
-## Before marking ready, merging to `main`, or pushing a non-draft PR
-
-In order, all must pass locally:
-
-```bash
-npx tsc --noEmit
-npm run lint
-npm test
-npm run i18n:validate
-npm run db:validate-journal
-npm run build
-```
-
-Then Playwright (**not** deferred to GitHub or Vercel):
-
-- **Docs-only / AGENTS / rules / comments:** skip Playwright.
-- **Default product PR:**
-
-  ```bash
-  npm run test:e2e
-  ```
-
-- **Auth, invite, connect, session, admin/RBAC, or `e2e/**` changes:** same command; add or update specs first (`.cursor/rules/e2e-plan-completion.mdc`).
-
-Record the commands in the PR body (see `.github/pull_request_template.md`). Do not write “CI will catch it.”
+- **Normal hooks once per commit:** typecheck, lint, unit tests, i18n, journal. Passing hooks on unchanged content satisfy the unit requirement before `gh pr create`, including drafts; do not run an identical manual sequence around them.
+- **Stacked PRs:** fix on the owning branch, run focused regressions, merge parent fixes through descendants, then run one full gate at the final combined tip. Record the tip and covered parent SHAs; do not run the entire build/browser suite on every parent. Follow the canonical policy for intermediate pushes and evidence invalidation.
+- **Standalone product PRs:** full local gate before ready, authorized merge, or non-draft push. Draft WIP validation may be disclosed as pending.
+- **One build:** `npm run test:e2e` performs the guarded production build before browser tests. Do not add a duplicate standalone build for unchanged content/environment.
+- **Docs / AGENTS / rules / comments only:** normal hooks and documentation checks; build/Playwright N/A. Runtime config and harness changes do not qualify.
+- **Preserve caches and bandwidth:** no routine `.next`/`.next-e2e` deletion; never remove `node_modules` or run `npm ci` in a populated checkout. Keep package/browser/model caches. A destructive cache repair needs diagnosis and approval.
+- **Parallel browser suite:** default two workers across independent spec files, with shared-state specs in the ordered exclusive-project chain. Never remove dependency isolation to make a full gate faster.
+- Update browser coverage for auth, invite, connect, session, admin/RBAC, and `e2e/**` changes per [e2e-plan-completion.mdc](e2e-plan-completion.mdc). Record commands, durations, worker count, skips/retries, and revision coverage in the PR.
 
 ## Do not
 

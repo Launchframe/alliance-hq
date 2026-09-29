@@ -1,6 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { defineConfig } from "@playwright/test";
 import { discordTestFollowupPort, discordTestKeyPair } from "./e2e/fixtures/discord-signing";
+import { createE2eProjects } from "./scripts/e2e-projects.mjs";
 import { createE2eRuntimeEnv } from "./scripts/e2e-runtime.mjs";
 
 loadEnv({ path: ".env" });
@@ -38,7 +39,8 @@ function e2eServerEnv(): Record<string, string> {
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
-  workers: 1,
+  workers: 2,
+  projects: createE2eProjects(),
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",

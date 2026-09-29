@@ -159,7 +159,6 @@ process.on("exit", () => {
 });
 
 const serverEnv = buildEnv(dbUrl);
-run("rm -rf .next");
 run("npm run build", serverEnv);
 
 const child = spawn(
