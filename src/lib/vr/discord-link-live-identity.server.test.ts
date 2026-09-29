@@ -12,10 +12,6 @@ vi.mock("@/lib/members/commander-identity.server", () => ({
   syncCommanderIdentityFromMemberLink: vi.fn(),
 }));
 
-vi.mock("@/lib/vr/member-roster", () => ({
-  loadAllianceMembersForBot: vi.fn(),
-}));
-
 const selectLimit = vi.fn();
 const selectWhere = vi.fn(() => ({ limit: selectLimit }));
 const selectFrom = vi.fn(() => ({ where: selectWhere }));
@@ -48,6 +44,7 @@ vi.mock("@/lib/db", () => ({
       status: "status",
       gameUid: "game_uid",
       allianceId: "alliance_id",
+      previousNamesJson: "previous_names_json",
     },
     discordMemberLinks: {
       id: "id",
@@ -67,7 +64,6 @@ vi.mock("@/lib/db", () => ({
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { denormalizeGameUidOnMember } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import { hydrateDiscordMemberLink } from "@/lib/vr/discord-link-live-identity.server";
 
 const frozenLink = {
@@ -141,7 +137,6 @@ describe("hydrateDiscordMemberLink", () => {
     });
     expect(result.ashedMemberId).toBe("new-tihsrah");
     expect(lookupPlayerByUid).not.toHaveBeenCalled();
-    expect(loadAllianceMembersForBot).not.toHaveBeenCalled();
     expect(syncCommanderIdentityFromMemberLink).toHaveBeenCalledWith(
       expect.objectContaining({
         ashedMemberId: "new-tihsrah",
@@ -161,20 +156,20 @@ describe("hydrateDiscordMemberLink", () => {
         },
       ])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          previousNamesJson: ["rah"],
+          status: "active",
+        },
+      ])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     vi.mocked(lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "tihsrah",
     });
-    vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
-      {
-        id: "new-tihsrah",
-        current_name: "tihsrah",
-        previous_names: ["rah"],
-        status: "active",
-      },
-    ] as never);
     updateReturning.mockResolvedValue([
       {
         ...frozenLink,
@@ -213,20 +208,14 @@ describe("hydrateDiscordMemberLink", () => {
           gameUid: "1111222233334444",
         },
       ])
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          status: "active",
+        },
+      ])
       .mockResolvedValueOnce([{ discordUserId: "someone-else" }]);
-    vi.mocked(lookupPlayerByUid).mockResolvedValue({
-      ok: true,
-      gameUserName: "tihsrah",
-    });
-    vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
-      {
-        id: "new-tihsrah",
-        current_name: "tihsrah",
-        previous_names: ["rah"],
-        status: "active",
-      },
-    ] as never);
 
     const result = await hydrateDiscordMemberLink(frozenLink, {
       rematerializeFormer: true,
