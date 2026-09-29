@@ -1150,8 +1150,19 @@ test.describe("VS Ashed sync and capture UI", () => {
       },
     };
     let weekGets = 0;
+    let pastWeekImports = 0;
     await page.route("**/api/vs-performance/week**", (route) => {
       weekGets += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(themed),
+      });
+    });
+    await page.route("**/api/vs-performance/matchup/import", async (route) => {
+      const body = route.request().postDataJSON() as { weekStart?: string };
+      if (body.weekStart !== pastWeek) return route.continue();
+      pastWeekImports += 1;
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1176,6 +1187,7 @@ test.describe("VS Ashed sync and capture UI", () => {
         .getByText("Theme Conflict Foe")
         .first(),
     ).toBeVisible();
+    await expect.poll(() => pastWeekImports).toBe(1);
     const row = page
       .getByTestId("vs-conflict-theme-conflict")
       .locator("visible=true");

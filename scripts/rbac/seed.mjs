@@ -106,6 +106,7 @@ async function main() {
   roleTemplates.officer.permissions = [
     ...new Set([
       ...roleTemplates.officer.permissions,
+      "hq:audit:read",
       "hq:video:enqueue",
       "trains:write",
       "inbox:read",
