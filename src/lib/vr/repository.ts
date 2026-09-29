@@ -20,6 +20,7 @@ import {
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/discord-link-live-identity.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
@@ -325,12 +326,18 @@ export async function saveDiscordBotPending(
     });
 }
 
+/**
+ * Overlay live roster names by default. Last War rematerialize is **opt-in**
+ * (`rematerializeFormer: true`). Web callers must pass that flag if they need
+ * UID follow; `getDiscordLinkById` rematerializes unless opted out.
+ */
 export async function listDiscordLinksForUser(
   allianceId: string,
   discordUserId: string,
+  options?: { followLiveRoster?: boolean; rematerializeFormer?: boolean },
 ) {
   const db = getDb();
-  return db
+  const rows = await db
     .select()
     .from(schema.discordMemberLinks)
     .where(
@@ -339,6 +346,12 @@ export async function listDiscordLinksForUser(
         eq(schema.discordMemberLinks.discordUserId, discordUserId),
       ),
     );
+  if (options?.followLiveRoster === false) {
+    return rows;
+  }
+  return hydrateDiscordMemberLinks(rows, {
+    rematerializeFormer: options?.rematerializeFormer === true,
+  });
 }
 
 export async function listDiscordLinksByAlliance(allianceId: string) {
@@ -349,14 +362,24 @@ export async function listDiscordLinksByAlliance(allianceId: string) {
     .where(eq(schema.discordMemberLinks.allianceId, allianceId));
 }
 
-export async function getDiscordLinkById(linkId: string) {
+/** Rematerializes former seats by default (`rematerializeFormer !== false`). */
+export async function getDiscordLinkById(
+  linkId: string,
+  options?: { followLiveRoster?: boolean; rematerializeFormer?: boolean },
+) {
   const db = getDb();
   const [row] = await db
     .select()
     .from(schema.discordMemberLinks)
     .where(eq(schema.discordMemberLinks.id, linkId))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  if (options?.followLiveRoster === false) {
+    return row;
+  }
+  return hydrateDiscordMemberLink(row, {
+    rematerializeFormer: options?.rematerializeFormer !== false,
+  });
 }
 
 export async function getLinkedMemberIds(allianceId: string): Promise<Set<string>> {
@@ -488,6 +511,7 @@ export async function linkDiscordMember(input: {
   const userLinks = await listDiscordLinksForUser(
     input.allianceId,
     input.discordUserId,
+    { followLiveRoster: false },
   );
   const existingPair = userLinks.find(
     (row) => row.ashedMemberId === input.ashedMemberId,
@@ -1644,7 +1668,9 @@ export async function callerIsAllianceOfficerViaMemberLink(input: {
   discordUserId: string;
 }): Promise<boolean> {
   await ensureDiscordMemberLinksFromHqLazy(input);
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     return false;
   }
@@ -2150,10 +2176,11 @@ export async function updateAllianceSeasonKey(
 
 export async function listDiscordLinksForUserAnyAlliance(discordUserId: string) {
   const db = getDb();
-  return db
+  const rows = await db
     .select()
     .from(schema.discordMemberLinks)
     .where(eq(schema.discordMemberLinks.discordUserId, discordUserId));
+  return hydrateDiscordMemberLinks(rows, { rematerializeFormer: false });
 }
 
 export async function callerIsAllianceOwner(input: {
@@ -2164,7 +2191,9 @@ export async function callerIsAllianceOwner(input: {
   if (!alliance) return false;
 
   await ensureDiscordMemberLinksFromHqLazy(input);
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
 
   return ownerProvenByMemberLink({
     allianceExists: true,
@@ -2183,7 +2212,9 @@ export async function callerOwnsAllianceViaMemberLink(input: {
   await ensureDiscordMemberLinksFromHqLazy(input);
   const [alliance, links] = await Promise.all([
     getAllianceById(input.allianceId),
-    listDiscordLinksForUser(input.allianceId, input.discordUserId),
+    listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    }),
   ]);
   return ownerProvenByMemberLink({
     allianceExists: alliance != null,

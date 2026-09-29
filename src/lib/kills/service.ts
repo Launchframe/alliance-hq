@@ -62,13 +62,17 @@ async function resolveTargetLink(input: {
     if (link.discordUserId !== input.discordUserId) return null;
     return link;
   }
-  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     await ensureDiscordMemberLinksFromHq({
       discordUserId: input.discordUserId,
       allianceId: input.allianceId,
     });
-    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
   }
   if (links.length === 0) return null;
   if (links.length === 1) return links[0]!;
@@ -163,6 +167,7 @@ export async function handleDiscordKillsSlash(input: {
     const links = await listDiscordLinksForUser(
       input.allianceId,
       input.discordUserId,
+      { rematerializeFormer: true },
     );
     const result: KillsCommandResult = {
       reply: translate("kills.pickCharacter"),

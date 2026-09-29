@@ -11,7 +11,7 @@ import {
 import {
   resolveVideoOcrEngineForJob,
   engineRequiresAshed,
-  isNativeAllianceVsTarget,
+  isNativeAllianceScoreTarget,
   videoOcrRequiresAshedConnection,
 } from "@/lib/video/ocr-provider.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
@@ -157,7 +157,7 @@ export async function buildVideoProcessPreview(params: {
   const allianceOcrContext = await loadAllianceVideoOcrContext(allianceId);
   const hqOcrOnly = allianceOcrContext.allianceHqOcrOnly ?? false;
   const scoreTargetLocked = isNativeOnlyVideoTarget(scoreTargetId) ||
-    isNativeAllianceVsTarget(scoreTargetId, allianceOcrContext);
+    isNativeAllianceScoreTarget(scoreTargetId, allianceOcrContext);
   const deployLocked = isAllianceHqOcrOnlyLockedOnDeploy();
   const hqOcrOnlyLocked = deployLocked || scoreTargetLocked;
   const hqOcrOnlyEffective = hqOcrOnly || scoreTargetLocked || deployLocked;

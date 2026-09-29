@@ -17,6 +17,7 @@ type MockScoreFixtureRow = {
   name: string;
   score: string | number;
   rank?: number;
+  stage?: number | null;
 };
 
 type MockRosterFixtureRow = Omit<ExtractedRosterMember, "_sourceFrameIndex">;
@@ -40,20 +41,28 @@ export async function mockOcrScoreFrames(
   frames: Array<{ index: number }>,
   options?: { allianceId?: string | null },
 ): Promise<OcrEntry[]> {
+  const isFrontline = scoreTargetId === "frontline-breakthrough";
   const fixture =
     loadJsonFixture<MockScoreFixtureRow[]>(
       fixtureFileForScoreTarget(scoreTargetId),
     ) ??
-    loadJsonFixture<MockScoreFixtureRow[]>("desert-storm.json") ??
+    (isFrontline
+      ? []
+      : loadJsonFixture<MockScoreFixtureRow[]>("desert-storm.json")) ??
     [];
 
   if (fixture.length > 0) {
     return fixture.map((row, index) => ({
       name: row.name,
       score: row.score,
-      rank: row.rank ?? index + 1,
+      rank: isFrontline ? row.rank : row.rank ?? index + 1,
+      ...(isFrontline ? { frontlineStage: row.stage ?? null } : {}),
       _sourceFrameIndex: frames[0]?.index ?? 0,
     }));
+  }
+
+  if (isFrontline) {
+    return [];
   }
 
   if (options?.allianceId) {
