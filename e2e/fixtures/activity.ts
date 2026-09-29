@@ -42,7 +42,7 @@ export async function seedActivityEvent(row: ActivitySeedRow) {
       source_namespace, source_key, content_hash, historical
     ) VALUES (
       ${row.id}, ${row.eventKey}, ${row.feature}, ${row.kind},
-      ${row.occurredAt ?? "2026-09-29T12:00:00.000000Z"},
+      ${row.occurredAt ?? "2026-09-29T12:00:00.000000Z"}::text::timestamptz,
       ${row.allianceId ?? null}, ${row.actorKind ?? "hq"},
       ${row.originalHqUserId ?? null}, ${row.originalDiscordUserId ?? null},
       ${row.personalOwnerHqUserId ?? null}, ${row.actorDisplayName ?? null},

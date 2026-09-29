@@ -9,8 +9,8 @@ import { refreshActiveShareSnapshotsForOwner } from "@/lib/ashed/credential-shar
 export async function revokeAshedMembershipsForHqUser(
   hqUserId: string,
   allianceId?: string | null,
+  db: Pick<ReturnType<typeof getDb>, "select" | "update"> = getDb(),
 ): Promise<number> {
-  const db = getDb();
   const now = new Date();
 
   const conditions = [

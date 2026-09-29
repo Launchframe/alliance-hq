@@ -4,6 +4,7 @@ import * as dbModule from "@/lib/db";
 
 import type { ActivityEventInput } from "./catalog.shared";
 import { ActivityWriteError, toActivityWriteError } from "./errors.server";
+import { resolveActivityPersonalOwner } from "./ownership.server";
 import {
   appendActivityEvent,
   reportActivityRollback,
@@ -18,6 +19,13 @@ vi.mock("./monitoring.server", async (importOriginal) => {
     scheduleActivityBlockedAlert: vi.fn(),
   };
 });
+
+vi.mock("./ownership.server", () => ({
+  resolveActivityPersonalOwner: vi.fn(
+    async (_tx: unknown, input: { hqUserId: string | null }) =>
+      input.hqUserId,
+  ),
+}));
 
 const scheduleSpy = vi.mocked(monitoringModule.scheduleActivityBlockedAlert);
 
@@ -77,6 +85,10 @@ function makeTx(options: {
 describe("appendActivityEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(resolveActivityPersonalOwner).mockImplementation(
+      async (_tx: unknown, input: { hqUserId: string | null }) =>
+        input.hqUserId,
+    );
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -162,6 +174,65 @@ describe("appendActivityEvent", () => {
       occurredAt: "2026-09-29T12:00:00.123000Z",
     });
     expect(captured[0]).toBe(captured[1]);
+  });
+
+  it("stores the resolved owner while hashing the original captured owner", async () => {
+    const capturedHashes: string[] = [];
+    const txFor = () => {
+      const returning = vi.fn().mockResolvedValue([{ id: "evt" }]);
+      const onConflictDoNothing = vi.fn(() => ({ returning }));
+      const values = vi.fn((row: TxRow) => {
+        capturedHashes.push(row.contentHash as string);
+        return { onConflictDoNothing };
+      });
+      const insert = vi.fn(() => ({ values }));
+      return { insert, values };
+    };
+
+    const resolver = vi.mocked(resolveActivityPersonalOwner);
+    const first = txFor();
+    await appendActivityEvent(first as never, { ...validInput });
+    expect(first.values.mock.calls[0][0].personalOwnerHqUserId).toBe(
+      "hq-user-secret",
+    );
+
+    resolver.mockResolvedValue("hq-canonical-owner");
+    const second = txFor();
+    await appendActivityEvent(second as never, { ...validInput });
+    expect(second.values.mock.calls[0][0].personalOwnerHqUserId).toBe(
+      "hq-canonical-owner",
+    );
+    expect(second.values.mock.calls[0][0].originalHqUserId).toBe(
+      "hq-user-secret",
+    );
+    expect(capturedHashes[0]).toBe(capturedHashes[1]);
+  });
+
+  it("replays the original id even when the resolver remaps later", async () => {
+    let capturedHash: string | undefined;
+    const tx = makeTx({
+      returningRows: [],
+      selectRows: () => [
+        { id: "existing-id", contentHash: capturedHash },
+      ],
+    });
+    const originalValues = tx.values.getMockImplementation();
+    tx.values.mockImplementation((row: TxRow) => {
+      capturedHash = row.contentHash as string;
+      return originalValues!(row);
+    });
+
+    vi.mocked(resolveActivityPersonalOwner).mockResolvedValue(
+      "hq-canonical-owner",
+    );
+    const result = await appendActivityEvent(tx as never, {
+      ...validInput,
+    });
+
+    expect(result).toEqual({ id: "existing-id", inserted: false });
+    expect(tx.values.mock.calls[0][0].personalOwnerHqUserId).toBe(
+      "hq-canonical-owner",
+    );
   });
 
   it("returns the existing id on an identical replay via the same tx", async () => {

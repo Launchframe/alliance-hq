@@ -1485,6 +1485,23 @@ export const activityEvents = pgTable(
 
 export type ActivityEventRecord = typeof activityEvents.$inferSelect;
 
+export const activityOwnershipAliases = pgTable(
+  "activity_ownership_aliases",
+  {
+    originalHqUserId: text("original_hq_user_id").primaryKey(),
+    personalOwnerHqUserId: text("personal_owner_hq_user_id").notNull(),
+  },
+  (table) => [
+    index("activity_ownership_alias_owner_idx").on(
+      table.personalOwnerHqUserId,
+    ),
+    check(
+      "activity_ownership_alias_not_self",
+      sql`${table.originalHqUserId} <> ${table.personalOwnerHqUserId}`,
+    ),
+  ],
+);
+
 export const activityUsageDedupe = pgTable("activity_usage_dedupe", {
   key: text("key").primaryKey(),
   lastEmittedAt: timestamp("last_emitted_at", {

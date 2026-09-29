@@ -14,6 +14,12 @@ import {
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { toActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  claimDiscordActivityOwnership,
+  lockActivityIdentity,
+} from "@/lib/activity/ownership.server";
+import { withActivityTransaction } from "@/lib/activity/writer.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   denormalizeGameUidOnMember,
@@ -1577,19 +1583,29 @@ export async function upsertDiscordHqLink(input: {
   discordUserId: string;
   hqUserId: string;
 }): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-  await db
-    .insert(schema.discordHqLinks)
-    .values({
+  await withActivityTransaction(async (tx) => {
+    await lockActivityIdentity(tx, {
       discordUserId: input.discordUserId,
-      hqUserId: input.hqUserId,
-      linkedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: schema.discordHqLinks.discordUserId,
-      set: { hqUserId: input.hqUserId, linkedAt: now },
+      hqUserIds: [input.hqUserId],
     });
+    const now = new Date();
+    await tx
+      .insert(schema.discordHqLinks)
+      .values({
+        discordUserId: input.discordUserId,
+        hqUserId: input.hqUserId,
+        linkedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: schema.discordHqLinks.discordUserId,
+        set: { hqUserId: input.hqUserId, linkedAt: now },
+      });
+    try {
+      await claimDiscordActivityOwnership(tx, input);
+    } catch (error) {
+      throw toActivityWriteError(error, "unknown");
+    }
+  });
 }
 
 export async function getHqUserById(hqUserId: string) {

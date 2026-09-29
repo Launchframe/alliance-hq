@@ -14,6 +14,7 @@ import {
 } from "./catalog.shared";
 import { ActivityWriteError, toActivityWriteError } from "./errors.server";
 import { scheduleActivityBlockedAlert } from "./monitoring.server";
+import { resolveActivityPersonalOwner } from "./ownership.server";
 import { ACTIVITY_SCHEMA_VERSION } from "./types.shared";
 
 export type ActivityTransaction = Parameters<
@@ -112,9 +113,14 @@ export async function appendActivityEvent(
       .update(JSON.stringify(canonicalizeForHash(content)))
       .digest("hex");
 
+    const personalOwnerHqUserId = await resolveActivityPersonalOwner(tx, {
+      hqUserId: event.actor.personalOwnerHqUserId,
+      discordUserId: event.actor.discordUserId,
+    });
+
     const insertedRows = await tx
       .insert(schema.activityEvents)
-      .values({ id: nanoid(), ...content, contentHash })
+      .values({ id: nanoid(), ...content, personalOwnerHqUserId, contentHash })
       .onConflictDoNothing({
         target: [
           schema.activityEvents.sourceNamespace,
