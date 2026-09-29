@@ -47,10 +47,10 @@ After setup, **`discord_guild_alliances.guild_id`** is the runtime tenant key. R
 ## Live commander names
 
 - Discord replies must use the **current HQ roster name** (`alliance_members.current_name`), never a frozen `discord_member_links.member_display_name` snapshot.
-- Overlay names on every Discord-link read. Last War rematerialize (`hydrateDiscordMemberLink` with `rematerializeFormer: true`) is for bot command paths only (`/thp`, `/vr`, `/kills`, `/who-is`, `/unlink`, status queries, officer/owner proof) — not HQ web link lists.
+- Overlay names on every Discord-link read. Last War rematerialize (`hydrateDiscordMemberLink` with `rematerializeFormer: true`) is for bot command paths only (`/thp`, `/vr`, `/kills`, `/who-is`, `/unlink`, status queries, officer/owner proof) — not HQ web link lists. Ashed roster sync also calls `rematerializeFormerSeatLinksForAlliance` so HQ-only claims follow the same UID handoff.
 - **API:** `listDiscordLinksForUser` overlays only unless `rematerializeFormer: true`. `getDiscordLinkById` rematerializes unless `rematerializeFormer: false` (or `followLiveRoster: false`). New web callers that need UID follow must pass the explicit list flag.
 - If the linked Ashed seat is `former`, follow the stored Last War UID onto the live roster row (rename / account hand-off). Discord rematerialize also retargets a matching `hq_member_links` row (same alliance + UID + former seat) unless that live seat is already claimed by another HQ user.
-- Do not steal a live seat already linked to a different Discord user. Rematerialize failures log `linkId` and `allianceId` only.
+- Do not steal a live seat already linked to a different Discord or HQ user. Rematerialize failures log `linkId` and `allianceId` only.
 
 ## Channel visibility
 
