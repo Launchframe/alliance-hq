@@ -22,11 +22,17 @@ const selectFrom = vi.fn(() => ({ where: selectWhere }));
 const updateReturning = vi.fn();
 const updateWhere = vi.fn(() => ({ returning: updateReturning }));
 const updateSet = vi.fn(() => ({ where: updateWhere }));
+const hqUpdateReturning = vi.fn();
+const hqUpdateWhere = vi.fn(() => ({ returning: hqUpdateReturning }));
+const hqUpdateSet = vi.fn(() => ({ where: hqUpdateWhere }));
 
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
     select: () => ({ from: selectFrom }),
-    update: () => ({ set: updateSet }),
+    update: (table: { id?: string; hqUserId?: string }) =>
+      table.hqUserId != null
+        ? { set: hqUpdateSet }
+        : { set: updateSet },
   }),
   schema: {
     allianceMembers: {
@@ -41,6 +47,12 @@ vi.mock("@/lib/db", () => ({
       allianceId: "alliance_id",
       ashedMemberId: "ashed_member_id",
       discordUserId: "discord_user_id",
+    },
+    hqMemberLinks: {
+      allianceId: "alliance_id",
+      gameUid: "game_uid",
+      ashedMemberId: "ashed_member_id",
+      hqUserId: "hq_user_id",
     },
   },
 }));
@@ -68,6 +80,8 @@ describe("hydrateDiscordMemberLink", () => {
     vi.clearAllMocks();
     selectLimit.mockReset();
     updateReturning.mockReset();
+    hqUpdateReturning.mockReset();
+    hqUpdateReturning.mockResolvedValue([]);
   });
 
   it("uses the current HQ roster name instead of the frozen Discord snapshot", async () => {
@@ -85,6 +99,40 @@ describe("hydrateDiscordMemberLink", () => {
     expect(result.memberDisplayName).toBe("tihsrah");
     expect(result.ashedMemberId).toBe("old-swift");
     expect(lookupPlayerByUid).not.toHaveBeenCalled();
+  });
+
+  it("follows a former seat via roster game_uid before Last War lookup", async () => {
+    selectLimit
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "old-swift",
+          currentName: "JBeazy Swift",
+          status: "former",
+          gameUid: "1111222233334444",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          status: "active",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    updateReturning.mockResolvedValue([
+      {
+        ...frozenLink,
+        ashedMemberId: "new-tihsrah",
+        memberDisplayName: "tihsrah",
+      },
+    ]);
+
+    const result = await hydrateDiscordMemberLink(frozenLink, {
+      rematerializeFormer: true,
+    });
+    expect(result.ashedMemberId).toBe("new-tihsrah");
+    expect(lookupPlayerByUid).not.toHaveBeenCalled();
+    expect(loadAllianceMembersForBot).not.toHaveBeenCalled();
   });
 
   it("follows a former seat onto the live roster via Last War's current name", async () => {
@@ -118,6 +166,7 @@ describe("hydrateDiscordMemberLink", () => {
         memberDisplayName: "tihsrah",
       },
     ]);
+    hqUpdateReturning.mockResolvedValue([{ hqUserId: "hq-user-1" }]);
 
     const result = await hydrateDiscordMemberLink(frozenLink, {
       rematerializeFormer: true,
@@ -133,6 +182,7 @@ describe("hydrateDiscordMemberLink", () => {
       expect.objectContaining({
         ashedMemberId: "new-tihsrah",
         memberDisplayName: "tihsrah",
+        hqUserId: "hq-user-1",
       }),
     );
   });

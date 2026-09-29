@@ -75,12 +75,43 @@ async function discordSeatOccupiedByOther(input: {
   return Boolean(row && row.discordUserId !== input.discordUserId);
 }
 
+async function retargetHqMemberLinkForSeatHandoff(input: {
+  allianceId: string;
+  gameUid: string;
+  previousAshedMemberId: string;
+  ashedMemberId: string;
+  currentName: string;
+}): Promise<string | null> {
+  const trimmed = input.gameUid.trim();
+  if (!trimmed) return null;
+
+  const db = getDb();
+  const [updated] = await db
+    .update(schema.hqMemberLinks)
+    .set({
+      ashedMemberId: input.ashedMemberId,
+      memberDisplayName: input.currentName,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.allianceId),
+        eq(schema.hqMemberLinks.gameUid, trimmed),
+        eq(schema.hqMemberLinks.ashedMemberId, input.previousAshedMemberId),
+      ),
+    )
+    .returning({ hqUserId: schema.hqMemberLinks.hqUserId });
+
+  return updated?.hqUserId ?? null;
+}
+
 async function rebindDiscordLinkSeat(input: {
   link: DiscordMemberLinkRow;
   ashedMemberId: string;
   currentName: string;
 }): Promise<DiscordMemberLinkRow> {
   const now = new Date();
+  const previousAshedMemberId = input.link.ashedMemberId;
   const db = getDb();
   const [updated] = await db
     .update(schema.discordMemberLinks)
@@ -105,6 +136,14 @@ async function rebindDiscordLinkSeat(input: {
     gameUid: next.gameUid,
   });
 
+  const hqUserId = await retargetHqMemberLinkForSeatHandoff({
+    allianceId: next.allianceId,
+    gameUid: next.gameUid,
+    previousAshedMemberId,
+    ashedMemberId: next.ashedMemberId,
+    currentName: input.currentName,
+  });
+
   const { syncCommanderIdentityFromMemberLink } = await import(
     "@/lib/members/commander-identity.server"
   );
@@ -113,6 +152,7 @@ async function rebindDiscordLinkSeat(input: {
     ashedMemberId: next.ashedMemberId,
     gameUid: next.gameUid,
     memberDisplayName: input.currentName,
+    hqUserId: hqUserId ?? undefined,
   });
 
   return next;
@@ -191,8 +231,11 @@ export async function hydrateDiscordMemberLink(
       currentName: live.currentName,
     });
     return { ...next, memberDisplayName: live.currentName };
-  } catch (error) {
-    console.error("[discord-bot] live roster follow failed", error);
+  } catch {
+    console.error("[discord-bot] live roster follow failed", {
+      linkId: link.id,
+      allianceId: link.allianceId,
+    });
     return next;
   }
 }
