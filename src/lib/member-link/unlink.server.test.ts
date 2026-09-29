@@ -154,6 +154,7 @@ describe("unlinkOwnCommanderClaim", () => {
       [{ commanderId: "cmd-1" }],
       [{ discordUserId: "d-1" }],
     ];
+    dbState.returningResults = [[{ id: "d-link-1" }]];
     const result = await unlinkOwnCommanderClaim({
       sessionId: "sess-1",
       hqUserId: "player-1",
@@ -169,6 +170,17 @@ describe("unlinkOwnCommanderClaim", () => {
       expect.objectContaining({
         action: "member_link.hq_unlinked",
         hqUserId: "player-1",
+      }),
+    );
+    expect(audit.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "member_link.discord_unlinked",
+        hqUserId: "player-1",
+        metadata: expect.objectContaining({
+          ashedMemberId: "m-1",
+          removed: 1,
+          source: "self_unlink",
+        }),
       }),
     );
   });

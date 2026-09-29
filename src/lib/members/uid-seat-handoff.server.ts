@@ -5,7 +5,7 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { denormalizeGameUidOnMember } from "@/lib/members/member-tenure.server";
-import { findExactMemberByName } from "@/lib/vr/link-helpers";
+import { normalizeName } from "@/lib/vr/link-helpers";
 
 type DiscordMemberLinkRow = typeof schema.discordMemberLinks.$inferSelect;
 type HqMemberLinkRow = typeof schema.hqMemberLinks.$inferSelect;
@@ -45,7 +45,7 @@ async function findActiveMemberByGameUid(
   gameUid: string,
 ) {
   const db = getDb();
-  const [row] = await db
+  const rows = await db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
       currentName: schema.allianceMembers.currentName,
@@ -59,8 +59,9 @@ async function findActiveMemberByGameUid(
         eq(schema.allianceMembers.status, "active"),
       ),
     )
-    .limit(1);
-  return row ?? null;
+    .limit(2);
+  if (rows.length !== 1) return null;
+  return rows[0] ?? null;
 }
 
 async function loadActiveRosterForNameMatch(allianceId: string) {
@@ -71,6 +72,7 @@ async function loadActiveRosterForNameMatch(allianceId: string) {
       currentName: schema.allianceMembers.currentName,
       previousNamesJson: schema.allianceMembers.previousNamesJson,
       status: schema.allianceMembers.status,
+      gameUid: schema.allianceMembers.gameUid,
     })
     .from(schema.allianceMembers)
     .where(
@@ -80,6 +82,40 @@ async function loadActiveRosterForNameMatch(allianceId: string) {
       ),
     )
     .limit(5000);
+}
+
+function findUniqueLiveSeatByExactName(
+  members: {
+    ashedMemberId: string;
+    currentName: string;
+    previousNamesJson: string[] | null;
+    status: string;
+    gameUid: string | null;
+  }[],
+  gameUserName: string,
+): { ashedMemberId: string; currentName: string; gameUid: string | null } | null {
+  const needle = normalizeName(gameUserName);
+  if (!needle) return null;
+  const matches: {
+    ashedMemberId: string;
+    currentName: string;
+    gameUid: string | null;
+  }[] = [];
+  const seen = new Set<string>();
+  for (const member of members) {
+    if (member.status === "former") continue;
+    const names = [member.currentName, ...(member.previousNamesJson ?? [])];
+    if (!names.some((name) => normalizeName(name) === needle)) continue;
+    if (seen.has(member.ashedMemberId)) continue;
+    seen.add(member.ashedMemberId);
+    matches.push({
+      ashedMemberId: member.ashedMemberId,
+      currentName: member.currentName,
+      gameUid: member.gameUid,
+    });
+    if (matches.length > 1) return null;
+  }
+  return matches[0] ?? null;
 }
 
 async function discordSeatOccupiedByOther(input: {
@@ -279,25 +315,19 @@ export async function resolveLiveSeatForFormerClaim(input: {
   if (!lookup.ok) return null;
 
   const members = await loadActiveRosterForNameMatch(input.allianceId);
-  const match = findExactMemberByName(
-    members.map((row) => ({
-      id: row.ashedMemberId,
-      current_name: row.currentName,
-      previous_names: row.previousNamesJson ?? [],
-      status: row.status,
-    })),
-    lookup.gameUserName,
-  );
-  if (!match || match.id === input.ashedMemberId) return null;
+  const match = findUniqueLiveSeatByExactName(members, lookup.gameUserName);
+  if (!match || match.ashedMemberId === input.ashedMemberId) return null;
+  const liveUid = match.gameUid?.trim() ?? "";
+  if (liveUid && liveUid !== gameUid) return null;
   if (
     await liveSeatOccupiedByOther({
       ...occupancy,
-      ashedMemberId: match.id,
+      ashedMemberId: match.ashedMemberId,
     })
   ) {
     return null;
   }
-  return { ashedMemberId: match.id, currentName: match.current_name };
+  return { ashedMemberId: match.ashedMemberId, currentName: match.currentName };
 }
 
 /**

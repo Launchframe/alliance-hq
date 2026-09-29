@@ -114,6 +114,87 @@ describe("rematerializeFormerSeatLinksForAlliance", () => {
     );
   });
 
+  it("does not follow a Last War name onto a live seat whose roster UID differs", async () => {
+    selectLimit
+      .mockResolvedValueOnce([{ ashedMemberId: "old-swift" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "hq-1",
+          allianceId: "a1",
+          hqUserId: "hq-1",
+          ashedMemberId: "old-swift",
+          memberDisplayName: "JBeazy Swift",
+          gameUid: "1111222233334444",
+          linkedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "other-john",
+          currentName: "tihsrah",
+          previousNamesJson: [],
+          status: "active",
+          gameUid: "9999888877776666",
+        },
+      ]);
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "tihsrah",
+    });
+
+    await rematerializeFormerSeatLinksForAlliance("a1");
+
+    expect(denormalizeGameUidOnMember).not.toHaveBeenCalled();
+    expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
+  });
+
+  it("does not follow a Last War name that matches more than one live seat", async () => {
+    selectLimit
+      .mockResolvedValueOnce([{ ashedMemberId: "old-swift" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "hq-1",
+          allianceId: "a1",
+          hqUserId: "hq-1",
+          ashedMemberId: "old-swift",
+          memberDisplayName: "JBeazy Swift",
+          gameUid: "1111222233334444",
+          linkedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "live-a",
+          currentName: "tihsrah",
+          previousNamesJson: [],
+          status: "active",
+          gameUid: null,
+        },
+        {
+          ashedMemberId: "live-b",
+          currentName: "Other",
+          previousNamesJson: ["tihsrah"],
+          status: "active",
+          gameUid: null,
+        },
+      ]);
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "tihsrah",
+    });
+
+    await rematerializeFormerSeatLinksForAlliance("a1");
+
+    expect(denormalizeGameUidOnMember).not.toHaveBeenCalled();
+    expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
+  });
+
   it("does not steal a live seat already claimed on Discord", async () => {
     selectLimit
       .mockResolvedValueOnce([{ ashedMemberId: "old-swift" }])

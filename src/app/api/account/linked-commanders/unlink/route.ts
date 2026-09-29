@@ -2,11 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { unlinkOwnCommanderClaim } from "@/lib/member-link/unlink.server";
-import {
-  loadSession,
-  readSessionId,
-  resolveEffectiveHqUserIdForSession,
-} from "@/lib/session";
+import { requireApiSession, resolveEffectiveHqUserIdForSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,18 +12,17 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) {
+    return sessionOrError;
   }
-
-  const session = await loadSession(sessionId);
-  if (!session?.hqUserId) {
+  const session = sessionOrError;
+  if (!session.hqUserId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const hqUserId = await resolveEffectiveHqUserIdForSession(
-    sessionId,
+    session.id,
     session.hqUserId,
   );
   if (!hqUserId) {
@@ -42,7 +37,7 @@ export async function POST(request: Request) {
   }
 
   const result = await unlinkOwnCommanderClaim({
-    sessionId,
+    sessionId: session.id,
     hqUserId,
     allianceId: body.allianceId,
     ashedMemberId: body.ashedMemberId,

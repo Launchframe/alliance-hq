@@ -223,7 +223,7 @@ export async function unlinkOwnCommanderClaim(input: {
     .limit(1);
 
   if (discordHq) {
-    await db
+    const removed = await db
       .delete(schema.discordMemberLinks)
       .where(
         and(
@@ -231,7 +231,21 @@ export async function unlinkOwnCommanderClaim(input: {
           eq(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
           eq(schema.discordMemberLinks.discordUserId, discordHq.discordUserId),
         ),
-      );
+      )
+      .returning({ id: schema.discordMemberLinks.id });
+    if (removed.length > 0) {
+      await writeAuditLog({
+        sessionId: input.sessionId,
+        hqUserId: input.hqUserId,
+        allianceId: input.allianceId,
+        action: "member_link.discord_unlinked",
+        metadata: {
+          ashedMemberId: input.ashedMemberId,
+          removed: removed.length,
+          source: "self_unlink",
+        },
+      });
+    }
   }
 
   return hqResult;
