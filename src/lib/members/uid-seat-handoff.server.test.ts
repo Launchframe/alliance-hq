@@ -144,4 +144,36 @@ describe("rematerializeFormerSeatLinksForAlliance", () => {
     expect(denormalizeGameUidOnMember).not.toHaveBeenCalled();
     expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
   });
+
+  it("does not steal a live seat already claimed by another HQ user", async () => {
+    selectLimit
+      .mockResolvedValueOnce([{ ashedMemberId: "old-swift" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "hq-1",
+          allianceId: "a1",
+          hqUserId: "hq-1",
+          ashedMemberId: "old-swift",
+          memberDisplayName: "JBeazy Swift",
+          gameUid: "1111222233334444",
+          linkedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          status: "active",
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ gameUid: "9999888877776666" }]);
+
+    await rematerializeFormerSeatLinksForAlliance("a1");
+
+    expect(denormalizeGameUidOnMember).not.toHaveBeenCalled();
+    expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
+  });
 });
