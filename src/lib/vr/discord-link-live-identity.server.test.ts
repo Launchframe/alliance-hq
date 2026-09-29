@@ -26,14 +26,21 @@ const hqUpdateReturning = vi.fn();
 const hqUpdateWhere = vi.fn(() => ({ returning: hqUpdateReturning }));
 const hqUpdateSet = vi.fn(() => ({ where: hqUpdateWhere }));
 
+function dbForTable(table: { id?: string; hqUserId?: string }) {
+  return table.hqUserId != null
+    ? { set: hqUpdateSet }
+    : { set: updateSet };
+}
+
 vi.mock("@/lib/db", () => ({
-  getDb: () => ({
-    select: () => ({ from: selectFrom }),
-    update: (table: { id?: string; hqUserId?: string }) =>
-      table.hqUserId != null
-        ? { set: hqUpdateSet }
-        : { set: updateSet },
-  }),
+  getDb: () => {
+    const db = {
+      select: () => ({ from: selectFrom }),
+      update: dbForTable,
+      transaction: async (fn: (tx: unknown) => unknown) => fn(db),
+    };
+    return db;
+  },
   schema: {
     allianceMembers: {
       ashedMemberId: "ashed_member_id",
@@ -118,6 +125,7 @@ describe("hydrateDiscordMemberLink", () => {
           status: "active",
         },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     updateReturning.mockResolvedValue([
       {
@@ -126,6 +134,7 @@ describe("hydrateDiscordMemberLink", () => {
         memberDisplayName: "tihsrah",
       },
     ]);
+    hqUpdateReturning.mockResolvedValue([{ hqUserId: "hq-user-1" }]);
 
     const result = await hydrateDiscordMemberLink(frozenLink, {
       rematerializeFormer: true,
@@ -133,6 +142,12 @@ describe("hydrateDiscordMemberLink", () => {
     expect(result.ashedMemberId).toBe("new-tihsrah");
     expect(lookupPlayerByUid).not.toHaveBeenCalled();
     expect(loadAllianceMembersForBot).not.toHaveBeenCalled();
+    expect(syncCommanderIdentityFromMemberLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "new-tihsrah",
+        hqUserId: "hq-user-1",
+      }),
+    );
   });
 
   it("follows a former seat onto the live roster via Last War's current name", async () => {
@@ -145,6 +160,7 @@ describe("hydrateDiscordMemberLink", () => {
           gameUid: "1111222233334444",
         },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     vi.mocked(lookupPlayerByUid).mockResolvedValue({
@@ -217,6 +233,73 @@ describe("hydrateDiscordMemberLink", () => {
     });
     expect(result.ashedMemberId).toBe("old-swift");
     expect(result.memberDisplayName).toBe("JBeazy Swift");
+    expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
+  });
+
+  it("does not steal a live seat already claimed by another HQ user", async () => {
+    selectLimit
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "old-swift",
+          currentName: "JBeazy Swift",
+          status: "former",
+          gameUid: "1111222233334444",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          status: "active",
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ gameUid: "9999888877776666" }]);
+
+    const result = await hydrateDiscordMemberLink(frozenLink, {
+      rematerializeFormer: true,
+    });
+    expect(result.ashedMemberId).toBe("old-swift");
+    expect(result.memberDisplayName).toBe("JBeazy Swift");
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(hqUpdateSet).not.toHaveBeenCalled();
+    expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
+  });
+
+  it("does not follow the UID when Discord or HQ seat writes fail together", async () => {
+    selectLimit
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "old-swift",
+          currentName: "JBeazy Swift",
+          status: "former",
+          gameUid: "1111222233334444",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          status: "active",
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    updateReturning.mockResolvedValue([
+      {
+        ...frozenLink,
+        ashedMemberId: "new-tihsrah",
+        memberDisplayName: "tihsrah",
+      },
+    ]);
+    hqUpdateReturning.mockRejectedValue(new Error("unique_violation"));
+
+    const result = await hydrateDiscordMemberLink(frozenLink, {
+      rematerializeFormer: true,
+    });
+    expect(result.ashedMemberId).toBe("old-swift");
+    expect(result.memberDisplayName).toBe("JBeazy Swift");
+    expect(denormalizeGameUidOnMember).not.toHaveBeenCalled();
     expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
   });
 

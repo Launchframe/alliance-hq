@@ -75,23 +75,73 @@ async function discordSeatOccupiedByOther(input: {
   return Boolean(row && row.discordUserId !== input.discordUserId);
 }
 
-async function retargetHqMemberLinkForSeatHandoff(input: {
+/** Same-UID HQ claim on the live seat is ours; a different UID is another HQ user. */
+async function hqSeatOccupiedByOther(input: {
   allianceId: string;
-  gameUid: string;
-  previousAshedMemberId: string;
   ashedMemberId: string;
-  currentName: string;
-}): Promise<string | null> {
+  gameUid: string;
+}): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ gameUid: schema.hqMemberLinks.gameUid })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.allianceId),
+        eq(schema.hqMemberLinks.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  if (!row) return false;
+  return row.gameUid.trim() !== input.gameUid.trim();
+}
+
+async function liveSeatOccupiedByOther(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  discordUserId: string;
+  gameUid: string;
+}): Promise<boolean> {
+  if (
+    await discordSeatOccupiedByOther({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      discordUserId: input.discordUserId,
+    })
+  ) {
+    return true;
+  }
+  return hqSeatOccupiedByOther({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+  });
+}
+
+type SeatHandoffDb = {
+  update: ReturnType<typeof getDb>["update"];
+};
+
+async function retargetHqMemberLinkForSeatHandoff(
+  db: SeatHandoffDb,
+  input: {
+    allianceId: string;
+    gameUid: string;
+    previousAshedMemberId: string;
+    ashedMemberId: string;
+    currentName: string;
+    now: Date;
+  },
+): Promise<string | null> {
   const trimmed = input.gameUid.trim();
   if (!trimmed) return null;
 
-  const db = getDb();
   const [updated] = await db
     .update(schema.hqMemberLinks)
     .set({
       ashedMemberId: input.ashedMemberId,
       memberDisplayName: input.currentName,
-      updatedAt: new Date(),
+      updatedAt: input.now,
     })
     .where(
       and(
@@ -113,35 +163,41 @@ async function rebindDiscordLinkSeat(input: {
   const now = new Date();
   const previousAshedMemberId = input.link.ashedMemberId;
   const db = getDb();
-  const [updated] = await db
-    .update(schema.discordMemberLinks)
-    .set({
+
+  const { next, hqUserId } = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(schema.discordMemberLinks)
+      .set({
+        ashedMemberId: input.ashedMemberId,
+        memberDisplayName: input.currentName,
+        updatedAt: now,
+      })
+      .where(eq(schema.discordMemberLinks.id, input.link.id))
+      .returning();
+
+    const nextRow = updated ?? {
+      ...input.link,
       ashedMemberId: input.ashedMemberId,
       memberDisplayName: input.currentName,
       updatedAt: now,
-    })
-    .where(eq(schema.discordMemberLinks.id, input.link.id))
-    .returning();
+    };
 
-  const next = updated ?? {
-    ...input.link,
-    ashedMemberId: input.ashedMemberId,
-    memberDisplayName: input.currentName,
-    updatedAt: now,
-  };
+    const hqUserId = await retargetHqMemberLinkForSeatHandoff(tx, {
+      allianceId: nextRow.allianceId,
+      gameUid: nextRow.gameUid,
+      previousAshedMemberId,
+      ashedMemberId: nextRow.ashedMemberId,
+      currentName: input.currentName,
+      now,
+    });
+
+    return { next: nextRow, hqUserId };
+  });
 
   await denormalizeGameUidOnMember({
     allianceId: next.allianceId,
     ashedMemberId: next.ashedMemberId,
     gameUid: next.gameUid,
-  });
-
-  const hqUserId = await retargetHqMemberLinkForSeatHandoff({
-    allianceId: next.allianceId,
-    gameUid: next.gameUid,
-    previousAshedMemberId,
-    ashedMemberId: next.ashedMemberId,
-    currentName: input.currentName,
   });
 
   const { syncCommanderIdentityFromMemberLink } = await import(
@@ -164,13 +220,18 @@ async function resolveLiveSeatForFormerLink(
   const gameUid = link.gameUid.trim();
   if (!gameUid) return null;
 
+  const occupancy = {
+    allianceId: link.allianceId,
+    discordUserId: link.discordUserId,
+    gameUid,
+  };
+
   const byUid = await findActiveMemberByGameUid(link.allianceId, gameUid);
   if (byUid && byUid.ashedMemberId !== link.ashedMemberId) {
     if (
-      await discordSeatOccupiedByOther({
-        allianceId: link.allianceId,
+      await liveSeatOccupiedByOther({
+        ...occupancy,
         ashedMemberId: byUid.ashedMemberId,
-        discordUserId: link.discordUserId,
       })
     ) {
       return null;
@@ -185,10 +246,9 @@ async function resolveLiveSeatForFormerLink(
   const match = findExactMemberByName(members, lookup.gameUserName);
   if (!match || match.id === link.ashedMemberId) return null;
   if (
-    await discordSeatOccupiedByOther({
-      allianceId: link.allianceId,
+    await liveSeatOccupiedByOther({
+      ...occupancy,
       ashedMemberId: match.id,
-      discordUserId: link.discordUserId,
     })
   ) {
     return null;
