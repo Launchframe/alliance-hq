@@ -9,14 +9,15 @@ A Cursor plan or feature slice is **not implemented** until all of the following
 
 1. **Existing e2e specs updated** — auth, routing, RBAC, connect, invite, and session flows that changed must be reflected in `e2e/**/*.spec.ts` and `e2e/fixtures/**` (no stale UI selectors or API-only session cookies when NextAuth is required).
 2. **New e2e coverage when behavior is new** — security boundaries (session isolation, Ashed credential binding, invite accept), onboarding redirects, and permission gates need focused Playwright tests, not only unit/integration tests. **Admin / maintainer surfaces:** negative privilege e2e per [`.cursor/rules/auth-boundary-review.mdc`](auth-boundary-review.mdc) § C (bootstrap → 403, template [`e2e/rbac-anonymous-session.spec.ts`](../../e2e/rbac-anonymous-session.spec.ts)).
-3. **`npm run test:e2e` passes locally** — run against `E2E_DATABASE_URL` / `LOCAL_DATABASE_URL` before marking the plan complete or opening/updating the PR. **GitHub CI e2e is disabled** through **1 Sep 2026** (credit freeze — [`.cursor/rules/gha-credit-freeze.mdc`](gha-credit-freeze.mdc)). Do not write “CI will catch it.”
+3. **`npm run test:e2e` passes locally** — use the guarded dedicated E2E database and [canonical validation policy](../../PRE_COMMIT_GATE.md). For a stack, run the full gate once at the final combined tip after fixes on their owning branches have been merged forward; do not repeat it for each parent PR. Normal hooks and focused branch regressions still apply. Intermediate WIP pushes must disclose validation pending; they are not plan completion. GitHub CI is disabled; do not write “CI will catch it.”
 
 ## Checklist before marking a plan done
 
 - [ ] Grep `e2e/` for flows touched by the feature (invite, connect, sign-out, profile, upload, admin).
 - [ ] Update fixtures when auth model changes (HQ browser session **and** NextAuth cookie — see `e2e/fixtures/auth.ts`).
 - [ ] Add or adjust assertions for **negative** cases (redirect to `/get-started`, no permission boost, sign-out clears Ashed).
-- [ ] Run `npm run test:e2e` and fix failures in the same PR as the feature.
+- [ ] Run the unfiltered `npm run test:e2e` once at the final delivery tip using the default parallel/exclusive project schedule. Fix failures on the owning branch, merge forward, and rerun the final tip gate.
+- [ ] Preserve build/dependency caches and record the tested tip, covered parent SHAs, workers, skips/retries, and elapsed time per `PRE_COMMIT_GATE.md`.
 
 ## Auth fixture pattern
 

@@ -16,6 +16,8 @@ Orchestrate a feature PR from open → Real Steel → feedback triage → fixes 
 merge. Sibling skills own sub-steps; this skill owns **sequence, triage buckets,
 copy gates, and finalize**.
 
+Validation and stacked-parent propagation follow [PRE_COMMIT_GATE.md](../../../PRE_COMMIT_GATE.md): normal hooks per commit, focused regressions on owning branches, normal parent merges through descendants, then one full gate at the final stack tip. This takes precedence over older per-PR gate defaults in global skills. Any history rewrite still needs explicit approval. Preserve caches and installed dependencies; never wait for disabled GitHub CI.
+
 ## When to use which skill
 
 | Need | Skill |
@@ -34,7 +36,7 @@ Do **not** re-run a full Real Steel chain from this skill unless step 6 applies.
 4. Evaluate Criticals, suggestions & nits. Propose copy changes; wait for maintainer approval per i18n rules. Bucket each item: blocking (“close the loop on the PR”), deferred, or won't do.
 5. Implement fixes to suggestions.
 6. OPTIONAL: real-steel review of new commits on the PR
-7. Finalize and merge — if the PR conflicts with its parent (`baseRefName`), rebase onto that parent first
+7. Finalize and merge — if the PR conflicts with its parent (`baseRefName`), merge that parent into the branch and propagate the repair before the final delivery-tip gate
 
 Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past validation (e.g. “close the loop on the PR”, “address these suggestions”, or a Real Steel comment/URL handed for triage — those count as proceed). Agents do not invent merge approval when branch policy requires a human review.
 
@@ -95,18 +97,9 @@ Read the Real Steel issue comment (and any follow-up threads).
 - Implement **Blocking** items only (plus maintainer-explicit extras).
 - For human Real Steel comments: react (`+1` / `-1` / `eyes`), fix valid items, prepare a concise reply — **post only when the maintainer asks** (or says “post the reply”).
 - Bot feedback: follow `address-pr-feedback` (post bot replies; keep human replies suggested unless told to post).
-- Run gates from [`PRE_COMMIT_GATE.md`](../../../PRE_COMMIT_GATE.md) (match husky):
-
-```bash
-npx tsc --noEmit
-npm run lint
-npm test
-npm run i18n:validate
-npm run db:validate-journal
-```
-
-- Commit (short why-focused message) and push.
-- After push, run the **parent-branch conflict check** (step 7). If the PR cannot merge cleanly, rebase onto the parent **in this same pass** — do not wait for a failed `gh pr merge`.
+- Use normal commit hooks for the cheap gate from [`PRE_COMMIT_GATE.md`](../../../PRE_COMMIT_GATE.md); do not duplicate their commands manually on unchanged content.
+- Commit (short why-focused message), propagate stacked parent fixes, and run the full gate once at the final delivery tip before publishing. Playwright includes the guarded production build. Report covered SHAs, workers, timing, and any retries/skips.
+- Before publication and again in the final audit, run the **parent-branch conflict check** (step 7). If conflicted, merge the direct parent and propagate the repair before the final gate — do not wait for a failed `gh pr merge`.
 
 ### 6. OPTIONAL: real-steel review of new commits on the PR
 
@@ -126,19 +119,20 @@ git fetch origin <baseRefName>
 
 Treat as conflicted when `mergeable` is `CONFLICTING`, `mergeStateStatus` is `DIRTY`, or a trial merge/rebase onto `origin/<baseRefName>` fails.
 
-If conflicted, **rebase onto that parent** on the PR branch in the primary clone, with the required history-rewrite approval. Check for unrelated WIP and other writers first; do not switch their branch. Use a worktree only if the maintainer explicitly requested it:
+If conflicted, **merge the direct parent into the PR branch** in the primary clone. Check for unrelated WIP and other writers first; do not switch their branch. Follow the repository's opt-in worktree policy:
 
 ```bash
 git fetch origin <baseRefName>
-git rebase origin/<baseRefName>
+git merge --no-ff --no-commit origin/<baseRefName>
 ```
 
-- Resolve conflicts toward **this PR’s intended behavior**, not stale parent copies of the same files.
-- After a successful rebase, re-run the pre-commit gates, then `git push --force-with-lease` (topic branch only — never force-push protected parents).
-- If the rebase cannot be resolved without maintainer judgment, stop, report the conflicted paths, and leave the rebase in a state the maintainer can continue or `git rebase --abort`.
-- Do **not** stop at “DIRTY / merge conflicts” and wait for a follow-up ask; this check-and-rebase is part of close-the-loop.
+- Preserve both the parent's verified repairs and **this PR's intended behavior**. Run focused regressions and commit the resolution with normal hooks; do not bypass them with an automatic merge commit.
+- Propagate parent fixes through every descendant, then run the full gate once at the final delivery tip and push normally. Follow `PRE_COMMIT_GATE.md` for evidence and invalidation.
+- If a previously rewritten parent makes a normal merge inappropriate, stop and obtain explicit history-rewrite approval. Never choose rebase/force-push automatically.
+- If resolving conflicts needs product judgment or would overwrite unrelated work, stop and report the paths and decision needed.
+- Do **not** stop at a mechanically repairable conflict and wait for a follow-up ask; this check-and-repair is part of close-the-loop.
 
-A clean rebase is not a substitute for `REVIEW_REQUIRED`. Still do not use `--admin` unless the maintainer explicitly asks.
+Conflict freedom is not a substitute for `REVIEW_REQUIRED`. Still do not use `--admin` unless the maintainer explicitly asks.
 
 #### Merge checklist
 
@@ -146,19 +140,18 @@ Finalize means **all** of:
 
 1. Blocking items done (including Criticals); triage for deferred / won't-do recorded (PR reply or chat).
 2. Approved copy landed in locales; `i18n:validate` clean.
-3. PR is not conflicted with `origin/<baseRefName>` (rebased in this step if it was).
-4. CI green on the tip commit (re-check after rebase).
+3. PR is not conflicted with `origin/<baseRefName>`; any parent repair has propagated through the covered stack.
+4. Required local gate evidence is green for the final delivery tip and covered parents under `PRE_COMMIT_GATE.md`. Revalidate changed inputs after propagation/rewrite. Disabled or missing CI is not a pass and must not be waited on.
 5. Human Real Steel reply posted when the maintainer approved the reply text.
 6. Merge when policy allows:
 
 ```bash
-gh pr checks <n> --watch
 gh pr merge <n> --squash --delete-branch
 ```
 
 If merge is **BLOCKED** (e.g. `REVIEW_REQUIRED`), do not use `--admin` unless the maintainer explicitly asks. Report the blocker and stop.
 
-Auto-merge (`gh pr merge --auto`) only when the repo supports it; otherwise watch checks then merge, or hand off for human approve + merge.
+Auto-merge (`gh pr merge --auto`) only when the repo supports it; otherwise verify the required local evidence and any enabled checks, then merge only with authorization, or hand off for human approve + merge. Do not watch disabled checks.
 
 ## Invocation shortcuts
 
@@ -177,4 +170,4 @@ Auto-merge (`gh pr merge --auto`) only when the repo supports it; otherwise watc
 4. Commits pushed + CI status
 5. Reply posted or suggested (unposted)
 6. Merge result, or exact blocker (e.g. required review)
-7. Parent rebase: skipped (already clean) / completed onto `origin/<base>` / blocked on conflict paths
+7. Parent propagation: already current / merged from `origin/<base>` through the stack / blocked on conflict paths or rewrite approval
