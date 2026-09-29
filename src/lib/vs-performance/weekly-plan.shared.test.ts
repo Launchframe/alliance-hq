@@ -60,6 +60,13 @@ describe("buildVsPlatformDraft", () => {
     };
     expect(vsPlanDraftSchema.safeParse(dup).success).toBe(false);
   });
+
+  it("rejects platforms outside the allowed catalog", () => {
+    const draft = buildVsPlatformDraft(WEEK, "save_week");
+    for (const platform of ["unknown", "", null, "save_week "]) {
+      expect(vsPlanDraftSchema.safeParse({ ...draft, platform }).success).toBe(false);
+    }
+  });
 });
 
 describe("conductorRuleForVsPlanDay", () => {

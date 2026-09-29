@@ -1,6 +1,6 @@
 {
-  "id": "a2dee8d6-a68f-43ef-8b41-83c99d29dc29",
-  "prevId": "c526069f-d427-4ab4-bfaa-cccabdc7301f",
+  "id": "79c4e692-e812-4ba8-9bbf-d199c1637c49",
+  "prevId": "a2dee8d6-a68f-43ef-8b41-83c99d29dc29",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -25865,6 +25865,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_revision": {
+          "name": "source_revision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "hq_confirmed": {
           "name": "hq_confirmed",
           "type": "integer",
@@ -25937,19 +25943,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "vs_match_day_results_matchup_id_vs_matchups_id_fk": {
-          "name": "vs_match_day_results_matchup_id_vs_matchups_id_fk",
-          "tableFrom": "vs_match_day_results",
-          "tableTo": "vs_matchups",
-          "columnsFrom": [
-            "matchup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "vs_match_day_results_recorded_by_hq_user_id_hq_users_id_fk": {
           "name": "vs_match_day_results_recorded_by_hq_user_id_hq_users_id_fk",
           "tableFrom": "vs_match_day_results",
@@ -25961,6 +25954,21 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "vs_match_day_results_matchup_alliance_fk": {
+          "name": "vs_match_day_results_matchup_alliance_fk",
+          "tableFrom": "vs_match_day_results",
+          "tableTo": "vs_matchups",
+          "columnsFrom": [
+            "matchup_id",
+            "alliance_id"
+          ],
+          "columnsTo": [
+            "id",
+            "alliance_id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -25976,7 +25984,36 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_match_day_results_scores_paired_check": {
+          "name": "vs_match_day_results_scores_paired_check",
+          "value": "(\"vs_match_day_results\".\"our_score\" is null) = (\"vs_match_day_results\".\"opponent_score\" is null)"
+        },
+        "vs_match_day_results_scores_nonnegative_check": {
+          "name": "vs_match_day_results_scores_nonnegative_check",
+          "value": "\"vs_match_day_results\".\"our_score\" >= 0 and \"vs_match_day_results\".\"opponent_score\" >= 0"
+        },
+        "vs_match_day_results_outcome_check": {
+          "name": "vs_match_day_results_outcome_check",
+          "value": "\"vs_match_day_results\".\"outcome\" in ('pending', 'won', 'lost')"
+        },
+        "vs_match_day_results_finality_check": {
+          "name": "vs_match_day_results_finality_check",
+          "value": "\"vs_match_day_results\".\"finality\" in ('unconfirmed', 'final')"
+        },
+        "vs_match_day_results_source_check": {
+          "name": "vs_match_day_results_source_check",
+          "value": "\"vs_match_day_results\".\"source\" in ('hq_manual', 'ashed_import', 'reviewed_upload')"
+        },
+        "vs_match_day_results_version_check": {
+          "name": "vs_match_day_results_version_check",
+          "value": "\"vs_match_day_results\".\"version\" > 0"
+        },
+        "vs_match_day_results_recorded_weekday_check": {
+          "name": "vs_match_day_results_recorded_weekday_check",
+          "value": "extract(isodow from \"vs_match_day_results\".\"recorded_date\"::date) between 1 and 6"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_match_observations": {
@@ -25987,6 +26024,12 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
           "notNull": true
         },
         "alliance_id": {
@@ -26005,7 +26048,7 @@
           "name": "recorded_date",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "source": {
           "name": "source",
@@ -26015,6 +26058,12 @@
         },
         "source_ref": {
           "name": "source_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_revision": {
+          "name": "source_revision",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -26073,6 +26122,21 @@
         }
       },
       "indexes": {
+        "vs_match_observations_sequence_unique": {
+          "name": "vs_match_observations_sequence_unique",
+          "columns": [
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "vs_match_observations_matchup_idx": {
           "name": "vs_match_observations_matchup_idx",
           "columns": [
@@ -26109,19 +26173,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "vs_match_observations_matchup_id_vs_matchups_id_fk": {
-          "name": "vs_match_observations_matchup_id_vs_matchups_id_fk",
-          "tableFrom": "vs_match_observations",
-          "tableTo": "vs_matchups",
-          "columnsFrom": [
-            "matchup_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "vs_match_observations_actor_hq_user_id_hq_users_id_fk": {
           "name": "vs_match_observations_actor_hq_user_id_hq_users_id_fk",
           "tableFrom": "vs_match_observations",
@@ -26133,6 +26184,21 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "vs_match_observations_matchup_alliance_fk": {
+          "name": "vs_match_observations_matchup_alliance_fk",
+          "tableFrom": "vs_match_observations",
+          "tableTo": "vs_matchups",
+          "columnsFrom": [
+            "matchup_id",
+            "alliance_id"
+          ],
+          "columnsTo": [
+            "id",
+            "alliance_id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -26149,7 +26215,20 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_match_observations_source_check": {
+          "name": "vs_match_observations_source_check",
+          "value": "\"vs_match_observations\".\"source\" in ('hq_manual', 'ashed_import', 'reviewed_upload')"
+        },
+        "vs_match_observations_disposition_check": {
+          "name": "vs_match_observations_disposition_check",
+          "value": "\"vs_match_observations\".\"disposition\" in ('applied', 'conflict', 'reviewed_keep_hq', 'reviewed_use_ashed', 'superseded')"
+        },
+        "vs_match_observations_recorded_weekday_check": {
+          "name": "vs_match_observations_recorded_weekday_check",
+          "value": "\"vs_match_observations\".\"recorded_date\" is null or extract(isodow from \"vs_match_observations\".\"recorded_date\"::date) between 1 and 6"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_matchups": {
@@ -26290,10 +26369,31 @@
             "alliance_id",
             "week_start"
           ]
+        },
+        "vs_matchups_id_alliance_unique": {
+          "name": "vs_matchups_id_alliance_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "alliance_id"
+          ]
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_matchups_week_start_monday_check": {
+          "name": "vs_matchups_week_start_monday_check",
+          "value": "extract(isodow from \"vs_matchups\".\"week_start\"::date) = 1"
+        },
+        "vs_matchups_version_check": {
+          "name": "vs_matchups_version_check",
+          "value": "\"vs_matchups\".\"version\" > 0"
+        },
+        "vs_matchups_identity_source_check": {
+          "name": "vs_matchups_identity_source_check",
+          "value": "\"vs_matchups\".\"identity_source\" in ('hq_manual', 'ashed_import')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_score_heads": {
@@ -26877,7 +26977,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_strategy_preferences_version_check": {
+          "name": "vs_strategy_preferences_version_check",
+          "value": "\"vs_strategy_preferences\".\"version\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.vs_week_plans": {
@@ -27015,7 +27120,20 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vs_week_plans_lead_days_check": {
+          "name": "vs_week_plans_lead_days_check",
+          "value": "\"vs_week_plans\".\"lead_days\" between 0 and 7"
+        },
+        "vs_week_plans_version_check": {
+          "name": "vs_week_plans_version_check",
+          "value": "\"vs_week_plans\".\"version\" > 0"
+        },
+        "vs_week_plans_week_start_monday_check": {
+          "name": "vs_week_plans_week_start_monday_check",
+          "value": "extract(isodow from \"vs_week_plans\".\"week_start\"::date) = 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.wl_eng_assignments": {
