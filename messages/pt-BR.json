@@ -357,6 +357,7 @@
     "supportTeams": "Equipes de apoio",
     "teamWork": "Trabalho em equipe",
     "dashboard": "Painel",
+    "activity": "Atividade",
     "alliances": "Alianças",
     "members": "Membros",
     "membersDescription": "Elenco ao vivo do Ashed para correspondência de pontuações",
@@ -578,7 +579,8 @@
       "sectionsTitle": "Seções",
       "videoJobAnalytics": "Análises",
       "parseConfigs": "Configurações de análise",
-      "experiments": "Experimentos"
+      "experiments": "Experimentos",
+      "activity": "Atividade"
     },
     "opsInbox": {
       "title": "Caixa de ops",
@@ -1875,6 +1877,7 @@
     "supportTeams": "Equipes de apoio",
         "teamWork": "Trabalho em equipe",
         "dashboard": "Ir para Painel",
+        "activity": "Atividade",
         "members": "Ir para Membros",
         "vsPerformance": "Ir para Desempenho VS",
         "donations": "Ir para Doações",
@@ -1931,7 +1934,8 @@
         "experienceFeedback": "Feedback de experiência",
         "translationReports": "Relatórios de tradução",
         "memberLinkHelp": "Ajuda no vínculo",
-        "uidInspector": "Inspetor de UID"
+        "uidInspector": "Inspetor de UID",
+        "activity": "Atividade"
       },
       "notes": {
         "newNote": "Criar uma nota",

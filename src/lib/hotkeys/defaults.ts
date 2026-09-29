@@ -22,6 +22,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.supportTeams": seq("g", "5"),
   "nav.teamWork": seq("g", "6"),
   "nav.dashboard": seq("g", "d"),
+  "nav.activity": seq("g", "."),
   "nav.members": seq("g", "m"),
   "nav.vsPerformance": seq("g", "v"),
   "nav.vsCompliance": seq("g", "3"),
@@ -93,6 +94,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "admin.nav.memberLinkHelp": { key: "g" },
   "admin.nav.allianceSetupRequests": { key: "h" },
   "admin.nav.uidInspector": { key: "i" },
+  "admin.nav.activity": { key: "j" },
 
   "trains.spinWheel": { key: "w" },
   "trains.spinWeek": chord("w", ["shift"]),

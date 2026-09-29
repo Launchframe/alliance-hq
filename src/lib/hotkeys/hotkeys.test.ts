@@ -247,6 +247,49 @@ describe("hotkey registry integrity", () => {
     expect(isHotkeyActionAllowed(viralResistance!, memberPerms)).toBe(false);
   });
 
+  it("registers activity nav actions with stable bindings and admin sequence key", () => {
+    const navActivity = getHotkeyAction("nav.activity");
+    const adminActivity = getHotkeyAction("admin.nav.activity");
+
+    expect(navActivity).toMatchObject({
+      category: "navigation",
+      scope: "global",
+      kind: "navigate",
+      href: "/activity",
+    });
+    expect(navActivity?.requiredPermission).toBeUndefined();
+    expect(isHotkeyActionAllowed(navActivity!, new Set())).toBe(true);
+
+    expect(adminActivity).toMatchObject({
+      category: "admin",
+      scope: "admin-sequence",
+      kind: "navigate",
+      href: "/admin/activity",
+      requiredPermission: "hq:admin",
+      adminSequenceKey: "j",
+    });
+    expect(isHotkeyActionAllowed(adminActivity!, new Set())).toBe(false);
+    expect(isHotkeyActionAllowed(adminActivity!, new Set(["hq:admin"]))).toBe(
+      true,
+    );
+    expect(getHotkeyAction("admin.nav.uidInspector")?.adminSequenceKey).toBe(
+      "i",
+    );
+
+    expect(DEFAULT_HOTKEY_BINDINGS["nav.activity"]).toEqual({
+      sequence: ["g", "."],
+    });
+    expect(DEFAULT_HOTKEY_BINDINGS["admin.nav.activity"]).toEqual({
+      key: "j",
+    });
+    expect(
+      findBindingConflict("nav.activity", { sequence: ["g", "."] }, {}),
+    ).toBeNull();
+    expect(
+      findBindingConflict("admin.nav.activity", { key: "j" }, {}),
+    ).toBeNull();
+  });
+
   it("hides my-vr, my-thp, and my-kills hotkeys without an alliance member link", () => {
     const myVr = getHotkeyAction("nav.myVr");
     const myThp = getHotkeyAction("nav.myThp");
