@@ -326,6 +326,11 @@ export async function saveDiscordBotPending(
     });
 }
 
+/**
+ * Overlay live roster names by default. Last War rematerialize is **opt-in**
+ * (`rematerializeFormer: true`). Web callers must pass that flag if they need
+ * UID follow; `getDiscordLinkById` rematerializes unless opted out.
+ */
 export async function listDiscordLinksForUser(
   allianceId: string,
   discordUserId: string,
@@ -357,6 +362,7 @@ export async function listDiscordLinksByAlliance(allianceId: string) {
     .where(eq(schema.discordMemberLinks.allianceId, allianceId));
 }
 
+/** Rematerializes former seats by default (`rematerializeFormer !== false`). */
 export async function getDiscordLinkById(
   linkId: string,
   options?: { followLiveRoster?: boolean; rematerializeFormer?: boolean },
