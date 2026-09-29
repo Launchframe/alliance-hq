@@ -51,6 +51,7 @@ import {
   isDesertStormVideoTarget,
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
+  isFrontlineBreakthroughVideoTarget,
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
@@ -79,11 +80,15 @@ import {
 } from "@/lib/video/run-deposit-slip-ocr-phase.server";
 import {
   engineRequiresAshed,
-  isNativeAllianceVsTarget,
+  isNativeAllianceScoreTarget,
   resolveVideoJobAshedConnection,
   resolveVideoOcrEngineForJob,
   shouldEnqueueAshedOcrShadowPasses,
 } from "@/lib/video/ocr-provider.shared";
+import {
+  collapseFrontlineEntries,
+  dedupeFrontlineMatchedEntries,
+} from "@/lib/video/frontline-breakthrough.shared";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import { VIDEO_JOB_FAIL_PROTECTED_STATUSES } from "@/lib/video/video-lifecycle.shared";
@@ -134,9 +139,10 @@ export async function processVideoJob(
     job.allianceId,
   );
   const ocrContext = await loadAllianceVideoOcrContext(jobHqAllianceId);
-  const nativeVsTarget = isNativeAllianceVsTarget(scoreTargetId, ocrContext);
+  const isFrontline = isFrontlineBreakthroughVideoTarget(scoreTargetId);
+  const nativeScoreTarget = isNativeAllianceScoreTarget(scoreTargetId, ocrContext);
   const loadJobAllianceTag = async () => {
-    if (!nativeVsTarget || !jobHqAllianceId) return getSessionAllianceTag(job.sessionId);
+    if (!nativeScoreTarget || !jobHqAllianceId) return getSessionAllianceTag(job.sessionId);
     const [alliance] = await db.select({ tag: schema.alliances.tag })
       .from(schema.alliances)
       .where(eq(schema.alliances.id, jobHqAllianceId)).limit(1);
@@ -723,7 +729,7 @@ export async function processVideoJob(
         : undefined;
       if (ocrEngine === "mock") {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
-          nativeVsTarget && jobHqAllianceId
+          nativeScoreTarget && jobHqAllianceId
             ? Promise.resolve(jobHqAllianceId)
             : resolveHqAllianceIdFromSession(processingSessionId),
         );
@@ -756,7 +762,9 @@ export async function processVideoJob(
           await timer.measureStep(
             "parse.collapse_rows",
             async () =>
-              collapseEntriesBySanitizedName(rawEntries, allianceTag),
+              isFrontline
+                ? collapseFrontlineEntries(rawEntries, allianceTag)
+                : collapseEntriesBySanitizedName(rawEntries, allianceTag),
             (result) => ({
               inputRows: rawEntries.length,
               outputRows: result.entries.length,
@@ -833,12 +841,14 @@ export async function processVideoJob(
                   },
             }));
 
-            const dedupedRows = stripUnmatchedScoreGhostEntries(
-              dedupeMatchedParseEntries(
-                dedupeSameScoreOcrTwins(matchedRows, allianceTag),
-                allianceTag,
-              ),
-            );
+            const dedupedRows = isFrontline
+              ? dedupeFrontlineMatchedEntries(matchedRows, allianceTag)
+              : stripUnmatchedScoreGhostEntries(
+                  dedupeMatchedParseEntries(
+                    dedupeSameScoreOcrTwins(matchedRows, allianceTag),
+                    allianceTag,
+                  ),
+                );
             rowCount = dedupedRows.length;
             matchedCount = 0;
 
@@ -851,6 +861,7 @@ export async function processVideoJob(
                 ocrName: entry.name,
                 score: String(entry.score),
                 rank: entry.rank ?? null,
+                frontlineStage: entry.frontlineStage ?? null,
                 memberId: match.memberId,
                 memberName: match.memberName,
                 matchConfidence: match.confidence,
@@ -898,6 +909,14 @@ export async function processVideoJob(
         ocrEngine === "native" ? "native.ocr_total" : "ashed.ocr_total",
         async () => {
           if (ocrEngine === "native") {
+            if (isFrontline) {
+              const { ocrFrontlineNativeFrames } = await import(
+                "@/lib/video/ocr-frontline-native"
+              );
+              return ocrFrontlineNativeFrames(frames, {
+                onProgress: emitOcrFrameProgress,
+              });
+            }
             const { ocrVsNativeFrames } = await import("@/lib/video/ocr-vs-native");
             return ocrVsNativeFrames(frames, { onProgress: emitOcrFrameProgress });
           }
@@ -948,7 +967,9 @@ export async function processVideoJob(
       await timer.measureStep(
       "parse.collapse_rows",
       async () =>
-        collapseEntriesBySanitizedName(rawEntries, allianceTag),
+        isFrontline
+          ? collapseFrontlineEntries(rawEntries, allianceTag)
+          : collapseEntriesBySanitizedName(rawEntries, allianceTag),
       (result) => ({
         inputRows: rawEntries.length,
         outputRows: result.entries.length,
@@ -1044,12 +1065,14 @@ export async function processVideoJob(
               },
         }));
 
-        const dedupedRows = stripUnmatchedScoreGhostEntries(
-          dedupeMatchedParseEntries(
-            dedupeSameScoreOcrTwins(matchedRows, allianceTag),
-            allianceTag,
-          ),
-        );
+        const dedupedRows = isFrontline
+          ? dedupeFrontlineMatchedEntries(matchedRows, allianceTag)
+          : stripUnmatchedScoreGhostEntries(
+              dedupeMatchedParseEntries(
+                dedupeSameScoreOcrTwins(matchedRows, allianceTag),
+                allianceTag,
+              ),
+            );
         rowCount = dedupedRows.length;
         matchedCount = 0;
 
@@ -1062,6 +1085,7 @@ export async function processVideoJob(
             ocrName: entry.name,
             score: String(entry.score),
             rank: entry.rank ?? null,
+            frontlineStage: entry.frontlineStage ?? null,
             memberId: match.memberId,
             memberName: match.memberName,
             matchConfidence: match.confidence,

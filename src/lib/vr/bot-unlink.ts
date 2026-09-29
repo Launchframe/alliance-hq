@@ -26,6 +26,7 @@ export async function handleDiscordUnlinkSlash(input: {
   const links = await listDiscordLinksForUser(
     input.allianceId,
     input.discordUserId,
+    { rematerializeFormer: true },
   );
 
   if (links.length === 0) {

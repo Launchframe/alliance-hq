@@ -1330,6 +1330,7 @@ export const parsedRows = pgTable("parsed_rows", {
   ocrName: text("ocr_name").notNull(),
   score: text("score"),
   rank: integer("rank"),
+  frontlineStage: integer("frontline_stage"),
   rosterRankRaw: text("roster_rank_raw"),
   allianceRank: integer("alliance_rank"),
   allianceRankTitle: text("alliance_rank_title"),

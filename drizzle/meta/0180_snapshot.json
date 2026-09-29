@@ -18876,6 +18876,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "frontline_stage": {
+          "name": "frontline_stage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "roster_rank_raw": {
           "name": "roster_rank_raw",
           "type": "text",

@@ -84,6 +84,7 @@ async function lookupByDiscordUser(input: {
   const links = await listDiscordLinksForUser(
     input.allianceId,
     input.targetDiscordUserId,
+    { rematerializeFormer: true },
   );
 
   if (links.length === 0) {

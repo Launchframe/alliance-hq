@@ -42,7 +42,13 @@ import {
   scoreGhostRowIdsToDiscard,
 } from "@/lib/video/score-ghost-clusters.shared";
 import {
+  frontlineConflictRowIds,
+  frontlinePositiveInteger,
+  frontlineRowIssues,
+} from "@/lib/video/frontline-breakthrough.shared";
+import {
   isAllianceKillsVideoTarget,
+  isFrontlineBreakthroughVideoTarget,
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
 import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";
@@ -201,6 +207,9 @@ type ParsedRow = {
   ocrName: string;
   score: string | null;
   rank: number | null;
+  frontlineStage?: number | null;
+  frontlineStageRaw?: string;
+  frontlineRankRaw?: string;
   rosterRankRaw?: string | null;
   allianceRank?: number | null;
   allianceRankTitle?: string | null;
@@ -222,6 +231,56 @@ type ParsedRow = {
   scoreDefaulted?: boolean;
   depositAtInterpolated?: boolean;
 };
+
+type FrontlineReviewRowLike = {
+  frontlineStage?: number | null;
+  frontlineStageRaw?: string;
+  frontlineRankRaw?: string;
+  score: string | null;
+  rank: number | null;
+};
+
+function frontlineEffectiveStage(row: FrontlineReviewRowLike): number | null {
+  return row.frontlineStageRaw == null
+    ? frontlinePositiveInteger(row.frontlineStage ?? null)
+    : frontlinePositiveInteger(row.frontlineStageRaw);
+}
+
+function frontlineEffectiveRank(row: FrontlineReviewRowLike): number | null {
+  return row.frontlineRankRaw == null
+    ? row.rank
+    : row.frontlineRankRaw.trim() === ""
+      ? null
+      : frontlinePositiveInteger(row.frontlineRankRaw);
+}
+
+const FRONTLINE_ISSUE_FIELD_KEYS = new Set([
+  "memberId",
+  "memberName",
+  "score",
+  "rank",
+  "frontlineStage",
+  "frontlineStageRaw",
+  "frontlineRankRaw",
+  "deleted",
+]);
+
+function frontlineClientRowIssues(row: FrontlineReviewRowLike): string[] {
+  const issues = frontlineRowIssues({
+    frontlineStage: frontlineEffectiveStage(row),
+    score: row.score,
+    rank: frontlineEffectiveRank(row),
+  });
+  if (
+    row.frontlineRankRaw != null &&
+    row.frontlineRankRaw.trim() !== "" &&
+    frontlineEffectiveRank(row) == null &&
+    !issues.includes("rank")
+  ) {
+    issues.push("rank");
+  }
+  return issues;
+}
 
 type MemberOption = {
   id: string;
@@ -246,6 +305,7 @@ type ScoreTargetMeta = {
   usesHqEvents: boolean;
   showReviewRowNumber: boolean;
   showRankColumn: boolean;
+  showStageColumn: boolean;
   showTeamSelector: boolean;
   showRosterColumns: boolean;
   showScoreColumn: boolean;
@@ -330,6 +390,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
   const tBanks = useTranslations("bankManagement");
+  const tErr = useTranslations("httpErrors");
   const formatDepositSlipStatus = useCallback(
     (raw: string) =>
       formatDepositStatusToken(raw, (status) => tBanks(`status.${status}`)),
@@ -348,10 +409,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const liveJob = useVideoJob(jobId);
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [serverFrontlineIssues, setServerFrontlineIssues] = useState<
+    Array<{ id: string; fields: string[] }>
+  >([]);
+  const [creatingHqEvent, setCreatingHqEvent] = useState(false);
+  const [eventPickerError, setEventPickerError] = useState<string | null>(null);
+  const [eventListRetryNonce, setEventListRetryNonce] = useState(0);
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [events, setEvents] = useState<EventOption[]>([]);
   const [scoreTargetMeta, setScoreTargetMeta] =
     useState<ScoreTargetMeta | null>(null);
+  const [nativeFrontlineSubmit, setNativeFrontlineSubmit] = useState(false);
   const [jobStatus, setJobStatus] = useState<string>("loading");
   const [jobErrorMessage, setJobErrorMessage] = useState<string | null>(null);
   const [allianceId, setAllianceId] = useState<string | null>(null);
@@ -642,6 +710,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, []);
 
   const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
+  const isFrontlineTarget =
+    scoreTargetMeta?.id != null &&
+    isFrontlineBreakthroughVideoTarget(scoreTargetMeta.id);
   const isAllianceKillsTarget =
     scoreTargetMeta?.id != null &&
     isAllianceKillsVideoTarget(scoreTargetMeta.id);
@@ -768,6 +839,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           hasSourceVideo?: boolean;
           frameTimestamps?: FrameTimestampMap;
           scoreTargetMeta?: ScoreTargetMeta | null;
+          nativeFrontlineSubmit?: boolean;
           alliance?: {
             currentId?: string | null;
             currentTag?: string | null;
@@ -876,6 +948,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setDedupeReport(isDedupeReport(loadedDedupe) ? loadedDedupe : null);
         setDetectedBankContext(data.detectedBankContext ?? null);
         setScoreTargetMeta(data.scoreTargetMeta ?? null);
+        setNativeFrontlineSubmit(data.nativeFrontlineSubmit === true);
         setExpectedRowCount(
           typeof data.expectedRowCount === "number"
             ? data.expectedRowCount
@@ -902,6 +975,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           serverRows,
         );
         setRows(restored.rows);
+        setServerFrontlineIssues([]);
         const loadedIsVs = data.scoreTargetMeta?.id === "vs-performance";
         const ocrMatch = data.parseSession?.desertStormMatch;
         const ocrHeader =
@@ -1137,13 +1211,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
     void (async () => {
       try {
+        setEventPickerError(null);
         if (meta.usesHqEvents) {
           if (!allianceId) return;
           const res = await fetch(
             `/api/hq-events?scoreTarget=${encodeURIComponent(meta.id)}`,
             { signal: controller.signal },
           );
-          if (!res.ok || controller.signal.aborted) return;
+          if (controller.signal.aborted) return;
+          if (!res.ok) {
+            if (isFrontlineBreakthroughVideoTarget(meta.id)) {
+              setActionError(t("eventLoadFailed"));
+              setEventPickerError(t("eventLoadFailed"));
+            }
+            return;
+          }
           const data = (await res.json()) as {
             events?: Array<{
               id: string;
@@ -1188,7 +1270,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           `/api/bff/v1/entities/${meta.eventEntity}?q=${q}`,
           { signal: controller.signal },
         );
-        if (!res.ok || controller.signal.aborted) return;
+        if (controller.signal.aborted) return;
+        if (!res.ok) {
+          if (isFrontlineBreakthroughVideoTarget(meta.id)) {
+            setActionError(t("eventLoadFailed"));
+            setEventPickerError(t("eventLoadFailed"));
+          }
+          return;
+        }
         const data = (await res.json()) as AshedEventLike[];
         if (controller.signal.aborted) return;
         const built = buildReviewAshedEventOptions({
@@ -1202,6 +1291,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setEventId(built.selectedEventId);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        if (
+          !controller.signal.aborted &&
+          isFrontlineBreakthroughVideoTarget(meta.id)
+        ) {
+          setActionError(t("eventLoadFailed"));
+          setEventPickerError(t("eventLoadFailed"));
+        }
       }
     })();
 
@@ -1215,6 +1311,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     locale,
     timezoneId,
     recordedDate,
+    t,
+    eventListRetryNonce,
   ]);
 
   useEffect(() => {
@@ -1904,23 +2002,63 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
 
   const liveScoreConflictIds = useMemo(
-    () =>
-      scoreTargetMeta?.showScoreColumn === false
-        ? new Set<string>()
-        : liveScoreConflictRowIds(
-            activeRows.map((row) => ({
-              id: row.id,
-              memberId: row.memberId,
-              ocrName: row.ocrName,
-              score: row.score,
-            })),
-            allianceTag,
-          ),
-    [activeRows, allianceTag, scoreTargetMeta?.showScoreColumn],
+    () => {
+      if (scoreTargetMeta?.showScoreColumn === false) {
+        return new Set<string>();
+      }
+      if (isFrontlineTarget) {
+        return frontlineConflictRowIds(
+          activeRows.map((row) => ({
+            id: row.id,
+            ocrName: row.ocrName,
+            memberId: row.memberId,
+            frontlineStage: frontlineEffectiveStage(row),
+            score: row.score,
+            rank: frontlineEffectiveRank(row),
+          })),
+          allianceTag,
+        );
+      }
+      return liveScoreConflictRowIds(
+        activeRows.map((row) => ({
+          id: row.id,
+          memberId: row.memberId,
+          ocrName: row.ocrName,
+          score: row.score,
+        })),
+        allianceTag,
+      );
+    },
+    [
+      activeRows,
+      allianceTag,
+      scoreTargetMeta?.showScoreColumn,
+      isFrontlineTarget,
+    ],
   );
+
+  const frontlineServerIssueRowIds = useMemo(
+    () =>
+      isFrontlineTarget
+        ? new Set(serverFrontlineIssues.map((issue) => issue.id))
+        : new Set<string>(),
+    [isFrontlineTarget, serverFrontlineIssues],
+  );
+
+  const frontlineInvalidRowIds = useMemo(() => {
+    if (!isFrontlineTarget) return new Set<string>();
+    const ids = new Set<string>(frontlineServerIssueRowIds);
+    for (const row of activeRows) {
+      if (frontlineClientRowIssues(row).length > 0) {
+        ids.add(row.id);
+      }
+    }
+    return ids;
+  }, [activeRows, frontlineServerIssueRowIds, isFrontlineTarget]);
 
   const scoreGhostClusters = useMemo(() => {
     if (
+      isFrontlineTarget ||
       scoreTargetMeta?.showRosterColumns ||
       scoreTargetMeta?.showDepositSlipColumns ||
       scoreTargetMeta?.showScoreColumn === false
@@ -1938,7 +2076,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         deleted: row.deleted,
       })),
     );
-  }, [activeRows, scoreTargetMeta]);
+  }, [activeRows, scoreTargetMeta, isFrontlineTarget]);
 
   const scoreGhostDiscardRowIds = useMemo(
     () => scoreGhostRowIdsToDiscard(scoreGhostClusters),
@@ -2059,7 +2197,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         },
       ]),
     );
-    return buildScoreReviewProblemRowIds(
+    const scoreProblemIds = buildScoreReviewProblemRowIds(
       allReviewRowIds,
       rowsById,
       {
@@ -2067,6 +2205,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         zeroScoreWarningDisabled,
       },
     );
+    if (!isFrontlineTarget) return scoreProblemIds;
+    const problemIds = new Set([
+      ...scoreProblemIds,
+      ...frontlineInvalidRowIds,
+    ]);
+    return allReviewRowIds.filter((id) => problemIds.has(id));
   }, [
     scoreTargetMeta?.showRosterColumns,
     scoreTargetMeta?.showDepositSlipColumns,
@@ -2079,6 +2223,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     dedupeReport,
     zeroScoreWarningDisabled,
     liveScoreConflictIds,
+    isFrontlineTarget,
+    frontlineInvalidRowIds,
   ]);
 
   const scrollToReviewProblemRow = useCallback(
@@ -2167,10 +2313,26 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const duplicateMembersBlockSubmit =
     hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns;
 
+  const frontlineBlockers =
+    isFrontlineTarget &&
+    activeRows.some(
+      (row) =>
+        !row.memberId ||
+        frontlineInvalidRowIds.has(row.id) ||
+        liveScoreConflictIds.has(row.id),
+    );
+
+  const hasSubmittableFrontlineDeletion =
+    isFrontlineTarget &&
+    nativeFrontlineSubmit &&
+    submitReadinessStatus === "complete" &&
+    rows.some((row) => row.deleted === 1);
+
   const canSubmit =
     isVideoJobReadyForSubmit(submitReadinessStatus) &&
-    activeRows.length > 0 &&
+    (activeRows.length > 0 || hasSubmittableFrontlineDeletion) &&
     eventGateSatisfied &&
+    !frontlineBlockers &&
     (!needsBoardPicker || boardKey) &&
     (!scoreTargetMeta?.showBankSelector || Boolean(bankId)) &&
     !duplicateMembersBlockSubmit &&
@@ -2204,6 +2366,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   function updateRow(id: string, patch: Partial<ParsedRow>) {
     markDraftDirty();
+    if (
+      isFrontlineTarget &&
+      Object.keys(patch).some((key) => FRONTLINE_ISSUE_FIELD_KEYS.has(key))
+    ) {
+      setServerFrontlineIssues((prev) =>
+        prev.filter((issue) => issue.id !== id),
+      );
+    }
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
@@ -2221,6 +2391,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   function deleteRow(id: string) {
     markDraftDirty();
+    if (isFrontlineTarget) {
+      setServerFrontlineIssues((prev) =>
+        prev.filter((issue) => issue.id !== id),
+      );
+    }
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, deleted: 1 } : r)),
     );
@@ -2449,7 +2624,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     score: source.score ?? "",
                     rank: scoreTargetMeta?.showReviewRowNumber
                       ? reviewLeaderboardRankById?.get(source.id) ?? null
-                      : source.rank,
+                      : isFrontlineTarget
+                        ? frontlineEffectiveRank(source)
+                        : source.rank,
+                    ...(isFrontlineTarget
+                      ? { frontlineStage: frontlineEffectiveStage(source) }
+                      : {}),
                     ocrName: usesOcrFeedback ? source.ocrName : undefined,
                     frameIndex: usesOcrFeedback ? source.frameIndex : undefined,
                     deleted: source.deleted === 1 || (!usesOcrFeedback && autoDiscardScoreGhost),
@@ -2468,6 +2648,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         skippedDuplicateCount?: number;
         updatedCount?: number;
         duplicateMembers?: Array<{ memberName: string }>;
+        issues?: Array<{ id: string; fields: string[] }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
@@ -2481,10 +2662,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           );
           return;
         }
+        if (isFrontlineTarget) {
+          setServerFrontlineIssues(
+            Array.isArray(data.issues) ? data.issues : [],
+          );
+          const code =
+            data.code === "frontlineInvalidRows" ||
+            data.code === "frontlineInvalidEvent" ||
+            data.code === "frontlineSaveFailed"
+              ? data.code
+              : "frontlineSaveFailed";
+          setActionError(t(code));
+          return;
+        }
         setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
       clearDraft();
+      setServerFrontlineIssues([]);
       if (scoreGhostDiscardRowIds.size > 0) {
         setRows((prev) =>
           prev.map((row) =>
@@ -2494,7 +2689,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       scoreSubmissionRequestId.current = null;
       setSuccess(
-        isVsPerformanceTarget && data.storage === "hq"
+        isFrontlineTarget && data.storage === "hq"
+          ? t("frontlineSubmitSuccess", { count: data.submitted ?? 0 })
+          : isVsPerformanceTarget && data.storage === "hq"
           ? `${t("vsSubmitSuccess", { count: data.submitted ?? 0 })}${data.syncStatus === "pending" ? ` ${t("vsSyncPending")}` : ""}`
           : scoreTargetMeta?.showDepositSlipColumns
           ? formatDepositSlipSubmitSuccessMessage(t, data)
@@ -2613,6 +2810,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       setReprocessDialogOpen(false);
       clearDraft();
       setRows([]);
+      setServerFrontlineIssues([]);
       // Seed the live-status ref so SSE review after queued triggers a refetch
       // (without this, a reconnect snapshot of review alone is ignored).
       liveJobStatusRef.current = "queued";
@@ -3214,11 +3412,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 ]}
               />
             )}
-            {scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
+            {scoreTargetMeta?.usesHqEvents &&
+            (events.length === 0 || isFrontlineTarget) ? (
               <button
                 type="button"
-                className="mt-2 text-xs text-hq-accent hover:underline"
+                disabled={creatingHqEvent}
+                className="mt-2 text-xs text-hq-accent hover:underline disabled:opacity-50"
                 onClick={() => {
+                  if (creatingHqEvent) return;
+                  setCreatingHqEvent(true);
                   void (async () => {
                     const label = formatEventOptionLabel({
                       eventTypeLabel,
@@ -3226,31 +3428,64 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       locale,
                       timezoneId,
                     });
-                    const res = await fetch("/api/hq-events", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        scoreTarget: scoreTargetMeta.id,
-                        name: label,
-                        startDate: recordedDate,
-                        endDate: recordedDate,
-                      }),
-                    });
-                    if (res.ok) {
+                    try {
+                      const res = await fetch("/api/hq-events", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          scoreTarget: scoreTargetMeta.id,
+                          name: label,
+                          startDate: recordedDate,
+                          endDate: recordedDate,
+                        }),
+                      });
+                      if (!res.ok) {
+                        await res.json().catch(() => null);
+                        setActionError(t("eventCreateFailed"));
+                        setEventPickerError(t("eventCreateFailed"));
+                        return;
+                      }
                       const data = (await res.json()) as {
                         event?: { id: string };
                       };
-                      if (data.event?.id) {
-                        markDraftDirty();
-                        setHqEventId(data.event.id);
-                        setEvents([{ id: data.event.id, label }]);
+                      if (!data.event?.id) {
+                        setActionError(t("eventCreateFailed"));
+                        setEventPickerError(t("eventCreateFailed"));
+                        return;
                       }
+                      markDraftDirty();
+                      setEventPickerError(null);
+                      setHqEventId(data.event.id);
+                      setEvents((prev) => [
+                        ...prev,
+                        { id: data.event!.id, label },
+                      ]);
+                    } catch {
+                      setActionError(t("eventCreateFailed"));
+                      setEventPickerError(t("eventCreateFailed"));
+                    } finally {
+                      setCreatingHqEvent(false);
                     }
                   })();
                 }}
               >
                 {t("createHqEvent")}
               </button>
+            ) : null}
+            {eventPickerError ? (
+              <p className="mt-1 text-xs text-hq-danger">
+                {eventPickerError}{" "}
+                <button
+                  type="button"
+                  className="text-hq-accent underline"
+                  onClick={() => {
+                    setEventPickerError(null);
+                    setEventListRetryNonce((nonce) => nonce + 1);
+                  }}
+                >
+                  {tErr("tryAgain")}
+                </button>
+              </p>
             ) : null}
           </label>
         ) : null}
@@ -3892,6 +4127,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         stickyTop={issueNavStickyTop}
       />
 
+      {isFrontlineTarget ? (
+        <p className="text-sm text-hq-fg-muted">{t("frontlineCaptureHint")}</p>
+      ) : null}
+
       <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-hq-border">
         <table className="w-full min-w-full text-sm">
           <thead className="bg-hq-surface text-left text-hq-fg-muted">
@@ -3907,6 +4146,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <th className="min-w-[8rem] px-3 py-3 sm:min-w-[11rem]">
                 {t("colMember")}
               </th>
+              {scoreTargetMeta?.showStageColumn ? (
+                <th className="px-3 py-3">{t("colStage")}</th>
+              ) : null}
               {scoreTargetMeta?.showScoreColumn !== false ? (
                 <th className="px-3 py-3">
                   {isAllianceKillsTarget ? t("colKills") : t("colScore")}
@@ -3926,6 +4168,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               const isScoreConflict = liveScoreConflictIds.has(row.id);
               const isScoreGhost = scoreGhostDiscardRowIds.has(row.id);
               const isScoreGhostKeeper = scoreGhostKeeperRowIds.has(row.id);
+              const frontlineIssues = isFrontlineTarget
+                ? frontlineClientRowIssues(row)
+                : [];
               const rowCanVideoPreview =
                 hasSourceVideo &&
                 previewSeekSecondsForFrame(row.frameIndex, frameTimestamps) !=
@@ -3974,18 +4219,42 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         {reviewLeaderboardRankById?.get(row.id) ?? "—"}
                       </span>
                     ) : (
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={row.rank ?? ""}
-                        onChange={(e) => {
-                          updateRow(row.id, {
-                            rank: parsePodiumRankInput(e.target.value),
-                          });
-                        }}
-                        aria-label={t("colRank")}
-                        className="w-12 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5"
-                      />
+                      <>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            isFrontlineTarget
+                              ? row.frontlineRankRaw ??
+                                (row.rank != null ? String(row.rank) : "")
+                              : row.rank ?? ""
+                          }
+                          onChange={(e) => {
+                            updateRow(
+                              row.id,
+                              isFrontlineTarget
+                                ? {
+                                    frontlineRankRaw: e.target.value,
+                                    rank: frontlinePositiveInteger(
+                                      e.target.value,
+                                    ),
+                                  }
+                                : {
+                                    rank: parsePodiumRankInput(
+                                      e.target.value,
+                                    ),
+                                  },
+                            );
+                          }}
+                          aria-label={t("colRank")}
+                          className="w-12 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5"
+                        />
+                        {frontlineIssues.includes("rank") ? (
+                          <p className="mt-1 text-xs text-hq-danger">
+                            {t("frontlineInvalidRank")}
+                          </p>
+                        ) : null}
+                      </>
                     )}
                   </td>
                 ) : null}
@@ -3995,7 +4264,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   </div>
                   {isScoreConflict ? (
                     <p className="mt-1 text-xs text-hq-warning">
-                      {t("scoreConflictRow")}
+                      {isFrontlineTarget
+                        ? t("frontlineResultConflict")
+                        : t("scoreConflictRow")}
                     </p>
                   ) : null}
                   {isDuplicateMember ? (
@@ -4044,7 +4315,46 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       selectedMembers: rows,
                     })}
                   />
+                  {isFrontlineTarget &&
+                  frontlineServerIssueRowIds.has(row.id) ? (
+                    <p className="mt-1 text-xs text-hq-danger">
+                      {t("frontlineInvalidRows")}
+                    </p>
+                  ) : null}
                 </td>
+                {scoreTargetMeta?.showStageColumn ? (
+                  <td className="px-3 py-3 align-top">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={
+                        row.frontlineStageRaw ??
+                        (row.frontlineStage != null
+                          ? String(row.frontlineStage)
+                          : "")
+                      }
+                      onChange={(e) => {
+                        updateRow(row.id, {
+                          frontlineStageRaw: e.target.value,
+                          frontlineStage: frontlinePositiveInteger(
+                            e.target.value,
+                          ),
+                        });
+                      }}
+                      aria-label={t("colStage")}
+                      className={`w-16 rounded-lg border bg-hq-canvas px-2 py-1.5 ${
+                        frontlineIssues.includes("stage")
+                          ? "border-hq-danger"
+                          : "border-hq-border"
+                      }`}
+                    />
+                    {frontlineIssues.includes("stage") ? (
+                      <p className="mt-1 text-xs text-hq-danger">
+                        {t("frontlineInvalidStage")}
+                      </p>
+                    ) : null}
+                  </td>
+                ) : null}
                 {scoreTargetMeta?.showScoreColumn !== false ? (
                 <td className="px-3 py-3 align-top">
                   {(() => {
@@ -4079,6 +4389,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         <input
                           type="text"
                           inputMode="numeric"
+                          aria-label={t("colScore")}
                           value={row.score ?? ""}
                           onChange={(e) =>
                             updateRow(row.id, { score: e.target.value })
@@ -4091,6 +4402,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                                 : "border-hq-border"
                           }`}
                         />
+                        {frontlineIssues.includes("score") ? (
+                          <p className="mt-1 text-xs text-hq-danger">
+                            {t("frontlineInvalidScore")}
+                          </p>
+                        ) : null}
                         {vsDay6DerivedNote ? (
                           <p className="mt-1 text-xs text-hq-fg-muted">
                             {vsDay6DerivedNote}
@@ -4219,7 +4535,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               ? t("saveRoster", { count: activeRows.length })
               : scoreTargetMeta?.showDepositSlipColumns
                 ? t("saveDepositSlips", { count: activeRows.length })
-                : isEventView
+                : isEventView && !(isFrontlineTarget && nativeFrontlineSubmit)
                   ? t("updateScores", { count: activeRows.length })
                   : isAllianceKillsTarget
                     ? t("saveKills", { count: activeRows.length })

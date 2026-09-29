@@ -1150,7 +1150,9 @@ async function resolveTargetLink(input: {
     if (link.discordUserId !== input.discordUserId) return null;
     return link;
   }
-  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     // Users who linked a commander on the web, then `/link`ed Discord, should
     // not need a second name+UID pass on Discord.
@@ -1158,7 +1160,9 @@ async function resolveTargetLink(input: {
       discordUserId: input.discordUserId,
       allianceId: input.allianceId,
     });
-    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
   }
   if (links.length === 0) return null;
   if (links.length === 1) return links[0]!;
@@ -1194,7 +1198,9 @@ export async function handleDiscordVrSlash(input: {
       await audit(input.allianceId, input.discordUserId, "vr", input, result);
       return result;
     }
-    const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
     const result: VrCommandResult = {
       reply: translate("vr.pickCharacter"),
       pending: { kind: "pick_character" as const, linkIds: links.map((l) => l.id) },
@@ -1332,6 +1338,7 @@ export async function handleDiscordWeeklyPass(input: {
     const links = await listDiscordLinksForUser(
       input.allianceId,
       input.discordUserId,
+      { rematerializeFormer: true },
     );
     const pending: VrPendingState = {
       kind: "weekly_pass_pick_character",

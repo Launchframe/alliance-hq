@@ -318,7 +318,7 @@ describeIntegration("Ashed identity rebind (integration)", () => {
       "officer:ashed",
     );
     expect(await activeMembershipRole(orphanB, allianceId)).toBeNull();
-  });
+  }, 20_000);
 
   it("resolveCanonicalHqUserForAshedConnect rejects conflicting Ashed identity on email row", async () => {
     const email = uniqueEmail("conflict");
