@@ -14,6 +14,7 @@ vi.mock("@/lib/members/commander-donation.server", () => ({
 import {
   unlinkCommanderDiscordLinks,
   unlinkCommanderHqAccount,
+  unlinkOwnCommanderClaim,
 } from "./unlink.server";
 
 const dbState: {
@@ -48,7 +49,8 @@ vi.mock("@/lib/db", () => ({
     alliances: { id: {}, ownerMemberExternalId: {} },
     hqUsers: { id: {}, primaryGameUid: {}, updatedAt: {} },
     commanderAllianceMemberships: { commanderId: {}, allianceId: {}, ashedMemberId: {} },
-    discordMemberLinks: { id: {}, allianceId: {}, ashedMemberId: {} },
+    discordMemberLinks: { id: {}, allianceId: {}, ashedMemberId: {}, discordUserId: {} },
+    discordHqLinks: { hqUserId: {}, discordUserId: {} },
   },
 }));
 
@@ -123,6 +125,50 @@ describe("unlinkCommanderDiscordLinks", () => {
       expect.objectContaining({
         action: "member_link.discord_unlinked",
         metadata: expect.objectContaining({ ashedMemberId: "m-1", removed: 2 }),
+      }),
+    );
+  });
+});
+
+describe("unlinkOwnCommanderClaim", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbState.limitResults = [];
+    dbState.returningResults = [];
+  });
+
+  it("returns not_linked when this HQ user does not own the seat", async () => {
+    dbState.limitResults = [[]];
+    const result = await unlinkOwnCommanderClaim({
+      ...baseInput,
+      hqUserId: "player-1",
+    });
+    expect(result).toEqual({ ok: false, reason: "not_linked" });
+    expect(audit.writeAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("unlinks the owner's HQ claim and their Discord seat when connected", async () => {
+    dbState.limitResults = [
+      [{ id: "link-1", hqUserId: "player-1" }],
+      [{ id: "link-1", hqUserId: "player-1", gameUid: "1001369694001203" }],
+      [{ commanderId: "cmd-1" }],
+      [{ discordUserId: "d-1" }],
+    ];
+    const result = await unlinkOwnCommanderClaim({
+      sessionId: "sess-1",
+      hqUserId: "player-1",
+      allianceId: "a1",
+      ashedMemberId: "m-1",
+    });
+    expect(result).toEqual({ ok: true, target: "hq", removed: 1 });
+    expect(revokeActiveTipLinksForCommander).toHaveBeenCalledWith({
+      allianceId: "a1",
+      ashedMemberId: "m-1",
+    });
+    expect(audit.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "member_link.hq_unlinked",
+        hqUserId: "player-1",
       }),
     );
   });

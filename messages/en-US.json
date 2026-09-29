@@ -2263,7 +2263,7 @@
       "substring": "Roster name overlap",
       "fuzzy": "Similar roster name"
     },
-    "targetAlreadyClaimed": "That roster member is already linked to another HQ account.",
+    "targetAlreadyClaimed": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
     "targetNotFound": "That roster member could not be found.",
     "pendingCount": "{count, plural, one {# to review} other {# to review}}",
     "ownerOnlyGate": "Only the alliance owner can review onboarding links for this alliance.",
@@ -2316,7 +2316,7 @@
     "claimConflictReason": {
       "label": "Conflict type",
       "name_collision": "Another commander is already linked under this in-game name",
-      "commander_taken": "This commander is already linked to another account",
+      "commander_taken": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
       "discord_hq_unlinked": "This UID is linked on Discord but not yet tied to an HQ account",
       "server_mismatch": "The UID belongs to a different game server than this alliance",
       "target_mismatch": "The UID name does not match the invited commander"
@@ -2946,7 +2946,18 @@
     "discordUnlinkFailed": "Could not unlink the Discord bot.",
     "discordUnlinkLastMethod": "Add another sign-in method before unlinking Discord.",
     "discordLinkErrorNoOAuth": "Complete Discord sign-in to finish linking.",
-    "discordLinkErrorGeneric": "Could not link the Discord bot. Try again."
+    "discordLinkErrorGeneric": "Could not link the Discord bot. Try again.",
+    "linkedCommanders": {
+      "title": "My Linked Commanders",
+      "body": "Unlink a commander so someone else can claim it after an in-game account transfer. You can also ask an R4 for help.",
+      "linkAnother": "Link another commander",
+      "unlink": "Unlink",
+      "unlinking": "Unlinking…",
+      "unlinkConfirm": "Unlink this Commander?",
+      "cancel": "Cancel",
+      "empty": "You have not linked a commander yet.",
+      "unlinkFailed": "Could not unlink this Commander."
+    }
   },
   "profile": {
     "title": "Profile",
@@ -5576,8 +5587,8 @@
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "linked": "Linked to {name}. Welcome to the alliance!",
     "updated": "Updated your link for {name}.",
-    "memberTaken": "That in-game member is already linked to a different account.",
-    "memberTakenEscalated": "That UID is already linked to another account. Your alliance officers have been notified — try a different account or contact support.",
+    "memberTaken": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
+    "memberTakenEscalated": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
     "crossLayerDiscordFirst": "That player UID is already linked on Discord. If that's you, run /link in Discord to connect this HQ account, then try again. Your alliance officers have been notified to help if you're stuck.",
     "fuzzyPrompt": "We verified {gameName} but couldn't find an exact roster match. Pick your member:",
     "rosterMiss": "We checked the {tag} roster and couldn't match that name to anyone. Try Start over for name help, or ask an officer for help.",
@@ -5678,7 +5689,7 @@
     "serverNumberInvalid": "Enter a valid server number (1–9999).",
     "submitServer": "Continue with this server",
     "backToForm": "Back to name and UID",
-    "memberTakenBody": "That UID is already linked to another HQ account. Your alliance officers have been notified — try a different account or contact support.",
+    "memberTakenBody": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
     "claimTitle": "Confirm your commander",
     "claimSubtitle": "Your alliance invited you to claim {name}. Enter your player UID to confirm it's you.",
     "claimSubmit": "Confirm & link",
@@ -5781,7 +5792,7 @@
       "updated": "Updated your commander link for **{name}**.",
       "replaced": "Switched your commander link to **{name}**.",
       "capReached": "You already have the maximum number of linked commanders ({max}). Use `/unlink` first or `/link-commander replace:true` to switch.",
-      "memberTaken": "That in-game commander is already linked to a different Discord account.",
+      "memberTaken": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
       "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your commander:",
       "rosterMiss": "We checked the **{tag}** roster and couldn't match that commander to anyone. Tap **Start over** to try again, or ask an officer for help.",
       "rosterMissGeneric": "We couldn't match that commander to anyone on the roster. Tap **Start over** to try again, or ask an officer for help.",
@@ -6446,7 +6457,7 @@
         },
         "memberTaken": {
           "title": "Commander already linked",
-          "body": "That in-game character is linked to a different Discord account. The bot cannot transfer links — contact your alliance leadership if this was a mistake."
+          "body": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help."
         },
         "notOfficer": {
           "title": "Officer command denied",

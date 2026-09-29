@@ -207,6 +207,17 @@ export async function syncAllianceMembersFromAshed(input: {
     synced += 1;
   }
 
+  try {
+    const { rematerializeFormerSeatLinksForAlliance } = await import(
+      "@/lib/members/uid-seat-handoff.server"
+    );
+    await rematerializeFormerSeatLinksForAlliance(input.hqAllianceId);
+  } catch {
+    console.error("[roster-sync] former-seat rematerialize failed", {
+      allianceId: input.hqAllianceId,
+    });
+  }
+
   await syncCurrentRankPoolGenerations(input.hqAllianceId);
 
   return { synced, commanderConflicts };
