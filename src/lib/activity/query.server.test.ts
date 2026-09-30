@@ -241,6 +241,8 @@ describe("queryActivityPage", () => {
     );
     const { sql, params } = renderedWhere();
     expect(sql).toContain("original_hq_user_id");
+    expect(sql).toContain("^[0-9]{12,16}$");
+    expect(sql).toContain("position('@'");
     expect(params).toContain("hq:actor-9");
     expect(params).toContain("discord");
     expect(params).toContain("change");
@@ -476,6 +478,25 @@ describe("queryActivityFilterOptions", () => {
     expect(result.options.actors).toEqual([
       { value: "hq:actor-2", label: null },
     ]);
+  });
+
+  it("drops actor suggestions whose keys are a game UID or an email", async () => {
+    const uid = "1234567890123456";
+    state.rows = [
+      { value: `hq:${uid}`, label: "Cmdr Actor" },
+      { value: "discord:user@e2e.test", label: "Discord" },
+      { value: "hq:actor-3", label: "Kept" },
+    ];
+    const result = await queryActivityFilterOptions(
+      OFFICER,
+      "alliance",
+      pageQuery({ view: "filters" }),
+    );
+    expect(result.options.actors).toEqual([
+      { value: "hq:actor-3", label: "Kept" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain(uid);
+    expect(JSON.stringify(result)).not.toContain("user@e2e.test");
   });
 
   it("binds q against sanitized SQL expressions, not raw columns", async () => {

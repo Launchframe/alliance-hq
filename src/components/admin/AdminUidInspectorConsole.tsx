@@ -106,7 +106,11 @@ export function AdminUidInspectorConsole() {
         if (body?.error === "invalid_uid") {
           throw new Error(t("invalidUid"));
         }
-        throw new Error(await res.text());
+        throw new Error(
+          typeof body?.error === "string" && body.error
+            ? body.error
+            : t("loadFailed"),
+        );
       }
       const data = (await res.json()) as AdminUidInspectorResult;
       setResult(data);

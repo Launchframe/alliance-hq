@@ -16,6 +16,7 @@ import { activityCatalog, type ActivityEventKey } from "./catalog.shared";
 import {
   projectActivityRecord,
   safeActivityServerNumber,
+  safeActorKey,
   safeVisibleName,
 } from "./projection.server";
 
@@ -250,6 +251,32 @@ describe("projectActivityRecord", () => {
     );
     expect(discord.actor!.key).toBe("discord:discord-user-9");
     expect(discord.actor!.unlinkedHq).toBe(true);
+  });
+
+  it("drops actor keys that are a game UID or an email", () => {
+    const uidRow = projectActivityRecord(
+      makeRow({ originalHqUserId: SECRET_UID }),
+      PRINCIPAL,
+      "alliance",
+    );
+    expect(uidRow.actor!.key).toBeNull();
+    expect(JSON.stringify(uidRow.actor)).not.toContain(SECRET_UID);
+
+    const emailRow = projectActivityRecord(
+      makeRow({
+        actorKind: "discord",
+        originalHqUserId: null,
+        originalDiscordUserId: SECRET_EMAIL,
+      }),
+      PRINCIPAL,
+      "alliance",
+    );
+    expect(emailRow.actor!.key).toBeNull();
+    expect(JSON.stringify(emailRow)).not.toContain(SECRET_EMAIL);
+
+    const snowflake = "123456789012345678";
+    expect(safeActorKey("discord", snowflake)).toBe(`discord:${snowflake}`);
+    expect(safeActorKey("hq", `  ${SECRET_UID}  `)).toBeNull();
   });
 
   it("rejects rows with sensitive extra payload fields", () => {

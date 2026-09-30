@@ -352,21 +352,25 @@ export async function resolveAdminUidInspectorRequest(input: {
     });
   }
 
-  await writeAuditLog({
-    sessionId: input.sessionId,
-    hqUserId: input.hqUserId,
-    action: "admin_uid_inspector_lookup",
-    resourceType: "game_uid",
-    metadata: {
-      gameUidLast4: gameUid.slice(-4),
-      allianceIdForRoster: rosterAllianceId ?? null,
-      bindingCounts: {
-        hq: hqMemberLinks.length,
-        discord: discordMemberLinks.length,
-        rosterRequests: rosterLinkRequests.length,
+  try {
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      action: "admin_uid_inspector_lookup",
+      resourceType: "game_uid",
+      metadata: {
+        gameUidLast4: gameUid.slice(-4),
+        allianceIdForRoster: rosterAllianceId ?? null,
+        bindingCounts: {
+          hq: hqMemberLinks.length,
+          discord: discordMemberLinks.length,
+          rosterRequests: rosterLinkRequests.length,
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    console.error("[admin-uid-inspector] audit log write failed", err);
+  }
 
   return {
     ok: true,
