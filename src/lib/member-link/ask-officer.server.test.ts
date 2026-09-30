@@ -13,7 +13,7 @@ vi.mock("@/lib/events/admin-alerts", () => ({
   emitAdminAlert,
 }));
 
-vi.mock("@/lib/lastwar/player-lookup", () => ({
+vi.mock("@/lib/lastwar/player-lookup.server", () => ({
   lookupPlayerByUid,
 }));
 

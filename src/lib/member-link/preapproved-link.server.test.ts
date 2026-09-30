@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
+import {
+  honorLookupFromDiscordClaimInvite,
+  tryPreApprovedMemberLink,
+} from "@/lib/member-link/preapproved-link.server";
 import { surfaceClaimConflict } from "@/lib/member-link/claim.server";
 import { getHqMemberLinkForUser, linkHqMember } from "@/lib/member-link/repository.server";
 import { findAcceptedClaimInviteForUser } from "@/lib/native-alliance/invites";
 import { getDb } from "@/lib/db";
-import { getLinkedMemberIds } from "@/lib/vr/repository";
+import { getDiscordHqLink, getLinkedMemberIds } from "@/lib/vr/repository";
 
 vi.mock("@/lib/member-link/claim.server", () => ({
   surfaceClaimConflict: vi.fn(),
@@ -34,6 +37,7 @@ vi.mock("@/lib/lastwar/sync-member-game-level.server", () => ({
 vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds: vi.fn(),
   getAllianceById: vi.fn().mockResolvedValue({ tag: "LFgo" }),
+  getDiscordHqLink: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -214,5 +218,122 @@ describe("tryPreApprovedMemberLink", () => {
       }),
     );
     expect(linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("honor-links via claim invite when Last War is unreachable", async () => {
+    vi.mocked(getHqMemberLinkForUser).mockResolvedValue(null as never);
+    vi.mocked(findAcceptedClaimInviteForUser).mockResolvedValue({
+      inviteId: "inv-1",
+      targetAshedMemberId: "m-claim",
+    });
+    const memberRows = [
+      {
+        ashedMemberId: "m-claim",
+        currentName: "Freddy",
+        previousNamesJson: [],
+        status: "active",
+      },
+    ];
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            const rows = Promise.resolve(memberRows);
+            return Object.assign(rows, {
+              limit: vi.fn().mockResolvedValue(memberRows),
+            });
+          }),
+        }),
+      }),
+    } as never);
+    vi.mocked(linkHqMember).mockResolvedValue({
+      ok: true,
+      mode: "created",
+      link: { id: "hq-link-1" } as never,
+    });
+
+    await expect(
+      tryPreApprovedMemberLink({
+        allianceId: "alliance-1",
+        hqUserId: "hq-1",
+        gameUid: "123456789012",
+        lookup,
+        honorSystem: true,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      target: {
+        ashedMemberId: "m-claim",
+        memberDisplayName: "Freddy",
+        gameUid: "123456789012",
+        source: "claim_invite",
+      },
+    });
+    expect(linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "m-claim",
+        memberDisplayName: "Freddy",
+        gameUid: "123456789012",
+      }),
+    );
+    expect(surfaceClaimConflict).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "lookup_honor_system" }),
+    );
+  });
+});
+
+describe("honorLookupFromDiscordClaimInvite", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the invite-bound commander name when Discord HQ is linked", async () => {
+    vi.mocked(getDiscordHqLink).mockResolvedValue({
+      hqUserId: "hq-1",
+    } as never);
+    vi.mocked(findAcceptedClaimInviteForUser).mockResolvedValue({
+      inviteId: "inv-1",
+      targetAshedMemberId: "m-claim",
+    });
+    const memberRows = [
+      {
+        ashedMemberId: "m-claim",
+        currentName: "Honor Name",
+        previousNamesJson: [],
+        status: "active",
+      },
+    ];
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            const rows = Promise.resolve(memberRows);
+            return Object.assign(rows, {
+              limit: vi.fn().mockResolvedValue(memberRows),
+            });
+          }),
+        }),
+      }),
+    } as never);
+
+    await expect(
+      honorLookupFromDiscordClaimInvite({
+        allianceId: "alliance-1",
+        discordUserId: "discord-1",
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      gameUserName: "Honor Name",
+    });
+  });
+
+  it("returns null when there is no Discord HQ link", async () => {
+    vi.mocked(getDiscordHqLink).mockResolvedValue(null as never);
+    await expect(
+      honorLookupFromDiscordClaimInvite({
+        allianceId: "alliance-1",
+        discordUserId: "discord-1",
+      }),
+    ).resolves.toBeNull();
   });
 });

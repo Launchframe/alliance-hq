@@ -2,7 +2,7 @@ import "server-only";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitMemberLinkClaimConflictAlert } from "@/lib/events/admin-alerts";
-import { isValidGameUid, isClaimInviteMirrorDevUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { isValidGameUid, isClaimInviteMirrorDevUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
   claimTargetMatchesLookupName,
@@ -70,7 +70,9 @@ export type ClaimConflictReason =
   | "commander_taken"
   /** @deprecated Legacy help rows only — claim confirm no longer emits this. */
   | "server_mismatch"
-  | "target_mismatch";
+  | "target_mismatch"
+  /** Linked during Last War outage using the invite-bound commander name. */
+  | "lookup_honor_system";
 
 /**
  * Surface a claim conflict to alliance officers two ways: a live admin alert
@@ -158,7 +160,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
   }
 
   const lookup = await lookupPlayerByUid(uid);
-  if (!lookup.ok) {
+  if (!lookup.ok && lookup.reason !== "request_failed") {
     return {
       outcome: "lookup_error",
       message: lookup.message,
@@ -169,20 +171,28 @@ export async function runWebMemberLinkClaimConfirm(input: {
   const alliance = await getAllianceById(input.allianceId);
   const allianceTag = alliance?.tag ?? "alliance";
 
-  const lookupGameUserName = isClaimInviteMirrorDevUid(uid)
+  const honorSystem = !lookup.ok;
+  const lookupGameUserName = honorSystem
     ? target.commanderName
-    : lookup.gameUserName;
+    : isClaimInviteMirrorDevUid(uid)
+      ? target.commanderName
+      : lookup.gameUserName;
 
-  const nameMatches = claimTargetMatchesLookupName(target, lookupGameUserName);
-  const collisionName = await findClaimedNameCollision({
-    allianceId: input.allianceId,
-    gameUserName: lookupGameUserName,
-    targetAshedMemberId: target.ashedMemberId,
-  });
+  const nameMatches = honorSystem
+    ? true
+    : claimTargetMatchesLookupName(target, lookupGameUserName);
+  const collisionName = honorSystem
+    ? null
+    : await findClaimedNameCollision({
+        allianceId: input.allianceId,
+        gameUserName: lookupGameUserName,
+        targetAshedMemberId: target.ashedMemberId,
+      });
 
   // Name mismatches are non-blocking: link the claim target, keep the roster
   // name for now, and queue officer review to pick roster vs Last War name.
   // Only a UID already claimed by another HQ user blocks completion.
+  // Honor system (Last War unreachable): trust the officer-bound commander name.
   const linked = await linkHqMember({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
@@ -212,7 +222,30 @@ export async function runWebMemberLinkClaimConfirm(input: {
     };
   }
 
-  if (nameMatches && !collisionName) {
+  if (honorSystem) {
+    await surfaceClaimConflict({
+      allianceId: input.allianceId,
+      allianceTag,
+      hqUserId: input.hqUserId,
+      handle,
+      commanderName: target.commanderName,
+      gameUserName: lookupGameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
+      reason: "lookup_honor_system",
+    });
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      action: "member_link.claim_confirmed",
+      metadata: {
+        ashedMemberId: target.ashedMemberId,
+        honorSystem: true,
+        reason: "lastwar_lookup_request_failed",
+      },
+    });
+  } else if (nameMatches && !collisionName) {
     await reconcileAllianceMemberForRosterLink({
       allianceId: input.allianceId,
       ashedMemberId: target.ashedMemberId,
@@ -256,7 +289,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
   await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
   await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, uid);
 
-  if (lookup.gameUserLevel != null) {
+  if (!honorSystem && lookup.ok && lookup.gameUserLevel != null) {
     try {
       await syncAllianceMemberGameLevelFromLastWar({
         allianceId: input.allianceId,
@@ -268,17 +301,21 @@ export async function runWebMemberLinkClaimConfirm(input: {
     }
   }
 
-  await writeAuditLog({
-    sessionId: input.sessionId,
-    hqUserId: input.hqUserId,
-    allianceId: input.allianceId,
-    action: "member_link.claim_confirmed",
-    metadata: { ashedMemberId: target.ashedMemberId },
-  });
+  if (!honorSystem) {
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      action: "member_link.claim_confirmed",
+      metadata: { ashedMemberId: target.ashedMemberId },
+    });
+  }
 
   return {
     outcome: "linked",
-    message: translate("link.linked", { name: lookupGameUserName }),
+    message: honorSystem
+      ? translate("claimLookupHonorLinked", { name: lookupGameUserName })
+      : translate("link.linked", { name: lookupGameUserName }),
     pending: null,
     linkedMemberName: lookupGameUserName,
   };

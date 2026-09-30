@@ -2257,7 +2257,8 @@
       "commander_taken": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
       "discord_hq_unlinked": "Este UID está vinculado no Discord, mas ainda não foi associado a uma conta HQ",
       "server_mismatch": "O UID pertence a um servidor de jogo diferente desta aliança",
-      "target_mismatch": "O nome do UID não corresponde ao comandante convidado"
+      "target_mismatch": "O nome do UID não corresponde ao comandante convidado",
+      "lookup_honor_system": "Vinculado durante uma indisponibilidade do Last War usando o nome do comandante convidado (não verificado ao vivo)"
     },
     "nameReview": {
       "title": "Escolha o nome do comandante a manter",
@@ -5560,9 +5561,11 @@
     "confirmServerMissing": "Não conseguimos ler seu servidor estadual no Last War. Informe o número do servidor estadual da sua aliança.",
     "confirmServerMismatch": "O Last War mostra o servidor {lookupServer}, mas esta aliança está definida como {allianceServer}. Informe o número correto do servidor estadual.",
     "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois.",
+    "lookupUnavailableAskClaimInvite": "Estamos com dificuldade para localizar sua conta do Last War. Peça a um R4 um convite de reivindicação de comandante, ou tente novamente mais tarde.",
     "claimUidInvalid": "Informe o UID de 12 a 16 dígitos do seu perfil do Last War.",
     "claimSelfServiceBlocked": "Este convite está ligado a um comandante específico. Digite seu UID do jogador na tela de reivindicação para concluir o vínculo.",
     "claimConflict": "Não foi possível concluir esta reivindicação automaticamente. Os oficiais da sua aliança foram avisados para confirmar seu comandante.",
+    "claimLookupHonorLinked": "Vinculamos {name} com seu convite de reivindicação. A verificação do Last War estava indisponível — oficiais foram avisados para confirmar.",
     "selfServiceLinkedFootnote": "Your Last War profile was verified and your commander is now linked.",
     "rosterFull": "Your alliance is full. Last War verified {gameName}, but we could not find {gameName} in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
   },
@@ -5730,6 +5733,7 @@
       "updated": "Vínculo do comandante atualizado para **{name}**.",
       "replaced": "Vínculo trocado para o comandante **{name}**.",
       "capReached": "Você já atingiu o máximo de comandantes vinculados ({max}). Use `/unlink` ou `/link-commander replace:true`.",
+      "lookupUnavailableAskClaimInvite": "Estamos com dificuldade para localizar sua conta do Last War. Peça a um R4 um convite de reivindicação de comandante, ou tente novamente mais tarde.",
       "memberTaken": "Este comandante já está vinculado a outra conta. Peça ao dono da conta para desvinculá-lo, ou peça ajuda a um R4.",
       "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu comandante:",
       "rosterMiss": "Verificamos o roster **{tag}** e não encontramos esse comandante. Toque em **Começar de novo** para tentar outra vez ou peça ajuda a um oficial.",
