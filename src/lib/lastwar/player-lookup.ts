@@ -20,15 +20,15 @@ export type LastWarPlayerLookupResponse = {
   code: number;
   message?: string;
   data?: LastWarPlayerPayload;
-  /** Current Last War platform API (`redemptionCode.php?method=login`). */
+  /** Accounts CDN UID login (`POST …/redemptionCode/login`). */
   result?: LastWarPlayerPayload;
 };
 
 type LastWarPlayerPayload = {
   gameUserName?: string;
   userName?: string;
-  server?: string;
-  gameUserLevel?: string;
+  server?: string | number;
+  gameUserLevel?: string | number;
   headPic?: string;
   avatar?: string;
   picUrl?: string;
@@ -167,14 +167,14 @@ export function parseLastWarLookupResponse(
   };
 }
 
+/** Official store/gift-center UID login (accounts CDN). Override with LASTWAR_PLAYER_LOOKUP_URL. */
 const DEFAULT_LASTWAR_PLAYER_LOOKUP_URL =
-  "https://lastwar-platform.lastwargame.com/redemptionCode.php?method=login";
+  "https://accounts-cdn-api.lastwar.com/api/platform/redemptionCode/login";
 
-export function buildLastWarPlayerLookupUrl(uid: string): string {
-  const base =
-    process.env.LASTWAR_PLAYER_LOOKUP_URL?.trim() ?? DEFAULT_LASTWAR_PLAYER_LOOKUP_URL;
-  const separator = base.includes("?") ? "&" : "?";
-  return `${base}${separator}uid=${encodeURIComponent(uid.trim())}`;
+export function buildLastWarPlayerLookupUrl(_uid?: string): string {
+  return (
+    process.env.LASTWAR_PLAYER_LOOKUP_URL?.trim() ?? DEFAULT_LASTWAR_PLAYER_LOOKUP_URL
+  );
 }
 
 export async function lookupPlayerByUid(
@@ -196,13 +196,18 @@ export async function lookupPlayerByUid(
     }
   }
 
-  const url = buildLastWarPlayerLookupUrl(uid);
+  const trimmedUid = uid.trim();
+  const url = buildLastWarPlayerLookupUrl(trimmedUid);
 
   try {
     const res = await fetchImpl(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      // Bound outbound wait so a hung lastwar-platform cannot stall HQ routes.
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json;charset=utf-8",
+      },
+      body: JSON.stringify({ uid: trimmedUid }),
+      // Bound outbound wait so a hung accounts CDN cannot stall HQ routes.
       signal: AbortSignal.timeout(8_000),
     });
     let body: LastWarPlayerLookupResponse;
@@ -224,7 +229,7 @@ export async function lookupPlayerByUid(
         message: body.message ?? `Player lookup failed (HTTP ${res.status}).`,
       };
     }
-    return parseLastWarLookupResponse(body, uid.trim());
+    return parseLastWarLookupResponse(body, trimmedUid);
   } catch {
     return {
       ok: false,
