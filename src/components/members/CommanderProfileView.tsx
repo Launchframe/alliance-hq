@@ -39,7 +39,6 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
   const locale = useLocale();
   const tInvites = useTranslations("team.invites");
   const tNotes = useTranslations("notes");
-  const locale = useLocale();
   const { member, alliance } = initial;
   const membersListHref = useSyncExternalStore(
     () => () => {},
