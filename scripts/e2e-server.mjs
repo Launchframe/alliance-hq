@@ -121,6 +121,8 @@ function buildEnv(dbUrl) {
     AUTH_SECRET: authSecret(),
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
+    HQ_E2E_ISOLATED: "1",
+    __NEXT_PROCESSED_ENV: "true",
     ASHED_API_BASE_ORIGIN:
       process.env.ASHED_API_BASE_ORIGIN?.trim() || "http://127.0.0.1:14789",
     NEXT_PUBLIC_APP_URL: appOrigin,
