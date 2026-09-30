@@ -79,8 +79,21 @@ describe("scoped workspace navigation", () => {
     expect(readWorkspaceState(new URLSearchParams("view=teams"), noteWorkspaceStateSchema.parse({}), scope).view).toBe("teams");
     expect(noteWorkspaceStateSchema.parse({ view: "workQueue" }).view).toBe("workQueue");
     expect(readWorkspaceState(new URLSearchParams("view=workQueue"), noteWorkspaceStateSchema.parse({}), scope).view).toBe("workQueue");
+    expect(noteWorkspaceStateSchema.parse({ view: "chatLogs" }).view).toBe("chatLogs");
+    expect(readWorkspaceState(new URLSearchParams("view=chatLogs"), noteWorkspaceStateSchema.parse({}), scope).view).toBe("chatLogs");
     expect(noteWorkspaceStateSchema.parse({}).view).toBe("notebook");
     expect(noteWorkspaceStateSchema.safeParse({ view: "bogus" }).success).toBe(false);
+  });
+  it("canonicalizes the legacy imports view while preserving the selected chat log", () => {
+    expect(readWorkspaceState(new URLSearchParams("view=imports"), noteWorkspaceStateSchema.parse({}), scope).view).toBe("chatLogs");
+    expect(readWorkspaceState(new URLSearchParams(), noteWorkspaceStateSchema.parse({ view: "imports" }), scope).view).toBe("chatLogs");
+    const canonical = new URL(scopedWorkspaceLocation("/notes?view=imports&import=log-one", noteWorkspaceStateSchema.parse({}), scope), "https://notes.invalid");
+    expect(canonical.searchParams.get("view")).toBe("chatLogs");
+    expect(canonical.searchParams.get("chatLog")).toBe("log-one");
+    expect(canonical.searchParams.has("import")).toBe(false);
+    const explicit = new URL(scopedWorkspaceLocation("/notes?view=imports&chatLog=kept&import=dropped", noteWorkspaceStateSchema.parse({}), scope), "https://notes.invalid");
+    expect(explicit.searchParams.get("chatLog")).toBe("kept");
+    expect(explicit.searchParams.has("import")).toBe(false);
   });
 });
 

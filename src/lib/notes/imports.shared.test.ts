@@ -32,6 +32,17 @@ describe("reviewed history adapters", () => {
     const redacted = parseHistoryScreenshot({ messages: [], rawLines: [`Player ${"1".repeat(14)} token=example-secret`] }, "file-one", 1);
     expect(redacted[0].body).not.toMatch(/\d{12,20}|example-secret/);
   });
+  it("retains structured reply and translation fields from recognized screenshots", () => {
+    const parsed = { messages: [{ senderName: "Alpha", originalText: "On my way", senderAllianceTag: "TEST", senderLevel: 30, senderVipLevel: 8, inGameTranslatedText: "Estou a caminho", isReply: true, replyToName: "Beta" }], rawLines: [] };
+    expect(parseHistoryScreenshot(parsed, "file-one", 1)[0]).toMatchObject({ sender: "Alpha", body: "On my way", isReply: true, replyToName: "Beta", inGameTranslatedText: "Estou a caminho", senderAllianceTag: "TEST", sourceImageIndex: 1 });
+  });
+  it("defaults chat log audience to private and rejects unknown audiences", () => {
+    const file = { name: "history.txt", contentType: "text/plain", size: 12, sha256: "a".repeat(64) };
+    const input = { expectedScope: "alliance:author", requestId: "request-one", title: "History", kind: "text", locale: "en-US", files: [file] };
+    expect(historyInitSchema.parse(input).audience).toBe("private");
+    expect(historyInitSchema.parse({ ...input, audience: "officers_read" }).audience).toBe("officers_read");
+    expect(historyInitSchema.safeParse({ ...input, audience: "everyone" }).success).toBe(false);
+  });
   it("requires checksummed compatible files and bounds total image bytes", () => {
     const file = { name: "capture.png", contentType: "image/png", size: 20 * 1024 * 1024, sha256: "a".repeat(64) };
     const input = { expectedScope: "alliance:author", requestId: "request-one", title: "History", kind: "screenshots", locale: "en-US", files: [file] };

@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -1114,6 +1115,10 @@ export const videoJobs = pgTable("video_jobs", {
   archiveStorageKey: text("archive_storage_key"),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   originalFileSizeBytes: bigint("original_file_size_bytes", { mode: "number" }),
+  knowledgeImportId: text("knowledge_import_id").references(
+    (): AnyPgColumn => knowledgeHistoryImports.id,
+    { onDelete: "set null" },
+  ),
   /** HQ user who enqueued the upload (officer/owner/maintainer). */
   enqueuedByHqUserId: text("enqueued_by_hq_user_id").references(
     () => hqUsers.id,
@@ -1136,7 +1141,10 @@ export const videoJobs = pgTable("video_jobs", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => [
+  uniqueIndex("video_jobs_knowledge_import_unique").on(table.knowledgeImportId).where(sql`${table.knowledgeImportId} is not null`),
+  index("video_jobs_knowledge_import_idx").on(table.knowledgeImportId),
+]);
 
 /**
  * Designated video processors per alliance (Ashed ToS: at most two members may
@@ -4878,6 +4886,7 @@ export const officerChatSessions = pgTable(
   },
   (table) => [
     unique("officer_chat_sessions_resource_unique").on(table.resourceId),
+    unique("officer_chat_sessions_id_alliance_unique").on(table.id, table.allianceId),
     unique("officer_chat_sessions_source_identity_unique").on(table.id, table.allianceId, table.resourceId),
     foreignKey({ name: "officer_chat_sessions_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     index("officer_chat_sessions_alliance_updated_idx").on(
@@ -4933,6 +4942,22 @@ export const officerChatMessages = pgTable(
     localeCode: text("locale_code").notNull(),
     isReply: boolean("is_reply").notNull().default(false),
     replyToName: text("reply_to_name"),
+    replyToMessageId: text("reply_to_message_id"),
+    replyMatchConfidence: real("reply_match_confidence"),
+    coordinates: jsonb("coordinates").$type<{
+      server: number | null;
+      x: number;
+      y: number;
+      label: string | null;
+    }>(),
+    extractionConfidence: real("extraction_confidence"),
+    reviewReasons: jsonb("review_reasons").$type<string[]>().notNull().default([]),
+    parserProvenance: jsonb("parser_provenance").$type<{
+      provider: string;
+      model: string | null;
+      configVersion: string;
+      frameHash: string | null;
+    }>(),
     sequenceOrder: integer("sequence_order").notNull(),
     sourceImageIndex: integer("source_image_index"),
     sourceLocator: text("source_locator"),
@@ -4946,11 +4971,50 @@ export const officerChatMessages = pgTable(
   },
   (table) => [
     uniqueIndex("officer_chat_messages_source_locator_unique").on(table.sessionId, table.sourceLocator),
+    unique("officer_chat_messages_id_session_alliance_unique").on(table.id, table.sessionId, table.allianceId),
     index("officer_chat_messages_search_idx").using("gin", sql`notes_search_vector(${table.originalText})`),
     index("officer_chat_messages_session_order_idx").on(
       table.sessionId,
       table.sequenceOrder,
     ),
+    index("officer_chat_messages_reply_idx").on(table.sessionId, table.replyToMessageId),
+    foreignKey({ name: "officer_chat_messages_reply_fk", columns: [table.replyToMessageId, table.sessionId, table.allianceId], foreignColumns: [table.id, table.sessionId, table.allianceId] }).onDelete("no action"),
+    check("officer_chat_messages_reply_confidence_check", sql`${table.replyMatchConfidence} is null or (${table.replyMatchConfidence} >= 0 and ${table.replyMatchConfidence} <= 1)`),
+    check("officer_chat_messages_extraction_confidence_check", sql`${table.extractionConfidence} is null or (${table.extractionConfidence} >= 0 and ${table.extractionConfidence} <= 1)`),
+    check("officer_chat_messages_review_reasons_check", sql`jsonb_typeof(${table.reviewReasons}) = 'array'`),
+    check("officer_chat_messages_coordinates_check", sql`${table.coordinates} is null or (jsonb_typeof(${table.coordinates}) = 'object' and (${table.coordinates} -> 'server' is null or jsonb_typeof(${table.coordinates} -> 'server') in ('number', 'null')) and jsonb_typeof(${table.coordinates} -> 'x') = 'number' and jsonb_typeof(${table.coordinates} -> 'y') = 'number' and (${table.coordinates} -> 'label' is null or jsonb_typeof(${table.coordinates} -> 'label') in ('null', 'string')))`),
+  ],
+);
+
+export const officerChatMessageMedia = pgTable(
+  "officer_chat_message_media",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
+    allianceId: text("alliance_id").notNull(),
+    messageId: text("message_id"),
+    kind: text("kind").$type<"embedded" | "fullscreen">().notNull(),
+    storageKey: text("storage_key").notNull(),
+    thumbnailStorageKey: text("thumbnail_storage_key"),
+    contentType: text("content_type").notNull(),
+    sha256: text("sha256").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    sourceFrameIndex: integer("source_frame_index"),
+    sourceTimestampMs: bigint("source_timestamp_ms", { mode: "number" }),
+    sequenceOrder: integer("sequence_order").notNull(),
+    reviewed: boolean("reviewed").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_chat_message_media_sha_unique").on(table.sessionId, table.sha256, table.kind),
+    index("officer_chat_message_media_session_idx").on(table.sessionId, table.sequenceOrder),
+    index("officer_chat_message_media_message_idx").on(table.messageId),
+    foreignKey({ name: "officer_chat_message_media_session_fk", columns: [table.sessionId, table.allianceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId] }).onDelete("cascade"),
+    foreignKey({ name: "officer_chat_message_media_message_fk", columns: [table.messageId, table.sessionId, table.allianceId], foreignColumns: [officerChatMessages.id, officerChatMessages.sessionId, officerChatMessages.allianceId] }).onDelete("cascade"),
+    check("officer_chat_message_media_kind_check", sql`${table.kind} in ('embedded', 'fullscreen')`),
   ],
 );
 
@@ -5384,18 +5448,26 @@ export const knowledgeHistoryImports = pgTable("knowledge_history_imports", {
   kind: text("kind").$type<import("@/lib/notes/imports.shared").HistoryImportKind>().notNull(),
   state: text("state").$type<import("@/lib/notes/imports.shared").HistoryImportState>().notNull().default("uploading"),
   sourceHash: text("source_hash").notNull(), formatVersion: integer("format_version").notNull().default(1), locale: text("locale").notNull(),
+  audience: text("audience").$type<"private" | "officers_read">().notNull().default("private"),
+  sourceVideoJobId: text("source_video_job_id"),
+  sourceDeleteAfter: timestamp("source_delete_after", { withTimezone: true }),
+  sourceDeletedAt: timestamp("source_deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_history_imports_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_history_imports_resource_unique").on(table.resourceId),
   foreignKey({ name: "knowledge_history_imports_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   foreignKey({ name: "knowledge_history_imports_source_fk", columns: [table.id, table.allianceId, table.resourceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId, officerChatSessions.resourceId] }).onDelete("restrict"),
   index("knowledge_history_imports_hash_idx").on(table.allianceId, table.sourceHash),
   index("knowledge_history_imports_page_idx").on(table.allianceId, table.updatedAt.desc(), table.id.desc()),
+  uniqueIndex("knowledge_history_imports_source_video_job_unique").on(table.sourceVideoJobId).where(sql`${table.sourceVideoJobId} is not null`),
+  foreignKey({ name: "knowledge_history_imports_source_video_job_fk", columns: [table.sourceVideoJobId], foreignColumns: [videoJobs.id] }).onDelete("set null"),
+  check("knowledge_history_imports_audience_check", sql`${table.audience} in ('private', 'officers_read')`),
 ]);
 
 export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
   id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(),
   name: text("name").notNull(), contentType: text("content_type").notNull(), size: integer("size").notNull(), sha256: text("sha256").notNull(), position: integer("position").notNull(),
   stagingKey: text("staging_key").notNull(), sealedKey: text("sealed_key"), sealedAt: timestamp("sealed_at", { withTimezone: true }),
+  r2UploadId: text("r2_upload_id"),
 }, (table) => [unique("knowledge_history_assets_position_unique").on(table.importId, table.position),
   foreignKey({ name: "knowledge_history_assets_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
 ]);
