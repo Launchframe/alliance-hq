@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHqMemberLink, type Sql } from "../e2e/fixtures/db";
 
@@ -26,4 +27,9 @@ describe("parallel member-link fixture identities", () => {
     const result = await createHqMemberLink(sql, { allianceId: "fixture-alliance", hqUserId: "fixture-user", gameUid: "123456789012" });
     expect(result.gameUid).toBe("123456789012");
   });
+});
+
+it.each(["e2e/fixtures/support-teams.ts", "e2e/support-teams-board.spec.ts", "e2e/support-teams-proposals.spec.ts"])("keeps %s on the random member-link default", (file) => {
+  const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  expect(source).not.toMatch(/gameUid:\s*`[^`]*Date\.now\(\)[^`]*`/);
 });

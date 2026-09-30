@@ -255,7 +255,7 @@ test("preferences persist only for the current account; members cannot see histo
     await officerPage.getByText("Show on member chips", { exact: true }).click();
     await expect(officerPage.getByRole("checkbox", { name: "Profession level", exact: true })).toBeChecked();
     const member = await f.actor("member");
-    await createHqMemberLink(f.sql, { allianceId: f.allianceId, hqUserId: member.hqUserId, ashedMemberId: f.members[2].ashedMemberId, gameUid: `96${Date.now()}` });
+    await createHqMemberLink(f.sql, { allianceId: f.allianceId, hqUserId: member.hqUserId, ashedMemberId: f.members[2].ashedMemberId });
     const memberPage = await memberContext.newPage();
     await openBoard(memberPage, memberContext, member);
     await expect(memberPage.getByRole("button", { name: "Team-builder history", exact: true })).toHaveCount(0);

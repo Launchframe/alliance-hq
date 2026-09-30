@@ -50,7 +50,7 @@ for (const [locale, messages] of [["en-US", en], ["pt-BR", pt]] as const) {
     const f = await createSupportTeamFixture();
     const copy = messages.supportTeams;
     const member = await f.actor("member");
-    await createHqMemberLink(f.sql, { allianceId: f.allianceId, hqUserId: member.hqUserId, ashedMemberId: f.members[0].ashedMemberId, gameUid: `96${Date.now()}` });
+    await createHqMemberLink(f.sql, { allianceId: f.allianceId, hqUserId: member.hqUserId, ashedMemberId: f.members[0].ashedMemberId });
     await page.setViewportSize({ width: 1500, height: 1000 });
     await openProposal(page, f.officer, undefined, locale);
     const created = page.waitForResponse((response) => response.url().endsWith("/api/support-teams/proposals") && response.request().method() === "POST");
