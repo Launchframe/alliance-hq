@@ -35,10 +35,11 @@ test("time off, duty conflicts and VS share idempotent lead ownership without Di
   const snapshots = await Promise.all([1, 2].map(() => request.get("/api/team-work", { headers })));
   for (const snapshot of snapshots) expect(snapshot.status()).toBe(200);
   const body = await snapshots[0].json();
-  expect(body.items.filter((item: { memberId: string }) => item.memberId === f.memberId).map((item: { kind: string }) => item.kind).sort()).toEqual(["coverage", "time_off", "vs"]);
+  expect(body.items.filter((item: { memberId: string }) => item.memberId === f.memberId).map((item: { kind: string }) => item.kind).sort()).toEqual(["coverage", "vs"]);
+  expect(body.members).toBeUndefined();
   expect(JSON.stringify(body)).not.toMatch(/Private routing absence|game_?uid|assignmentStint|confirmationBasis|waiverReason/i);
   const tasks = await f.sql`SELECT id, assignee_id, version FROM team_work_items WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId} AND open`;
-  expect(tasks).toHaveLength(3);
+  expect(tasks).toHaveLength(2);
   expect(tasks.every((row) => row.assignee_id === f.officer.hqUserId && row.version === 1)).toBe(true);
   const digests = await f.sql`SELECT status FROM team_work_digests WHERE alliance_id = ${f.allianceId} AND recipient_id = ${f.officer.hqUserId}`;
   expect(digests).toEqual([{ status: "pending" }]);
@@ -55,8 +56,7 @@ test("members see only their own obligations and published contacts, never offic
   expect(snapshot.status()).toBe(200);
   const body = await snapshot.json();
   expect(body.items).toEqual([]);
-  expect(body.members.map((row: { id: string }) => row.id)).toEqual([f.memberId]);
-  expect(body.members[0].duties).toHaveLength(1);
+  expect(body.members).toBeUndefined();
   expect(body.teams.map((team: { name: string }) => team.name).sort()).toEqual(["Cedar", "Harbor"]);
   expect(JSON.stringify(body)).not.toMatch(/Private routing absence|recommendation|reason|game_?uid/i);
   expect((await request.post("/api/time-off/coverage", { headers, data: { coverage: { conflicts: [], note: "No elevation", requestId: nanoid() } } })).status()).toBe(403);
@@ -93,7 +93,8 @@ test("departed and rejoined members cannot inherit their old absence or team tas
   await f.sql`INSERT INTO member_alliance_tenure(id, game_uid, alliance_id, ashed_member_id, joined_at) SELECT ${nanoid()}, game_uid, alliance_id, ashed_member_id, now() FROM member_alliance_tenure WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${f.memberId} ORDER BY joined_at DESC LIMIT 1`;
   const snapshot = await request.get("/api/team-work", { headers: { Cookie: authCookieHeader(f.member) } });
   const body = await snapshot.json();
-  expect(body.members[0]).toMatchObject({ teamId: null, absences: [], weeks: [] });
+  expect(body.items).toEqual([]);
+  expect(body.members).toBeUndefined();
   expect(await f.sql`SELECT id FROM team_work_items WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId} AND open`).toHaveLength(0);
 });
 
@@ -101,8 +102,18 @@ test("team work keeps coverage only after audit confirmation without unlocking o
   const f = await fixture(request);
   await context.addCookies(playwrightAuthCookies(f.officer));
   const before = await f.sql`SELECT id, conductor_member_id, locked_at FROM train_conductor_records WHERE alliance_id = ${f.allianceId} AND date = ${f.date}`;
-  await page.goto("/en-US/team-work");
+  await page.goto("/en-US/notes?view=workQueue");
+  await expect(page.getByRole("heading", { name: "Work queue", exact: true })).toBeVisible();
+  await expect(page.getByText("Officer actions from duty coverage and VS compliance.", { exact: true })).toBeVisible();
+  const items = page.getByTestId("team-work-items");
+  await expect(items.getByRole("heading", { name: "VS review needed" }).first()).toBeVisible();
+  await expect(items.getByText(/Verified evidence|Missing evidence|Incomplete evidence|Conflicting evidence/)).toHaveCount(0);
+  await items.getByRole("button", { name: "Show evidence details" }).first().click();
+  await expect(items.getByText(/Verified evidence|Missing evidence|Incomplete evidence|Conflicting evidence/)).toBeVisible();
+  await items.getByRole("button", { name: "Hide evidence details" }).first().click();
+  await expect(items.getByText(/Verified evidence|Missing evidence|Incomplete evidence|Conflicting evidence/)).toHaveCount(0);
   const panel = page.getByTestId("coverage-panel");
+  await expect(panel.getByRole("heading", { name: "Duty coverage needs review" })).toBeVisible();
   await expect(panel.getByRole("link", { name: "Reassign duty" })).toHaveAttribute("href", new RegExp(`/trains\\?date=${f.date}$`));
   await panel.getByRole("button", { name: "Keep assignment" }).click();
   const confirmation = page.getByTestId("coverage-confirmation");
@@ -117,7 +128,7 @@ test("team work keeps coverage only after audit confirmation without unlocking o
   expect(audits).toHaveLength(1);
   expect(audits[0].hq_user_id).toBe(f.officer.hqUserId);
   expect(audits[0].metadata.note).toBe("Coverage confirmed privately");
-  expect(await f.sql`SELECT id FROM team_work_items WHERE alliance_id = ${f.allianceId} AND kind = 'coverage' AND open`).toHaveLength(0);
+  await expect.poll(async () => (await f.sql`SELECT id FROM team_work_items WHERE alliance_id = ${f.allianceId} AND kind = 'coverage' AND open`).length).toBe(0);
   await expect(page.getByTestId("team-work")).not.toContainText("Coverage confirmed privately");
 });
 
@@ -128,10 +139,9 @@ test("unpublished contacts and private periods never enter another member's team
   await f.sql`UPDATE support_team_boards SET published = false WHERE alliance_id = ${f.allianceId}`;
   const own = await (await request.get("/api/team-work?scope=all", { headers: { Cookie: authCookieHeader(f.member) } })).json();
   expect(own.teams).toEqual([]);
-  expect(own.members[0].teamId).toBeNull();
-  expect(own.members[0].absences).toHaveLength(2);
+  expect(own.items).toEqual([]);
+  expect(own.members).toBeUndefined();
   const leadership = await (await request.get("/api/team-work?scope=all", { headers: f.headers })).json();
-  expect(leadership.members.find((member: { id: string }) => member.id === f.memberId).absences).toHaveLength(1);
   expect(JSON.stringify(leadership.items)).not.toContain(date);
   expect(JSON.stringify(leadership)).not.toContain("Private period marker");
 });
@@ -238,13 +248,29 @@ test("draft scheduling and cancellation preserve live work until real draft publ
   expect(published.every((row) => row.assignee_id === f.owner.hqUserId && row.team_id === f.teams[1] && row.version === 2)).toBe(true);
 });
 
-test("Portuguese team work shows own contacts and keeps team filtering usable", async ({ request, page, context }) => {
+test("Portuguese members see the work queue as forbidden without officer access", async ({ request, page, context }) => {
   const f = await fixture(request);
   await context.addCookies(playwrightAuthCookies(f.member));
+  await page.goto("/pt-BR/notes?view=workQueue");
+  await expect(page.getByText("Você não tem permissão para fazer isso.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Fila de trabalho", exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("team-work")).toHaveCount(0);
+});
+
+test("legacy work queue and team routes redirect into localized Notes views", async ({ request, page, context }) => {
+  const f = await fixture(request);
+  await context.addCookies(playwrightAuthCookies(f.officer));
   await page.goto("/pt-BR/team-work");
-  await expect(page.getByRole("heading", { name: "Trabalho em equipe", exact: true })).toBeVisible();
-  await expect(page.getByText("Sua equipe é Cedar; seu líder é Lead 0.")).toBeVisible();
-  await expect(page.getByTestId("team-work-items")).not.toContainText("Private routing absence");
-  await page.getByRole("combobox").first().selectOption(f.teams[1]);
-  await expect(page.getByTestId("team-work-members").getByRole("heading")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/pt-BR\/notes\?.*view=workQueue/);
+  await expect(page.getByRole("heading", { name: "Fila de trabalho", exact: true })).toBeVisible();
+  await page.goto("/en-US/notes");
+  await page.goto("/en-US/team-work");
+  await expect(page).toHaveURL(/\/notes\?.*view=workQueue/);
+  await expect(page.getByRole("heading", { name: "Work queue", exact: true })).toBeVisible();
+  await page.goto("/en-US/support-teams");
+  await expect(page).toHaveURL(/\/notes\?.*view=teams/);
+  await expect(page.getByRole("heading", { name: "Alliance teams", exact: true })).toBeVisible();
+  await page.goto("/pt-BR/support-teams");
+  await expect(page).toHaveURL(/\/pt-BR\/notes\?.*view=teams/);
+  await expect(page.getByRole("heading", { name: "Equipes da aliança", exact: true })).toBeVisible();
 });
