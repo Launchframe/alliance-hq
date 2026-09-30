@@ -2323,7 +2323,8 @@
       "commander_taken": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
       "discord_hq_unlinked": "This UID is linked on Discord but not yet tied to an HQ account",
       "server_mismatch": "The UID belongs to a different game server than this alliance",
-      "target_mismatch": "The UID name does not match the invited commander"
+      "target_mismatch": "The UID name does not match the invited commander",
+      "lookup_honor_system": "Linked during a Last War outage using the invited commander name (not live-verified)"
     },
     "nameReview": {
       "title": "Choose the commander name to keep",
@@ -5626,9 +5627,11 @@
     "confirmServerMissing": "We couldn't read your state server from Last War. Enter your alliance's state server number.",
     "confirmServerMismatch": "Last War shows server {lookupServer}, but this alliance is set to {allianceServer}. Enter the correct state server number for your alliance.",
     "lookupFallback": "We couldn't reach Last War right now. Enter your state server number to continue — you can correct alliance settings later.",
+    "lookupUnavailableAskClaimInvite": "We're experiencing difficulty locating your Last War account. Please ask an R4 for a commander claim invite, or try again later.",
     "claimUidInvalid": "Enter the 12–16 digit player UID from your Last War profile.",
     "claimSelfServiceBlocked": "This invite is tied to a specific commander. Enter your player UID on the claim screen to finish linking.",
     "claimConflict": "We couldn't finish this claim automatically. Your alliance officers have been notified to confirm your commander.",
+    "claimLookupHonorLinked": "Linked {name} using your commander claim invite. Last War verification was unavailable — officers were notified to confirm.",
     "selfServiceLinkedFootnote": "Your Last War profile was verified and your commander is now linked.",
     "rosterFull": "Your alliance is full. Last War verified {gameName}, but we could not find {gameName} in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
   },
@@ -5786,6 +5789,7 @@
       "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander` for a secure link.",
       "usage": "Run `/link-commander` (or `/link-last-war-profile`) for a secure link to enter your player ID. Use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "confirmIdentity": "**{name}** — Is this you? We found this commander for that player UID.",
+      "confirmIdentityHonor": "**{name}** — Is this you? Last War verification is unavailable, so this is the commander from your claim invite. Officers will be notified to confirm.",
       "confirmIdentityServer": "State server {server}",
       "confirmIdentityYes": "Yes, that's me",
       "confirmIdentityNo": "No, re-enter my UID",
@@ -5796,6 +5800,8 @@
       "updated": "Updated your commander link for **{name}**.",
       "replaced": "Switched your commander link to **{name}**.",
       "capReached": "You already have the maximum number of linked commanders ({max}). Use `/unlink` first or `/link-commander replace:true` to switch.",
+      "lookupUnavailableAskClaimInvite": "We're experiencing difficulty locating your Last War account. Please ask an R4 for a commander claim invite, or try again later.",
+      "claimLookupHonorLinked": "Linked **{name}** using your commander claim invite. Last War verification was unavailable — officers were notified to confirm.",
       "memberTaken": "This Commander is already linked to another account. Please ask the account owner to unlink this Commander, or ask an R4 for help.",
       "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your commander:",
       "rosterMiss": "We checked the **{tag}** roster and couldn't match that commander to anyone. Tap **Start over** to try again, or ask an officer for help.",

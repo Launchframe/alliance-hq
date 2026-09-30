@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/lastwar/player-lookup", () => ({
+vi.mock("@/lib/lastwar/player-lookup.server", () => ({
   lookupPlayerByUid: vi.fn(),
 }));
 
@@ -52,7 +52,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import { denormalizeGameUidOnMember } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { rematerializeFormerSeatLinksForAlliance } from "@/lib/members/uid-seat-handoff.server";

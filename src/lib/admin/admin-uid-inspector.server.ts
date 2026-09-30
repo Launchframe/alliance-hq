@@ -14,7 +14,7 @@ import { getDb, schema } from "@/lib/db";
 import {
   lookupPlayerByUid,
   type LastWarPlayerLookupResult,
-} from "@/lib/lastwar/player-lookup";
+} from "@/lib/lastwar/player-lookup.server";
 import {
   findExactMemberByName,
   findOfficerReviewRosterCandidates,
