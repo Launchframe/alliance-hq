@@ -30,6 +30,7 @@ import {
   activityAllowedScopes,
   getActivityPrincipalForSession,
   requireActivityPrincipal,
+  resolveActivityPageGate,
 } from "./access.server";
 
 const SESSION_ID = "session-fixture-1";
@@ -214,6 +215,73 @@ describe("activityAllowedScopes", () => {
     expect(
       activityAllowedScopes({ ...base, isPlatformMaintainer: true }),
     ).toEqual(["personal", "alliance", "global"]);
+  });
+});
+
+describe("resolveActivityPageGate", () => {
+  const base = {
+    hqUserId: HQ_USER_ID,
+    sessionId: SESSION_ID,
+    currentAllianceId: ALLIANCE_ID,
+    permissions: new Set<string>(),
+    isPlatformMaintainer: false,
+    scopeFence: JSON.stringify([HQ_USER_ID, ALLIANCE_ID]),
+  };
+
+  it("renders the personal feed for every signed-in principal", () => {
+    expect(resolveActivityPageGate(base, "personal")).toEqual({
+      type: "feed",
+      allowedScopes: ["personal"],
+    });
+  });
+
+  it("does not offer the alliance prompt to a member with no selected alliance", () => {
+    expect(
+      resolveActivityPageGate(
+        { ...base, currentAllianceId: null },
+        "alliance",
+      ),
+    ).toEqual({ type: "not-found" });
+    expect(
+      resolveActivityPageGate({ ...base, currentAllianceId: null }, "global"),
+    ).toEqual({ type: "not-found" });
+  });
+
+  it("prompts audit readers to select an alliance before the alliance feed", () => {
+    expect(
+      resolveActivityPageGate(
+        {
+          ...base,
+          currentAllianceId: null,
+          permissions: new Set(["hq:audit:read"]),
+        },
+        "alliance",
+      ),
+    ).toEqual({ type: "select-alliance" });
+  });
+
+  it("hides alliance and global feeds the principal cannot read", () => {
+    expect(resolveActivityPageGate(base, "alliance")).toEqual({
+      type: "not-found",
+    });
+    expect(resolveActivityPageGate(base, "global")).toEqual({
+      type: "not-found",
+    });
+  });
+
+  it("renders alliance for an audit reader and global for a maintainer", () => {
+    expect(
+      resolveActivityPageGate(
+        { ...base, permissions: new Set(["hq:audit:read"]) },
+        "alliance",
+      ),
+    ).toMatchObject({ type: "feed", allowedScopes: ["personal", "alliance"] });
+    expect(
+      resolveActivityPageGate(
+        { ...base, currentAllianceId: null, isPlatformMaintainer: true },
+        "global",
+      ),
+    ).toMatchObject({ type: "feed", allowedScopes: ["personal", "global"] });
   });
 });
 

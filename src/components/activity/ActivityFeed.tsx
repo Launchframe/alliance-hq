@@ -13,7 +13,12 @@ import {
 } from "@/components/activity/useActivityFeed";
 import { useAccountTimezoneLabel } from "@/components/timezone/TimezoneProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
-import { ACTIVITY_FEATURE_LABEL_KEYS } from "@/lib/activity/presentation.shared";
+import {
+  ACTIVITY_FEATURE_LABEL_KEYS,
+  activityActorKeyIsSensitive,
+  activityVisibleServerNumber,
+  activityVisibleText,
+} from "@/lib/activity/presentation.shared";
 import type {
   ActivityFeedOptionsResponse,
   ActivityFeedPage,
@@ -28,7 +33,7 @@ const buttonClass =
   "rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-surface-muted disabled:cursor-not-allowed disabled:opacity-50";
 const labelClass = "mb-1 block text-xs text-hq-fg-subtle";
 const dateInputClass =
-  "w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent";
+  "w-full min-w-0 max-w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent";
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -102,10 +107,15 @@ export function ActivityFeed({
   const actorOptions = useMemo(
     () => [
       { value: "", label: t("filters.all") },
-      ...feed.lookupOptions.actor.map((actor) => ({
-        value: actor.value,
-        label: actor.label ?? t("unknownActor"),
-      })),
+      ...feed.lookupOptions.actor.flatMap((actor) => {
+        if (activityActorKeyIsSensitive(actor.value)) return [];
+        return [
+          {
+            value: actor.value,
+            label: activityVisibleText(actor.label) ?? t("unknownActor"),
+          },
+        ];
+      }),
     ],
     [feed.lookupOptions.actor, t],
   );
@@ -114,10 +124,12 @@ export function ActivityFeed({
     () => [
       { value: "", label: t("filters.all") },
       ...feed.lookupOptions.alliance.map((alliance) => {
+        const tag = activityVisibleText(alliance.tag);
+        const name = activityVisibleText(alliance.name);
         const parts = [
-          alliance.serverNumber,
-          alliance.tag ? `[${alliance.tag}]` : null,
-          alliance.name,
+          activityVisibleServerNumber(alliance.serverNumber),
+          tag ? `[${tag}]` : null,
+          name,
         ].filter((part): part is string => part !== null);
         return {
           value: alliance.id,
@@ -185,13 +197,13 @@ export function ActivityFeed({
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
 
-      {displayScopes.length > 1 ? (
+      {!accessChanged && displayScopes.length > 1 ? (
         <nav
           aria-label={t("title")}
-          className="mt-3 flex gap-1 border-b border-hq-border"
+          className="mt-3 flex min-w-0 gap-1 overflow-x-auto border-b border-hq-border"
         >
           {displayScopes.map((entry) => (
             <Link
@@ -199,7 +211,7 @@ export function ActivityFeed({
               href={`/activity?scope=${entry}`}
               aria-current={entry === scope ? "page" : undefined}
               className={cn(
-                "px-3 py-2 text-sm",
+                "shrink-0 px-3 py-2 text-sm",
                 entry === scope
                   ? "-mb-px border-b-2 border-hq-accent font-medium text-hq-fg"
                   : "text-hq-fg-muted hover:text-hq-fg",
@@ -230,7 +242,7 @@ export function ActivityFeed({
         </div>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
             <div>
               <span className={labelClass}>{t("filters.channel")}</span>
               <AppSelect
@@ -369,7 +381,7 @@ export function ActivityFeed({
 
           {feed.pendingNew ? (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-hq-border bg-hq-surface px-3 py-2">
-              <p className="flex-1 text-sm text-hq-fg">{t("newActivity")}</p>
+              <p className="min-w-0 flex-1 text-sm text-hq-fg">{t("newActivity")}</p>
               <button
                 type="button"
                 onClick={feed.viewNew}
@@ -410,7 +422,7 @@ export function ActivityFeed({
                 </p>
               ) : null}
               {feed.rows.length > 0 ? (
-                <ol className="mt-2">
+                <ol className="mt-2 min-w-0">
                   {feed.rows.map((item) => (
                     <ActivityItem key={item.id} item={item} scope={scope} />
                   ))}

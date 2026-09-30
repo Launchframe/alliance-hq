@@ -10,7 +10,9 @@ import {
   ACTIVITY_FEATURE_LABEL_KEYS,
   ACTIVITY_ROLE_LABEL_KEYS,
   ACTIVITY_TOOL_LABEL_KEYS,
+  activityActorKeyIsSensitive,
   activityDayStartIso,
+  activityVisibleText,
   formatActivityNumber,
   formatActivitySentence,
   type ActivityTranslator,
@@ -140,6 +142,45 @@ describe("formatActivitySentence", () => {
       formatActivitySentence(item, "personal", "en-US", tFor("en-US")),
     ).toBe(
       "You submitted a new THP of 123,456,789,012,345,678,901,234,567,890",
+    );
+  });
+
+  it("does not render UID-shaped or email-shaped names", () => {
+    const uid = "1234567890123456";
+    const item = makeItem({
+      eventKey: "member.promoted",
+      feature: "members",
+      descriptor: "promoted",
+      values: { member: `Jam ${uid}`, fromRank: "R3", toRank: "R4" },
+      actor: {
+        key: `hq:${uid}`,
+        displayName: "cmd@example.com",
+        hqRole: "owner",
+        gameRank: "R5",
+        unlinkedHq: false,
+      },
+      alliance: {
+        id: "all-1",
+        serverNumber: uid,
+        tag: uid,
+        name: "Lifeguard",
+      },
+    });
+    const sentence = formatActivitySentence(
+      item,
+      "global",
+      "en-US",
+      tFor("en-US"),
+    );
+    expect(sentence).toBe(
+      "Unknown user promoted Unknown user from R3 to R4",
+    );
+    expect(sentence).not.toContain(uid);
+    expect(sentence).not.toContain("example.com");
+    expect(activityVisibleText(uid)).toBeNull();
+    expect(activityActorKeyIsSensitive(`hq:${uid}`)).toBe(true);
+    expect(activityActorKeyIsSensitive("discord:123456789012345678")).toBe(
+      false,
     );
   });
 

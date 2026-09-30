@@ -6,12 +6,13 @@ import { useLocale } from "next-intl";
 import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { activityDayStartIso } from "@/lib/activity/presentation.shared";
-import type {
-  ActivityFeedItem,
-  ActivityFeedOptions,
-  ActivityFeedOptionsResponse,
-  ActivityFeedPage,
-  ActivityFeedScope,
+import {
+  ACTIVITY_SCOPES,
+  type ActivityFeedItem,
+  type ActivityFeedOptions,
+  type ActivityFeedOptionsResponse,
+  type ActivityFeedPage,
+  type ActivityFeedScope,
 } from "@/lib/activity/feed.shared";
 import { resolveAccountTimeZoneIana } from "@/lib/timezone/account";
 import { addCalendarDays } from "@/lib/trains/game-time";
@@ -97,6 +98,11 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function knownActivityScopes(scopes: readonly string[]): ActivityFeedScope[] {
+  const allowed = new Set(scopes);
+  return ACTIVITY_SCOPES.filter((entry) => allowed.has(entry));
+}
+
 function headsEqual(
   a: { id: string; occurredAt: string } | null,
   b: { id: string; occurredAt: string } | null,
@@ -164,8 +170,9 @@ export function useActivityFeed({
   const [options, setOptions] = useState<ActivityFeedOptions | null>(
     initialOptions?.options ?? null,
   );
-  const [allowedScopes, setAllowedScopes] =
-    useState<ActivityFeedScope[]>(initialAllowedScopes);
+  const [allowedScopes, setAllowedScopes] = useState<ActivityFeedScope[]>(
+    knownActivityScopes(initialAllowedScopes),
+  );
   const [error, setError] = useState<ActivityFeedError | null>(initialError);
   const [errorPlacement, setErrorPlacement] =
     useState<ActivityErrorPlacement>("toolbar");
@@ -197,7 +204,9 @@ export function useActivityFeed({
   const appliedRef = useRef<AppliedFilters>({});
   const blockedRef = useRef(blocked);
   const errorRef = useRef<ActivityFeedError | null>(initialError);
-  const failedOpRef = useRef<FailedOperation | null>(null);
+  const failedOpRef = useRef<FailedOperation | null>(
+    initialError ? { kind: "first" } : null,
+  );
   const mountedRef = useRef(false);
   const filtersRef = useRef(filters);
   const filtersValidRef = useRef(true);
@@ -409,7 +418,7 @@ export function useActivityFeed({
             : field === "alliance"
               ? body.options.alliances
               : body.options.servers;
-        setAllowedScopes(body.allowedScopes);
+        setAllowedScopes(knownActivityScopes(body.allowedScopes));
         setLookupOptions((prev) => ({ ...prev, [field]: next }));
         setLookupError((prev) => ({ ...prev, [field]: false }));
       } catch (err) {
@@ -496,7 +505,7 @@ export function useActivityFeed({
       firstHeadRef.current = page.head;
       setFirstHeadState(page.head);
       setOptions(optionsBody.options);
-      setAllowedScopes(page.allowedScopes);
+      setAllowedScopes(knownActivityScopes(page.allowedScopes));
       setLookupOptions({
         actor: optionsBody.options.actors,
         alliance: optionsBody.options.alliances,
@@ -582,7 +591,7 @@ export function useActivityFeed({
         }
         setRows((prev) => mergeUnique(prev, page.items));
         setNextCursor(page.nextCursor);
-        setAllowedScopes(page.allowedScopes);
+        setAllowedScopes(knownActivityScopes(page.allowedScopes));
         failedOpRef.current = null;
         commitError(null);
       } catch (err) {
@@ -856,9 +865,15 @@ export function useActivityFeed({
           denyAccess({ announce: false });
           return;
         }
-        setAllowedScopes(body.allowedScopes);
+        setAllowedScopes(knownActivityScopes(body.allowedScopes));
         if (!headsEqual(body.head, firstHeadRef.current)) {
           setPendingNew(true);
+        }
+        if (
+          errorRef.current === "loadFailed" &&
+          failedOpRef.current === null
+        ) {
+          commitError(null);
         }
       } catch (err) {
         if (

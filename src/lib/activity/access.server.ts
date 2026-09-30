@@ -81,6 +81,37 @@ export function activityAllowedScopes(
   return scopes;
 }
 
+export type ActivityPageGate =
+  | { type: "not-found" }
+  | { type: "select-alliance" }
+  | { type: "feed"; allowedScopes: ActivityFeedScope[] };
+
+function canReadAllianceActivity(principal: ActivityPrincipal): boolean {
+  return (
+    principal.permissions.has("hq:audit:read") ||
+    principal.isPlatformMaintainer
+  );
+}
+
+/** Page-level scope decision. Alliance empty-state copy is only for readers who could open that feed after selecting an alliance. */
+export function resolveActivityPageGate(
+  principal: ActivityPrincipal,
+  scope: ActivityFeedScope,
+): ActivityPageGate {
+  if (
+    scope === "alliance" &&
+    !principal.currentAllianceId &&
+    canReadAllianceActivity(principal)
+  ) {
+    return { type: "select-alliance" };
+  }
+  const allowedScopes = activityAllowedScopes(principal);
+  if (!allowedScopes.includes(scope)) {
+    return { type: "not-found" };
+  }
+  return { type: "feed", allowedScopes };
+}
+
 export async function requireActivityPrincipal(
   scope: ActivityFeedScope,
 ): Promise<ActivityPrincipal> {
