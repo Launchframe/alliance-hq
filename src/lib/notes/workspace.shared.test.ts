@@ -77,6 +77,8 @@ describe("scoped workspace navigation", () => {
   it("accepts the teams view while remaining backward-safe for older saved states", () => {
     expect(noteWorkspaceStateSchema.parse({ view: "teams" }).view).toBe("teams");
     expect(readWorkspaceState(new URLSearchParams("view=teams"), noteWorkspaceStateSchema.parse({}), scope).view).toBe("teams");
+    expect(noteWorkspaceStateSchema.parse({ view: "workQueue" }).view).toBe("workQueue");
+    expect(readWorkspaceState(new URLSearchParams("view=workQueue"), noteWorkspaceStateSchema.parse({}), scope).view).toBe("workQueue");
     expect(noteWorkspaceStateSchema.parse({}).view).toBe("notebook");
     expect(noteWorkspaceStateSchema.safeParse({ view: "bogus" }).success).toBe(false);
   });
