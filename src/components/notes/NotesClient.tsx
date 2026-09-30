@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { NotesNavigation, useNotesNavigation, useNotesFetch, useNotesDirtyState } from "./NotesNavigation";
 import { useWorkspacePreferences } from "./useWorkspacePreferences";
-import { Archive, ArrowRight, ArrowUpDown, BookOpen, Check, ChevronRight, FileText, Filter, Flag, FolderOpen, Globe2, Inbox, LayoutGrid, List, LockKeyhole, MessageSquare, Plus, Search, Share2, StickyNote, X } from "lucide-react";
+import { Archive, ArrowRight, ArrowUpDown, BookOpen, Check, ChevronRight, FileText, Filter, Flag, FolderOpen, Globe2, Inbox, LayoutGrid, List, LockKeyhole, MessageSquare, Plus, Search, Share2, StickyNote, Users, X } from "lucide-react";
 import type { PerformanceNoteDto, PerformanceNoteSummary, NotesWorkspacePayload } from "@/lib/performance-notes/types.shared";
 import { NOTE_PRIORITIES, NOTE_LIST_VIEWS, noteListUrl, noteFilterFromWorkspace, readWorkspaceState, workspaceStateLocation, scopedWorkspaceLocation, noteWorkspaceStateSchema, notesFocusKey, type NoteFields, type NotePatch, type NoteWorkspaceView, type NoteWorkspaceState } from "@/lib/notes/workspace.shared";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
@@ -24,7 +25,8 @@ import { NoteShareDialog } from "./NoteShareDialog";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";
 
 type Modal = { kind: "editor"; note: PerformanceNoteDto | null; body?: string; resume?: CaptureDraft } | { kind: "share" | "history"; note: PerformanceNoteDto } | null;
-const viewIcons = { publications: Share2, studio: FileText, knowledge: BookOpen, search: Search, notebook: BookOpen, imports: FolderOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
+const NotesTeamsPanel = dynamic(() => import("./NotesTeamsPanel").then((module) => module.NotesTeamsPanel));
+const viewIcons = { publications: Share2, studio: FileText, knowledge: BookOpen, search: Search, notebook: BookOpen, imports: FolderOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive, teams: Users };
 const priorityClass = { low: "text-emerald-600 dark:text-emerald-400", medium: "text-amber-600 dark:text-amber-400", high: "text-orange-600 dark:text-orange-400", urgent: "text-rose-600 dark:text-rose-400" };
 
 type Props = { initial: NotesWorkspacePayload; focusedNote?: PerformanceNoteDto | null };
@@ -93,11 +95,12 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
   const setPriority = (value: string) => changeState({ priority: value as NoteWorkspaceState["priority"] });
   const setSort = (value: string) => changeState({ sort: value as NoteWorkspaceState["sort"] });
   const setLayout = (value: "cards" | "list") => changeState({ layout: value });
-  const draftRequest = useRef({ body: "", id: "" });
-  const createDraft = useCallback(async (body: string, signal?: AbortSignal) => {
-    if (!draftRequest.current.id || draftRequest.current.body !== body) draftRequest.current = { body, id: crypto.randomUUID() };
+  const draftRequest = useRef({ body: "", extra: "", id: "" });
+  const createDraft = useCallback(async (body: string, signal?: AbortSignal, extra?: { memberIds?: string[]; audience?: "private" | "officers_read" }) => {
+    const extraKey = JSON.stringify(extra ?? null);
+    if (!draftRequest.current.id || draftRequest.current.body !== body || draftRequest.current.extra !== extraKey) draftRequest.current = { body, extra: extraKey, id: crypto.randomUUID() };
     const id = draftRequest.current.id;
-    const response = await fetchNotes(`/api/notes/drafts/${id}`, { method: "PUT", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedVersion: 0, state: draftStateSchema.parse({ fields: { body, priorityMode: "auto" } }) }) });
+    const response = await fetchNotes(`/api/notes/drafts/${id}`, { method: "PUT", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedVersion: 0, state: draftStateSchema.parse({ fields: { body, priorityMode: "auto", memberIds: extra?.memberIds ?? [] }, audience: extra?.audience ?? "private" }) }) });
     const draft: CaptureDraft & { error?: string } = await response.json();
     if (!response.ok) { if ([401, 403].includes(response.status)) revoke(); throw new Error(draft.error ?? t("saveFailed")); }
     if (draftRequest.current.id === id) draftRequest.current.id = "";
@@ -125,6 +128,21 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
         .finally(() => { if (alive.current) setCreatingNote(false); });
     }, !modal);
   }, [capture, creatingNote, data.canCreate, navigation, createDraft, modal, t]);
+  const memberNote = useCallback((memberId: string, audience: "private" | "officers_read") => {
+    if (creatingNote || !data.canCreate) return;
+    navigation.run(() => {
+      const controller = new AbortController(); opening.current?.abort(); opening.current = controller;
+      setCreatingNote(true); setError(null);
+      void createDraft("", controller.signal, { memberIds: [memberId], audience })
+        .then((draft) => {
+          if (!alive.current || controller.signal.aborted) return;
+          navigation.change({ draft: draft.id, note: null, noteTask: null }, false, true);
+          setModal({ kind: "editor", note: null, resume: draft });
+        }).catch((failure) => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("saveFailed")); })
+        .finally(() => { if (alive.current) setCreatingNote(false); });
+    }, !modal);
+  }, [creatingNote, data.canCreate, navigation, createDraft, modal, t]);
+  const viewMemberNotes = useCallback((memberId: string) => changeState({ view: "notebook", notebook: "", member: memberId }), [changeState]);
   const hotkeys = useMemo(() => ({
     "notes.drafts": () => chooseView("drafts"),
     "notes.imports": () => chooseView("imports"),
@@ -281,7 +299,7 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
     } finally { setFiling(null); }
   }
 
-  const counts = { ...data.counts, tasks: undefined, boards: undefined, drafts: data.draftCount, imports: undefined, search: undefined, knowledge: undefined, studio: undefined, publications: undefined };
+  const counts = { ...data.counts, tasks: undefined, boards: undefined, drafts: data.draftCount, imports: undefined, search: undefined, knowledge: undefined, studio: undefined, publications: undefined, teams: undefined };
   const notebooks = useMemo(() => [...data.notebooks].sort((a, b) => a.localeCompare(b, locale)), [data.notebooks, locale]);
   const visible = pageKey === filterKey ? data.items : [];
   const ViewIcon = viewIcons[view];
@@ -304,7 +322,7 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
         <section><h2 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-hq-fg-muted">{t("workspace.notebooks")}</h2>{notebooks.length ? notebooks.map((name) => <button key={name} onClick={() => setNotebook(name)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${notebook === name ? "bg-hq-accent/10 text-hq-accent" : "text-hq-fg-muted hover:bg-hq-surface-muted"}`}><FolderOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{name}</span></button>) : <p className="px-3 text-xs leading-5 text-hq-fg-muted">{t("workspace.notebooksHint")}</p>}</section>
         <div className="mt-auto rounded-xl border border-hq-border bg-hq-canvas p-3 text-xs leading-5 text-hq-fg-muted"><LockKeyhole className="mb-2 h-4 w-4 text-hq-accent" />{t("editor.memberPrivacy")}</div>
       </aside>
-      {view === "publications" ? <NotePublications scope={initial.scope} /> : view === "studio" ? <NoteStudio canCreate={data.canCreate} onChanged={async () => { await refresh(); }} /> : view === "knowledge" ? <NoteKnowledge onChanged={async () => { await refresh(); }} /> : view === "search" ? <NoteWorkspaceSearch /> : view === "imports" ? <NoteHistoryImports canCreate={data.canCreate} focusId={importId} onOpen={(id) => navigation.change({ view: "imports", import: id, messageOffset: null }, false, true)} /> : view === "drafts" ? <div className="min-w-0 flex-1">{error ? <p role="alert" className="p-4 text-hq-danger">{error}</p> : null}<NoteDraftsPanel refreshKey={!!modal} onOpen={(id) => navigation.change({ draft: id, note: null })} /></div> : view === "boards" ? data.canReadBoards ? <NoteBoardsClient /> : <p className="p-6">{t("errors.forbidden")}</p> : view === "tasks" ? <NoteTasksPanel focusId={params.get("task") ?? undefined} filterValue={state.taskFilter} onFilterChange={(value) => changeState({ taskFilter: value as NoteWorkspaceState["taskFilter"] })} /> : <section className="min-w-0 flex-1 px-4 py-5 sm:px-7">
+      {view === "publications" ? <NotePublications scope={initial.scope} /> : view === "studio" ? <NoteStudio canCreate={data.canCreate} onChanged={async () => { await refresh(); }} /> : view === "knowledge" ? <NoteKnowledge onChanged={async () => { await refresh(); }} /> : view === "search" ? <NoteWorkspaceSearch /> : view === "imports" ? <NoteHistoryImports canCreate={data.canCreate} focusId={importId} onOpen={(id) => navigation.change({ view: "imports", import: id, messageOffset: null }, false, true)} /> : view === "drafts" ? <div className="min-w-0 flex-1">{error ? <p role="alert" className="p-4 text-hq-danger">{error}</p> : null}<NoteDraftsPanel refreshKey={!!modal} onOpen={(id) => navigation.change({ draft: id, note: null })} /></div> : view === "boards" ? data.canReadBoards ? <NoteBoardsClient /> : <p className="p-6">{t("errors.forbidden")}</p> : view === "teams" ? <NotesTeamsPanel canCreate={data.canCreate} onAddNote={(member, audience) => memberNote(member.id, audience)} onViewNotes={viewMemberNotes} /> : view === "tasks" ? <NoteTasksPanel focusId={params.get("task") ?? undefined} filterValue={state.taskFilter} onFilterChange={(value) => changeState({ taskFilter: value as NoteWorkspaceState["taskFilter"] })} /> : <section className="min-w-0 flex-1 px-4 py-5 sm:px-7">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-sm text-hq-fg-muted"><ViewIcon className="h-4 w-4" /><span>{t(`views.${view}`)}</span>{notebook ? <><ChevronRight className="h-3 w-3" /><span className="truncate font-medium text-hq-fg">{notebook}</span></> : null}<span className="ml-1 rounded-md bg-hq-surface px-1.5 py-0.5 text-xs">{visible.length.toLocaleString(locale)}</span></div><div className="flex items-center gap-1 rounded-lg border border-hq-border p-0.5"><button type="button" aria-label={t("workspace.cardView")} aria-pressed={layout === "cards"} onClick={() => setLayout("cards")} className={`rounded-md p-1.5 ${layout === "cards" ? "bg-hq-surface-muted" : "text-hq-fg-muted"}`}><LayoutGrid className="h-4 w-4" /></button><button type="button" aria-label={t("workspace.listView")} aria-pressed={layout === "list"} onClick={() => setLayout("list")} className={`rounded-md p-1.5 ${layout === "list" ? "bg-hq-surface-muted" : "text-hq-fg-muted"}`}><List className="h-4 w-4" /></button></div></div>
         {data.canCreate && view !== "shared" && view !== "archived" ? <form onSubmit={(event) => { event.preventDefault(); newNote(capture); }} className="mb-5 flex items-center gap-3 rounded-xl border border-dashed border-hq-border bg-hq-surface/50 px-4 py-3 focus-within:border-hq-accent"><Plus className="h-4 w-4 shrink-0 text-hq-fg-muted" /><input maxLength={100000} disabled={creatingNote} value={capture} onChange={(event) => setCapture(event.target.value)} aria-label={t("workspace.quickCapture")} placeholder={t("workspace.capturePlaceholder")} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-hq-fg-muted" /><button type="submit" aria-label={t("actions.newNote")} className="rounded-lg bg-hq-canvas p-2 text-hq-accent shadow-sm"><ArrowRight className="h-4 w-4" /></button></form> : null}
         <div className="mb-6 flex flex-wrap gap-2"><div className="flex min-w-48 flex-1 items-center gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3"><Search className="h-4 w-4 shrink-0 text-hq-fg-muted" /><input ref={queryInput} type="search" maxLength={200} onFocus={() => { editingSearch.current = false; }} onBlur={() => { editingSearch.current = false; }} value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("workspace.search")} placeholder={t("workspace.search")} className="w-full bg-transparent py-2 text-sm outline-none" /></div><label className="flex items-center gap-1 rounded-lg border border-hq-border px-2"><Filter className="h-3.5 w-3.5 text-hq-fg-muted" /><select aria-label={t("source.label")} value={source} onChange={(event) => setSource(event.target.value)} className="bg-hq-canvas py-2 text-xs outline-none"><option value="">{t("source.all")}</option><option value="web">{t("source.web")}</option><option value="discord">{t("source.discord")}</option></select></label><select aria-label={t("fields.priority")} value={priority} onChange={(event) => setPriority(event.target.value)} className="rounded-lg border border-hq-border bg-hq-canvas px-2 py-2 text-xs outline-none"><option value="all">{t("priority.all")}</option>{["none", ...NOTE_PRIORITIES].map((value) => <option key={value} value={value}>{t(`priority.${value}`)}</option>)}</select><label className="flex items-center gap-1 rounded-lg border border-hq-border px-2"><ArrowUpDown className="h-3.5 w-3.5 text-hq-fg-muted" /><select aria-label={t("workspace.sort")} value={sort} onChange={(event) => setSort(event.target.value)} className="bg-hq-canvas py-2 text-xs outline-none"><option value="recent">{t("workspace.recent")}</option><option value="priority">{t("fields.priority")}</option></select></label></div>

@@ -80,7 +80,9 @@ export type SupportEvent = {
 };
 export type EventIdentity = Pick<SupportEvent, "id" | "at" | "idempotencyKey">;
 export type SupportCommand = { expectedVersion: number } & (
-  | { kind: "createTeam"; teamId: string; leadId: string }
+  | { kind: "createTeam"; teamId: string; name: string; leadId: string }
+  | { kind: "deleteTeam"; teamId: string }
+  | { kind: "publishSetup" }
   | { kind: "replaceLead"; teamId: string; leadId: string }
   | { kind: "rename"; teamId: string; name: string }
   | { kind: "move"; memberId: string; from: string | null; to: string | null }

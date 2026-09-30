@@ -24,7 +24,7 @@ import type { SupportAccess } from "./access.server";
 import type { SupportCommand } from "./types.shared";
 
 const access: SupportAccess = { sessionId: "session", canViewPublished: true, actor: { allianceId: "a", principalId: "owner", override: true, canRead: true, canWrite: true, linkedMemberIds: [] } };
-const command: SupportCommand = { kind: "createTeam", teamId: "team-a", leadId: "lead-a", expectedVersion: 0 };
+const command: SupportCommand = { kind: "createTeam", teamId: "team-a", name: "Team A", leadId: "lead-a", expectedVersion: 0 };
 function query(rows: unknown[]) {
   const builder: Record<string, unknown> = {};
   for (const method of ["from", "where", "for", "innerJoin"]) builder[method] = () => builder;

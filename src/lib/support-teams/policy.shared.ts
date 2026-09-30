@@ -39,9 +39,6 @@ function assertMovable(board: SupportBoard, roster: SupportRosterMember[], id: s
   if (!roster.some((m) => m.id === id)) throw new SupportError("memberUnavailable");
   if (teamIds(board).some((team) => teamLead(board, team) === id)) throw new SupportError("leadRequired");
 }
-function assertMaintenance(board: SupportBoard) {
-  if (!board.published || board.construction !== null) throw new SupportError("changed");
-}
 function commandChanges(board: SupportBoard, roster: SupportRosterMember[], actor: SupportActor, command: SupportCommand) {
   assertWriter(board, actor);
   if (command.expectedVersion !== board.version) throw new SupportError("changed");
@@ -61,8 +58,11 @@ function commandChanges(board: SupportBoard, roster: SupportRosterMember[], acto
     if (from !== null && from !== command.teamId) throw new SupportError("forbidden");
     if (command.kind === "createTeam") {
       if (board.fields[fieldKey("team", command.teamId, "exists")] !== undefined) throw new SupportError("changed");
+      const name = command.name.trim();
+      if (!name) throw new SupportError("nameRequired");
+      if (name.length > SUPPORT_TEAM_NAME_MAX) throw new SupportError("nameLimit");
       changes[fieldKey("team", command.teamId, "exists")] = true;
-      changes[fieldKey("team", command.teamId, "name")] = null;
+      changes[fieldKey("team", command.teamId, "name")] = name;
     } else {
       assertTeam(board, command.teamId);
       const previous = teamLead(board, command.teamId);
@@ -71,6 +71,39 @@ function commandChanges(board: SupportBoard, roster: SupportRosterMember[], acto
     changes[fieldKey("team", command.teamId, "lead")] = command.leadId;
     changes[fieldKey("member", command.leadId, "team")] = command.teamId;
     observeTeam(command.teamId);
+  } else if (command.kind === "deleteTeam") {
+    if (!actor.override) throw new SupportError("forbidden");
+    if (board.published || board.construction !== null) throw new SupportError("changed");
+    assertTeam(board, command.teamId);
+    const lead = teamLead(board, command.teamId);
+    for (const member of roster) {
+      if (memberTeam(board, member.id) !== command.teamId) continue;
+      reads.add(fieldKey("member", member.id, "team"));
+      if (member.id !== lead) throw new SupportError("changed");
+    }
+    if (lead !== null) changes[fieldKey("member", lead, "team")] = null;
+    changes[fieldKey("team", command.teamId, "exists")] = false;
+    observeTeam(command.teamId);
+  } else if (command.kind === "publishSetup") {
+    if (!actor.override) throw new SupportError("forbidden");
+    if (board.published || board.construction !== null) throw new SupportError("changed");
+    const ids = teamIds(board);
+    const targets = balancedTargets(roster.length, ids);
+    const leads = new Set<string>();
+    const named = (id: string) => {
+      for (const field of ["exists", "name", "lead"]) reads.add(fieldKey("team", id, field));
+      const name = readField(board, fieldKey("team", id, "name"));
+      const lead = teamLead(board, id);
+      if (typeof name !== "string" || !name.trim() || lead === null || leads.has(lead) || !eligible(roster, lead) || memberTeam(board, lead) !== id) return false;
+      leads.add(lead);
+      return roster.filter((member) => memberTeam(board, member.id) === id).length === targets[id];
+    };
+    const complete = ids.length > 0 && ids.every(named) && roster.every((member) => {
+      reads.add(fieldKey("member", member.id, "team"));
+      return memberTeam(board, member.id) !== null;
+    });
+    if (!complete) throw new SupportError("incomplete");
+    changes[boardKey(board, "published")] = true;
   } else if (command.kind === "rename") {
     assertTeam(board, command.teamId);
     if (!actor.override && !ownTeam(board, roster, actor, command.teamId)) throw new SupportError("forbidden");
@@ -80,7 +113,8 @@ function commandChanges(board: SupportBoard, roster: SupportRosterMember[], acto
     changes[fieldKey("team", command.teamId, "name")] = name;
     observeTeam(command.teamId);
   } else {
-    assertMaintenance(board);
+    if (board.construction !== null) throw new SupportError("changed");
+    if (!board.published && !actor.override) throw new SupportError("forbidden");
     assertMovable(board, roster, command.memberId);
     assertTeam(board, command.from);
     assertTeam(board, command.to);
@@ -126,7 +160,7 @@ export function recordChanges(board: SupportBoard, actor: SupportActor, changes:
 }
 export function applyCommand(board: SupportBoard, roster: SupportRosterMember[], actor: SupportActor, command: SupportCommand, identity: EventIdentity) {
   const { changes, reads } = commandChanges(board, roster, actor, command);
-  return recordChanges(board, actor, changes, reads, { mode: command.kind === "createTeam" && !board.published ? "setup" : "maintenance" }, command.kind, identity);
+  return recordChanges(board, actor, changes, reads, { mode: board.published ? "maintenance" : "setup" }, command.kind, identity);
 }
 
 export function validateRestoration(board: SupportBoard, roster: SupportRosterMember[], changedKeys: string[]) {
