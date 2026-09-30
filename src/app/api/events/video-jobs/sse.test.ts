@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -49,10 +50,21 @@ describe("video-jobs SSE helpers", () => {
 });
 
 describe("video-jobs early disconnect cleanup", () => {
+  it("still requires a session when the request is already aborted", async () => {
+    mocks.session.mockResolvedValue(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
+    const controller = new AbortController();
+    controller.abort();
+    const response = await GET(new Request("http://localhost/api/events/video-jobs", { signal: controller.signal }));
+    expect(response.status).toBe(401);
+    expect(mocks.session).toHaveBeenCalledOnce();
+    expect(mocks.snapshot).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
   it("does not allocate resources for an already-aborted request", async () => {
     const controller = new AbortController();
     controller.abort();
     const response = await GET(new Request("http://localhost/api/events/video-jobs", { signal: controller.signal }));
+    expect(mocks.session).toHaveBeenCalledOnce();
     await expect(response.body!.getReader().read()).resolves.toMatchObject({ done: true });
     expect(mocks.snapshot).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
@@ -63,9 +75,12 @@ describe("video-jobs early disconnect cleanup", () => {
     mocks.snapshot.mockReturnValue(snapshot.promise);
     const controller = new AbortController();
     const response = await GET(new Request("http://localhost/api/events/video-jobs", { signal: controller.signal }));
+    expect(mocks.session).toHaveBeenCalledOnce();
+    const read = response.body!.getReader().read();
+    await vi.waitFor(() => expect(mocks.snapshot).toHaveBeenCalledOnce());
     controller.abort();
     snapshot.resolve([]);
-    await expect(response.body!.getReader().read()).resolves.toMatchObject({ done: true });
+    await expect(read).resolves.toMatchObject({ done: true });
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.listen).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);

@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -55,10 +56,28 @@ describe("admin-alerts SSE helpers", () => {
 });
 
 describe("admin-alerts early disconnect cleanup", () => {
+  it("still requires a maintainer session when the request is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    mocks.session.mockResolvedValue(null);
+    const missing = await GET(new Request("http://localhost/api/events/admin-alerts", { signal: controller.signal }));
+    expect(missing.status).toBe(401);
+    expect(mocks.permission).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+
+    mocks.session.mockResolvedValue("test-session");
+    mocks.permission.mockResolvedValue(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+    const denied = await GET(new Request("http://localhost/api/events/admin-alerts", { signal: controller.signal }));
+    expect(denied.status).toBe(403);
+    expect(mocks.permission).toHaveBeenCalledOnce();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
   it("does not allocate resources for an already-aborted request", async () => {
     const controller = new AbortController();
     controller.abort();
     const response = await GET(new Request("http://localhost/api/events/admin-alerts", { signal: controller.signal }));
+    expect(mocks.session).toHaveBeenCalledOnce();
+    expect(mocks.permission).toHaveBeenCalledOnce();
     await expect(response.body!.getReader().read()).resolves.toMatchObject({ done: true });
     expect(mocks.create).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
