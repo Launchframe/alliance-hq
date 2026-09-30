@@ -74,7 +74,7 @@ Simulate when Last War returns a player **without** `server` and UID suffix is n
 
 | Step | Action | Expected |
 |------|--------|----------|
-| 1 | **Staging only:** block `lastwar-platform.lastwargame.com` (hosts file / proxy) or set invalid `LASTWAR_PLAYER_LOOKUP_URL` | Lookup returns `request_failed` |
+| 1 | **Staging only:** block `accounts-cdn-api.lastwar.com` (hosts file / proxy) or set invalid `LASTWAR_PLAYER_LOOKUP_URL` | Lookup returns `request_failed` |
 | 2 | Owner on empty native roster submits name + UID | `lookup_fallback` screen (not hard error) |
 | 3 | Enter state server number | `linked` using typed name (no Last War verify) |
 
