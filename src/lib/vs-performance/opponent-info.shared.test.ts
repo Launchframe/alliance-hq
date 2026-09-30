@@ -89,6 +89,23 @@ describe("parseAshedOpponentRow", () => {
     ]);
   });
 
+  it('treats the legacy empty score array as unknown rather than zero', () => {
+    const parsed = parseAshedOpponentRow({
+      ...FIXTURE,
+      competition_date: '2026-08-17',
+      opponent_server: null,
+      opponent_tag: null,
+      opponent_name: null,
+      opponent_daily_scores: [],
+      outcome: 'pending',
+      updated_date: '2026-09-23T22:16:07.444000',
+    }, 'ashed-a');
+    expect(parsed.weekStart).toBe('2026-08-17');
+    expect(parsed.opponentDailyScores).toEqual([null, null, null, null, null, null]);
+    expect(parsed.compatibilityScore).toBeNull();
+    expect(parsed.weekOutcome).toBe('pending');
+  });
+
   it("rejects wrong alliance, malformed weeks, and bad score values", () => {
     expect(() => parseAshedOpponentRow(FIXTURE, "other")).toThrow(
       VsPerformanceError,
@@ -96,6 +113,7 @@ describe("parseAshedOpponentRow", () => {
     for (const bad of [
       { ...FIXTURE, competition_date: "2026-09-29" },
       { ...FIXTURE, competition_date: "2099-01-01" },
+      { ...FIXTURE, opponent_daily_scores: [1] },
       { ...FIXTURE, opponent_daily_scores: [1, 2, 3, 4, 5] },
       { ...FIXTURE, opponent_daily_scores: [1, 2, 3, 4, 5, 6, 7, 8] },
       { ...FIXTURE, opponent_daily_scores: [1, -2, 3, 4, 5, 6, 0] },
