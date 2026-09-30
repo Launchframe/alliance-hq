@@ -18,7 +18,7 @@ describe("notifyLastWarUidLookupOutage", () => {
   it("emails maintainers with an hourly dedupe fingerprint and no UID", async () => {
     const now = new Date("2026-03-29T15:42:00.000Z");
     const result = await notifyLastWarUidLookupOutage({
-      detail: "HTTP 500 from accounts CDN",
+      detail: "HTTP 500 from accounts CDN for 1001369694001203",
       now,
     });
 
@@ -27,7 +27,7 @@ describe("notifyLastWarUidLookupOutage", () => {
       expect.objectContaining({
         subject: "[Alliance HQ] Last War UID lookup failing (preview)",
         dedupeFingerprint: "lastwar-uid-lookup-outage:preview:2026-03-29T15",
-        text: expect.stringContaining("HTTP 500 from accounts CDN"),
+        text: expect.stringContaining("HTTP 500 from accounts CDN for [uid]"),
       }),
     );
     const call = vi.mocked(emailPlatformMaintainers).mock.calls[0]?.[0];

@@ -15,6 +15,11 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Strip 12–16 digit sequences so CDN error text cannot leak a player UID. */
+export function redactPossibleGameUids(detail: string): string {
+  return detail.replace(/\d{12,16}/g, "[uid]");
+}
+
 /**
  * Email platform maintainers when Last War UID lookup is unreachable.
  * Deduped to at most one email per UTC hour while the outage continues.
@@ -29,7 +34,8 @@ export async function notifyLastWarUidLookupOutage(input: {
     process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown";
   const hourKey = utcHourFingerprint(now);
   const subject = `[Alliance HQ] Last War UID lookup failing (${envLabel})`;
-  const detail = input.detail.trim().slice(0, 240) || "request_failed";
+  const detail =
+    redactPossibleGameUids(input.detail.trim()).slice(0, 240) || "request_failed";
   const text = [
     "Last War player UID lookup returned request_failed.",
     "",
