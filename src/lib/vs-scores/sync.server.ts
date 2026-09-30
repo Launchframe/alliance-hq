@@ -11,7 +11,7 @@ import {
   type VsAshedConnection,
 } from "@/lib/vs-scores/ashed-transport.server";
 import { listVsHeads } from "./repository.server";
-import { parseVsScore, type VsPeriod } from "./evidence.shared";
+import { parseVsScore, validateVsPeriod, VsEvidenceError, type VsPeriod } from "./evidence.shared";
 
 type Scope = typeof schema.vsScoreSyncScopes.$inferSelect;
 type VsConnection = VsAshedConnection & { deadline?: number };
@@ -139,6 +139,26 @@ export async function syncVsScoresForAlliance(allianceId: string) {
     if (Date.now() >= bounded.deadline) break;
     await syncScope(scope, bounded);
   }
+}
+
+export async function retryVsScoresForContext(allianceId: string, recordedDate: string, period: VsPeriod) {
+  if (!validateVsPeriod(recordedDate, period)) throw new VsEvidenceError("invalid_period");
+  const db = getDb();
+  const [scope] = await db.update(schema.vsScoreSyncScopes).set({ nextAttemptAt: new Date(0) }).where(and(
+    eq(schema.vsScoreSyncScopes.allianceId, allianceId), eq(schema.vsScoreSyncScopes.recordedDate, recordedDate), eq(schema.vsScoreSyncScopes.period, period),
+    or(isNull(schema.vsScoreSyncScopes.leaseToken), lt(schema.vsScoreSyncScopes.leaseExpiresAt, new Date())),
+    sql`(${schema.vsScoreSyncScopes.status} <> 'synced' or ${schema.vsScoreSyncScopes.requestedVersion} > ${schema.vsScoreSyncScopes.processedVersion})`
+  )).returning();
+  if (!scope) return;
+  let context: VsAshedConnection | null;
+  try { context = await resolveVsAshedConnection(allianceId); }
+  catch {
+    await db.update(schema.vsScoreSyncScopes).set({ status: "credentials_required" })
+      .where(and(eq(schema.vsScoreSyncScopes.id, scope.id), eq(schema.vsScoreSyncScopes.allianceId, allianceId), isNull(schema.vsScoreSyncScopes.leaseToken)));
+    return;
+  }
+  if (!context) return;
+  await syncScope(scope, { ...context, deadline: Date.now() + 130_000 });
 }
 
 export async function runVsScoreSyncTick() {

@@ -27,6 +27,14 @@ import {
   playwrightAuthCookies,
   type Sql,
 } from "./fixtures/db";
+import { seedVsReviewJob } from "./fixtures/vs-evidence";
+
+import type {
+  VsCaptureCandidate,
+  VsCaptureKind,
+  VsCaptureReview,
+} from "../src/lib/vs-performance/vs-capture.shared";
+import type { VsWeekPayload as CompleteVsWeekPayload } from "../src/lib/vs-performance/weekly-view.shared";
 
 const MOCK_PORT = 14789;
 const MOCK_ORIGIN = `http://127.0.0.1:${MOCK_PORT}`;
@@ -36,6 +44,8 @@ type MockState = {
   userEmail: string;
   records: Record<string, unknown>[];
   scoreRows: Record<string, unknown>[];
+  members: Record<string, unknown>[];
+  scorePosts: Record<string, unknown>[];
   posts: Record<string, unknown>[];
   puts: Array<{ id: string; body: Record<string, unknown> }>;
   holdMetaGets: number;
@@ -57,6 +67,8 @@ const mockState: MockState = {
   userEmail: OWNER_EMAIL,
   records: [],
   scoreRows: [],
+  members: [],
+  scorePosts: [],
   posts: [],
   puts: [],
   holdMetaGets: 0,
@@ -73,6 +85,8 @@ const mockState: MockState = {
 function resetMock() {
   mockState.records = [];
   mockState.scoreRows = [];
+  mockState.members = [];
+  mockState.scorePosts = [];
   mockState.posts = [];
   mockState.puts = [];
   mockState.holdMetaGets = 0;
@@ -170,6 +184,34 @@ function startAshedMock(): Promise<Server> {
         res.writeHead(status, { "content-type": "application/json" });
         res.end(JSON.stringify(body));
       };
+      if (
+        req.method === "POST" &&
+        url.pathname.endsWith("/functions/bulkUpsertVSScores")
+      ) {
+        const body = await readBody(req);
+        mockState.scorePosts.push(body);
+        for (const item of body.scores as Array<Record<string, unknown>>) {
+          const previous = mockState.scoreRows.find(
+            (row) =>
+              row.alliance_id === body.alliance_id &&
+              row.recorded_date === body.recorded_date &&
+              row.is_weekly === body.is_weekly &&
+              row.member_id === item.member_id,
+          );
+          const saved = {
+            id: previous?.id ?? `score-${nanoid(6)}`,
+            alliance_id: body.alliance_id,
+            recorded_date: body.recorded_date,
+            is_weekly: body.is_weekly,
+            member_id: item.member_id,
+            member_name: item.member_name,
+            score: item.score,
+          };
+          if (previous) Object.assign(previous, saved);
+          else mockState.scoreRows.push(saved);
+        }
+        return send(200, {});
+      }
       const marker = "/entities/";
       const idx = url.pathname.indexOf(marker);
       if (idx < 0) return send(404, {});
@@ -186,6 +228,11 @@ function startAshedMock(): Promise<Server> {
           owner_email: mockState.userEmail,
           collaborators: [],
         });
+      }
+      if (req.method === "GET" && entity.startsWith("Member/")) {
+        const id = decodeURIComponent(entity.slice("Member/".length));
+        const member = mockState.members.find((row) => row.id === id);
+        return member ? send(200, member) : send(404, {});
       }
       if (req.method === "GET" && entity === "VSScore") {
         mockState.scoreGetCount += 1;
@@ -1181,6 +1228,13 @@ test.describe("VS Ashed sync and capture UI", () => {
         body: JSON.stringify(themed),
       });
     });
+    await page.route("**/api/vs-performance/matchup/import", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(themed),
+      }),
+    );
     await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/en-US/vs-performance?week=${currentWeek}`);
     await expect(
@@ -2430,6 +2484,98 @@ test.describe("VS sync privilege and credential boundaries", () => {
 });
 
 test.describe("VS capture parsing and merge matrix", () => {
+  for (const order of [
+    ["weekly_overview", "daily_totals"],
+    ["daily_totals", "weekly_overview"],
+  ] as const) {
+    test(`supplied screenshots save and sync in one pass: ${order.join(" then ")}`, async ({ request }, testInfo) => {
+      test.setTimeout(180_000);
+      const { alliance, cookieHeader, externalId } = await setupAshedAlliance(request, "officer");
+      const sql = getE2eSql();
+      await sql`UPDATE alliances SET tag = 'LFgo', game_server_number = 1203 WHERE id = ${alliance.allianceId}`;
+      const weekStart = "2026-09-28";
+      const dayOne = "2026-09-28", dayTwo = "2026-09-29";
+      mockState.records = [
+        metaRecord(weekStart, externalId, { opponent_tag: "TriV", opponent_name: "Trinity Vanguard", opponent_daily_scores: [123, 0, 0, 0, 0, 0, 91], outcome: "pending" }),
+        metaRecord("2026-08-17", externalId, { opponent_server: null, opponent_tag: null, opponent_name: null, opponent_daily_scores: [], outcome: "pending" }),
+      ];
+      const headers = { Cookie: cookieHeader };
+      const starting = await fetchWeek(request, cookieHeader, weekStart);
+      const initialPull = await request.post("/api/vs-performance/matchup/import", { headers, data: { weekStart, scope: starting.scope } });
+      expect(initialPull.ok(), await initialPull.text()).toBeTruthy();
+      let payload = await initialPull.json() as CompleteVsWeekPayload;
+      expect(payload.matchup?.sync.status).toBe("synced");
+      const images: Record<VsCaptureKind, string> = {
+        weekly_overview: process.env.VS_CAPTURE_WEEKLY_IMAGE ?? path.resolve(__dirname, "../src/lib/vs-performance/fixtures/vs-weekly-two-wins.png"),
+        daily_totals: process.env.VS_CAPTURE_DAILY_IMAGE ?? path.resolve(__dirname, "../src/lib/vs-performance/fixtures/vs-day-two-completed-redacted.png"),
+      };
+      const candidates: VsCaptureCandidate[] = [];
+      for (const kind of order) {
+        const parsed = await request.post("/api/vs-performance/captures/parse", { headers, multipart: {
+          image: { name: `${kind}.png`, mimeType: "image/png", buffer: readFileSync(images[kind]) },
+          kind, weekStart, scope: payload.scope,
+        } });
+        expect(parsed.ok(), await parsed.text()).toBeTruthy();
+        const staged = await parsed.json() as { reviewId: string; version: number; candidate: VsCaptureCandidate };
+        const candidate = staged.candidate;
+        candidates.push(candidate);
+        let review: VsCaptureReview;
+        if (kind === "weekly_overview") {
+          expect(candidate.left.server).toBe(1203);
+          expect(candidate.right.server).toBe(1236);
+          expect(candidate.leftPoints).toBe(3);
+          expect(candidate.rightPoints).toBe(0);
+          expect(candidate.ongoing).toBe(true);
+          review = {
+            kind, weekStart, ourSide: "left", confirmSides: true,
+            left: { ...candidate.left, tag: "LFgo" },
+            right: { ...candidate.right, tag: "TriV", name: "Trinity Vanguard" },
+            leftPoints: candidate.leftPoints, rightPoints: candidate.rightPoints,
+            dayResults: [1, 2, 3, 4, 5, 6].map(day => ({ day, winner: day <= 2 ? "left" : "unknown" })),
+          };
+        } else {
+          expect(candidate.day).toBe(2);
+          expect(candidate.leftScore).toBe("2241713380");
+          expect(candidate.rightScore).toBe("2222858900");
+          expect(candidate.left.name).toBeNull(); expect(candidate.right.name).toBeNull();
+          review = {
+            kind, weekStart, ourSide: "left", confirmSides: true,
+            left: { ...candidate.left, tag: "LFgo" },
+            right: { ...candidate.right, tag: "TriV" },
+            day: candidate.day!, leftScore: candidate.leftScore, rightScore: candidate.rightScore, finalDay: true,
+          };
+        }
+        const versionFor = (date: string) => payload.matchup?.days.find(day => day.recordedDate === date)?.version ?? 0;
+        const expectedDayVersions = kind === "daily_totals" ? { [dayTwo]: versionFor(dayTwo) } : { [dayOne]: versionFor(dayOne), [dayTwo]: versionFor(dayTwo) };
+        const committed = await request.post(`/api/vs-performance/captures/${encodeURIComponent(staged.reviewId)}/commit`, { headers, data: {
+          review, expectedReviewVersion: staged.version, expectedMatchupVersion: payload.matchup?.version ?? 0,
+          expectedDayVersions, requestId: `screenshots-${nanoid(12)}`, scope: payload.scope,
+        } });
+        expect(committed.ok(), await committed.text()).toBeTruthy();
+        payload = await committed.json() as CompleteVsWeekPayload;
+        expect(payload.matchup?.sync.status).toBe("synced");
+        expect(payload.matchup?.sync.errorCode).toBeNull();
+      }
+      const persistedResponse = await request.get(`/api/vs-performance/week?weekStart=${weekStart}`, { headers });
+      expect(persistedResponse.ok(), await persistedResponse.text()).toBeTruthy();
+      const persisted = await persistedResponse.json() as CompleteVsWeekPayload;
+      expect(persisted.points).toMatchObject({ alliancePoints: 3, opponentPoints: 0, remainingPoints: 10, victory: null });
+      expect(persisted.matchup).toMatchObject({ opponentServer: 1236, opponentTag: "TriV", opponentName: "Trinity Vanguard", reportedOurPoints: 3, reportedOpponentPoints: 0, weekOutcome: "pending" });
+      expect(persisted.matchup!.days).toHaveLength(2);
+      expect(persisted.matchup!.days.find(day => day.recordedDate === dayOne)).toMatchObject({ outcome: "won", finality: "final", totals: null });
+      expect(persisted.matchup!.days.find(day => day.recordedDate === dayTwo)).toMatchObject({ outcome: "won", finality: "final", totals: { ourScore: "2241713380", opponentScore: "2222858900" } });
+      expect(persisted.matchup!.opponentDailyScores).toEqual(["123", "2222858900", "0", "0", "0", "0"]);
+      expect(mockState.posts).toHaveLength(0);
+      expect(mockState.puts).toHaveLength(1);
+      expect(mockState.puts[0]).toEqual({ id: mockState.records[0].id, body: { opponent_daily_scores: [123, 2222858900, 0, 0, 0, 0, 91] } });
+      expect(mockState.records[0]).toMatchObject({ opponent_tag: "TriV", opponent_name: "Trinity Vanguard", opponent_server: 1236, opponent_daily_scores: [123, 2222858900, 0, 0, 0, 0, 91], outcome: "pending", notes: "preserve" });
+      expect(mockState.records[1].opponent_daily_scores).toEqual([]);
+      await testInfo.attach("reviewed-screenshot-save-and-sync", { contentType: "application/json", body: Buffer.from(JSON.stringify({ order, weekStart, candidates,
+        manualReview: { tags: ["LFgo", "TriV"], opponentName: "Trinity Vanguard", weeklyWinners: ["left", "left", "unknown", "unknown", "unknown", "unknown"], confirmedOurSide: "left", confirmedFinalDay: 2 },
+        points: persisted.points, matchup: persisted.matchup, ashedPuts: mockState.puts,
+      }, null, 2)) });
+    });
+  }
   test("the real daily fixture parses the ongoing duel without invented wins", async ({
     request,
   }) => {
@@ -2916,5 +3062,222 @@ test.describe("VS native capture UI flow", () => {
     const row = visiblePanels.getByTestId(`vs-result-${targetDate}`);
     await expect(row).toContainText("100");
     await expect(row).toContainText("50");
+  });
+});
+
+test.describe("VS video combined save sync", () => {
+  test("combined video save keeps independent Ashed sync failures and retries", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const { alliance, auth, cookieHeader, externalId } =
+      await setupAshedAlliance(request, "officer");
+    const member = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "Combined Sync Commander",
+    });
+    await sql`
+      UPDATE alliances SET tag = 'LFgo', game_server_number = 1203
+      WHERE id = ${alliance.allianceId}
+    `;
+    const recordedDate = "2026-09-29";
+    const job = await seedVsReviewJob(sql, {
+      allianceId: alliance.allianceId,
+      actor: auth,
+      recordedDate,
+      rows: [
+        {
+          memberId: member.ashedMemberId,
+          memberName: "Combined Sync Commander",
+          score: 2000000000,
+        },
+      ],
+    });
+
+    mockState.members = [
+      {
+        id: member.ashedMemberId,
+        alliance_id: externalId,
+        name: "Combined Sync Commander",
+      },
+    ];
+    mockState.records = [];
+    mockState.scoreRows = [];
+
+    const now = new Date();
+    await sql`
+      INSERT INTO alliance_ashed_credentials (id, alliance_id, app_id, origin_url, encrypted_token, token_expires_at, registered_by_hq_user_id, created_at, updated_at)
+      VALUES (${`cred-${nanoid(12)}`}, ${alliance.allianceId}, ${DEFAULT_APP_ID}, ${DEFAULT_ORIGIN_URL}, ${encryptSecret("e2e-video-score-token")}, ${new Date(now.getTime() + 86400000)}, ${auth.hqUserId}, ${now}, ${now})
+    `;
+
+    const headers = { Cookie: cookieHeader };
+    const base = `/api/tools/video-upload/${job.jobId}/vs-evidence`;
+    const pngBytes = readFileSync(
+      path.resolve(
+        __dirname,
+        "../src/lib/vs-performance/fixtures/vs-day-two-completed-redacted.png",
+      ),
+    );
+    const init = await request.post(base, {
+      headers,
+      data: {
+        expectedVersion: 0,
+        fileName: "vs-day-two.png",
+        fileSize: pngBytes.length,
+        contentType: "image/png",
+        requestedKind: "auto",
+      },
+    });
+    expect(init.status(), await init.text()).toBe(200);
+    const initBody = (await init.json()) as {
+      mode: string;
+      imageVersion: number;
+      contentType: string;
+    };
+    expect(initBody.mode).toBe("direct");
+    const put = await request.put(
+      `${base}/upload?imageVersion=${initBody.imageVersion}`,
+      {
+        headers: { ...headers, "Content-Type": "image/png" },
+        data: pngBytes,
+      },
+    );
+    expect(put.status(), await put.text()).toBe(200);
+    const complete = await request.post(`${base}/complete`, {
+      headers,
+      data: { imageVersion: initBody.imageVersion },
+    });
+    expect(complete.status(), await complete.text()).toBe(200);
+    const processRes = await request.post(`${base}/process`, { headers });
+    expect(processRes.status(), await processRes.text()).toBe(200);
+    const getEvidence = async () => {
+      const res = await request.get(base, { headers });
+      expect(res.status(), await res.text()).toBe(200);
+      return (await res.json()) as {
+        evidence: { version: number; imageVersion: number; status: string };
+        scoreSync: { status: string };
+        matchup: { sync?: { status: string } | null } | null;
+      };
+    };
+    await expect
+      .poll(async () => (await getEvidence()).evidence.status, {
+        timeout: 180_000,
+      })
+      .toBe("ready");
+    const ready = await getEvidence();
+
+    mockState.scoreGetErrorStatus = 500;
+    const submitBody = {
+      recordedDate,
+      vsPeriod: "daily",
+      vsRevision: 0,
+      requestId: `e2e-${nanoid(12)}`,
+      rows: [
+        {
+          id: job.rows[0]!.id,
+          memberId: member.ashedMemberId,
+          memberName: "Combined Sync Commander",
+          score: "2000000000",
+          rank: 1,
+        },
+      ],
+      vsMatchReview: {
+        evidenceVersion: ready.evidence.version,
+        expectedMatchupVersion: 0,
+        expectedDayVersions: { [recordedDate]: 0 },
+        editOpponent: false,
+        data: {
+          source: "screenshot",
+          imageVersion: ready.evidence.imageVersion,
+          review: {
+            kind: "daily_totals",
+            weekStart: "2026-09-28",
+            ourSide: "left",
+            confirmSides: true,
+            left: { server: 1203, tag: "LFgo", name: null },
+            right: { server: 1236, tag: "TriV", name: "Trinity Vanguard" },
+            day: 2,
+            leftScore: "2241713380",
+            rightScore: "2222858900",
+            finalDay: true,
+          },
+        },
+      },
+    };
+    const submit = await request.post(
+      `/api/tools/video-upload/${job.jobId}/submit`,
+      { headers, data: submitBody },
+    );
+    expect(submit.status(), await submit.text()).toBe(200);
+    const submitJson = (await submit.json()) as { storage?: string };
+    expect(submitJson.storage).toBe("hq");
+
+    await expect
+      .poll(
+        async () => {
+          const view = await getEvidence();
+          return [view.scoreSync.status, view.matchup?.sync?.status ?? null];
+        },
+        { timeout: 60_000 },
+      )
+      .toEqual(["failed", "synced"]);
+
+    expect(mockState.posts).toHaveLength(1);
+    const metaPost = mockState.posts[0]!;
+    const dailyScores = metaPost.opponent_daily_scores as number[];
+    expect(dailyScores[1]).toBe(2222858900);
+    expect(metaPost.outcome).toBe("pending");
+    expect(metaPost.opponent_tag).toBe("TriV");
+    expect(mockState.scorePosts).toHaveLength(0);
+
+    const [dayResult] = await sql`
+      SELECT our_score::text, opponent_score::text, outcome
+      FROM vs_match_day_results
+      WHERE alliance_id = ${alliance.allianceId} AND recorded_date = ${recordedDate}
+    `;
+    expect(dayResult).toMatchObject({
+      our_score: "2241713380",
+      opponent_score: "2222858900",
+      outcome: "won",
+    });
+    const heads = await sql`
+      SELECT score::text FROM vs_score_heads
+      WHERE alliance_id = ${alliance.allianceId} AND source_job_id = ${job.jobId}
+    `;
+    expect(heads.map((row) => row.score)).toEqual(["2000000000"]);
+
+    mockState.scoreGetErrorStatus = null;
+    const retry = await request.post(`${base}/sync`, {
+      headers,
+      data: { target: "scores" },
+    });
+    expect(retry.status(), await retry.text()).toBe(200);
+    await expect
+      .poll(async () => (await getEvidence()).scoreSync.status, {
+        timeout: 60_000,
+      })
+      .toBe("synced");
+    expect(mockState.scorePosts).toHaveLength(1);
+    expect(mockState.posts).toHaveLength(1);
+    expect(mockState.puts).toHaveLength(0);
+    const scorePost = mockState.scorePosts[0]!;
+    expect(scorePost.alliance_id).toBe(externalId);
+    expect(scorePost.recorded_date).toBe(recordedDate);
+    expect(scorePost.is_weekly).toBe(false);
+    const scores = scorePost.scores as Array<Record<string, unknown>>;
+    expect(scores).toHaveLength(1);
+    expect(scores[0]!.member_id).toBe(member.ashedMemberId);
+    expect(scores[0]!.score).toBe(2000000000);
+    expect(scorePost.alliance_size_at_record ?? null).toBeNull();
+
+    const replay = await request.post(
+      `/api/tools/video-upload/${job.jobId}/submit`,
+      { headers, data: submitBody },
+    );
+    expect(replay.status(), await replay.text()).toBe(200);
+    const replayJson = (await replay.json()) as { replayed?: boolean };
+    expect(replayJson.replayed).toBe(true);
+    expect(mockState.posts).toHaveLength(1);
+    expect(mockState.scorePosts).toHaveLength(1);
   });
 });

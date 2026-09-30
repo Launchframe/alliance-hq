@@ -7,7 +7,10 @@ import {
   listAllianceMembers,
 } from "@/lib/members/roster.server";
 import { requireApiSession } from "@/lib/session";
-import { sessionHasPermission } from "@/lib/rbac/context";
+import {
+  sessionHasPermission,
+  sessionHasPermissionForAlliance,
+} from "@/lib/rbac/context";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import {
@@ -55,6 +58,10 @@ import {
   loadScoreboardReviewPreferences,
 } from "@/lib/video/scoreboard-review-preferences.server";
 import { DEFAULT_SCOREBOARD_REVIEW_PREFERENCES } from "@/lib/video/scoreboard-review-preferences.shared";
+import {
+  loadVsVideoEvidence,
+  vsVideoScopeKey,
+} from "@/lib/vs-performance/video-evidence.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -275,6 +282,40 @@ export async function GET(_request: Request, { params }: Props) {
       offerRename: canOfferScoreboardMembers && scoreboardPrefs.offerRename,
     };
 
+    let vsEvidence = null;
+    if (
+      scoreTargetId === "vs-performance" &&
+      allianceIdForJob &&
+      session.hqUserId &&
+      allianceIdForJob ===
+        (session.currentAllianceId ?? session.allianceId) &&
+      (await sessionHasPermissionForAlliance(
+        session.id,
+        allianceIdForJob,
+        "scores:read",
+      ))
+    ) {
+      vsEvidence = await loadVsVideoEvidence({
+        actor: {
+          sessionId: session.id,
+          hqUserId: session.hqUserId,
+          allianceId: allianceIdForJob,
+        },
+        job,
+        scopeKey: vsVideoScopeKey(job),
+      });
+    }
+
+    const vsJobContext =
+      scoreTargetId === "vs-performance" && allianceIdForJob
+        ? await loadVsJobContext(allianceIdForJob, jobId)
+        : null;
+    const useEvidenceContext =
+      vsEvidence != null &&
+      vsEvidence.evidence.version > 0 &&
+      vsJobContext != null &&
+      (vsJobContext.vsRevision === 0 || vsEvidence.evidence.draft != null);
+
     let expectedRowCount: number | null = null;
     let shadowPassInFlight = false;
     let surveyRowCountEstimate: number | null = null;
@@ -320,7 +361,18 @@ export async function GET(_request: Request, { params }: Props) {
         status: job.status,
         fileName: job.fileName,
         scoreTarget: scoreTargetId,
-        ...(scoreTargetId === "vs-performance" && allianceIdForJob ? { recordedDate: job.recordedDate, ...await loadVsJobContext(allianceIdForJob, jobId) } : {}),
+        ...(vsJobContext
+          ? {
+              recordedDate: job.recordedDate,
+              ...vsJobContext,
+              ...(useEvidenceContext && vsEvidence
+                ? {
+                    recordedDate: vsEvidence.evidence.recordedDate,
+                    vsPeriod: vsEvidence.evidence.period,
+                  }
+                : {}),
+            }
+          : {}),
         boardKey: job.boardKey,
         commendationId: job.commendationId,
         hqEventId: job.hqEventId,
@@ -366,6 +418,7 @@ export async function GET(_request: Request, { params }: Props) {
       expectedRowCount,
       surveyRowCountEstimate,
       shadowPassInFlight,
+      vsEvidence,
       devShadowUx:
         scoreTargetId === "vs-performance"
           ? {
