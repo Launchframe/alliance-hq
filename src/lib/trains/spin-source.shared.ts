@@ -1,128 +1,22 @@
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
-import {
-  isPriceIsRightHeavyHitterSaturday,
-  isPriceIsRightPaintTemplate,
-  usesPriceIsFreightConductorRoll,
-} from "@/lib/trains/heavy-hitter-pool.shared";
-import {
-  conductorMechanismPoolType,
-  vipMechanismPoolType,
-} from "@/lib/trains/templates";
-import type { PoolType, VipMechanismType, WeekTemplateType } from "@/lib/trains/types";
+/**
+ * Spin sources are derived from the day's rule. Kept as a module so the many
+ * existing importers of `SpinSource` keep working; the logic lives in
+ * `rules/derive.shared.ts`.
+ */
+export {
+  isPoolSpinSource,
+  isPriceIsRightSpinSource,
+  spinSourceForConductorRule,
+  spinSourceForVipRule,
+} from "@/lib/trains/rules/derive.shared";
 
-export type PoolSpinSource = {
-  kind: "pool";
-  poolType: PoolType;
-};
-
-export type VsLeaderboardSpinSource = {
-  kind: "vs_leaderboard";
-  topN: number;
-};
-
-export type VrLeaderboardSpinSource = {
-  kind: "vr_leaderboard";
-  topN: number;
-};
-
-export type DonationsLeaderboardSpinSource = {
-  kind: "donations_leaderboard";
-  rank: 1 | 2;
-};
-
-export type EventLeaderboardSpinSource = {
-  kind: "event_leaderboard";
-};
-
-/** Price Is Freight weekday raffle / uniform draw (not a depleting pool UI). */
-export type PriceIsRightWeekdaySpinSource = {
-  kind: "price_is_right_raffle";
-};
-
-/** Price Is Freight Saturday heavy-hitter draw (not a depleting pool UI). */
-export type PriceIsRightHeavyHitterSpinSource = {
-  kind: "price_is_right_heavy_hitter";
-};
-
-export type SpinSource =
-  | PoolSpinSource
-  | VsLeaderboardSpinSource
-  | VrLeaderboardSpinSource
-  | DonationsLeaderboardSpinSource
-  | EventLeaderboardSpinSource
-  | PriceIsRightWeekdaySpinSource
-  | PriceIsRightHeavyHitterSpinSource
-  | null;
-
-export function conductorSpinSource(
-  conductorMechanism: string | null | undefined,
-  paintTemplate?: WeekTemplateType | null,
-  date?: string | null,
-  conductorConfig?: unknown,
-): SpinSource {
-  if (usesPriceIsFreightConductorRoll(paintTemplate)) {
-    if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
-      return { kind: "price_is_right_heavy_hitter" };
-    }
-    if (isPriceIsRightPaintTemplate(paintTemplate)) {
-      return { kind: "price_is_right_raffle" };
-    }
-  }
-
-  const mechanism = effectiveConductorMechanism(
-    conductorMechanism,
-    paintTemplate,
-    date,
-  );
-  if (!mechanism) return null;
-
-  const poolType = conductorMechanismPoolType(mechanism);
-  if (poolType) {
-    return { kind: "pool", poolType };
-  }
-
-  const topBoard = resolveConductorTopNBoard(mechanism, conductorConfig);
-  if (topBoard?.kind === "vs") {
-    return { kind: "vs_leaderboard", topN: topBoard.topN };
-  }
-  if (topBoard?.kind === "vr") {
-    return { kind: "vr_leaderboard", topN: topBoard.topN };
-  }
-  if (mechanism === "donations_top") {
-    return { kind: "donations_leaderboard", rank: 1 };
-  }
-
-  return null;
-}
-
-export function vipSpinSource(
-  vipMechanism: string | null | undefined,
-): SpinSource {
-  if (!vipMechanism || vipMechanism === "none" || vipMechanism === "conductor_pick") {
-    return null;
-  }
-  if (vipMechanism === "donations_second") {
-    return { kind: "donations_leaderboard", rank: 2 };
-  }
-  const poolType = vipMechanismPoolType(vipMechanism as VipMechanismType);
-  if (poolType) {
-    return { kind: "pool", poolType };
-  }
-  return null;
-}
-
-export function isPoolSpinSource(
-  source: SpinSource,
-): source is PoolSpinSource {
-  return source?.kind === "pool";
-}
-
-export function isPriceIsRightSpinSource(
-  source: SpinSource,
-): source is PriceIsRightWeekdaySpinSource | PriceIsRightHeavyHitterSpinSource {
-  return (
-    source?.kind === "price_is_right_raffle" ||
-    source?.kind === "price_is_right_heavy_hitter"
-  );
-}
+export type {
+  DonationsLeaderboardSpinSource,
+  EventLeaderboardSpinSource,
+  PoolSpinSource,
+  PriceIsRightHeavyHitterSpinSource,
+  PriceIsRightWeekdaySpinSource,
+  SpinSource,
+  VrLeaderboardSpinSource,
+  VsLeaderboardSpinSource,
+} from "@/lib/trains/rules/derive.shared";

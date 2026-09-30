@@ -368,3 +368,23 @@ export async function preprocessPowerDetailsHeaderValue(
     scrubSeparators: true,
   });
 }
+
+export async function cropPowerDetailsValueRow(
+  input: PowerDetailsPreprocessResult,
+  yNorm: number,
+): Promise<PowerDetailsPreprocessResult> {
+  const sharp = (await import("sharp")).default;
+  const height = Math.min(
+    input.height,
+    Math.max(12, Math.round(input.height * 0.07)),
+  );
+  const top = Math.max(
+    0,
+    Math.min(input.height - height, Math.round(input.height * yNorm - height / 2)),
+  );
+  const buffer = await sharp(input.buffer)
+    .extract({ left: 0, top, width: input.width, height })
+    .png()
+    .toBuffer();
+  return { buffer, width: input.width, height };
+}

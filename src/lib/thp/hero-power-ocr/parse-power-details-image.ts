@@ -19,12 +19,13 @@ import { runTesseract, type OcrLineResult } from "@/lib/members/roster-ocr/tesse
 import {
   assembleGeometryParse,
   coalesceLabelLines,
-  normalizeDigitsOnlyComponent,
+  isHeroPowerHeaderLabel,
   normalizeGeometryLines,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
   zipLabelsToValues,
   type GeometryOcrLine,
+  type NormalizedGeometryLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import {
   toThpBreakdown,
@@ -35,6 +36,7 @@ import {
   POWER_DETAILS_LABEL_OCR_CONFIG,
   POWER_DETAILS_VALUE_OCR_CONFIG,
   preprocessPowerDetailsHeaderValue,
+  cropPowerDetailsValueRow,
   preprocessPowerDetailsLabelBand,
   preprocessPowerDetailsValueBand,
   preprocessPowerDetailsValueBandInverted,
@@ -48,6 +50,11 @@ export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
     /** How many label↔value pairs mapped to a breakdown key with a numeric value. */
     pairedCount?: number;
   };
+};
+
+type HeaderOcrPass = {
+  lines: OcrLineResult[];
+  cropHeight: number;
 };
 
 function toGeometryLines(lines: OcrLineResult[]): GeometryOcrLine[] {
@@ -65,7 +72,9 @@ function lineYNorm(line: OcrLineResult, cropHeight: number): number | null {
   return (box.y0 + box.y1) / 2 / Math.max(1, cropHeight);
 }
 
-function pickHeaderTotal(
+export function pickHeaderTotal(
+  labels: NormalizedGeometryLine[],
+  focusedHeaderPasses: HeaderOcrPass[],
   headerLines: OcrLineResult[],
   headerCropHeight: number,
   invertedValueLines: OcrLineResult[],
@@ -73,28 +82,45 @@ function pickHeaderTotal(
   valueLines: OcrLineResult[],
   valueCropHeight: number,
 ): number | null {
-  return (
-    pickBestHeaderCandidate(headerLines, headerCropHeight) ??
-    pickBestHeaderCandidate(invertedValueLines.slice(0, 6), invertedCropHeight) ??
-    pickBestHeaderCandidate(valueLines.slice(0, 4), valueCropHeight)
-  );
+  const headerLabel = labels.find((line) => isHeroPowerHeaderLabel(line.text));
+  if (!headerLabel) {
+    return pickBestHeaderCandidate(headerLines, headerCropHeight);
+  }
+
+  const focusedTotals = focusedHeaderPasses
+    .map((pass) => pickBestHeaderCandidate(pass.lines, pass.cropHeight))
+    .filter((value): value is number => value != null);
+  if (focusedTotals.length > 0) {
+    return focusedTotals.every((value) => value === focusedTotals[0])
+      ? focusedTotals[0]!
+      : null;
+  }
+
+  const alignedCandidates = [
+    ...collectHeaderCandidates(invertedValueLines, invertedCropHeight),
+    ...collectHeaderCandidates(valueLines, valueCropHeight),
+  ]
+    .map((candidate) => ({
+      ...candidate,
+      distance: Math.abs(candidate.yNorm - headerLabel.yNorm),
+    }))
+    .filter((candidate) => candidate.distance <= 0.04)
+    .sort((a, b) => a.distance - b.distance);
+
+  return alignedCandidates[0]?.value ?? null;
 }
 
-function pickBestHeaderCandidate(
+function collectHeaderCandidates(
   lines: OcrLineResult[],
   cropHeight: number,
-): number | null {
+): Array<{ yNorm: number; value: number }> {
   const candidates: Array<{ yNorm: number; value: number }> = [];
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!;
-    const digitLen = line.text.replace(/\D/g, "").length;
-    let normalized =
+    const normalized =
       parseDigitsOnlyHeaderTotalLoose(line.text) ??
       parseDigitsOnlyHeaderTotal(line.text);
-    if (normalized == null && digitLen > 9) {
-      normalized = normalizeDigitsOnlyComponent(line.text);
-    }
     if (normalized == null) continue;
     if (normalized < 100_000_000 || normalized > 1_000_000_000) continue;
 
@@ -105,7 +131,14 @@ function pickBestHeaderCandidate(
   }
 
   candidates.sort((a, b) => a.yNorm - b.yNorm);
-  return candidates[0]?.value ?? null;
+  return candidates;
+}
+
+function pickBestHeaderCandidate(
+  lines: OcrLineResult[],
+  cropHeight: number,
+): number | null {
+  return collectHeaderCandidates(lines, cropHeight)[0]?.value ?? null;
 }
 
 
@@ -126,6 +159,18 @@ export async function parsePowerDetailsImage(
     labelPre.buffer,
     POWER_DETAILS_LABEL_OCR_CONFIG,
   );
+  const labels = coalesceLabelLines(
+    normalizeGeometryLines(toGeometryLines(labelLinesRaw), labelPre.height),
+  );
+
+  const headerLabel = labels.find((line) => isHeroPowerHeaderLabel(line.text));
+  const focusedNormalPre = headerLabel
+    ? await cropPowerDetailsValueRow(valuePre, headerLabel.yNorm)
+    : null;
+  const focusedInvertedPre = headerLabel
+    ? await cropPowerDetailsValueRow(valueInvPre, headerLabel.yNorm)
+    : null;
+
   const valueLinesRaw = await runTesseract(
     valuePre.buffer,
     POWER_DETAILS_VALUE_OCR_CONFIG,
@@ -134,14 +179,25 @@ export async function parsePowerDetailsImage(
     valueInvPre.buffer,
     POWER_DETAILS_VALUE_OCR_CONFIG,
   );
-  const headerLinesRaw = await runTesseract(
-    headerPre.buffer,
-    POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
-  );
+  const focusedNormalLinesRaw = focusedNormalPre
+    ? await runTesseract(
+        focusedNormalPre.buffer,
+        POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+      )
+    : [];
+  const focusedInvertedLinesRaw = focusedInvertedPre
+    ? await runTesseract(
+        focusedInvertedPre.buffer,
+        POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+      )
+    : [];
+  const headerLinesRaw = headerLabel
+    ? []
+    : await runTesseract(
+        headerPre.buffer,
+        POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+      );
 
-  const labels = coalesceLabelLines(
-    normalizeGeometryLines(toGeometryLines(labelLinesRaw), labelPre.height),
-  );
   // Inverted value column recovers white outlined digits better on this UI.
   // Fall back to the non-inverted pass when inverted yields fewer digit lines.
   const invertedValues = normalizeGeometryLines(
@@ -158,7 +214,23 @@ export async function parsePowerDetailsImage(
       ? invertedValues
       : normalValues;
 
+  const focusedHeaderPasses: HeaderOcrPass[] = [];
+  if (focusedNormalPre) {
+    focusedHeaderPasses.push({
+      lines: focusedNormalLinesRaw,
+      cropHeight: focusedNormalPre.height,
+    });
+  }
+  if (focusedInvertedPre) {
+    focusedHeaderPasses.push({
+      lines: focusedInvertedLinesRaw,
+      cropHeight: focusedInvertedPre.height,
+    });
+  }
+
   const headerTotal = pickHeaderTotal(
+    labels,
+    focusedHeaderPasses,
     headerLinesRaw,
     headerPre.height,
     valueInvLinesRaw,
@@ -183,6 +255,8 @@ export async function parsePowerDetailsImage(
 
   const sampleLines = [
     ...headerLinesRaw.map((line) => `hdr:${line.text}`),
+    ...focusedNormalLinesRaw.map((line) => `rowN:${line.text}`),
+    ...focusedInvertedLinesRaw.map((line) => `rowI:${line.text}`),
     ...valueInvLinesRaw.slice(0, 3).map((line) => `inv:${line.text}`),
     ...pairs.map(
       (pair) =>
@@ -199,6 +273,8 @@ export async function parsePowerDetailsImage(
       labelLinesRaw.length +
       valueLinesRaw.length +
       valueInvLinesRaw.length +
+      focusedNormalLinesRaw.length +
+      focusedInvertedLinesRaw.length +
       headerLinesRaw.length,
     lines: sampleLines,
     parsedOk: assembled.complete && assembled.heroPowerTotal != null,

@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   upsertConductorDraft: vi.fn(),
   getMemberRankAsOf: vi.fn(),
   memberIdsEligibleForPoolType: vi.fn(),
-  listUnselectedPoolEntries: vi.fn(),
-  listPoolEntries: vi.fn(),
+  resolvePoolGenerationForDate: vi.fn(),
+  getCurrentPoolGeneration: vi.fn(),
+  listPoolEntriesInGeneration: vi.fn(),
   markPoolMemberSelectedForDate: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
   ensureConductorPoolSeeded: vi.fn(),
+  writeAuditLog: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -33,14 +35,19 @@ vi.mock("@/lib/trains/rank-history", () => ({
 }));
 
 vi.mock("@/lib/trains/pool", () => ({
-  listUnselectedPoolEntries: mocks.listUnselectedPoolEntries,
-  listPoolEntries: mocks.listPoolEntries,
+  resolvePoolGenerationForDate: mocks.resolvePoolGenerationForDate,
+  getCurrentPoolGeneration: mocks.getCurrentPoolGeneration,
+  listPoolEntriesInGeneration: mocks.listPoolEntriesInGeneration,
   markPoolMemberSelectedForDate: mocks.markPoolMemberSelectedForDate,
   releasePoolSelectionForDate: mocks.releasePoolSelectionForDate,
 }));
 
 vi.mock("@/lib/trains/service", () => ({
   ensureConductorPoolSeeded: mocks.ensureConductorPoolSeeded,
+}));
+
+vi.mock("@/lib/bff/audit", () => ({
+  writeAuditLog: mocks.writeAuditLog,
 }));
 
 vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
@@ -51,6 +58,26 @@ vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
 
 import { applyManualConductorDraft } from "@/lib/trains/manual-conductor-draft.server";
 import { ManualPickEligibilityError } from "@/lib/trains/depleting-manual-pick.shared";
+
+function mockGenerationPool(
+  unselectedMemberIds: string[],
+  poolMemberIds: string[],
+  generation = 1,
+) {
+  mocks.resolvePoolGenerationForDate.mockResolvedValue(generation);
+  mocks.getCurrentPoolGeneration.mockResolvedValue(generation);
+  mocks.listPoolEntriesInGeneration.mockImplementation(
+    async (
+      _allianceId: string,
+      _poolType: string,
+      _generation: number,
+      options?: { unselectedOnly?: boolean },
+    ) =>
+      (options?.unselectedOnly ? unselectedMemberIds : poolMemberIds).map(
+        (memberId) => ({ memberId }),
+      ),
+  );
+}
 
 describe("applyManualConductorDraft", () => {
   beforeEach(() => {
@@ -64,8 +91,12 @@ describe("applyManualConductorDraft", () => {
       lockedAt: null,
     });
     mocks.ensureConductorPoolSeeded.mockResolvedValue(undefined);
+    mocks.resolvePoolGenerationForDate.mockResolvedValue(1);
+    mocks.getCurrentPoolGeneration.mockResolvedValue(1);
+    mocks.listPoolEntriesInGeneration.mockResolvedValue([]);
     mocks.markPoolMemberSelectedForDate.mockResolvedValue(true);
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
+    mocks.writeAuditLog.mockResolvedValue(undefined);
     mocks.memberIdsEligibleForPoolType.mockImplementation(
       async (
         _allianceId: string,
@@ -78,19 +109,11 @@ describe("applyManualConductorDraft", () => {
 
   it("consumes a depleting r3 pool slot on Discord/web manual draft", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
-    mocks.listUnselectedPoolEntries.mockResolvedValue([
-      { memberId: "m-alice" },
-      { memberId: "m-bob" },
-    ]);
-    mocks.listPoolEntries.mockResolvedValue([
-      { memberId: "m-alice" },
-      { memberId: "m-bob" },
-    ]);
+    mockGenerationPool(["m-alice", "m-bob"], ["m-alice", "m-bob"]);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -107,27 +130,31 @@ describe("applyManualConductorDraft", () => {
       }),
     );
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
-    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "ally-1", poolClaim: "r3", conductorMemberId: "m-alice", date: "2026-07-27" }));
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "ally-1", poolClaim: "r3", poolClaimGeneration: 1, conductorMemberId: "m-alice", date: "2026-07-27" }));
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
         conductorMechanism: "r3_lottery",
+        conductorEligibilityOverridden: 0,
+        conductorEligibilityOverriddenAt: null,
+        conductorEligibilityOverriddenByHqUserId: null,
+      }),
+    );
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "trains.conductor_pick",
+        severity: "routine",
       }),
     );
   });
 
   it("rejects re-awarding a member already selected in the current generation", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
-    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
-    mocks.listPoolEntries.mockResolvedValue([
-      { memberId: "m-alice" },
-      { memberId: "m-bob" },
-    ]);
+    mockGenerationPool(["m-bob"], ["m-alice", "m-bob"]);
 
     await expect(
       applyManualConductorDraft({
@@ -150,9 +177,8 @@ describe("applyManualConductorDraft", () => {
 
   it("rejects manual picks when current roster rank is ineligible for the pool", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
@@ -179,16 +205,11 @@ describe("applyManualConductorDraft", () => {
 
   it("allows same-generation reuse when the officer confirms the override", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
-    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
-    mocks.listPoolEntries.mockResolvedValue([
-      { memberId: "m-alice" },
-      { memberId: "m-bob" },
-    ]);
+    mockGenerationPool(["m-bob"], ["m-alice", "m-bob"]);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -196,25 +217,139 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-alice",
       memberName: "Alice",
       allowSameGenerationReuse: true,
+      hqUserId: "hq-officer",
+      sessionId: "sess-1",
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
+        poolClaim: undefined,
+        poolClaimGeneration: undefined,
+        conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
+      }),
+    );
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "trains.conductor_eligibility_override",
+        hqUserId: "hq-officer",
+        sessionId: "sess-1",
+        resourceId: "rec-1",
+        severity: "override",
+      }),
+    );
+  });
+
+  it("claims the date's generation when the member is still unselected", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    });
+    mockGenerationPool(["m-boggle"], ["m-boggle", "m-bob"], 2);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-09",
+      memberId: "m-boggle",
+      memberName: "BOGGLE",
+    });
+
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-boggle",
+        poolClaim: "r4_plus",
+        poolClaimGeneration: 2,
+        conductorEligibilityOverridden: 0,
+      }),
+    );
+  });
+
+  it("consumes the live R4 slot on first click when historically awarded", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    });
+    mocks.resolvePoolGenerationForDate.mockResolvedValue(1);
+    mocks.getCurrentPoolGeneration.mockResolvedValue(2);
+    mocks.listPoolEntriesInGeneration.mockImplementation(
+      async (
+        _allianceId: string,
+        _poolType: string,
+        generation: number,
+        options?: { unselectedOnly?: boolean },
+      ) => {
+        if (generation === 2) {
+          const ids = options?.unselectedOnly
+            ? ["m-boggle"]
+            : ["m-boggle", "m-bob"];
+          return ids.map((memberId) => ({ memberId }));
+        }
+        const ids = options?.unselectedOnly ? [] : ["m-boggle", "m-bob"];
+        return ids.map((memberId) => ({ memberId }));
+      },
+    );
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-09",
+      memberId: "m-boggle",
+      memberName: "BOGGLE",
+    });
+
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-boggle",
+        poolClaim: "r4_plus",
+        poolClaimGeneration: 2,
+        conductorEligibilityOverridden: 0,
+      }),
+    );
+  });
+
+  it("does not consume another slot when the live generation has no open row", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    });
+    mockGenerationPool([], ["m-alice", "m-bob"], 1);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-06-10",
+      memberId: "m-alice",
+      memberName: "Alice",
+      allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
+    });
+
+    expect(mocks.resolvePoolGenerationForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "r3",
+      "2026-06-10",
+    );
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-alice",
+        poolClaim: undefined,
+        poolClaimGeneration: undefined,
+        conductorEligibilityOverridden: 1,
       }),
     );
   });
 
   it("drafts a member missing from the pool when the officer confirms override", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r4_sequence",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "r4_event_vip",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
-    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
-    mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mockGenerationPool(["m-bob"], ["m-bob"]);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -222,26 +357,29 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-shera",
       memberName: "SheRa",
       allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-shera",
+        poolClaim: undefined,
+        conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
       }),
     );
   });
 
   it("drafts a rank-ineligible member when the officer confirms override", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
-    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
-    mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mockGenerationPool(["m-bob"], ["m-bob"]);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -249,31 +387,28 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-alice",
       memberName: "Alice",
       allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
+        poolClaim: undefined,
+        conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
       }),
     );
   });
 
-  it("consumes an r4_plus pool slot when paint template is r4_event_vip", async () => {
+  it("consumes an r4_plus pool slot on an R4 rotation day with an event VIP", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "event_top_x_lottery",
-      paintTemplate: "r4_event_vip",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       dayConfigId: "dc-1",
     });
-    mocks.listUnselectedPoolEntries.mockResolvedValue([
-      { memberId: "m-aline" },
-      { memberId: "m-bob" },
-    ]);
-    mocks.listPoolEntries.mockResolvedValue([
-      { memberId: "m-aline" },
-      { memberId: "m-bob" },
-    ]);
+    mockGenerationPool(["m-aline", "m-bob"], ["m-aline", "m-bob"]);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -289,7 +424,7 @@ describe("applyManualConductorDraft", () => {
       }),
     );
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
-    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "ally-1", poolClaim: "r4_plus", conductorMemberId: "m-aline", date: "2026-08-16" }));
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "ally-1", poolClaim: "r4_plus", poolClaimGeneration: 1, conductorMemberId: "m-aline", date: "2026-08-16" }));
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMechanism: "r4_sequence",
@@ -297,11 +432,10 @@ describe("applyManualConductorDraft", () => {
     );
   });
 
-  it("does not mark depleting pools for Price Is Freight paint templates", async () => {
+  it("does not mark depleting pools for Price Is Freight rules", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "price_is_right",
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
 
@@ -315,5 +449,36 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.ensureConductorPoolSeeded).not.toHaveBeenCalled();
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalled();
+  });
+
+  it("snapshots today's rule so a re-pick is still the conductor after GET", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      id: "rec-1",
+      conductorMemberId: "m-caipira",
+      conductorMemberName: "CAIPIRA",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      lockedAt: null,
+    });
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    });
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-22",
+      memberId: "m-caipira",
+      memberName: "CAIPIRA",
+    });
+
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-caipira",
+        conductorRule: { kind: "price_is_freight", board: "weekday" },
+        vipRule: null,
+        conductorMechanism: "r3_lottery",
+      }),
+    );
   });
 });

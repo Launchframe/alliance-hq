@@ -763,6 +763,80 @@ export async function upsertProfessionChannel(
   }
 }
 
+export type ProfessionImportRosterRow = {
+  commanderId: string;
+  profession: string | null;
+  primaryName: string | null;
+  ashedMemberId: string;
+  memberName: string | null;
+  previousNames: string[] | null;
+  memberStatus: string | null;
+};
+
+/** Active commanders in the alliance, with roster names when present. */
+export async function listProfessionImportRoster(
+  allianceId: string,
+): Promise<ProfessionImportRosterRow[]> {
+  const db = getDb();
+  return db
+    .select({
+      commanderId: schema.commanders.id,
+      profession: schema.commanders.profession,
+      primaryName: schema.commanders.primaryName,
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      memberName: schema.allianceMembers.currentName,
+      previousNames: schema.allianceMembers.previousNamesJson,
+      memberStatus: schema.allianceMembers.status,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
+    .leftJoin(
+      schema.allianceMembers,
+      and(
+        eq(
+          schema.allianceMembers.allianceId,
+          schema.commanderAllianceMemberships.allianceId,
+        ),
+        eq(
+          schema.allianceMembers.ashedMemberId,
+          schema.commanderAllianceMemberships.ashedMemberId,
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    );
+}
+
+/** Active Engineer → War Leader assignments for import conflict checks. */
+export async function listActiveEngAssignmentsForAlliance(
+  allianceId: string,
+): Promise<{ engCommanderId: string; wlCommanderId: string }[]> {
+  const db = getDb();
+  return db
+    .select({
+      engCommanderId: schema.wlEngAssignments.engCommanderId,
+      wlCommanderId: schema.wlTeams.wlCommanderId,
+    })
+    .from(schema.wlEngAssignments)
+    .innerJoin(
+      schema.wlTeams,
+      eq(schema.wlEngAssignments.wlTeamId, schema.wlTeams.id),
+    )
+    .where(
+      and(
+        eq(schema.wlEngAssignments.allianceId, allianceId),
+        eq(schema.wlEngAssignments.status, "active"),
+      ),
+    );
+}
+
 /** Get all registered profession channels for an alliance (may span multiple guilds). */
 export async function getProfessionChannelsForAlliance(allianceId: string) {
   const db = getDb();

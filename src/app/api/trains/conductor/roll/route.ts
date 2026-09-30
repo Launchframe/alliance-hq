@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   getConductorStats,
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
   const role = body.role ?? "conductor";
 
   try {
+    const previous = await getConductorRecord(ctx.allianceId, date);
     const result =
       role === "vip"
         ? await rollForVip({
@@ -48,6 +50,38 @@ export async function POST(request: Request) {
             allianceId: ctx.allianceId,
             date,
           });
+
+    const previousMemberId =
+      role === "vip" ? previous?.vipMemberId : previous?.conductorMemberId;
+    const previousMemberName =
+      role === "vip"
+        ? previous?.vipMemberName
+        : previous?.conductorMemberName;
+    const overwritten = Boolean(
+      previousMemberId && previousMemberId !== result.memberId,
+    );
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action:
+        role === "vip" ? "trains.vip_roll" : "trains.conductor_roll",
+      severity: overwritten ? "update" : "routine",
+      resourceType: "train_conductor_record",
+      resourceId: `${ctx.allianceId}:${date}`,
+      resourceName: result.memberName,
+      metadata: {
+        date,
+        role,
+        landedMemberId: result.memberId,
+        landedMemberName: result.memberName,
+        previousMemberId: previousMemberId ?? null,
+        previousMemberName: previousMemberName ?? null,
+        overwritten,
+        spinAgain: Boolean(previousMemberId && !previous?.lockedAt),
+        source: "wheel",
+      },
+    });
 
     const record = await getConductorRecord(ctx.allianceId, date);
     const stats =

@@ -66,7 +66,7 @@ test.describe("Bank deposit slip video deep-link + OCR lock", () => {
 
     // Prefer the BankList icon control (aria-label). Empty-slip CTA in
     // DepositSlipList uses the same visible copy and would otherwise match too.
-    await page.getByLabel("Upload deposit slip video").click();
+    await page.getByRole("tabpanel").getByLabel("Upload deposit slip video").click();
 
     await expect(page).toHaveURL(/\/tools\/video-upload/);
     const url = new URL(page.url());

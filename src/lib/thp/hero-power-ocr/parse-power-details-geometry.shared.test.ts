@@ -50,10 +50,15 @@ describe("parseDigitsOnlyValue", () => {
     expect(normalizeDigitsOnlyComponent("974081080")).toBe(9_408_080);
     expect(normalizeDigitsOnlyComponent("17051707")).toBe(7_051_707);
     expect(normalizeDigitsOnlyComponent("65811990")).toBe(6_581_990);
+    expect(normalizeDigitsOnlyComponent("17979827025")).toBe(179_982_025);
   });
 
   it("parseDigitsOnlyHeaderTotalLoose recovers one extra header digit", () => {
     expect(parseDigitsOnlyHeaderTotalLoose("1665817498")).toBe(166_581_498);
+    expect(parseDigitsOnlyHeaderTotalLoose("17979827025")).toBe(179_982_025);
+    expect(parseDigitsOnlyHeaderTotalLoose("1797979304")).toBe(179_979_304);
+    expect(parseDigitsOnlyHeaderTotalLoose("17979795304")).toBe(179_979_304);
+    expect(parseDigitsOnlyHeaderTotalLoose("1797979260")).toBe(179_979_260);
   });
 
   it("parseDigitsOnlyHeaderTotalLoose accepts clean 9-digit header totals", () => {
@@ -63,6 +68,7 @@ describe("parseDigitsOnlyValue", () => {
   it("parseDigitsOnlyHeaderTotalLoose returns null when no header can be recovered", () => {
     expect(parseDigitsOnlyHeaderTotalLoose("123")).toBeNull();
     expect(parseDigitsOnlyHeaderTotalLoose("164376153505")).toBeNull();
+    expect(parseDigitsOnlyHeaderTotalLoose("179797573841")).toBeNull();
   });
 });
 
@@ -70,6 +76,7 @@ describe("label guards", () => {
   it("detects OCR-noisy hero header and modal title lines", () => {
     expect(isHeroPowerHeaderLabel("(BJ [HerolPower")).toBe(true);
     expect(isHeroPowerHeaderLabel("HerolPower")).toBe(true);
+    expect(isHeroPowerHeaderLabel("(B)[Heidenkampfkraft")).toBe(true);
     expect(isPowerDetailsModalTitle("POWER DETH")).toBe(true);
     expect(isPowerDetailsModalTitle("POWER DETAILS")).toBe(true);
   });
@@ -180,6 +187,39 @@ describe("zipLabelsToValues + assembleGeometryParse", () => {
     });
     expect(parsed.complete).toBe(false);
     expect(parsed.pairedCount).toBe(7);
+  });
+
+  it("does not synthesize a total from component rows when the header is missing", () => {
+    const keys = [
+      "heroLevel",
+      "decorationsAndBuildings",
+      "gear",
+      "exclusiveWeapons",
+      "heroTier",
+      "heroSkill",
+      "wallOfHonor",
+    ] as const;
+    const labels = [
+      "Hero Level",
+      "Decorations & Building Stats",
+      "Gear",
+      "Exclusive Weapon",
+      "Hero Tier",
+      "Hero Skill",
+      "Wall of Honor",
+    ];
+    const pairs = keys.map((key, index) => ({
+      label: labels[index]!,
+      valueText: "1000000",
+      key,
+      value: 1_000_000,
+      yNorm: 0.1 + index * 0.1,
+    }));
+
+    const parsed = assembleGeometryParse({ pairs, headerTotal: null });
+
+    expect(parsed.heroPowerTotal).toBeNull();
+    expect(parsed.complete).toBe(false);
   });
 
   it("does not consume a value row for unknown OCR label garbage", () => {

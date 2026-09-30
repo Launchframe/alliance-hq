@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 import { dismissReminderItemForAlliance } from "@/lib/eur/satisfaction";
 import { getRbacContext } from "@/lib/rbac/require-permission";
@@ -26,6 +27,7 @@ export async function POST(_request: Request, { params }: Props) {
     session.hqUserId,
     id,
     session.currentAllianceId,
+    await getKnowledgeActorForSession(session.id),
   );
   if (!dismissed) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

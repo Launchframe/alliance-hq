@@ -17,6 +17,10 @@ import {
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
+import {
+  MEMBER_ROLE_DEESCALATE_INBOX_KIND,
+  MEMBER_ROLE_ESCALATE_INBOX_KIND,
+} from "@/lib/member-role-nudges/types.shared";
 import { Link } from "@/i18n/navigation";
 import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
 
@@ -155,6 +159,10 @@ export default function InboxPageClient({
     }
     if (kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND)
       return t("kind.officerActionItemDue");
+    if (kind === MEMBER_ROLE_ESCALATE_INBOX_KIND)
+      return t("kind.memberRoleEscalate");
+    if (kind === MEMBER_ROLE_DEESCALATE_INBOX_KIND)
+      return t("kind.memberRoleDeescalate");
     return kind;
   }
 
@@ -174,6 +182,15 @@ export default function InboxPageClient({
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkHelpTitle", { name });
+    }
+    if (
+      item.kind === MEMBER_ROLE_ESCALATE_INBOX_KIND ||
+      item.kind === MEMBER_ROLE_DEESCALATE_INBOX_KIND
+    ) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return item.kind === MEMBER_ROLE_ESCALATE_INBOX_KIND
+        ? t("kind.memberRoleEscalateTitle", { name })
+        : t("kind.memberRoleDeescalateTitle", { name });
     }
     return item.title;
   }
@@ -196,6 +213,12 @@ export default function InboxPageClient({
     }
     if (item.kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND) {
       return t("kind.officerActionItemDueBody");
+    }
+    if (item.kind === MEMBER_ROLE_ESCALATE_INBOX_KIND) {
+      return t("kind.memberRoleEscalateBody");
+    }
+    if (item.kind === MEMBER_ROLE_DEESCALATE_INBOX_KIND) {
+      return t("kind.memberRoleDeescalateBody");
     }
     return item.body;
   }

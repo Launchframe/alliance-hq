@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
-import {
-  countActiveRemindersForUser,
-  loadReminderInboxForUser,
-} from "@/lib/eur/satisfaction";
+import { countActiveRemindersForUser } from "@/lib/eur/satisfaction";
 import { getRbacContext } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
@@ -28,6 +26,7 @@ export async function GET() {
   const count = await countActiveRemindersForUser({
     hqUserId: session.hqUserId,
     principalHqUserId: ctx.hqUserId,
+    notesActor: await getKnowledgeActorForSession(session.id),
     allianceId,
     permissions: ctx.permissions,
   });

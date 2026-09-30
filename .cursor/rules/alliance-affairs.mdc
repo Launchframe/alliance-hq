@@ -35,7 +35,7 @@ HQ models **in-game** alliance mechanics separately from **HQ RBAC** and Ashed i
 
 ## Week templates & mechanisms
 
-Stored on `train_day_configs`: `conductorMechanism`, `vipMechanism`, optional configs (`eventKey`, `topN`).
+Stored on `train_day_configs` as `conductor_rule` / `vip_rule` JSONB (typed `ConductorRule` / `VipRule`); `train_conductor_records` keeps the same JSONB pair plus the retained `conductor_mechanism` / `vip_mechanism` history columns for audit.
 
 | Template | Typical conductor | Typical VIP |
 |----------|-------------------|-------------|
@@ -44,7 +44,7 @@ Stored on `train_day_configs`: `conductorMechanism`, `vipMechanism`, optional co
 | **r4_train_week** | `r4_sequence` | `conductor_pick` |
 | **donations_week** | `donations_top` | `donations_second` |
 
-Composite templates (`vs_push_weekdays` + `r4_event_vip`) paint weekend segments via `conductorConfig.paintTemplate`.
+Week presets assign one rule per **calendar weekday** (`rules/presets.shared.ts`); `trainWeekStartDow` only controls how the calendar renders.
 
 ## VS scoring for wheels
 

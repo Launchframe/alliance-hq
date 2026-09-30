@@ -84,7 +84,7 @@ test.describe("Price Is Freight raffle tickets", () => {
       },
       data: {
         weekStart: dashboard.weekStart,
-        templateType: "price_is_right",
+        templateId: "tmpl_preset_price_is_right",
       },
     });
     expect(createRes.ok(), await createRes.text()).toBeTruthy();

@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getAllianceAshedCredential: vi.fn(),
   decryptSecret: vi.fn(),
   listVsHeads: vi.fn().mockResolvedValue([]),
+  loadTrainTopScoreEligibility: vi.fn(),
+  getAllianceRanksAsOf: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/base44/fetch", () => ({
@@ -28,7 +30,25 @@ vi.mock("@/lib/crypto/encrypt", () => ({
 
 vi.mock("@/lib/vs-scores/repository.server", () => ({ listVsHeads: mocks.listVsHeads }));
 
-beforeEach(() => { mocks.listVsHeads.mockResolvedValue([]); });
+vi.mock("@/lib/trains/train-top-score-eligibility.server", () => ({
+  loadTrainTopScoreEligibility: mocks.loadTrainTopScoreEligibility,
+}));
+
+vi.mock("@/lib/trains/rank-history", async (importActual) => {
+  const actual =
+    await importActual<typeof import("@/lib/trains/rank-history")>();
+  return { ...actual, getAllianceRanksAsOf: mocks.getAllianceRanksAsOf };
+});
+
+beforeEach(() => {
+  mocks.listVsHeads.mockResolvedValue([]);
+  mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+    trainTopScoreMinRank: 3,
+    trainTopScoreIncludesR4Plus: true,
+    canManage: false,
+  });
+  mocks.getAllianceRanksAsOf.mockResolvedValue([]);
+});
 
 import {
   fetchAlliancePriorDayVsScoresByMember,
@@ -240,21 +260,33 @@ describe("fetchAllianceVsTopScorersForTrainDate", () => {
         currentName: "Gamma",
         allianceRank: 4,
       },
+      {
+        ashedMemberId: "m5",
+        currentName: "Epsilon",
+        allianceRank: 5,
+      },
     ]);
   });
 
-  it("excludes former / non-roster Ashed scorers and fills Top N from active members", async () => {
+  it("excludes former / non-roster Ashed scorers and fills Top N from active R3–R5 members", async () => {
     mocks.base44Json.mockResolvedValue([
       { member_id: "m1", member_name: "Departed", score: 12_000_000 },
+      { member_id: "m5", member_name: "Epsilon", score: 10_000_000 },
       { member_id: "m2", member_name: "StaleName", score: 9_000_000 },
       { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
       { member_id: "m4", member_name: "AlsoGone", score: 7_500_000 },
     ]);
 
-    const top = await fetchAllianceVsTopScorersForTrainDate("hq-1", "2026-07-09", 2);
+    const top = await fetchAllianceVsTopScorersForTrainDate("hq-1", "2026-07-09", 3);
 
     expect(mocks.listActiveAllianceMembersForPool).toHaveBeenCalledWith("hq-1");
     expect(top).toEqual([
+      {
+        memberId: "m5",
+        memberName: "Epsilon",
+        allianceRank: 5,
+        priorDayVsScore: 10_000_000,
+      },
       {
         memberId: "m2",
         memberName: "Beta",
@@ -265,6 +297,212 @@ describe("fetchAllianceVsTopScorersForTrainDate", () => {
         memberId: "m3",
         memberName: "Gamma",
         allianceRank: 4,
+        priorDayVsScore: 8_000_000,
+      },
+    ]);
+  });
+
+  it("filters out R4/R5 before the Top N slice when the alliance disables them", async () => {
+    mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 3,
+      trainTopScoreIncludesR4Plus: false,
+      canManage: false,
+    });
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      { ashedMemberId: "m2", currentName: "Beta", allianceRank: 3 },
+      { ashedMemberId: "m3", currentName: "Gamma", allianceRank: 4 },
+      { ashedMemberId: "m4", currentName: "Delta", allianceRank: 3 },
+    ]);
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m3", member_name: "Gamma", score: 12_000_000 },
+      { member_id: "m2", member_name: "Beta", score: 9_000_000 },
+      { member_id: "m4", member_name: "Delta", score: 8_000_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate(
+      "hq-1",
+      "2026-07-09",
+      2,
+    );
+
+    expect(top).toEqual([
+      {
+        memberId: "m2",
+        memberName: "Beta",
+        allianceRank: 3,
+        priorDayVsScore: 9_000_000,
+      },
+      {
+        memberId: "m4",
+        memberName: "Delta",
+        allianceRank: 3,
+        priorDayVsScore: 8_000_000,
+      },
+    ]);
+  });
+
+  it("never includes R1/R2 scorers even when R4+ is enabled", async () => {
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      { ashedMemberId: "m1", currentName: "Low", allianceRank: 1 },
+      { ashedMemberId: "m2", currentName: "Beta", allianceRank: 3 },
+    ]);
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", member_name: "Low", score: 15_000_000 },
+      { member_id: "m2", member_name: "Beta", score: 9_000_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate(
+      "hq-1",
+      "2026-07-09",
+      2,
+    );
+
+    expect(top).toEqual([
+      {
+        memberId: "m2",
+        memberName: "Beta",
+        allianceRank: 3,
+        priorDayVsScore: 9_000_000,
+      },
+    ]);
+  });
+
+  it("admits R2/R3 but not R1 before Top N when the minimum rank is 2", async () => {
+    mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 2,
+      trainTopScoreIncludesR4Plus: false,
+      canManage: false,
+    });
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      { ashedMemberId: "m1", currentName: "Low", allianceRank: 1 },
+      { ashedMemberId: "m2", currentName: "Beta", allianceRank: 2 },
+      { ashedMemberId: "m3", currentName: "Gamma", allianceRank: 3 },
+    ]);
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", member_name: "Low", score: 15_000_000 },
+      { member_id: "m2", member_name: "Beta", score: 9_000_000 },
+      { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate(
+      "hq-1",
+      "2026-07-09",
+      3,
+    );
+
+    expect(top).toEqual([
+      {
+        memberId: "m2",
+        memberName: "Beta",
+        allianceRank: 2,
+        priorDayVsScore: 9_000_000,
+      },
+      {
+        memberId: "m3",
+        memberName: "Gamma",
+        allianceRank: 3,
+        priorDayVsScore: 8_000_000,
+      },
+    ]);
+  });
+
+  it("uses the HQ rank event over a stale synced roster rank", async () => {
+    mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 3,
+      trainTopScoreIncludesR4Plus: false,
+      canManage: false,
+    });
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      { ashedMemberId: "m2", currentName: "Beta", allianceRank: 4 },
+      { ashedMemberId: "m3", currentName: "Gamma", allianceRank: 3 },
+    ]);
+    mocks.getAllianceRanksAsOf.mockResolvedValue([
+      {
+        id: "evt-1",
+        allianceId: "hq-1",
+        ashedMemberId: "m2",
+        memberName: "Beta",
+        allianceRank: 3,
+        allianceRankTitle: null,
+        effectiveDate: "2026-07-01",
+        recordedAt: new Date("2026-07-01T12:00:00Z"),
+        source: "manual",
+        recordedByHqUserId: null,
+        ashedSyncedAt: null,
+      },
+    ]);
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m2", member_name: "Beta", score: 9_000_000 },
+      { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate(
+      "hq-1",
+      "2026-07-09",
+      2,
+    );
+
+    expect(mocks.getAllianceRanksAsOf).toHaveBeenCalledWith(
+      "hq-1",
+      "2026-07-09",
+    );
+    expect(top).toEqual([
+      {
+        memberId: "m2",
+        memberName: "Beta",
+        allianceRank: 3,
+        priorDayVsScore: 9_000_000,
+      },
+      {
+        memberId: "m3",
+        memberName: "Gamma",
+        allianceRank: 3,
+        priorDayVsScore: 8_000_000,
+      },
+    ]);
+  });
+
+  it("excludes a top scorer when the HQ rank event is above the stale roster rank", async () => {
+    mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 3,
+      trainTopScoreIncludesR4Plus: false,
+      canManage: false,
+    });
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      { ashedMemberId: "m2", currentName: "Beta", allianceRank: 3 },
+      { ashedMemberId: "m3", currentName: "Gamma", allianceRank: 3 },
+    ]);
+    mocks.getAllianceRanksAsOf.mockResolvedValue([
+      {
+        id: "evt-1",
+        allianceId: "hq-1",
+        ashedMemberId: "m2",
+        memberName: "Beta",
+        allianceRank: 4,
+        allianceRankTitle: null,
+        effectiveDate: "2026-07-01",
+        recordedAt: new Date("2026-07-01T12:00:00Z"),
+        source: "manual",
+        recordedByHqUserId: null,
+        ashedSyncedAt: null,
+      },
+    ]);
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m2", member_name: "Beta", score: 12_000_000 },
+      { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate(
+      "hq-1",
+      "2026-07-09",
+      2,
+    );
+
+    expect(top).toEqual([
+      {
+        memberId: "m3",
+        memberName: "Gamma",
+        allianceRank: 3,
         priorDayVsScore: 8_000_000,
       },
     ]);

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession, notesErrorResponse } from "@/lib/notes/access.server";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
 
 import {
   OFFICER_INTEL_READ_PERMISSION,
@@ -24,7 +26,9 @@ export async function requireOfficerIntelAllianceContext() {
     };
   }
 
-  return { sessionId: session.id, session, allianceId };
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!actor) return { error: await notesErrorResponse(new KnowledgeAccessError("forbidden")) };
+  return { sessionId: session.id, session, allianceId, actor };
 }
 
 export async function requireOfficerIntelRead(sessionId: string) {

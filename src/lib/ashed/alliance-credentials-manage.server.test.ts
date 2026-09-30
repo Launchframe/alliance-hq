@@ -131,6 +131,63 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
     expect(syncAshedAllianceForBot).not.toHaveBeenCalled();
   });
 
+  it("allows Ashed maintainers when allowAshedMaintainer is set for time-off repair", async () => {
+    syncAshedAllianceForBot.mockResolvedValue({
+      hqAllianceId: "alliance-1",
+      hqUserId: "hq-1",
+      roleName: "maintainer",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(syncAshedAllianceForBot).toHaveBeenCalled();
+    expect(upsertAllianceAshedCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ registeredByHqUserId: "hq-1" }),
+    );
+  });
+
+  it("allows maintainer credential shares for time-off repair via alliance_credentials:manage", async () => {
+    sessionHoldsAshedIdentityForHqUser.mockResolvedValue(false);
+    loadAshedConnectionForAllianceCapability.mockResolvedValue({
+      appId: "shared-app",
+      originUrl: "https://ashed.example",
+      token: "shared-token",
+    });
+    syncAshedAllianceForBot.mockResolvedValue({
+      hqAllianceId: "alliance-1",
+      hqUserId: "hq-1",
+      roleName: "maintainer",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(loadAshedConnectionForAllianceCapability).toHaveBeenCalledWith({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      capability: "alliance_credentials:manage",
+      delegatedAction: "alliance_credentials.upsert",
+    });
+    expect(upsertAllianceAshedCredential).toHaveBeenCalled();
+  });
+
   it("allows Ashed owners and does not clear Discord registrant on upsert", async () => {
     filterAccessibleAlliances.mockReturnValue([
       { id: "a1", tag: "LFgo", accessRole: "owner" },

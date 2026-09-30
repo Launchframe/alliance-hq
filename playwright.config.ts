@@ -1,5 +1,6 @@
 import { config as loadEnv } from "dotenv";
 import { defineConfig } from "@playwright/test";
+import { discordTestFollowupPort, discordTestKeyPair } from "./e2e/fixtures/discord-signing";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local" });
@@ -43,6 +44,11 @@ function e2eServerEnv(): Record<string, string> {
     env.LOCAL_DATABASE_URL = e2eDatabaseUrl;
     env.DATABASE_URL = e2eDatabaseUrl;
   }
+  env.NOTES_INTAKE_TEST_PROVIDER = process.env.NOTES_INTAKE_TEST_PROVIDER ?? "true";
+  env.NOTES_HISTORY_TEST_PROVIDER = "true";
+  env.NOTES_KNOWLEDGE_TEST_PROVIDER = "1";
+  env.DISCORD_PUBLIC_KEY = Buffer.from(discordTestKeyPair.publicKey).toString("hex");
+  env.E2E_DISCORD_FOLLOWUP_ORIGIN = `http://127.0.0.1:${discordTestFollowupPort()}`;
   const ocrProvider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (ocrProvider) {
     env.VIDEO_OCR_PROVIDER = ocrProvider;

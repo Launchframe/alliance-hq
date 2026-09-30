@@ -22,6 +22,7 @@ import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { viewerCanIssueLeadershipHybridInvite } from "@/lib/native-alliance/team-invites.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
+import { parseEventScoreMetadata } from "@/lib/members/commander-profile.shared";
 import {
   syncMemberCommendationsFromAshed,
   syncMemberViolationsFromAshed,
@@ -30,24 +31,9 @@ import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 import { sessionCanGiftStoreBricks } from "@/lib/members/commander-donation.server";
 import { listPerformanceNotesForAshedMember } from "@/lib/performance-notes/repository.server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
-
-function parseEventMetadata(metadata: unknown): {
-  score: number | null;
-  rank: number | null;
-} {
-  if (!metadata || typeof metadata !== "object") {
-    return { score: null, rank: null };
-  }
-  const row = metadata as Record<string, unknown>;
-  const scoreRaw = row.score ?? row.total_score ?? row.points;
-  const rankRaw = row.rank ?? row.placement;
-  return {
-    score: typeof scoreRaw === "number" ? scoreRaw : null,
-    rank: typeof rankRaw === "number" ? rankRaw : null,
-  };
-}
 
 /** HQ user who linked this commander via name+UID — not alliance R5/officer RBAC. */
 async function viewerOwnsCommander(input: {
@@ -267,6 +253,7 @@ export async function loadCommanderProfile(
     .select({
       eventId: schema.hqEvents.id,
       eventName: schema.hqEvents.name,
+      scoreTarget: schema.hqEvents.scoreTarget,
       metadata: schema.hqEventMembers.metadata,
       updatedAt: schema.hqEventMembers.updatedAt,
     })
@@ -354,10 +341,11 @@ export async function loadCommanderProfile(
       .orderBy(desc(schema.memberViolations.recordedDate)),
   ]);
 
-  const hqNotes = await listPerformanceNotesForAshedMember({
-    allianceId,
-    ashedMemberId,
-  });
+  const canProjectNotes = await sessionHasPermission(sessionId, "members:write");
+  const noteActor = canProjectNotes ? await getKnowledgeActorForSession(sessionId) : null;
+  const hqNotes = noteActor?.allianceId === allianceId
+    ? await listPerformanceNotesForAshedMember({ actor: noteActor, ashedMemberId })
+    : [];
 
   const ashedMember = allianceMemberRowToAshedMember(memberRow);
   const rankForDisplay =
@@ -447,13 +435,14 @@ export async function loadCommanderProfile(
       updatedAt: row.updatedAt.toISOString(),
     })),
     eventScores: eventScoreRows.map((row) => {
-      const parsed = parseEventMetadata(row.metadata);
+      const parsed = parseEventScoreMetadata(row.metadata, row.scoreTarget);
       return {
         eventId: row.eventId,
         eventName: row.eventName,
         boardKey: null,
         score: parsed.score,
         rank: parsed.rank,
+        frontlineStage: parsed.frontlineStage,
         updatedAt: row.updatedAt.toISOString(),
       };
     }),

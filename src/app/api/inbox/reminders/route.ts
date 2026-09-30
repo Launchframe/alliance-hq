@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 import {
   dismissAllReminderItems,
@@ -29,6 +30,7 @@ export async function GET() {
   const items = await loadReminderInboxForUser({
     hqUserId: session.hqUserId,
     principalHqUserId: ctx.hqUserId,
+    notesActor: await getKnowledgeActorForSession(session.id),
     allianceId,
     permissions: ctx.permissions,
     includeDismissed: false,
@@ -64,6 +66,7 @@ export async function POST(request: Request) {
       session.currentAllianceId,
       ctx.permissions,
       ctx.hqUserId,
+      await getKnowledgeActorForSession(session.id),
     );
     return NextResponse.json({ ok: true, dismissed });
   }

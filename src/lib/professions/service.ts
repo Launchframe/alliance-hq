@@ -300,6 +300,8 @@ export async function assignEngToWl(input: {
   engCommanderId: string;
   wlCommanderId: string;
   automaticDutyDate?: string;
+  /** Bulk officer import — skip per-row Discord/email. */
+  suppressNotifications?: boolean;
 }): Promise<{ assignmentId: string; wlTeamId: string }> {
   await assertCommanderAllianceProfession(
     input.allianceId,
@@ -360,13 +362,14 @@ export async function assignEngToWl(input: {
     subjectCommanderId: input.wlCommanderId,
   });
 
-  // Notify both parties
-  await notifyProfessionEvent({
-    kind: "eng_assigned",
-    allianceId: input.allianceId,
-    engCommanderId: input.engCommanderId,
-    wlCommanderId: input.wlCommanderId,
-  });
+  if (!input.suppressNotifications) {
+    await notifyProfessionEvent({
+      kind: "eng_assigned",
+      allianceId: input.allianceId,
+      engCommanderId: input.engCommanderId,
+      wlCommanderId: input.wlCommanderId,
+    });
+  }
 
   return { assignmentId, wlTeamId };
 }
@@ -612,6 +615,7 @@ export async function officerAssignEng(input: {
   allianceId: string;
   engCommanderId: string;
   wlCommanderId: string;
+  suppressNotifications?: boolean;
 }): Promise<void> {
   await assignEngToWl(input);
 }

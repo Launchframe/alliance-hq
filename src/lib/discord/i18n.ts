@@ -1,3 +1,4 @@
+import { createTranslator } from "next-intl";
 import enUS from "../../../messages/en-US.json";
 import ptBR from "../../../messages/pt-BR.json";
 
@@ -51,8 +52,10 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 function interpolate(
   template: string,
   params?: Record<string, string | number>,
+  locale: DiscordBotLocale = "en-US",
 ): string {
   if (!params) return template;
+  if (/\{\w+,\s*(?:plural|selectordinal|select),/.test(template)) return createTranslator({ locale, messages: { value: template } })("value", params);
   return template.replace(/\{(\w+)\}/g, (_, key: string) =>
     params[key] != null ? String(params[key]) : `{${key}}`,
   );
@@ -66,11 +69,11 @@ export function t(
   const bucket = MESSAGES[locale] ?? MESSAGES["en-US"];
   const value = getNestedValue(bucket, key);
   if (typeof value === "string") {
-    return interpolate(value, params);
+    return interpolate(value, params, locale);
   }
   const fallback = getNestedValue(MESSAGES["en-US"], key);
   if (typeof fallback === "string") {
-    return interpolate(fallback, params);
+    return interpolate(fallback, params, locale);
   }
   return key;
 }
@@ -105,11 +108,11 @@ export function tDiscordAuthorize(
   const bucket = AUTHORIZE_MESSAGES[locale] ?? AUTHORIZE_MESSAGES["en-US"];
   const value = getNestedValue(bucket, key);
   if (typeof value === "string") {
-    return interpolate(value, params);
+    return interpolate(value, params, locale);
   }
   const fallback = getNestedValue(AUTHORIZE_MESSAGES["en-US"], key);
   if (typeof fallback === "string") {
-    return interpolate(fallback, params);
+    return interpolate(fallback, params, locale);
   }
   return key;
 }

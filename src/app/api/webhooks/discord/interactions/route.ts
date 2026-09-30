@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { handleDiscordCoverage, showDiscordCoverage } from "@/lib/time-off/discord-coverage.server";
 import { waitUntil } from "@vercel/functions";
 
@@ -13,7 +13,7 @@ import {
   downloadDiscordAttachment,
   parseResolvedAttachment,
 } from "@/lib/discord/attachments";
-import { editDiscordOriginalInteraction, editDiscordOriginalInteractionWithFiles } from "@/lib/discord/interaction-followup.server";
+import { editDiscordOriginalInteraction, editDiscordOriginalInteractionWithFiles, sendDiscordFollowup } from "@/lib/discord/interaction-followup.server";
 import {
   DISCORD_PING_RESPONSE,
   buildCharacterPickerButtons,
@@ -31,6 +31,7 @@ import {
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
+  discordDeferredUpdateResponse,
   discordMessageResponse,
   discordModalResponse,
   interactionApplicationId,
@@ -136,6 +137,7 @@ import {
   buildProfessionSelectButtons,
   buildProfessionSwitchConfirmButtons,
 } from "@/lib/discord/interactions";
+import { handleBoardingDiscord } from "@/lib/trains/boarding.discord.server";
 import { handlePlunderPlanDiscord, openPlunderPlanModal, plunderComponentNeedsModal } from "@/lib/plunder-plan/discord.server";
 import { handleDiscordTimeOff, openDiscordTimeOffModal } from "@/lib/time-off/discord-bot-handlers.server";
 import { isDiscordTimeOffSlashCommand } from "@/lib/time-off/discord-command-names";
@@ -216,7 +218,7 @@ function serializePerfInteraction(result: PerfInteractionResult) {
       fieldCustomId: result.fieldCustomId,
       fieldLabel: result.fieldLabel,
       paragraph: result.paragraph,
-      maxLength: result.maxLength,
+      maxLength: result.maxLength, value: result.value, required: result.required,
     });
   }
   const components = result.components as
@@ -870,6 +872,17 @@ async function handleSlashCommand(
         ),
       );
     }
+    if (result.pendingEligibilityOverride) {
+      return channelVisibleCommandResponse(
+        result.reply,
+        buildTrainConfirmButtons(
+          result.pendingEligibilityOverride.memberId,
+          result.pendingEligibilityOverride.date,
+          { yes: t("buttons.yes"), no: t("buttons.no") },
+          { eligibilityOverride: true },
+        ),
+      );
+    }
     return channelVisibleCommandResponse(result.reply);
   }
 
@@ -888,6 +901,10 @@ async function handleSlashCommand(
     if (result.coverage) {
       const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
       return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
+    if (result.boardingPrompt) {
+      const applicationId = interactionApplicationId(payload), token = interactionToken(payload), prompt = result.boardingPrompt;
+      if (applicationId && token) after(async () => { await sendDiscordFollowup({ applicationId, interactionToken: token, ...prompt, ephemeral: true }); });
     }
     return channelVisibleCommandResponse(result.reply);
   }
@@ -988,6 +1005,7 @@ async function handleSlashCommand(
       const text = parseSlashOptionString(payload, "text");
       return serializePerfInteraction(
         await handlePerformanceNoteSlash({
+          interactionId: payload.id,
           allianceId,
           discordUserId,
           locale,
@@ -1359,7 +1377,40 @@ async function handleButton(payload: DiscordInteractionPayload) {
       const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
       return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
     }
+    if (result.pendingEligibilityOverride) {
+      return discordButtonResponse(
+        result.reply,
+        buildTrainConfirmButtons(
+          result.pendingEligibilityOverride.memberId,
+          result.pendingEligibilityOverride.date,
+          { yes: t("buttons.yes"), no: t("buttons.no") },
+          { eligibilityOverride: true },
+        ),
+        CHANNEL_VISIBLE,
+      );
+    }
     return discordButtonResponse(result.reply, [], CHANNEL_VISIBLE);
+  }
+
+  if (parsed.kind === "train_override") {
+    if (parsed.answer === "no") {
+      return discordButtonResponse(t("train.pickCancelled"), [], CHANNEL_VISIBLE);
+    }
+    const overrideResult = await handleDiscordTrainConductorPick({
+      allianceId,
+      discordUserId,
+      locale,
+      memberId: parsed.memberId,
+      date: parsed.date,
+      allowEligibilityOverride: true,
+    });
+    if (overrideResult.coverage) {
+      const guildId = interactionGuildId(payload);
+      if (!guildId) return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+      const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, overrideResult.coverage);
+      return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
+    return discordButtonResponse(overrideResult.reply, [], CHANNEL_VISIBLE);
   }
 
   if (parsed.kind === "profession_select") {
@@ -1477,6 +1528,35 @@ export async function POST(request: Request) {
 
   if (payload.type === 1) {
     return NextResponse.json(DISCORD_PING_RESPONSE);
+  }
+
+  if (payload.type === 2 && payload.data?.name === "note" || (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("note:draft:")) {
+    const { handleDiscordDraft, discordDraftNeedsModal } = await import("@/lib/notes/discord-drafts.server");
+    const run = async () => {
+      const context = await resolveInteractionContext(payload);
+      if (!context.discordUserId) return { type: "message" as const, content: createDiscordTranslator(context.locale)("errors.unknownUser") };
+      return handleDiscordDraft({ payload, allianceId: context.allianceId, discordUserId: context.discordUserId, locale: context.locale });
+    };
+    if (payload.type === 3 && discordDraftNeedsModal(payload.data?.custom_id)) return NextResponse.json(serializePerfInteraction(await run()));
+    const applicationId = interactionApplicationId(payload), token = interactionToken(payload);
+    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator("en-US")("performanceNotes.review.unavailable"), undefined, EPHEMERAL));
+    scheduleBackgroundTask(undefined, async () => {
+      try {
+        const result = await run();
+        if (result.type === "message") await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: result.content, components: result.components, ephemeral: true, suppressMentions: true });
+      } catch { console.error("[notes] Private Discord response delivery failed"); }
+    });
+    return NextResponse.json(payload.type === 2 ? discordDeferredEphemeralResponse() : discordDeferredUpdateResponse());
+  }
+  if ((payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("boarding:")) {
+    if (payload.type === 3 && payload.data.custom_id.endsWith(":open")) return NextResponse.json(await handleBoardingDiscord(payload));
+    const applicationId = interactionApplicationId(payload), token = interactionToken(payload);
+    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator("en-US")("errors.serverError"), undefined, EPHEMERAL));
+    scheduleBackgroundTask(undefined, async () => {
+      const reply = await handleBoardingDiscord(payload);
+      if (typeof reply.data.content === "string") await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: reply.data.content, ephemeral: true, suppressMentions: true });
+    });
+    return NextResponse.json(discordDeferredEphemeralResponse());
   }
   if ((payload.type === 2 && payload.data?.name === "plunder-plan") || ((payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("plunder:"))) {
     if (payload.type === 3 && plunderComponentNeedsModal(payload.data?.custom_id)) return NextResponse.json(await openPlunderPlanModal(payload));

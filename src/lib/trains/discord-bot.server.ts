@@ -1,12 +1,13 @@
 import "server-only";
+import { lockConductorWithBoarding as lockConductorRecord } from "./boarding.server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   getConductorRecord,
-  lockConductorRecord,
   claimConductorDepartingSoonAnnounced,
   clearConductorDepartingSoonAnnounced,
 } from "@/lib/trains/repository";
@@ -107,6 +108,21 @@ export async function lockTrainForAlliance(input: {
     date: input.date,
     seasonKey,
   });
+  await writeTrainsOfficerAudit({
+    sessionId: null,
+    allianceId: input.allianceId,
+    hqUserId: input.lockedByHqUserId,
+    action: "trains.conductor_lock",
+    severity: "routine",
+    resourceType: "train_conductor_record",
+    resourceId: locked.id,
+    resourceName: locked.conductorMemberName,
+    metadata: {
+      date: input.date,
+      conductorMemberId: locked.conductorMemberId,
+      source: "discord",
+    },
+  });
   return locked;
 }
 
@@ -183,6 +199,7 @@ export async function draftConductorForAlliance(input: {
   memberId: string;
   memberName: string;
   allowEligibilityOverride?: boolean;
+  hqUserId?: string | null;
 }): Promise<(typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect)> {
   // Same depleting-pool consume / gates as HQ web manual pick.
   // Dynamic import avoids a cycle: service ↔ discord-bot.server.

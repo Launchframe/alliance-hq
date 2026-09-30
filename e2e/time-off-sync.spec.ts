@@ -64,10 +64,14 @@ test("Ashed outages preserve local absence and private notes while durable work 
   await page.context().addCookies(playwrightAuthCookies(f.officer));
   await page.goto("/time-off");
   await expect(page.getByText("An alliance officer needs to connect or refresh the alliance’s Ashed connection.", { exact: true })).toBeVisible();
+  const retryResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().includes(`/api/time-off/entries/${entry.id}/sync`));
   await page.getByRole("button", { name: "Retry sync", exact: true }).click();
-  await expect(page.getByText("Sync retry queued.", { exact: true })).toBeVisible();
+  expect((await retryResponse).status()).toBe(409);
+  await expect(page.getByTestId(`time-off-entry-${entry.id}`).getByRole("alert")).toHaveText("An alliance officer needs to connect or refresh the alliance’s Ashed connection.");
+  const refreshResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/api/time-off/sync"));
   await page.getByRole("button", { name: "Refresh from Ashed", exact: true }).click();
-  await expect(page.getByText("Ashed refresh queued.", { exact: true })).toBeVisible();
+  expect((await refreshResponse).status()).toBe(409);
+  await expect(page.getByRole("region", { name: "Ashed sync" }).locator("span", { hasText: "An alliance officer needs to connect or refresh the alliance’s Ashed connection." })).toBeVisible();
   const [saved] = await f.sql`SELECT notes, cancelled_at FROM member_time_off WHERE id = ${entry.id}`;
   expect(saved.notes).toBe("PRIVATE_SYNC_NOTE");
   expect(saved.cancelled_at).toBeNull();

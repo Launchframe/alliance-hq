@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   buildVsDataStatus,
   classifyVsDataNeed,
   priorDayVsAppliesForTrainDate,
+  scoreDayRuleUsesPriorDayVsScores,
   shouldConfirmEconomyWeekWithoutScores,
 } from "@/lib/trains/vs-data-status.shared";
+
+const R3_WHEEL: ConductorRule = { kind: "rank_pool", pool: "r3", draw: "wheel" };
+const R4: ConductorRule = { kind: "rank_pool", pool: "r4_plus", draw: "wheel" };
 
 describe("priorDayVsAppliesForTrainDate", () => {
   it("applies on Sunday train days (Saturday Buster Day scores)", () => {
@@ -22,273 +27,147 @@ describe("priorDayVsAppliesForTrainDate", () => {
 });
 
 describe("classifyVsDataNeed", () => {
-  it("requires prior-day VS for vs_high_score, vs_top_10, and vs_top_n", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vs_high_score",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vs_top_10",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({
-      kind: "prior_day_vs",
-      required: true,
-    });
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vs_top_n",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({
-      kind: "prior_day_vs",
-      required: true,
-    });
+  it("requires prior-day VS for a Top VS board", () => {
+    for (const topN of [1, 3, 5, 10] as const) {
+      expect(
+        classifyVsDataNeed({
+          rule: { kind: "vs_top_n", topN },
+          trainDate: "2026-06-13",
+        }),
+      ).toEqual({ kind: "prior_day_vs", required: true });
+    }
   });
 
-  it("requires season VR for vr_top_n", () => {
-    expect(classifyVsDataNeed({ conductorMechanism: "vr_top_n" })).toEqual({
-      kind: "vr",
-      required: true,
-    });
-  });
-
-  it("requires prior-day VS for Price Is Freight paint", () => {
+  it("requires season VR for a Top VR board", () => {
     expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "price_is_right",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "takedown_week",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
-  });
-
-  it("keeps prior-day VS when vs_* mechanism and PIF paint both apply", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vs_high_score",
-        paintTemplate: "price_is_right",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
-  });
-
-  it("probes prior-day VS for economy week paint without requiring an upload", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "economy_week",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: false });
-  });
-
-  it("probes Saturday VS for economy week on Sunday without requiring an upload", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "economy_week",
-        trainDate: "2026-06-14",
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: false });
-  });
-
-  it("does not require scores for r3 recognition manual award days", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "r3_recognition",
-        trainDate: "2026-06-14",
-      }),
-    ).toEqual({ kind: "none", required: false });
-  });
-
-  it("does not require prior-day VS for r4 sequence on economy week paint", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r4_sequence",
-        paintTemplate: "economy_week",
-        trainDate: "2026-06-13",
-      }),
-    ).toEqual({ kind: "none", required: false });
-  });
-
-  it("skips prior-day VS on Monday for every conductor mechanism", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vs_high_score",
-        trainDate: "2026-06-15",
-      }),
-    ).toEqual({ kind: "none", required: false });
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "economy_week",
-        trainDate: "2026-06-15",
-      }),
-    ).toEqual({ kind: "none", required: false });
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "heavy_hitter_lottery",
-        paintTemplate: "price_is_right",
-        trainDate: "2026-06-15",
-      }),
-    ).toEqual({ kind: "none", required: false });
-  });
-
-  it("requires prior-day VS on Monday when leadDays=1", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vs_high_score",
-        trainDate: "2026-06-15",
-        leadDays: 1,
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "heavy_hitter_lottery",
-        paintTemplate: "price_is_right",
-        trainDate: "2026-06-15",
-        leadDays: 1,
-      }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
-  });
-
-  it("still requires VR on Monday for vr_top_n", () => {
-    expect(
-      classifyVsDataNeed({
-        conductorMechanism: "vr_top_n",
-        trainDate: "2026-06-15",
-      }),
+      classifyVsDataNeed({ rule: { kind: "vr_top_n", topN: 3 } }),
     ).toEqual({ kind: "vr", required: true });
   });
 
-  it("probes inherited VS on Sunday when leadDays=1 and score day is VS push", () => {
+  it("requires prior-day VS for both Price Is Freight boards", () => {
     expect(
       classifyVsDataNeed({
-        conductorMechanism: "custom",
-        paintTemplate: "vs_push_week_lead_time",
-        trainDate: "2026-08-30",
-        leadDays: 1,
-        scoreDateDay: {
-          conductorMechanism: "vs_top_10",
-          paintTemplate: "vs_push_weekdays",
-        },
+        rule: { kind: "price_is_freight", board: "weekday" },
+        trainDate: "2026-06-13",
       }),
+    ).toEqual({ kind: "prior_day_vs", required: true });
+    expect(
+      classifyVsDataNeed({
+        rule: { kind: "price_is_freight", board: "heavy_hitter" },
+        trainDate: "2026-06-13",
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: true });
+  });
+
+  it("probes prior-day VS for the R3 wheel without requiring an upload", () => {
+    expect(
+      classifyVsDataNeed({ rule: R3_WHEEL, trainDate: "2026-06-13" }),
+    ).toEqual({ kind: "prior_day_vs", required: false });
+    expect(
+      classifyVsDataNeed({ rule: R3_WHEEL, trainDate: "2026-06-14" }),
     ).toEqual({ kind: "prior_day_vs", required: false });
   });
 
-  it("probes inherited VS on Monday R4 when leadDays=1 and score day is Buster", () => {
+  it("does not require scores for the manual R3 award", () => {
     expect(
       classifyVsDataNeed({
-        conductorMechanism: "r4_sequence",
-        paintTemplate: "r4_event_vip",
-        trainDate: "2026-08-31",
+        rule: { kind: "rank_pool", pool: "r3", draw: "manual" },
+        trainDate: "2026-06-14",
+      }),
+    ).toEqual({ kind: "none", required: false });
+  });
+
+  it("does not require scores for R4 rotation or free choice", () => {
+    expect(
+      classifyVsDataNeed({ rule: R4, trainDate: "2026-06-13" }),
+    ).toEqual({ kind: "none", required: false });
+    expect(
+      classifyVsDataNeed({ rule: null, trainDate: "2026-06-13" }),
+    ).toEqual({ kind: "none", required: false });
+  });
+
+  it("skips prior-day VS when the source day is the VS break", () => {
+    // Monday at lead 0 reads Sunday.
+    expect(
+      classifyVsDataNeed({
+        rule: { kind: "vs_top_n", topN: 10 },
+        trainDate: "2026-06-15",
+      }),
+    ).toEqual({ kind: "none", required: false });
+  });
+
+  it("inherits the score day's VS context on an off-template day", () => {
+    expect(
+      classifyVsDataNeed({
+        rule: R4,
+        trainDate: "2026-06-15",
         leadDays: 1,
-        scoreDateDay: {
-          conductorMechanism: "vs_top_10",
-          paintTemplate: "vs_push_weekdays",
-        },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
     ).toEqual({ kind: "prior_day_vs", required: false });
   });
 });
 
-describe("buildVsDataStatus", () => {
-  it("marks ready when not required", () => {
+describe("scoreDayRuleUsesPriorDayVsScores", () => {
+  it("is true for VS-sourced rules only", () => {
     expect(
-      buildVsDataStatus({ kind: "none", required: false, scoreCount: 0 }),
-    ).toEqual({
-      required: false,
-      ready: true,
-      scoreCount: 0,
-      kind: "none",
-    });
-  });
-
-  it("marks ready when required and scores exist", () => {
+      scoreDayRuleUsesPriorDayVsScores({ kind: "vs_top_n", topN: 10 }),
+    ).toBe(true);
     expect(
-      buildVsDataStatus({
-        kind: "vr",
-        required: true,
-        scoreCount: 3,
+      scoreDayRuleUsesPriorDayVsScores({
+        kind: "price_is_freight",
+        board: "weekday",
       }),
-    ).toMatchObject({ required: true, ready: true, scoreCount: 3, kind: "vr" });
-  });
-
-  it("marks not ready when required and empty", () => {
-    expect(
-      buildVsDataStatus({
-        kind: "prior_day_vs",
-        required: true,
-        scoreCount: 0,
-        scoreDate: "2026-06-12",
-      }),
-    ).toEqual({
-      required: true,
-      ready: false,
-      scoreCount: 0,
-      kind: "prior_day_vs",
-      scoreDate: "2026-06-12",
-    });
-  });
-
-  it("marks ready when prior-day VS is optional and empty", () => {
-    expect(
-      buildVsDataStatus({
-        kind: "prior_day_vs",
-        required: false,
-        scoreCount: 0,
-        scoreDate: "2026-06-12",
-      }),
-    ).toEqual({
-      required: false,
-      ready: true,
-      scoreCount: 0,
-      kind: "prior_day_vs",
-      scoreDate: "2026-06-12",
-    });
+    ).toBe(true);
+    expect(scoreDayRuleUsesPriorDayVsScores(R4)).toBe(false);
+    expect(scoreDayRuleUsesPriorDayVsScores(null)).toBe(false);
   });
 });
 
 describe("shouldConfirmEconomyWeekWithoutScores", () => {
-  it("prompts when Economy Week probed prior-day VS and found none", () => {
+  it("prompts only for the R3 wheel with a zero score probe", () => {
     expect(
       shouldConfirmEconomyWeekWithoutScores({
-        paintTemplate: "economy_week",
+        rule: R3_WHEEL,
         vsDataStatus: { kind: "prior_day_vs", scoreCount: 0 },
       }),
     ).toBe(true);
   });
 
-  it("does not prompt when scores exist or paint is not Economy Week", () => {
+  it("does not prompt when scores exist", () => {
     expect(
       shouldConfirmEconomyWeekWithoutScores({
-        paintTemplate: "economy_week",
+        rule: R3_WHEEL,
         vsDataStatus: { kind: "prior_day_vs", scoreCount: 4 },
       }),
     ).toBe(false);
+  });
+
+  it("does not prompt for the manual R3 award", () => {
     expect(
       shouldConfirmEconomyWeekWithoutScores({
-        paintTemplate: "price_is_right",
+        rule: { kind: "rank_pool", pool: "r3", draw: "manual" },
         vsDataStatus: { kind: "prior_day_vs", scoreCount: 0 },
       }),
     ).toBe(false);
+  });
+});
+
+describe("buildVsDataStatus", () => {
+  it("is ready when scores are not required", () => {
     expect(
-      shouldConfirmEconomyWeekWithoutScores({
-        paintTemplate: "economy_week",
-        vsDataStatus: { kind: "none", scoreCount: 0 },
-      }),
+      buildVsDataStatus({ kind: "none", required: false, scoreCount: 0 }),
+    ).toEqual({ kind: "none", required: false, ready: true, scoreCount: 0 });
+  });
+
+  it("is not ready when required scores are missing", () => {
+    expect(
+      buildVsDataStatus({
+        kind: "prior_day_vs",
+        required: true,
+        scoreCount: 0,
+        scoreDate: "2026-06-12",
+      }).ready,
     ).toBe(false);
   });
 });

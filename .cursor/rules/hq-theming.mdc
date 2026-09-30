@@ -84,7 +84,7 @@ border-blue-500 bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200
 
 ### Canonical maps
 
-Mechanism and template cell classes live in [`src/lib/trains/mechanism-styles.ts`](src/lib/trains/mechanism-styles.ts) (`MECHANISM_STYLES`) and [`src/lib/trains/calendar-cell-styles.shared.ts`](src/lib/trains/calendar-cell-styles.shared.ts) (`TEMPLATE_CELL_STYLES`, not exported). **New entries must use the dual-mode shape above** (light pastel + `dark:` tint/text). Legacy entries may still be dark-biased (`bg-blue-500/15 text-blue-200` without light counterparts) — migrate them when you touch that surface.
+Day-rule cell classes live in [`src/lib/trains/rules/palette.shared.ts`](src/lib/trains/rules/palette.shared.ts) (`RULE_CELL_STYLES`, `RULE_PALETTE_SWATCHES`). **New entries must use the dual-mode shape above** (light pastel + `dark:` tint/text). Legacy entries may still be dark-biased (`bg-blue-500/15 text-blue-200` without light counterparts) — migrate them when you touch that surface.
 
 ### CTAs inside themed panels
 

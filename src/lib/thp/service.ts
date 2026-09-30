@@ -64,13 +64,17 @@ async function resolveTargetLink(input: {
     if (link.discordUserId !== input.discordUserId) return null;
     return link;
   }
-  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     await ensureDiscordMemberLinksFromHq({
       discordUserId: input.discordUserId,
       allianceId: input.allianceId,
     });
-    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
   }
   if (links.length === 0) return null;
   if (links.length === 1) return links[0]!;
@@ -193,7 +197,9 @@ export async function handleDiscordThpSlash(input: {
     return result;
   }
   if (target === "pick") {
-    const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
     const result: ThpCommandResult = {
       reply: translate("thp.pickCharacter"),
       pending: { kind: "pick_character", linkIds: links.map((l) => l.id) },

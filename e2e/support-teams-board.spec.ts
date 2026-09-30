@@ -239,6 +239,7 @@ test("preferences persist only for the current account; members cannot see histo
   const f = await createPublishedSupportTeamFixture(request);
   const officerContext = await browser.newContext();
   const ownerContext = await browser.newContext();
+  const memberContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
     const officerPage = await officerContext.newPage();
     const ownerPage = await ownerContext.newPage();
@@ -255,19 +256,20 @@ test("preferences persist only for the current account; members cannot see histo
     await expect(officerPage.getByRole("checkbox", { name: "Profession level", exact: true })).toBeChecked();
     const member = await f.actor("member");
     await createHqMemberLink(f.sql, { allianceId: f.allianceId, hqUserId: member.hqUserId, ashedMemberId: f.members[2].ashedMemberId, gameUid: `96${Date.now()}` });
-    await officerContext.clearCookies();
-    await officerPage.setViewportSize({ width: 390, height: 844 });
-    await openBoard(officerPage, officerContext, member);
-    await expect(officerPage.getByRole("button", { name: "Team-builder history", exact: true })).toHaveCount(0);
-    await expect(officerPage.getByRole("button", { name: "Claim code", exact: true })).toHaveCount(0);
-    await expect(officerPage.getByText("You are not assigned to a team.", { exact: true })).toBeVisible();
+    const memberPage = await memberContext.newPage();
+    await openBoard(memberPage, memberContext, member);
+    await expect(memberPage.getByRole("button", { name: "Team-builder history", exact: true })).toHaveCount(0);
+    await expect(memberPage.getByRole("button", { name: "Claim code", exact: true })).toHaveCount(0);
+    await expect(memberPage.getByText("You are not assigned to a team.", { exact: true })).toBeVisible();
+    const [binding] = await f.sql`SELECT hq_user_id = ${member.hqUserId} AS matches FROM sessions WHERE id = ${member.sessionId}`;
+    expect(binding?.matches).toBe(true);
     const projection = await (await request.get("/api/support-teams", { headers: { Cookie: authCookieHeader(member) } })).json();
     expect(projection.board).toBeUndefined();
     expect(projection.actor).toBeUndefined();
     expect(JSON.stringify(projection)).not.toMatch(/game_?uid|privateNote|discipline/i);
     expect((await request.get("/api/settings/team/claimable-commanders", { headers: { Cookie: authCookieHeader(member) } })).status()).toBe(403);
     expect((await request.post("/api/settings/team/invites/bulk-claim", { headers: { Cookie: authCookieHeader(member) }, data: { targetAshedMemberIds: [f.members[0].ashedMemberId] } })).status()).toBe(403);
-  } finally { await officerContext.close(); await ownerContext.close(); }
+  } finally { await officerContext.close(); await ownerContext.close(); await memberContext.close(); }
 });
 
 test("targeted member claim uses existing private controls without a game server prerequisite", async ({ page, context, request }) => {

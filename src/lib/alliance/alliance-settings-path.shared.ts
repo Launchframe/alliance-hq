@@ -11,6 +11,10 @@ export function allianceTrainMinimumsApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-minimums`;
 }
 
+export function allianceTrainTopScoreEligibilityApiPath(tag: string): string {
+  return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-top-score-eligibility`;
+}
+
 export function allianceTrainEconomyThresholdApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-economy-threshold`;
 }

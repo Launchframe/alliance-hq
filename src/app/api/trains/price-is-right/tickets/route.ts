@@ -5,8 +5,8 @@ import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
-  isPriceIsRightHeavyHitterSaturday,
-  usesPriceIsFreightConductorRoll,
+  conductorRuleUsesPriceIsFreightRoll,
+  isHeavyHitterBoardRule,
 } from "@/lib/trains/heavy-hitter-pool.shared";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
@@ -57,7 +57,8 @@ export async function GET(request: Request) {
     trainDate,
     seasonKey,
   );
-  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
+  const rule = dayConfig.conductorRule;
+  if (!conductorRuleUsesPriceIsFreightRoll(rule)) {
     return NextResponse.json(
       { error: "Selected day is not a Price Is Freight train day." },
       { status: 400 },
@@ -76,16 +77,11 @@ export async function GET(request: Request) {
     viewerMemberId = link?.ashedMemberId ?? null;
   }
 
-  const isSaturday = isPriceIsRightHeavyHitterSaturday(
-    dayConfig.paintTemplate,
-    trainDate,
-  );
-
-  if (isSaturday) {
+  if (isHeavyHitterBoardRule(rule)) {
     const heavyHitters = await applyConductorMinimumsFilter(ctx.allianceId, trainDate, await buildHeavyHitterPoolCandidates(
       ctx.allianceId,
       trainDate,
-    ), { paintTemplate: dayConfig.paintTemplate, leadDays });
+    ), { rule, leadDays });
     const board = buildEqualChanceOddsBoard(
       heavyHitters.map((c) => ({
         memberId: c.memberId,
@@ -124,7 +120,7 @@ export async function GET(request: Request) {
   const candidates = await loadPriceIsFreightR3Candidates({
     allianceId: ctx.allianceId,
     date: trainDate,
-    paintTemplate: dayConfig.paintTemplate,
+    rule,
     leadDays,
   });
 

@@ -5,15 +5,8 @@
  * independent of long-running R3 / R4+ depleting generation slots.
  */
 
-import {
-  isAutomaticTopNBoard,
-  type ResolvedConductorTopNBoard,
-} from "@/lib/trains/conductor-top-n.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
-import type {
-  ConductorMechanismType,
-  WeekTemplateType,
-} from "@/lib/trains/types";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRuleIsAutomatic } from "@/lib/trains/rules/derive.shared";
 
 export function filterDaySpinCandidates<T extends { memberId: string }>(
   candidates: readonly T[],
@@ -39,22 +32,12 @@ export function buildDaySpinExclusionSet(input: {
  * Top VS scope 1 and R4 sequence are deterministic and do not use day exclusions.
  */
 export function usesDaySpinExclusions(input: {
-  mechanism: ConductorMechanismType | string | null | undefined;
-  topBoard?: ResolvedConductorTopNBoard | null;
-  paintTemplate?: WeekTemplateType | null;
+  rule: ConductorRule | null;
 }): boolean {
-  const topBoard = input.topBoard ?? null;
-  if (topBoard) {
-    return !isAutomaticTopNBoard(topBoard);
-  }
-
-  const mechanism = input.mechanism;
-  if (mechanism === "r4_sequence") return false;
-  if (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery") {
-    return true;
-  }
-  if (usesPriceIsFreightConductorRoll(input.paintTemplate)) {
-    return true;
-  }
-  return false;
+  const rule = input.rule;
+  if (!rule) return false;
+  if (conductorRuleIsAutomatic(rule)) return false;
+  // R4 rotation walks the pool in order — the draw is deterministic.
+  if (rule.kind === "rank_pool" && rule.pool === "r4_plus") return false;
+  return true;
 }

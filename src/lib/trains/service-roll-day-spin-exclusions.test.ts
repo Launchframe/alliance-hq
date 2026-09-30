@@ -105,11 +105,9 @@ describe("rollForConductor day-scoped spin exclusions", () => {
     mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.getConductorRecord.mockResolvedValue(null);
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "vs_top_n",
-      conductorConfig: { topN: 3, paintTemplate: "top_vs" },
-      vipMechanism: "none",
+      conductorRule: { kind: "vs_top_n", topN: 3 },
+      vipRule: { kind: "none" },
       dayConfigId: "dc1",
-      paintTemplate: "top_vs",
     });
     mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue(top3);
     mocks.listDaySpinExcludedMemberIds.mockResolvedValue([]);
@@ -143,7 +141,7 @@ describe("rollForConductor day-scoped spin exclusions", () => {
   });
 
   it("does not replace an away Top 1 winner with an invented lower-ranked winner", async () => {
-    mocks.resolveRollDayConfig.mockResolvedValue({ conductorMechanism: "vs_high_score" });
+    mocks.resolveRollDayConfig.mockResolvedValue({ conductorRule: { kind: "vs_top_n", topN: 1 } });
     mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([top3[0]]);
     mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-a"]) });
     await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
@@ -207,10 +205,9 @@ describe("rollForConductor day-scoped spin exclusions", () => {
 
   it("does not record day exclusions for Top VS scope 1", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "vs_high_score",
-      vipMechanism: "none",
+      conductorRule: { kind: "vs_top_n", topN: 1 },
+      vipRule: { kind: "none" },
       dayConfigId: "dc1",
-      paintTemplate: null,
     });
     mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([top3[0]]);
 

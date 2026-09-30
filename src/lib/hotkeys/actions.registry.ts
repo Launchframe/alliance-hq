@@ -11,6 +11,7 @@ const NATIVE_NAV_HREFS = new Set(
 const NATIVE_MODE_EXTRA_HREFS = new Set([
   "/settings",
   "/settings/account",
+  "/account/calendars",
   "/settings/team",
   "/settings/discord",
   "/settings/trains",
@@ -89,6 +90,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/vs-performance",
+    requiredPermission: "scores:read",
   },
   {
     id: "nav.donations",
@@ -230,7 +232,95 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/notes",
-    requiredPermission: "members:write",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.newNote",
+    labelKey: "actions.notes.newNote",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:create",
+  },
+  {
+    id: "notes.newTask",
+    labelKey: "actions.notes.newTask",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:create",
+  },
+  {
+    id: "notes.sharedBoards",
+    labelKey: "actions.notes.sharedBoards",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes_boards:read",
+  },
+  {
+    id: "notes.newBoard",
+    labelKey: "actions.notes.newBoard",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes_boards:write",
+  },
+  {
+    id: "notes.publications",
+    labelKey: "actions.notes.publications",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.studio",
+    labelKey: "actions.notes.studio",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.knowledge",
+    labelKey: "actions.notes.knowledge",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.workspaceSearch",
+    labelKey: "actions.notes.workspaceSearch",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.imports",
+    labelKey: "actions.notes.imports",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.drafts",
+    labelKey: "actions.notes.drafts",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
+    id: "notes.search",
+    labelKey: "actions.notes.search",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
   },
   {
     id: "nav.desertStorm",
@@ -317,6 +407,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/admin/inbox",
     requiredPermission: "hq:admin",
+  },
+  {
+    id: "nav.calendarConnections",
+    labelKey: "actions.nav.calendarConnections",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/account/calendars",
   },
   {
     id: "nav.account",
@@ -492,6 +590,25 @@ const TRAIN_ACTIONS: HotkeyActionDef[] = [
   })),
 ];
 
+const VS_PERFORMANCE_ACTIONS: HotkeyActionDef[] = [
+  {
+    id: "vsPerformance.editPlan",
+    labelKey: "actions.vsPerformance.editPlan",
+    category: "tools",
+    scope: "page:vs-performance",
+    kind: "custom",
+    requiredPermission: "trains:write",
+  },
+  {
+    id: "vsPerformance.capture",
+    labelKey: "actions.vsPerformance.capture",
+    category: "tools",
+    scope: "page:vs-performance",
+    kind: "custom",
+    requiredPermission: "trains:write",
+  },
+];
+
 const GLOBAL_ACTIONS: HotkeyActionDef[] = [
   {
     id: "global.openPalette",
@@ -530,6 +647,7 @@ export const HOTKEY_ACTIONS: HotkeyActionDef[] = [
   ...NAV_ACTIONS,
   ...ADMIN_ACTIONS,
   ...TRAIN_ACTIONS,
+  ...VS_PERFORMANCE_ACTIONS,
 ];
 
 export type HotkeyActionId = (typeof HOTKEY_ACTIONS)[number]["id"];

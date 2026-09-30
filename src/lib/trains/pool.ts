@@ -16,6 +16,57 @@ type PoolGenerationEntry = {
   selectedForDate: string | null;
 };
 
+/**
+ * Prefer the live wheel when claiming a pool slot. Past-day trains still
+ * consume a current-generation unselected row so the member is not next in
+ * sequence. Fall back to the date's generation when that is the current one.
+ */
+export function poolGenerationsToClaim(input: {
+  currentGeneration: number;
+  historicalGeneration: number;
+  useHistorical: boolean;
+}): number[] {
+  if (
+    input.useHistorical &&
+    input.historicalGeneration !== input.currentGeneration
+  ) {
+    return [input.currentGeneration, input.historicalGeneration];
+  }
+  return [input.currentGeneration];
+}
+
+/**
+ * Lock/sync must not stamp a leftover historical row after the live slot is
+ * already taken (Start new rotation leftovers).
+ */
+export function resolveLockPoolClaim(input: {
+  date: string;
+  currentGeneration: number;
+  historicalGeneration: number;
+  hasCurrentRow: boolean;
+  currentSelectedForDate: string | null | undefined;
+}): { generation: number | null; alreadyClaimed: boolean } {
+  if (input.hasCurrentRow) {
+    if (input.currentSelectedForDate == null) {
+      return {
+        generation: input.currentGeneration,
+        alreadyClaimed: false,
+      };
+    }
+    return {
+      generation: null,
+      alreadyClaimed: input.currentSelectedForDate === input.date,
+    };
+  }
+  if (input.historicalGeneration !== input.currentGeneration) {
+    return {
+      generation: input.historicalGeneration,
+      alreadyClaimed: false,
+    };
+  }
+  return { generation: null, alreadyClaimed: false };
+}
+
 /** Pure helper — first generation not fully selected before date. */
 export function activePoolGenerationForDate(
   generationNumbers: number[],
@@ -373,6 +424,43 @@ export async function updateCurrentPoolEntryTicketWeights(
   }
 }
 
+export async function resolvePoolGenerationForDate(
+  allianceId: string,
+  poolType: PoolType,
+  date: string,
+): Promise<number> {
+  const today = getServerCalendarDate();
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  if (date >= today) return currentGeneration;
+  return resolvePoolGenerationForHistoricalDate(allianceId, poolType, date);
+}
+
+export async function listPoolEntriesInGeneration(
+  allianceId: string,
+  poolType: PoolType,
+  generation: number,
+  options?: { unselectedOnly?: boolean },
+): Promise<Array<(typeof schema.conductorPoolEntries.$inferSelect)>> {
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  if (generation === currentGeneration) {
+    await reconcileCurrentGenerationEligibility(allianceId, poolType);
+  }
+  const db = getDb();
+  const filters = [
+    eq(schema.conductorPoolEntries.allianceId, allianceId),
+    eq(schema.conductorPoolEntries.poolType, poolType),
+    eq(schema.conductorPoolEntries.generation, generation),
+  ];
+  if (options?.unselectedOnly) {
+    filters.push(isNull(schema.conductorPoolEntries.selectedAt));
+  }
+  return db
+    .select()
+    .from(schema.conductorPoolEntries)
+    .where(and(...filters))
+    .orderBy(asc(schema.conductorPoolEntries.sequencePosition));
+}
+
 export async function resolvePoolGenerationForHistoricalDate(
   allianceId: string,
   poolType: PoolType,
@@ -400,8 +488,10 @@ export async function resolvePoolGenerationForHistoricalDate(
 }
 
 /**
- * Claim the current (or historical) generation row for `memberId`.
- * Returns false when no row exists or another caller already claimed it.
+ * Claim the live generation when the member still has an open row there.
+ * If they are already selected on the live generation, do not stamp a
+ * leftover historical row. Only claim the date's generation when they have
+ * no current-generation row at all.
  */
 export async function markPoolMemberSelectedForDate(
   allianceId: string,
@@ -410,11 +500,36 @@ export async function markPoolMemberSelectedForDate(
   date: string,
 ): Promise<boolean> {
   const today = getServerCalendarDate();
-  const generation =
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  const historicalGeneration =
     date < today
       ? await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date)
-      : await getCurrentPoolGeneration(allianceId, poolType);
+      : currentGeneration;
   const db = getDb();
+  const [currentRow] = await db
+    .select({
+      id: schema.conductorPoolEntries.id,
+      selectedForDate: schema.conductorPoolEntries.selectedForDate,
+    })
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, currentGeneration),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    )
+    .limit(1);
+  const plan = resolveLockPoolClaim({
+    date,
+    currentGeneration,
+    historicalGeneration,
+    hasCurrentRow: Boolean(currentRow),
+    currentSelectedForDate: currentRow?.selectedForDate,
+  });
+  if (plan.alreadyClaimed) return true;
+  if (plan.generation == null) return false;
   const [entry] = await db
     .select({ id: schema.conductorPoolEntries.id })
     .from(schema.conductorPoolEntries)
@@ -422,13 +537,12 @@ export async function markPoolMemberSelectedForDate(
       and(
         eq(schema.conductorPoolEntries.allianceId, allianceId),
         eq(schema.conductorPoolEntries.poolType, poolType),
-        eq(schema.conductorPoolEntries.generation, generation),
+        eq(schema.conductorPoolEntries.generation, plan.generation),
         eq(schema.conductorPoolEntries.memberId, memberId),
         isNull(schema.conductorPoolEntries.selectedAt),
       ),
     )
     .limit(1);
-
   if (!entry) return false;
   return markPoolEntrySelected(entry.id, date);
 }
@@ -442,8 +556,8 @@ export async function releasePoolSelectionForDate(
   allianceId: string,
   date: string,
   memberId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<void> {
-  const db = getDb();
   await db
     .update(schema.conductorPoolEntries)
     .set({

@@ -13,7 +13,7 @@ describe("dayNeedsScoreStats", () => {
   it("is true for Top VS rules", () => {
     expect(
       dayNeedsScoreStats({
-        conductorMechanism: "vs_high_score",
+        rule: { kind: "vs_top_n", topN: 1 },
         trainDate: "2026-06-13",
       }),
     ).toBe(true);
@@ -22,7 +22,7 @@ describe("dayNeedsScoreStats", () => {
   it("is false for R4 sequence", () => {
     expect(
       dayNeedsScoreStats({
-        conductorMechanism: "r4_sequence",
+        rule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
         trainDate: "2026-06-13",
       }),
     ).toBe(false);
@@ -31,7 +31,7 @@ describe("dayNeedsScoreStats", () => {
   it("is false on Monday for prior-day VS rules", () => {
     expect(
       dayNeedsScoreStats({
-        conductorMechanism: "vs_high_score",
+        rule: { kind: "vs_top_n", topN: 1 },
         trainDate: "2026-06-15",
       }),
     ).toBe(false);
@@ -40,14 +40,10 @@ describe("dayNeedsScoreStats", () => {
   it("is true on Sunday off-day when lead time inherits VS scores", () => {
     expect(
       dayNeedsScoreStats({
-        conductorMechanism: "custom",
-        paintTemplate: "vs_push_week_lead_time",
+        rule: null,
         trainDate: "2026-08-30",
         leadDays: 1,
-        scoreDateDay: {
-          conductorMechanism: "vs_top_10",
-          paintTemplate: "vs_push_weekdays",
-        },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
     ).toBe(true);
   });

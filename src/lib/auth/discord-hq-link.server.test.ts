@@ -34,6 +34,10 @@ vi.mock("@/lib/member-link/inherit-hq-to-discord.server", () => ({
   revokeHqMirroredDiscordMemberLinks: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/notes/resources.server", () => ({
+  claimDiscordKnowledgeResourcesForHqUser: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/auth/account-linking.server", () => ({
   unlinkOAuthProviderForUser: vi.fn(),
 }));

@@ -18,10 +18,10 @@ See also: [trains.mdc](./trains.mdc), [trains-simple-advanced-modes.mdc](./train
 
 | Term | Means | Do not confuse with |
 |------|--------|---------------------|
-| **Rule** (UI) | Conductor selection mechanism for a day (`conductorMechanism`, `ConductorMechanismType`, day paint) | Week **template** |
+| **Rule** (UI) | Conductor or VIP selection mechanism for a day (typed `ConductorRule` / `VipRule`, day paint) | Week **template** |
 | **Eligibility** (UI) | Members who can be drawn for a rule (`conductor_pool_entries`, minimums, score gates) | Code `PoolType` / API `pool` |
-| **Week template** (UI) | Collection of rules applied over a stretch of time, currently a full week (`WeekTemplateType`, composite templates) | A single day's rule |
-| **Day rule** / day paint | One day's conductor (+ VIP) rule from `DAY_PAINT_TEMPLATES` | Week template names that contain "week" |
+| **Week template** (UI) | A calendar-weekday 7-slot preset of day rules (`WeekTemplateType`) | A single day's rule |
+| **Day rule** / day paint | One day's conductor (+ VIP) rule from `DAY_RULE_PALETTE` | Week preset names that contain "week" |
 | **Lock** | `lockedAt` — conductor boarded / train spawned | VIP assignment |
 
 **UI copy rule:** use **Rule** / **Eligibility** / **Week template** in officer-facing strings. Do **not** rename TS types, DB columns, or API fields in Phase 1-style copy-only work.
@@ -30,21 +30,21 @@ Guided flow first row: **"This day's rule"** — never label it "Week template".
 
 ## Day paint vs week templates (exclusive)
 
-Canonical lists: `DAY_PAINT_TEMPLATES` vs selectable week/composites in `paint-templates.shared.ts` + `week-template-registry.shared.ts`.
+Canonical lists: `DAY_RULE_PALETTE` in `rules/palette.shared.ts` (day rules) vs `WEEK_TEMPLATES` / `PRESET_WEEK_RULES` in `rules/presets.shared.ts` (week presets). A week preset is seven day rules — painting either goes through `applyPaint`. A paint is a `DayRulePatch`: an **omitted side preserves** the day's current rule, `null` is a deliberate value (conductor free choice / VIP conductor's pick), and only a supplied side can keep/clear assignments.
 
 | Surface | Options |
 |---------|---------|
-| Month — **one** day selected | Day mechanisms only — **no** composites |
-| Month — **multiple** days | Week templates (composites OK) |
-| Week strip — **Week template** control | Week / composite templates |
-| Week strip — long-press / change day | Day mechanisms for that date only |
-| Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` — never `WeekTemplatePickerDialog` |
+| Month — **one** day selected | Day rules only — **no** week templates |
+| Month — **multiple** days | Week templates |
+| Week strip — **Week template** control | Week templates |
+| Week strip — long-press / change day | Day rules for that date only (conductor side; preserves VIP) |
+| Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` (conductor / VIP / both scope) — never `WeekTemplatePickerDialog` |
 
-- Do **not** put composites (e.g. `vs_push_week`) in single-day pickers.
-- **Composite segment resolution** uses **calendar DOW relative to Tuesday** (Tue=0 … Mon=6) via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts` — **not** alliance `trainWeekStartDow`. A Monday-start train week must still paint Tue–Sat push and Sun–Mon R4 segments on the correct calendar days.
+- Do **not** put week templates (e.g. `vs_push_week`) in single-day pickers.
+- **Preset resolution** maps each calendar weekday to one slot of the preset's 7-slot array in `rules/presets.shared.ts` — **not** alliance `trainWeekStartDow`. A Monday-start train week still paints Tue–Sat push and Sun–Mon R4 days on the correct calendar days.
 - Day-painted mechanism **sticks** unless impossible for that server date (e.g. TPIF on Monday bounces; Saturday **day** TPIF must not auto-rewrite to the week’s heavy-hitter segment).
-- Changing a day’s conductor mechanism **keeps** the pending or locked conductor when they are still eligible for the new rule (do not reset them). If they are **not** eligible, officers who can unlock (train owner in-window, alliance owner, or platform maintainer) confirm **Clear the conductor and change rules?**; otherwise offer **Request to unlock this conductor**. Do not leave a locked-day paint as a dead-end API error toast.
-- Composite Saturday segment **`takedown_week`** is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
+- Changing a day’s conductor mechanism **keeps** the pending or locked conductor when they are still eligible for the new rule (do not reset them). If they are **not** eligible, officers who can unlock (train owner in-window, alliance owner, or platform maintainer) confirm **Clear the conductor and change rules?**; otherwise offer **Request to unlock this conductor**. Do not leave a locked-day paint as a dead-end API error toast. A VIP-only paint can never clear or block a conductor.
+- Saturday's `takedown_week` rule is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
 
 ## Lifecycle: conductor → lock → VIP
 
@@ -93,7 +93,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Week strip
 
 - Every day tile always shows the conductor name or **"—"** (not only when selected).
-- Long-press day paint uses `DAY_PAINT_TEMPLATES`.
+- Long-press day paint uses `DAY_RULE_PALETTE`; scoped boards open the scope picker before painting.
 - Week tiles may show **score-source stats** (VS day name, score-date weekday, considered count, eligible-under-rule count) when the day's rule uses VS/VR scores. Month calendar tiles do **not** show these stats.
 
 ## Share image / wheel readability

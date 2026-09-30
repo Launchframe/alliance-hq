@@ -5,48 +5,63 @@ import {
   showsConductorSpinWheel,
   spinWheelDatesForRestOfWeek,
   spinWheelDatesFromList,
+  type SpinWeekDayConfig,
 } from "@/lib/trains/spin-week.shared";
 
 describe("showsConductorSpinWheel", () => {
-  it("includes vs_top_10 and r3_lottery when unlocked", () => {
-    expect(showsConductorSpinWheel("vs_top_10", false, "vs_push_weekdays")).toBe(
-      true,
-    );
-    expect(showsConductorSpinWheel("r3_lottery", false, "economy_week")).toBe(
-      true,
-    );
+  it("includes score boards and pool lotteries when unlocked", () => {
+    expect(
+      showsConductorSpinWheel({ kind: "vs_top_n", topN: 10 }, false),
+    ).toBe(true);
+    expect(
+      showsConductorSpinWheel(
+        { kind: "rank_pool", pool: "r3", draw: "wheel" },
+        false,
+      ),
+    ).toBe(true);
+    expect(
+      showsConductorSpinWheel(
+        { kind: "price_is_freight", board: "weekday" },
+        false,
+      ),
+    ).toBe(true);
+    expect(
+      showsConductorSpinWheel(
+        { kind: "price_is_freight", board: "heavy_hitter" },
+        false,
+      ),
+    ).toBe(true);
   });
 
-  it("excludes r4 sequence assign days", () => {
-    expect(showsConductorSpinWheel("r4_sequence", false, null)).toBe(false);
+  it("excludes R4 rotation assign days", () => {
     expect(
-      showsConductorSpinWheel("officer_pick", false, "r4_event_vip"),
+      showsConductorSpinWheel(
+        { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+        false,
+      ),
     ).toBe(false);
   });
 
-  it("excludes locked days and leaderboard auto-pick mechanisms", () => {
-    expect(showsConductorSpinWheel("vs_top_10", true, null)).toBe(false);
-    expect(showsConductorSpinWheel("vs_high_score", false, null)).toBe(false);
-    expect(showsConductorSpinWheel("donations_top", false, null)).toBe(false);
+  it("excludes locked days and automatic boards", () => {
+    expect(
+      showsConductorSpinWheel({ kind: "vs_top_n", topN: 10 }, true),
+    ).toBe(false);
+    expect(showsConductorSpinWheel({ kind: "vs_top_n", topN: 1 }, false)).toBe(
+      false,
+    );
+    expect(showsConductorSpinWheel({ kind: "donations_top" }, false)).toBe(
+      false,
+    );
   });
 
-  it("includes Saturday price_is_right when stored as r3_lottery (date-dependent remap)", () => {
+  it("excludes free choice and the manual R3 award", () => {
+    expect(showsConductorSpinWheel(null, false)).toBe(false);
     expect(
       showsConductorSpinWheel(
-        "r3_lottery",
+        { kind: "rank_pool", pool: "r3", draw: "manual" },
         false,
-        "price_is_right",
-        "2026-06-13",
       ),
-    ).toBe(true);
-    expect(
-      showsConductorSpinWheel(
-        "r3_lottery",
-        false,
-        "price_is_right",
-        "2026-06-12",
-      ),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 
@@ -63,23 +78,19 @@ describe("spinWheelDatesForRestOfWeek", () => {
         dayConfigs: [
           {
             date: "2026-06-10",
-            conductorMechanism: "vs_top_10",
-            paintTemplate: "vs_push_weekdays",
+            conductorRule: { kind: "vs_top_n", topN: 10 },
           },
           {
             date: "2026-06-11",
-            conductorMechanism: "vs_top_10",
-            paintTemplate: "vs_push_weekdays",
+            conductorRule: { kind: "vs_top_n", topN: 10 },
           },
           {
             date: "2026-06-12",
-            conductorMechanism: "r4_sequence",
-            paintTemplate: null,
+            conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
           },
           {
             date: "2026-06-13",
-            conductorMechanism: "r3_lottery",
-            paintTemplate: "economy_week",
+            conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
           },
         ],
         weekRecords: [],
@@ -96,13 +107,11 @@ describe("spinWheelDatesForRestOfWeek", () => {
         dayConfigs: [
           {
             date: "2026-06-10",
-            conductorMechanism: "vs_top_10",
-            paintTemplate: "vs_push_weekdays",
+            conductorRule: { kind: "vs_top_n", topN: 10 },
           },
           {
             date: "2026-06-11",
-            conductorMechanism: "vs_top_10",
-            paintTemplate: "vs_push_weekdays",
+            conductorRule: { kind: "vs_top_n", topN: 10 },
           },
         ],
         weekRecords: [
@@ -121,8 +130,7 @@ describe("spinWheelDatesForRestOfWeek", () => {
         dayConfigs: [
           {
             date: "2026-06-13",
-            conductorMechanism: "r3_lottery",
-            paintTemplate: "price_is_right",
+            conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
           },
         ],
         weekRecords: [],
@@ -132,21 +140,12 @@ describe("spinWheelDatesForRestOfWeek", () => {
 });
 
 describe("spinWheelDatesFromList", () => {
-  const dayConfigs = [
-    {
-      date: "2026-06-10",
-      conductorMechanism: "vs_top_10",
-      paintTemplate: "vs_push_weekdays" as const,
-    },
-    {
-      date: "2026-06-11",
-      conductorMechanism: "vs_top_10",
-      paintTemplate: "vs_push_weekdays" as const,
-    },
+  const dayConfigs: SpinWeekDayConfig[] = [
+    { date: "2026-06-10", conductorRule: { kind: "vs_top_n", topN: 10 } },
+    { date: "2026-06-11", conductorRule: { kind: "vs_top_n", topN: 10 } },
     {
       date: "2026-06-12",
-      conductorMechanism: "r4_sequence",
-      paintTemplate: null,
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
     },
   ];
 

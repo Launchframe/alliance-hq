@@ -20,7 +20,8 @@ export { vsEvidenceErrorResponse } from "./errors.server";
 
 export async function submitVsReview(input: {
   sessionId: string; hqUserId: string | null; job: VideoJob;
-  body: { recordedDate?: string; vsPeriod?: string; vsRevision?: number; requestId?: string; rows: VsReviewRow[] };
+  automaticDeletedIds?: readonly string[];
+  body: { recordedDate?: string; vsPeriod?: string; vsRevision?: number; requestId?: string; ocrFeedbackVersion?: number; rows: VsReviewRow[] };
 }) {
   const period = input.body.vsPeriod === "weekly" ? "weekly" : "daily";
   try {
@@ -34,7 +35,7 @@ export async function submitVsReview(input: {
     const result = await commitReviewedVsScores({
       allianceId, hqUserId: input.hqUserId, jobId: input.job.id, parseSessionId: input.job.parseSessionId,
       recordedDate: input.body.recordedDate ?? "", period, rows: input.body.rows,
-      expectedRevision: input.body.vsRevision, requestId,
+      expectedRevision: input.body.vsRevision, requestId, automaticDeletedIds: input.automaticDeletedIds, humanDeletesKnown: input.body.ocrFeedbackVersion === 1,
     });
     after(async () => {
       await Promise.allSettled([

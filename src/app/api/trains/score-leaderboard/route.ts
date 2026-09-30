@@ -8,9 +8,6 @@ import { loadScoreLeaderboard } from "@/lib/trains/score-leaderboard.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
-import { loadAllianceTrainWeekConfig } from "@/lib/trains/service";
-import { getTrainWeekStart } from "@/lib/trains/train-week-calendar.shared";
-import { getWeekSchedule } from "@/lib/trains/repository";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
@@ -42,15 +39,6 @@ export async function GET(request: Request) {
 
   const { seasonKey } = await getEffectiveSeasonForAlliance(ctx.allianceId);
   const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
-  const trainWeekConfig = await loadAllianceTrainWeekConfig(ctx.allianceId);
-  const weekStart = getTrainWeekStart(trainDate, trainWeekConfig);
-  const weekSchedule = await getWeekSchedule(
-    ctx.allianceId,
-    weekStart,
-    seasonKey,
-  );
-  const weekTemplateType = weekSchedule?.templateType ?? null;
-
   const dayConfig = await resolveRollDayConfig(
     ctx.allianceId,
     trainDate,
@@ -64,17 +52,10 @@ export async function GET(request: Request) {
   );
 
   const dayKind = resolveScoreLeaderboardKind({
-    paintTemplate: dayConfig.paintTemplate,
-    conductorMechanism: dayConfig.conductorMechanism,
+    rule: dayConfig.conductorRule,
     trainDate,
     leadDays,
-    weekTemplateType,
-    weekStart,
-    scoreDateDay: {
-      conductorMechanism: scoreDateDayConfig.conductorMechanism,
-      conductorConfig: scoreDateDayConfig.conductorConfig,
-      paintTemplate: scoreDateDayConfig.paintTemplate,
-    },
+    scoreDayRule: scoreDateDayConfig.conductorRule,
   });
 
   if (!dayKind) {

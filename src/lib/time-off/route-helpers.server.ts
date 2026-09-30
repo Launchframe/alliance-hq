@@ -40,7 +40,7 @@ export async function requireTimeOffWrite(sessionId: string) {
   return requireSessionPermission(sessionId, TIME_OFF_WRITE_PERMISSION);
 }
 
-export async function requireTimeOffActor(): Promise<{ actor: TimeOffActor } | { error: NextResponse }> {
+export async function requireTimeOffActor(): Promise<{ actor: TimeOffActor; sessionId: string } | { error: NextResponse }> {
   const context = await requireTimeOffAllianceContext();
   if (context.error) return { error: context.error };
   const { session, allianceId } = context;
@@ -51,7 +51,7 @@ export async function requireTimeOffActor(): Promise<{ actor: TimeOffActor } | {
     sessionHasPermissionForAlliance(session.id, allianceId, TIME_OFF_WRITE_PERMISSION),
     listLinkedCommanderIdsForHqUser({ allianceId, hqUserId: session.hqUserId }),
   ]);
-  return { actor: { allianceId, hqUserId: session.hqUserId, canManageOthers, ownedCommanderIds, locale: await getLocale(), refresh: async () => {
+  return { sessionId: session.id, actor: { allianceId, hqUserId: session.hqUserId, canManageOthers, ownedCommanderIds, locale: await getLocale(), refresh: async () => {
     const current = await requireTimeOffActor();
     if ("error" in current) throw new TimeOffError("forbidden", 403);
     return current.actor;

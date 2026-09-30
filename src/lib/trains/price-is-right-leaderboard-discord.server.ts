@@ -8,7 +8,7 @@ import { addCalendarDays } from "@/lib/trains/game-time";
 import { formatPriceIsRightLeaderboardDiscordMessage } from "@/lib/trains/price-is-right-leaderboard.shared";
 import { loadPriceIsRightVsLeaderboard } from "@/lib/trains/price-is-right-leaderboard.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   getAllianceTrainDiscordAnnouncementsEnabled,
   listRegisteredGuildsWithTrainChannel,
@@ -33,7 +33,7 @@ export async function postPriceIsRightLeaderboardToDiscord(input: {
     input.trainDate,
     seasonKey,
   );
-  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
+  if (!conductorRuleUsesPriceIsFreightRoll(dayConfig.conductorRule)) {
     return { posted: 0, skipped: 1 };
   }
 

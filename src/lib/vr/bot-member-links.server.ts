@@ -11,10 +11,14 @@ export async function listDiscordLinksForStatusQuery(
   allianceId: string,
   discordUserId: string,
 ) {
-  let links = await listDiscordLinksForUser(allianceId, discordUserId);
+  let links = await listDiscordLinksForUser(allianceId, discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     await ensureDiscordMemberLinksFromHq({ discordUserId, allianceId });
-    links = await listDiscordLinksForUser(allianceId, discordUserId);
+    links = await listDiscordLinksForUser(allianceId, discordUserId, {
+      rematerializeFormer: true,
+    });
   }
   return links;
 }

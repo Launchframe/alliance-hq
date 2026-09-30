@@ -7,7 +7,9 @@
 import { getLocale } from "next-intl/server";
 import { NextResponse } from "next/server";
 
-import { importOfficerChatSession } from "@/lib/officer-intel/repository.server";
+import { getOfficerChatSessionForAlliance, importOfficerChatSession } from "@/lib/officer-intel/repository.server";
+import { notesErrorResponse } from "@/lib/notes/access.server";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
 import {
   requireOfficerIntelAllianceContext,
   requireOfficerIntelWrite,
@@ -108,6 +110,8 @@ export async function POST(request: Request, { params }: Props) {
 
   const denied = await requireOfficerIntelWrite(context.sessionId);
   if (denied) return denied;
+  const source = await getOfficerChatSessionForAlliance({ sessionId: id, allianceId: context.allianceId, actor: context.actor });
+  if (!source) return notesErrorResponse(new KnowledgeAccessError("not_found"));
 
   let formData: FormData;
   try {
@@ -207,6 +211,7 @@ export async function POST(request: Request, { params }: Props) {
   const result = await importOfficerChatSession({
     sessionId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
     hqLocale: locale,
     title: typeof payload.title === "string" ? payload.title : undefined,
     channelLabel:
@@ -214,7 +219,8 @@ export async function POST(request: Request, { params }: Props) {
     sessionAt,
     messages,
     images,
-  });
+  }).catch(notesErrorResponse);
+  if (result instanceof NextResponse) return result;
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 404 });

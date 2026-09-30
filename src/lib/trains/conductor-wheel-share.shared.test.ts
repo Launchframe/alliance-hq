@@ -23,8 +23,7 @@ const labels = {
 describe("resolveWheelShareEligibility", () => {
   it("prefers qualified conductor minimums proof", () => {
     const eligibility = resolveWheelShareEligibility({
-      mechanism: "r3_lottery",
-      paintTemplate: "economy_week",
+      rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
       winner: { memberId: "a", memberName: "Alpha", priorDayVsScore: 7_500_000 },
       qualification: {
         qualified: true,
@@ -54,8 +53,7 @@ describe("resolveWheelShareEligibility", () => {
 
   it("uses TPIF framing with win chance when provided", () => {
     const eligibility = resolveWheelShareEligibility({
-      mechanism: "r3_lottery",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
       winner: { memberId: "a", memberName: "Alpha", priorDayVsScore: 7_230_000 },
       winProbability: 0.127,
     });
@@ -72,8 +70,7 @@ describe("resolveWheelShareEligibility", () => {
 
   it("uses VS leaderboard proof with explicit scoreboard rank only", () => {
     const eligibility = resolveWheelShareEligibility({
-      mechanism: "vs_top_10",
-      paintTemplate: "vs_push_weekdays",
+      rule: { kind: "vs_top_n", topN: 10 },
       winner: {
         memberId: "a",
         memberName: "Alpha",
@@ -94,8 +91,7 @@ describe("resolveWheelShareEligibility", () => {
 
   it("keeps TPIF win-chance framing when conductor minimums also qualify", () => {
     const eligibility = resolveWheelShareEligibility({
-      mechanism: "r3_lottery",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
       winner: { memberId: "a", memberName: "Alpha", priorDayVsScore: 7_230_000 },
       winProbability: 0.127,
       qualification: {
@@ -127,8 +123,7 @@ describe("resolveWheelShareEligibility", () => {
 
   it("keeps VS leaderboard rank when conductor minimums also qualify", () => {
     const eligibility = resolveWheelShareEligibility({
-      mechanism: "vs_top_10",
-      paintTemplate: "vs_push_weekdays",
+      rule: { kind: "vs_top_n", topN: 10 },
       winner: {
         memberId: "a",
         memberName: "Alpha",
@@ -164,8 +159,7 @@ describe("resolveWheelShareEligibility", () => {
 
   it("does not treat alliance R-rank as scoreboard rank", () => {
     const eligibility = resolveWheelShareEligibility({
-      mechanism: "vs_top_10",
-      paintTemplate: "vs_push_weekdays",
+      rule: { kind: "vs_top_n", topN: 10 },
       winner: {
         memberId: "a",
         memberName: "Alpha",

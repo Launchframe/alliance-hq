@@ -2,136 +2,89 @@ import "server-only";
 
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { loadAllianceRow } from "@/lib/members/game-roster";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
-import {
-  getWeekSchedule,
-  listDayConfigsForWeek,
-} from "@/lib/trains/repository";
-import { generateDayConfigForDate } from "@/lib/trains/templates";
+import { listDayConfigsForWeek } from "@/lib/trains/repository";
+import { resolveWeekFillTemplateResolver } from "@/lib/trains/rules/week-template-resolve.server";
+import { templateRulesForDate } from "@/lib/trains/rules/template-days.shared";
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
   PROVISIONAL_DAY_CONFIG_ID_PREFIX,
   resolveWeekDisplayDayConfigs,
 } from "@/lib/trains/week-schedule-day-configs.shared";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
-import type {
-  ConductorMechanismType,
-  DayConfigInput,
-  VipMechanismType,
-  WeekTemplateType,
-} from "@/lib/trains/types";
+import type { DayConfigInput } from "@/lib/trains/types";
 
 export type ResolvedRollDayConfig = DayConfigInput & {
   dayConfigId: string | null;
-  paintTemplate?: WeekTemplateType | null;
 };
 
 async function trainWeekStartForAlliance(
   allianceId: string,
   date: string,
+  db?: Parameters<typeof loadAllianceRow>[1],
 ): Promise<string> {
-  const row = await loadAllianceRow(allianceId);
+  const row = await loadAllianceRow(allianceId, db);
   return getTrainWeekStart(date, allianceTrainWeekFromRow(row ?? {}));
 }
 
-export async function resolveAnchorTemplateType(
-  allianceId: string,
-  seasonKey: string,
-): Promise<WeekTemplateType> {
-  const today = getServerCalendarDate();
-  const weekStart = await trainWeekStartForAlliance(allianceId, today);
-  const anchorSchedule = await getWeekSchedule(
-    allianceId,
-    weekStart,
-    seasonKey,
-  );
-  return (anchorSchedule?.templateType ?? "vs_push_week") as WeekTemplateType;
-}
-
-async function weekTemplateTypeForDate(
-  allianceId: string,
-  date: string,
-  seasonKey: string,
-): Promise<WeekTemplateType> {
-  const weekStart = await trainWeekStartForAlliance(allianceId, date);
-  const weekSchedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  const anchorTemplate = await resolveAnchorTemplateType(allianceId, seasonKey);
-  return (weekSchedule?.templateType ?? anchorTemplate) as WeekTemplateType;
-}
-
 /**
- * Same merge as the week strip / dashboard: persisted rows plus template
- * fill for gaps. Use for rolls, leaderboards, and score stats — not only
- * raw `getDayConfig` rows.
+ * Same merge as the week strip / dashboard: persisted rows plus preset fill
+ * for gaps. Use for rolls, leaderboards, and score stats — not only raw
+ * `getDayConfig` rows.
  */
 export async function resolveDisplayMergedDayConfigForDate(
   allianceId: string,
   date: string,
   seasonKey: string,
+  options?: {
+    db?: import("@/lib/trains/repository").TrainsDb;
+    updateSeason?: boolean;
+  },
 ): Promise<ResolvedRollDayConfig> {
-  const weekStart = await trainWeekStartForAlliance(allianceId, date);
+  const weekStart = await trainWeekStartForAlliance(allianceId, date, options?.db);
   const weekEnd = addCalendarDays(weekStart, 6);
-  const templateType = await weekTemplateTypeForDate(
+  const templateForDate = await resolveWeekFillTemplateResolver(
     allianceId,
-    date,
+    [...weekDatesInTrainWeek(weekStart), date],
     seasonKey,
+    undefined,
+    options,
   );
   const dayConfigRows = await listDayConfigsForWeek(
     allianceId,
     weekStart,
     weekEnd,
+    options?.db,
   );
   const merged = resolveWeekDisplayDayConfigs(
     weekStart,
-    templateType,
+    templateForDate,
     dayConfigRows,
   );
   const day = merged.find((row) => row.date === date);
   if (!day) {
-    const generated = generateDayConfigForDate(templateType, date, weekStart);
-    const paintTemplate = resolvePaintTemplateForDay(
-      templateType,
-      date,
-      weekStart,
-    );
-    const generatedConfig =
-      generated.conductorConfig && typeof generated.conductorConfig === "object"
-        ? (generated.conductorConfig as Record<string, unknown>)
-        : {};
+    // Outside the display week (lead time can reach back a day).
+    const template = templateForDate(date);
+    const rules = templateRulesForDate(template.days, date);
     return {
-      ...generated,
-      conductorConfig: { ...generatedConfig, paintTemplate },
+      date,
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
+      sourceTemplateId: template.id,
       dayConfigId: null,
-      paintTemplate,
     };
   }
 
-  let paintTemplate = day.paintTemplate;
-  if (!paintTemplate) {
-    paintTemplate = resolvePaintTemplateForDay(templateType, date, weekStart);
-  }
-
-  const conductorMechanism =
-    effectiveConductorMechanism(
-      day.conductorMechanism,
-      paintTemplate,
-      day.date,
-    ) ?? (day.conductorMechanism as ConductorMechanismType);
-
   return {
     date: day.date,
-    conductorMechanism,
-    conductorConfig: day.conductorConfig as DayConfigInput["conductorConfig"],
-    vipMechanism: (day.vipMechanism ?? "none") as VipMechanismType,
-    vipConfig: day.vipConfig as DayConfigInput["vipConfig"],
+    conductorRule: day.conductorRule,
+    vipRule: day.vipRule,
+    sourceTemplateId: day.sourceTemplateId,
     dayConfigId: day.id.startsWith(PROVISIONAL_DAY_CONFIG_ID_PREFIX)
       ? null
       : day.id,
-    paintTemplate,
   };
 }
 
@@ -140,6 +93,15 @@ export async function resolveRollDayConfig(
   allianceId: string,
   date: string,
   seasonKey: string,
+  options?: {
+    db?: import("@/lib/trains/repository").TrainsDb;
+    updateSeason?: boolean;
+  },
 ): Promise<ResolvedRollDayConfig> {
-  return resolveDisplayMergedDayConfigForDate(allianceId, date, seasonKey);
+  return resolveDisplayMergedDayConfigForDate(
+    allianceId,
+    date,
+    seasonKey,
+    options,
+  );
 }

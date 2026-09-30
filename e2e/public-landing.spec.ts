@@ -15,7 +15,23 @@ test.describe("Public landing page", () => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { level: 1, name: "Alliance HQ" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Language" })).toBeVisible();
     await expect(page).not.toHaveURL(/\/auth/);
+  });
+
+  test("unauthenticated visitor can switch the landing page to Portuguese", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Language" }).click();
+    await page.getByRole("option", { name: "Português (Brasil)" }).click();
+
+    await expect(page).toHaveURL(/\/pt-BR\/?$/);
+    await expect(page.getByRole("button", { name: "Idioma" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Política de Privacidade" }),
+    ).toBeVisible();
   });
 
   test("authenticated user is redirected away from public landing", async ({

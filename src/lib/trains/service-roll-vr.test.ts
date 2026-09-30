@@ -65,9 +65,8 @@ describe("rollForConductor VR top board", () => {
     mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.getConductorRecord.mockResolvedValue(null);
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "vr_top_n",
-      conductorConfig: { topN: 5 },
-      vipMechanism: "none",
+      conductorRule: { kind: "vr_top_n", topN: 3 },
+      vipRule: { kind: "none" },
       dayConfigId: "dc1",
     });
     mocks.countAllianceVrReporters.mockResolvedValue(10);
@@ -102,7 +101,7 @@ describe("rollForConductor VR top board", () => {
     ).rejects.toMatchObject({
       name: "TrainRollError",
       message:
-        "Only 2 of 5 active-roster VR standings available for Top 5.",
+        "Only 2 of 3 active-roster VR standings available for Top 3.",
       details: { code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" },
     } satisfies Partial<TrainRollError>);
   });

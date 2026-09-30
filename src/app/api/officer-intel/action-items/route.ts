@@ -19,6 +19,6 @@ export async function GET() {
   const denied = await requireOfficerIntelRead(context.sessionId);
   if (denied) return denied;
 
-  const items = await listOpenOfficerActionItems(context.allianceId);
+  const items = await listOpenOfficerActionItems(context.allianceId, context.actor);
   return NextResponse.json({ items });
 }

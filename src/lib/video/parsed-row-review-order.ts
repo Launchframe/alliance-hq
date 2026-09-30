@@ -1,7 +1,9 @@
 import { normalizeScoreValue } from "@/lib/video/normalize-rows";
 import {
   getScoreTarget,
+  isFrontlineBreakthroughVideoTarget,
   isMemberRosterVideoTarget,
+  usesReviewRowNumberIndicator,
 } from "@/lib/video/score-targets";
 
 export type ParsedRowSortFields = {
@@ -20,6 +22,7 @@ export function reviewRowPrimarySortKey(
 ): "allianceRank" | "rank" | null {
   if (!scoreTargetId) return null;
   if (isMemberRosterVideoTarget(scoreTargetId)) return "allianceRank";
+  if (isFrontlineBreakthroughVideoTarget(scoreTargetId)) return "rank";
   const target = getScoreTarget(scoreTargetId);
   if (!target) return null;
   if (target.leaderboardModel === "podium-commendation") {
@@ -32,7 +35,8 @@ export function reviewRowPrimarySortKey(
 export function sortsInitialReviewByScoreDesc(
   scoreTargetId: string | null | undefined,
 ): boolean {
-  return scoreTargetId === "desert-storm";
+  if (!scoreTargetId) return false;
+  return usesReviewRowNumberIndicator(scoreTargetId);
 }
 
 /** Postgres ASC with default NULLS LAST. */
@@ -88,8 +92,8 @@ export function compareParsedRowsForReview(
 }
 
 /**
- * Initial review page load ordering. Desert Storm uses scoreboard order
- * (score DESC); other targets keep rank/frameIndex rules.
+ * Initial review page load ordering. Scoreboard targets that show a computed
+ * `#` rank load highest-score first so the table matches that rank order.
  */
 export function sortParsedRowsForInitialReview<T extends ParsedRowInitialSortFields>(
   rows: T[],

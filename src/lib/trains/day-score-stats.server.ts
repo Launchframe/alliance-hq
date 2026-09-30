@@ -1,15 +1,14 @@
 import "server-only";
 
-import { resolveScoreDateDayConfigForTrainDate } from "@/lib/trains/train-day-context.server";
-import { toDayMechanismConfig } from "@/lib/trains/train-day-context.shared";
+import { resolveScoreDayRuleForTrainDate } from "@/lib/trains/train-day-context.server";
 import {
   buildTrainDayScoreStats,
   scoreSourceContextForTrainDate,
   type TrainDayScoreStats,
 } from "@/lib/trains/day-score-stats.shared";
 import {
-  isPriceIsRightHeavyHitterSaturday,
-  usesPriceIsFreightConductorRoll,
+  conductorRuleUsesPriceIsFreightRoll,
+  isHeavyHitterBoardRule,
 } from "@/lib/trains/heavy-hitter-pool.shared";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
@@ -22,21 +21,16 @@ import {
   buildUniformEconomyDrawSet,
 } from "@/lib/trains/price-is-freight-roll.shared";
 import { applyConductorMinimumsFilter, loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
-import {
-  isVrTopScopeUnlocked,
-  resolveConductorTopNBoard,
-} from "@/lib/trains/conductor-top-n.shared";
-import {
-  resolveVsTopBoardForTrainDate,
-  type DayMechanismConfig,
-} from "@/lib/trains/vs-score-scope.shared";
+import { isVrTopScopeUnlocked } from "@/lib/trains/conductor-top-n.shared";
+import { resolveVsBoardForTrainDate } from "@/lib/trains/vs-score-scope.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
   loadTrainEconomyThreshold,
 } from "@/lib/trains/train-economy-threshold.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
 import { classifyVsDataNeed } from "@/lib/trains/vs-data-status.shared";
 import {
   fetchAlliancePriorDayVsScoresByMember,
@@ -48,15 +42,13 @@ const VR_STATUS_LIMIT = 50;
 type DayScoreStatsInput = {
   allianceId: string;
   trainDate: string;
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
-  conductorConfig?: unknown;
+  rule: ConductorRule | null;
   leadDays?: number;
   seasonKey?: string;
   /** Optional preloaded prior-day VS map keyed by recorded date. */
   vsScoresByRecordedDate?: Map<string, Map<string, number>>;
-  /** Score reference day's painted rule when lead time > 0. */
-  scoreDateDay?: DayMechanismConfig | null;
+  /** Rule painted on the score reference day when lead time > 0. */
+  scoreDayRule?: ConductorRule | null;
 };
 
 async function getPriorDayScores(
@@ -77,23 +69,15 @@ async function getPriorDayScores(
 async function eligibleCountForDay(
   input: DayScoreStatsInput,
   scores: Map<string, number>,
-  scoreDateDay?: DayMechanismConfig | null,
 ): Promise<{ eligibleCount: number; topN?: number }> {
   const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
-  const mechanism = input.conductorMechanism;
-  const paint = input.paintTemplate ?? null;
+  const rule = input.rule;
   const leadDays = input.leadDays ?? 0;
-  const topBoard = resolveVsTopBoardForTrainDate({
-    trainDate: input.trainDate,
-    trainDay: {
-      conductorMechanism: mechanism,
-      conductorConfig: input.conductorConfig,
-    },
-    leadDays,
-    scoreDateDay,
+  const topBoard = resolveVsBoardForTrainDate({
+    trainRule: rule,
   });
 
-  if (topBoard?.kind === "vs") {
+  if (topBoard) {
     const top = await fetchAllianceVsTopScorersForTrainDate(
       input.allianceId,
       input.trainDate,
@@ -103,27 +87,25 @@ async function eligibleCountForDay(
     return { eligibleCount: top.filter((member) => !awayMemberIds.has(member.memberId)).length, topN: topBoard.topN };
   }
 
-  if (topBoard?.kind === "vr") {
+  if (rule?.kind === "vr_top_n") {
+    const vrTopN = rule.topN;
     const reporterCount = await countAllianceVrReporters(input.allianceId);
-    if (!isVrTopScopeUnlocked(topBoard.topN, reporterCount)) {
-      return { eligibleCount: 0, topN: topBoard.topN };
+    if (!isVrTopScopeUnlocked(vrTopN, reporterCount)) {
+      return { eligibleCount: 0, topN: vrTopN };
     }
-    const scorers = await fetchNativeVrTopScorers(
-      input.allianceId,
-      topBoard.topN,
-    );
+    const scorers = await fetchNativeVrTopScorers(input.allianceId, vrTopN);
     return {
-      eligibleCount: Math.min(topBoard.topN, scorers.filter((member) => !awayMemberIds.has(member.memberId)).length),
-      topN: topBoard.topN,
+      eligibleCount: Math.min(vrTopN, scorers.filter((member) => !awayMemberIds.has(member.memberId)).length),
+      topN: vrTopN,
     };
   }
 
-  if (usesPriceIsFreightConductorRoll(paint)) {
-    if (isPriceIsRightHeavyHitterSaturday(paint as never, input.trainDate)) {
+  if (conductorRuleUsesPriceIsFreightRoll(rule)) {
+    if (isHeavyHitterBoardRule(rule)) {
       const hh = await applyConductorMinimumsFilter(input.allianceId, input.trainDate, await buildHeavyHitterPoolCandidates(
         input.allianceId,
         input.trainDate,
-      ), { paintTemplate: paint as WeekTemplateType, leadDays });
+      ), { rule, leadDays });
       return { eligibleCount: hh.length };
     }
 
@@ -131,7 +113,7 @@ async function eligibleCountForDay(
     const candidates = await loadPriceIsFreightR3Candidates({
       allianceId: input.allianceId,
       date: input.trainDate,
-      paintTemplate: paint as WeekTemplateType | null,
+      rule,
       leadDays: input.leadDays ?? 0,
     });
 
@@ -156,9 +138,8 @@ async function eligibleCountForDay(
     return { eligibleCount: eligible.length };
   }
 
-  if (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery") {
-    const poolType =
-      mechanism === "heavy_hitter_lottery" ? "heavy_hitter" : "r3";
+  const poolType = conductorRulePoolType(rule);
+  if (poolType === "r3" || poolType === "heavy_hitter") {
     const entries = await listUnselectedPoolEntries(input.allianceId, poolType);
     return { eligibleCount: entries.filter((member) => !awayMemberIds.has(member.memberId)).length };
   }
@@ -174,22 +155,21 @@ export async function loadTrainDayScoreStats(
   input: DayScoreStatsInput,
 ): Promise<TrainDayScoreStats | null> {
   const leadDays = input.leadDays ?? 0;
-  const scoreDateDay =
+  const scoreDayRule =
     input.seasonKey != null
-      ? await resolveScoreDateDayConfigForTrainDate({
+      ? await resolveScoreDayRuleForTrainDate({
           allianceId: input.allianceId,
           trainDate: input.trainDate,
           leadDays,
           seasonKey: input.seasonKey,
-          scoreDateDay: input.scoreDateDay,
+          scoreDayRule: input.scoreDayRule,
         })
-      : (input.scoreDateDay ?? null);
+      : (input.scoreDayRule ?? null);
   const need = classifyVsDataNeed({
-    conductorMechanism: input.conductorMechanism,
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
     trainDate: input.trainDate,
     leadDays,
-    scoreDateDay,
+    scoreDayRule,
   });
 
   if (need.kind === "none") {
@@ -198,11 +178,8 @@ export async function loadTrainDayScoreStats(
 
   if (need.kind === "vr") {
     try {
-      const topBoard = resolveConductorTopNBoard(
-        input.conductorMechanism,
-        input.conductorConfig,
-      );
-      const topN = topBoard?.kind === "vr" ? topBoard.topN : undefined;
+      const topN =
+        input.rule?.kind === "vr_top_n" ? input.rule.topN : undefined;
       const scorers = await fetchNativeVrTopScorers(
         input.allianceId,
         VR_STATUS_LIMIT,
@@ -235,11 +212,7 @@ export async function loadTrainDayScoreStats(
       scoreDate,
       input.vsScoresByRecordedDate,
     );
-    const { eligibleCount, topN } = await eligibleCountForDay(
-      input,
-      scores,
-      scoreDateDay,
-    );
+    const { eligibleCount, topN } = await eligibleCountForDay(input, scores);
     return buildTrainDayScoreStats({
       kind: "prior_day_vs",
       required: need.required,
@@ -267,12 +240,7 @@ export async function loadTrainDayScoreStats(
  */
 export async function loadTrainDayScoreStatsForDates(
   allianceId: string,
-  days: Array<{
-    trainDate: string;
-    conductorMechanism: string | null | undefined;
-    paintTemplate?: string | null;
-    conductorConfig?: unknown;
-  }>,
+  days: Array<{ trainDate: string; rule: ConductorRule | null }>,
   leadDays = 0,
   seasonKey?: string,
 ): Promise<Record<string, TrainDayScoreStats | null>> {
@@ -284,25 +252,20 @@ export async function loadTrainDayScoreStatsForDates(
 
   await Promise.all(
     days.map(async (day) => {
-      const scoreDateDayRow =
+      const scoreDayRule =
         leadDays > 0
-          ? configByDate.get(
+          ? (configByDate.get(
               scoreSourceContextForTrainDate(day.trainDate, leadDays).scoreDate,
-            )
-          : undefined;
-      const scoreDateDay = scoreDateDayRow
-        ? toDayMechanismConfig(scoreDateDayRow)
-        : null;
+            )?.rule ?? null)
+          : null;
       out[day.trainDate] = await loadTrainDayScoreStats({
         allianceId,
         trainDate: day.trainDate,
-        conductorMechanism: day.conductorMechanism,
-        paintTemplate: day.paintTemplate,
-        conductorConfig: day.conductorConfig,
+        rule: day.rule,
         leadDays,
         seasonKey,
         vsScoresByRecordedDate,
-        scoreDateDay,
+        scoreDayRule,
       });
     }),
   );

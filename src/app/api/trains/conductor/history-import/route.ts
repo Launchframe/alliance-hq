@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   importConductorHistory,
@@ -80,6 +81,22 @@ async function post(request: Request) {
     allianceId: ctx.allianceId,
     rows,
     lockedByHqUserId: await resolveTrainActorHqUserId(session.id),
+  });
+
+  await writeTrainsOfficerAudit({
+    sessionId: session.id,
+    allianceId: ctx.allianceId,
+    hqUserId: session.hqUserId,
+    action: "trains.conductor_history_import",
+    severity: "routine",
+    resourceType: "train_conductor_record",
+    resourceId: ctx.allianceId,
+    metadata: {
+      rowCount: rows.length,
+      imported: result.imported,
+      skipped: result.skipped,
+      conflicts: result.conflicts,
+    },
   });
 
   return NextResponse.json(result);

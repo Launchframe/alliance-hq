@@ -14,6 +14,7 @@ import {
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
@@ -23,7 +24,6 @@ import {
   formatTrainPointCount,
   type MemberQualificationPayload,
 } from "@/lib/trains/train-conductor-minimums.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -48,9 +48,8 @@ type Props = {
   } | null;
   qualification?: MemberQualificationPayload | null;
   dayLabel?: string | null;
-  /** The selection mechanism used for this roll (e.g. "vs_top_10", "vs_high_score"). */
-  mechanism?: string | null;
-  paintTemplate?: WeekTemplateType | null;
+  /** Rule this roll was drawn under. */
+  rule?: ConductorRule | null;
   speedMultiplier?: number;
   automated?: boolean;
   onAutomatedRevealComplete?: () => void;
@@ -72,16 +71,10 @@ const SLOW_SECS = 1.8;
 type ReelSessionView = ReelSession;
 
 function scoreBoardKind(
-  mechanism: string | null | undefined,
+  rule: ConductorRule | null | undefined,
 ): "vs" | "vr" | null {
-  if (
-    mechanism === "vs_top_10" ||
-    mechanism === "vs_high_score" ||
-    mechanism === "vs_top_n"
-  ) {
-    return "vs";
-  }
-  if (mechanism === "vr_top_n") return "vr";
+  if (rule?.kind === "vs_top_n") return "vs";
+  if (rule?.kind === "vr_top_n") return "vr";
   return null;
 }
 
@@ -105,8 +98,7 @@ export function ConductorWheelModal({
   stats,
   qualification,
   dayLabel,
-  mechanism,
-  paintTemplate,
+  rule = null,
   speedMultiplier = 1,
   automated = false,
   onAutomatedRevealComplete,
@@ -131,7 +123,7 @@ export function ConductorWheelModal({
   const disqualified =
     qualification != null && qualification.qualified === false;
 
-  const boardKind = scoreBoardKind(mechanism);
+  const boardKind = scoreBoardKind(rule);
   const showScoreValidation = boardKind != null;
   const scoreSuffix = boardKind === "vr" ? "VR" : "VS";
   const winnerScore = winner
@@ -178,8 +170,7 @@ export function ConductorWheelModal({
         : winner;
     return formatWheelShareEligibilityLine(
       resolveWheelShareEligibility({
-        mechanism,
-        paintTemplate,
+        rule,
         winner: winnerWithScore,
         qualification,
         leaderboardRank:
@@ -207,8 +198,7 @@ export function ConductorWheelModal({
     winner,
     winnerScore,
     candidates,
-    mechanism,
-    paintTemplate,
+    rule,
     qualification,
     showScoreValidation,
     rankedCandidates,

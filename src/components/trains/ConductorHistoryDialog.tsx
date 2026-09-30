@@ -51,6 +51,8 @@ function mapApiRecord(row: HistoryApiRecord): WeekConductorRecordSummary {
     vipMemberName: row.vipMemberName,
     conductorMechanism: row.conductorMechanism,
     vipMechanism: row.vipMechanism,
+    conductorRule: null,
+    vipRule: null,
     guardianIsVip: row.guardianIsVip,
     lockedAt: row.lockedAt,
     substituteForMemberId: null,

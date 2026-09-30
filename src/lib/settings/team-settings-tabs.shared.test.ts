@@ -6,9 +6,38 @@ import {
 } from "@/lib/settings/team-settings-tabs.shared";
 
 describe("resolveTeamSettingsTab", () => {
-  it("defaults to invites when can manage invites", () => {
+  it("defaults to members even when can manage invites", () => {
     expect(
       resolveTeamSettingsTab(null, {
+        canManageInvites: true,
+        isAllianceAdmin: true,
+      }),
+    ).toBe("members");
+  });
+
+  it("opens invites for invite-wizard deep links without a tab", () => {
+    expect(
+      resolveTeamSettingsTab(null, {
+        canManageInvites: true,
+        isAllianceAdmin: false,
+        hasInviteWizard: true,
+      }),
+    ).toBe("invites");
+  });
+
+  it("falls back to members for invite-wizard links when invites unauthorized", () => {
+    expect(
+      resolveTeamSettingsTab(null, {
+        canManageInvites: false,
+        isAllianceAdmin: false,
+        hasInviteWizard: true,
+      }),
+    ).toBe("members");
+  });
+
+  it("honors an explicit invites tab", () => {
+    expect(
+      resolveTeamSettingsTab("invites", {
         canManageInvites: true,
         isAllianceAdmin: false,
       }),
@@ -42,13 +71,13 @@ describe("resolveTeamSettingsTab", () => {
     ).toBe("credential-shares");
   });
 
-  it("maps unknown tabs to invites when allowed", () => {
+  it("maps unknown tabs to members", () => {
     expect(
       resolveTeamSettingsTab("nope", {
         canManageInvites: true,
         isAllianceAdmin: true,
       }),
-    ).toBe("invites");
+    ).toBe("members");
   });
 });
 

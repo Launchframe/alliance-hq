@@ -1,7 +1,8 @@
 "use client";
 
 import type { ScoreLeaderboardPayload } from "@/lib/trains/score-leaderboard-podium.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 
 export type ConductorShareScoreProof = {
   priorDayVsScore: number | null;
@@ -25,10 +26,9 @@ type TicketsBoardPayload = {
 export async function fetchConductorShareScoreProof(input: {
   trainDate: string;
   memberId: string;
-  paintTemplate: string | null | undefined;
-  mechanism: string | null | undefined;
+  rule: ConductorRule | null;
 }): Promise<ConductorShareScoreProof> {
-  if (usesPriceIsFreightConductorRoll(input.paintTemplate)) {
+  if (conductorRuleUsesPriceIsFreightRoll(input.rule)) {
     try {
       const res = await fetch(
         `/api/trains/price-is-right/tickets?date=${encodeURIComponent(input.trainDate)}`,
@@ -51,10 +51,7 @@ export async function fetchConductorShareScoreProof(input: {
   }
 
   const isVsBoard =
-    input.mechanism === "vs_top_10" ||
-    input.mechanism === "vs_high_score" ||
-    input.mechanism === "vs_top_n" ||
-    input.mechanism === "vr_top_n";
+    input.rule?.kind === "vs_top_n" || input.rule?.kind === "vr_top_n";
   if (!isVsBoard) return emptyProof();
 
   try {

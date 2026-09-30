@@ -6,6 +6,7 @@ import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { revokeAshedMembershipsForHqUser } from "@/lib/ashed/rebind-session";
 import { getDb, schema } from "@/lib/db";
+import { remapKnowledgeUser } from "@/lib/notes/resources.server";
 import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   shouldUpgradeSystemRole,
@@ -719,6 +720,7 @@ export async function mergeHqUsersIntoCanonical(input: {
         .where(eq(schema.hqUsers.id, canonicalId));
     }
 
+    await remapKnowledgeUser(tx, sourceId, canonicalId);
     await tx.delete(schema.hqUsers).where(eq(schema.hqUsers.id, sourceId));
   });
 

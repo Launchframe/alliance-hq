@@ -45,49 +45,47 @@ describe("buildDaySpinExclusionSet", () => {
 });
 
 describe("usesDaySpinExclusions", () => {
-  it("skips Top VS / Top VR scope 1", () => {
+  it("skips deterministic draws", () => {
+    // Top 1 resolves to a single member, R4 rotation walks the pool in order.
     expect(
-      usesDaySpinExclusions({
-        mechanism: "vs_high_score",
-        topBoard: { kind: "vs", topN: 1, mechanism: "vs_high_score" },
-      }),
+      usesDaySpinExclusions({ rule: { kind: "vs_top_n", topN: 1 } }),
     ).toBe(false);
     expect(
       usesDaySpinExclusions({
-        mechanism: "vs_top_n",
-        topBoard: { kind: "vs", topN: 1, mechanism: "vs_top_n" },
+        rule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
       }),
     ).toBe(false);
-  });
-
-  it("applies to Top VS / Top VR scopes greater than 1", () => {
-    expect(
-      usesDaySpinExclusions({
-        mechanism: "vs_top_n",
-        topBoard: { kind: "vs", topN: 10, mechanism: "vs_top_n" },
-      }),
-    ).toBe(true);
-    expect(
-      usesDaySpinExclusions({
-        mechanism: "vr_top_n",
-        topBoard: { kind: "vr", topN: 3, mechanism: "vr_top_n" },
-      }),
-    ).toBe(true);
-  });
-
-  it("applies to R3 and heavy-hitter lotteries, not R4 sequence", () => {
-    expect(usesDaySpinExclusions({ mechanism: "r3_lottery" })).toBe(true);
-    expect(usesDaySpinExclusions({ mechanism: "heavy_hitter_lottery" })).toBe(
-      true,
+    expect(usesDaySpinExclusions({ rule: { kind: "donations_top" } })).toBe(
+      false,
     );
-    expect(usesDaySpinExclusions({ mechanism: "r4_sequence" })).toBe(false);
+    expect(usesDaySpinExclusions({ rule: null })).toBe(false);
   });
 
-  it("applies to Price Is Freight paint", () => {
+  it("applies to every non-deterministic board", () => {
+    expect(
+      usesDaySpinExclusions({ rule: { kind: "vs_top_n", topN: 10 } }),
+    ).toBe(true);
+    expect(
+      usesDaySpinExclusions({ rule: { kind: "vr_top_n", topN: 3 } }),
+    ).toBe(true);
     expect(
       usesDaySpinExclusions({
-        mechanism: "r3_lottery",
-        paintTemplate: "price_is_right",
+        rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      }),
+    ).toBe(true);
+    expect(
+      usesDaySpinExclusions({
+        rule: { kind: "rank_pool", pool: "heavy_hitter", draw: "wheel" },
+      }),
+    ).toBe(true);
+    expect(
+      usesDaySpinExclusions({
+        rule: { kind: "price_is_freight", board: "weekday" },
+      }),
+    ).toBe(true);
+    expect(
+      usesDaySpinExclusions({
+        rule: { kind: "price_is_freight", board: "heavy_hitter" },
       }),
     ).toBe(true);
   });

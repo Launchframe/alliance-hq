@@ -63,6 +63,8 @@ async function post(request: Request) {
       memberName,
       allowEligibilityOverride: body.allowEligibilityOverride === true,
       allowSameGenerationReuse: body.allowSameGenerationReuse === true,
+      hqUserId: session.hqUserId,
+      sessionId: session.id,
     });
 
     return NextResponse.json({

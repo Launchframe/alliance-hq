@@ -15,6 +15,7 @@ import {
   parseTrainRollError,
   type TrainRollErrorDetails,
 } from "@/lib/trains/roll-errors.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type { PoolRefreshedInfo, RollResult } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import {
@@ -108,7 +109,7 @@ export const SpinWeekConductorFlow = forwardRef<
     memberName: string;
     priorDayVsScore?: number;
   } | null>(null);
-  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
+  const [wheelRule, setWheelRule] = useState<ConductorRule | null>(null);
   const [wheelStats, setWheelStats] = useState<RollResponse["stats"] | null>(
     null,
   );
@@ -235,7 +236,9 @@ export const SpinWeekConductorFlow = forwardRef<
               : [{ memberId: result.memberId, memberName: result.memberName }],
           );
           setWheelWinner(result);
-          setWheelMechanism(result.mechanism);
+          setWheelRule(
+            dayConfigs.find((row) => row.date === date)?.conductorRule ?? null,
+          );
           setWheelStats(body.stats ?? null);
           setWheelQualification(result.qualification ?? null);
           setWheelDayLabel(spinWeekDayLabel(date));
@@ -277,6 +280,7 @@ export const SpinWeekConductorFlow = forwardRef<
       }
     },
     [
+      dayConfigs,
       onError,
       onSpinBatchComplete,
       onWheelBlocked,
@@ -290,13 +294,14 @@ export const SpinWeekConductorFlow = forwardRef<
   const startSpinDates = useCallback(
     (dates: string[]) => {
       const firstDate = dates[0];
-      const firstPaint = firstDate
-        ? dayConfigs.find((row) => row.date === firstDate)?.paintTemplate
+      const firstRule = firstDate
+        ? (dayConfigs.find((row) => row.date === firstDate)?.conductorRule ??
+          null)
         : null;
       if (
         firstDate === today &&
         shouldConfirmEconomyWeekWithoutScores({
-          paintTemplate: firstPaint,
+          rule: firstRule,
           vsDataStatus,
         })
       ) {
@@ -356,7 +361,7 @@ export const SpinWeekConductorFlow = forwardRef<
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        mechanism={wheelMechanism}
+        rule={wheelRule}
         speedMultiplier={wheelSpeedMultiplier}
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}

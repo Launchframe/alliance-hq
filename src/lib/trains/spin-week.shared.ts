@@ -1,15 +1,11 @@
-import {
-  canSpinConductorForDay,
-  effectiveConductorMechanism,
-} from "@/lib/trains/conductor-mechanism.shared";
+import { canSpinConductorForRule } from "@/lib/trains/conductor-mechanism.shared";
 import { weekDatesFromMonday } from "@/lib/trains/game-time";
 import { formatTrainScheduleDateLabel } from "@/lib/trains/week-template-change.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 
 export type SpinWeekDayConfig = {
   date: string;
-  conductorMechanism: string | null;
-  paintTemplate?: WeekTemplateType | null;
+  conductorRule: ConductorRule | null;
 };
 
 export type SpinWeekDayRecord = {
@@ -27,22 +23,12 @@ export type SpinWeekResultRow = {
 
 /** True when the day shows “Spin the wheel” (not sequence assign or leaderboard auto-pick). */
 export function showsConductorSpinWheel(
-  conductorMechanism: string | null | undefined,
+  rule: ConductorRule | null,
   locked: boolean,
-  paintTemplate?: WeekTemplateType | null,
-  date?: string | null,
 ): boolean {
-  if (
-    !canSpinConductorForDay(conductorMechanism, locked, paintTemplate, date)
-  ) {
-    return false;
-  }
-  const mechanism = effectiveConductorMechanism(
-    conductorMechanism,
-    paintTemplate,
-    date,
-  );
-  return mechanism !== "r4_sequence";
+  if (!canSpinConductorForRule(rule, locked)) return false;
+  // R4 rotation assigns the next officer in sequence — no wheel.
+  return !(rule?.kind === "rank_pool" && rule.pool === "r4_plus");
 }
 
 export function spinWheelDatesForRestOfWeek(input: {
@@ -58,12 +44,7 @@ export function spinWheelDatesForRestOfWeek(input: {
       const config = input.dayConfigs.find((row) => row.date === date);
       const record = input.weekRecords.find((row) => row.date === date);
       const locked = Boolean(record?.lockedAt);
-      return showsConductorSpinWheel(
-        config?.conductorMechanism ?? null,
-        locked,
-        config?.paintTemplate,
-        date,
-      );
+      return showsConductorSpinWheel(config?.conductorRule ?? null, locked);
     });
 }
 
@@ -82,12 +63,7 @@ export function spinWheelDatesFromList(input: {
     const locked = Boolean(record?.lockedAt);
     if (locked) return false;
     if (record?.conductorMemberId) return false;
-    return showsConductorSpinWheel(
-      config?.conductorMechanism ?? null,
-      locked,
-      config?.paintTemplate,
-      date,
-    );
+    return showsConductorSpinWheel(config?.conductorRule ?? null, locked);
   });
 }
 

@@ -61,7 +61,7 @@ describe("loadPriceIsFreightR3Candidates", () => {
     mocks.buildPriceIsRightWeightedCandidates.mockImplementation(async ({ candidates }: { candidates: Array<{ memberId: string; memberName: string }> }) => ({ candidates: candidates.map((candidate) => ({ ...candidate, ticketCount: 1 })) }));
     mocks.fetchAlliancePriorDayVsScoresByMember.mockResolvedValue(new Map([["m1", 7200000], ["m2", 7200000]]));
 
-    const result = await rollPriceIsFreightConductor({ allianceId: "ally-1", date: "2026-06-10", paintTemplate: "price_is_right", mechanism: "r3_lottery" });
+    const result = await rollPriceIsFreightConductor({ allianceId: "ally-1", date: "2026-06-10", rule: { kind: "price_is_freight", board: "weekday" } });
     expect(result.memberId).toBe("m2");
     expect(result.wheelCandidates?.map((candidate) => candidate.memberId)).toEqual(["m2"]);
     expect(mocks.loadTimeOffAvailability).toHaveBeenCalledWith("ally-1", "2026-06-10");
@@ -72,7 +72,7 @@ describe("loadPriceIsFreightR3Candidates", () => {
     mocks.buildHeavyHitterPoolCandidates.mockResolvedValue(candidates);
     mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(null);
     mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m1"]) });
-    const result = await rollPriceIsFreightConductor({ allianceId: "ally-1", date: "2026-06-13", paintTemplate: "takedown_week", mechanism: "heavy_hitter_lottery" });
+    const result = await rollPriceIsFreightConductor({ allianceId: "ally-1", date: "2026-06-13", rule: { kind: "price_is_freight", board: "heavy_hitter" } });
     expect(result.memberId).toBe("m2");
     expect(result.wheelCandidates).toEqual([candidates[1]]);
     expect(candidates).toHaveLength(2);
@@ -82,7 +82,7 @@ describe("loadPriceIsFreightR3Candidates", () => {
     await loadPriceIsFreightR3Candidates({
       allianceId: "ally-1",
       date: "2026-06-10",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
       leadDays: 1,
     });
 
@@ -90,7 +90,7 @@ describe("loadPriceIsFreightR3Candidates", () => {
       "ally-1",
       "2026-06-10",
       ["m1", "m2"],
-      { paintTemplate: "price_is_right", leadDays: 1 },
+      { rule: { kind: "price_is_freight", board: "weekday" }, leadDays: 1 },
     );
   });
 
@@ -98,7 +98,7 @@ describe("loadPriceIsFreightR3Candidates", () => {
     const candidates = await loadPriceIsFreightR3Candidates({
       allianceId: "ally-1",
       date: "2026-06-10",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
       leadDays: 1,
     });
 

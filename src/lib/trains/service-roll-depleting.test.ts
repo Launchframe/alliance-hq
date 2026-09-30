@@ -147,9 +147,8 @@ describe("rollForConductor depleting pool release ordering", () => {
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
     mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "economy_week",
-      vipMechanism: "none",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: { kind: "none" },
       dayConfigId: "dc1",
     });
     mocks.getPoolSummary.mockResolvedValue({
@@ -183,9 +182,13 @@ describe("rollForConductor depleting pool release ordering", () => {
     mocks.refreshExhaustedPoolIfNeeded.mockResolvedValue(false);
   });
 
-  it.each(["r3_lottery", "r4_sequence", "heavy_hitter_lottery"])("preserves an all-away %s rotation and its existing draft", async (mechanism) => {
+  it.each([
+    ["r3", { kind: "rank_pool", pool: "r3", draw: "wheel" }],
+    ["r4_plus", { kind: "rank_pool", pool: "r4_plus", draw: "wheel" }],
+    ["heavy_hitter", { kind: "rank_pool", pool: "heavy_hitter", draw: "wheel" }],
+  ] as const)("preserves an all-away %s rotation and its existing draft", async (_pool, rule) => {
     mocks.getConductorRecord.mockResolvedValue({ conductorMemberId: "m-alice", lockedAt: null });
-    mocks.resolveRollDayConfig.mockResolvedValue({ conductorMechanism: mechanism, paintTemplate: "economy_week" });
+    mocks.resolveRollDayConfig.mockResolvedValue({ conductorRule: rule });
     mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-bob"]) });
 
     await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
@@ -213,7 +216,7 @@ describe("rollForConductor depleting pool release ordering", () => {
     expect(mocks.startNewPoolGeneration).not.toHaveBeenCalled();
   });
 
-  it("passes paintTemplate when resolving conductor minimums", async () => {
+  it("passes the day rule when resolving conductor minimums", async () => {
     mocks.getConductorRecord.mockResolvedValue({
       conductorMemberId: null,
       lockedAt: null,
@@ -224,14 +227,13 @@ describe("rollForConductor depleting pool release ordering", () => {
     expect(mocks.resolvePoolRespectsConductorMinimums).toHaveBeenCalledWith({
       allianceId: "a1",
       poolType: "r3",
-      paintTemplate: "economy_week",
+      rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
     });
     expect(mocks.filterMemberIdsByConductorMinimums).not.toHaveBeenCalled();
     expect(mocks.resolveConductorQualificationGateApplies).toHaveBeenCalledWith(
       expect.objectContaining({
         allianceId: "a1",
         poolType: "r3",
-        paintTemplate: "economy_week",
       }),
     );
   });
@@ -321,8 +323,7 @@ describe("rollForVip depleting pool release ordering", () => {
       vipMemberId: "m-alice",
     });
     mocks.resolveRollDayConfig.mockResolvedValue({
-      vipMechanism: "event_top_x_lottery",
-      vipConfig: { eventKey: "capitol_war", topN: 10 },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       dayConfigId: "dc1",
     });
     mocks.getPoolSummary.mockResolvedValue({

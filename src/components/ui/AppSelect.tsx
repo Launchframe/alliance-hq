@@ -321,6 +321,9 @@ export function AppSelect({
       (option) => option.value === value,
     );
     setActiveIndex(currentIndex >= 0 ? currentIndex : explicitSelection ? -1 : 0);
+    window.requestAnimationFrame(() => {
+      comboboxInputRef.current?.select();
+    });
   }
 
   function handleComboboxKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {

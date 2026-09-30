@@ -44,7 +44,18 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.timeOff": seq("g", "w"),
   "nav.bankManagement": seq("g", "9"),
   "nav.officerIntel": seq("g", "7"),
-  "nav.notes": seq("g", "0"),
+  "nav.notes": seq("g", "g"),
+  "notes.newNote": chord("n", ["alt"]),
+  "notes.newTask": chord("n", ["alt", "shift"]),
+  "notes.sharedBoards": chord("b", ["alt"]),
+  "notes.newBoard": chord("b", ["alt", "shift"]),
+  "notes.drafts": chord("d", ["alt", "shift"]),
+  "notes.imports": chord("h", ["alt", "shift"]),
+  "notes.workspaceSearch": chord("f", ["alt", "shift"]),
+  "notes.knowledge": chord("k", ["alt", "shift"]),
+  "notes.studio": chord("s", ["alt", "shift"]),
+  "notes.publications": chord("p", ["alt", "shift"]),
+  "notes.search": chord("/"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),
   "nav.otherEvents": seq("g", "n"),
@@ -56,6 +67,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.adminPortal": seq("g", "p"),
   "nav.opsInbox": seq("g", "b"),
   "nav.account": seq("g", ","),
+  "nav.calendarConnections": seq("g", "-"),
   "nav.settings": seq("g", ";"),
   "nav.discordBotGuide": seq("g", "x"),
   "nav.gettingStartedGuide": seq("g", "w"),
@@ -100,6 +112,9 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "trains.template.6": chord("6", ["shift"]),
   "trains.template.7": chord("7", ["shift"]),
   "trains.template.8": chord("8", ["shift"]),
+
+  "vsPerformance.editPlan": { key: "e" },
+  "vsPerformance.capture": { key: "u" },
 } satisfies Record<HotkeyActionId, HotkeyBinding>;
 
 export const DEFAULT_HOTKEY_BINDINGS: Record<HotkeyActionId, HotkeyBinding> =

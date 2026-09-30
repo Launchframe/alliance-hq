@@ -63,6 +63,21 @@ export async function loadExcusedReview(actor: TimeOffActor, entryId: string) {
   }) };
 }
 
+export async function allianceExcusedCredentialsNeedRefresh(allianceId: string) {
+  const db = getDb();
+  const [credential, state] = await Promise.all([
+    db.select({ tokenExpiresAt: schema.allianceAshedCredentials.tokenExpiresAt })
+      .from(schema.allianceAshedCredentials)
+      .where(eq(schema.allianceAshedCredentials.allianceId, allianceId))
+      .limit(1),
+    db.select({ lastError: schema.timeOffSyncState.lastError })
+      .from(schema.timeOffSyncState)
+      .where(eq(schema.timeOffSyncState.allianceId, allianceId))
+      .limit(1),
+  ]);
+  return !credential[0] || (!!credential[0].tokenExpiresAt && credential[0].tokenExpiresAt <= new Date()) || state[0]?.lastError === "credentials_required";
+}
+
 export async function applyExcusedAction(actor: TimeOffActor, entryId: string, body: unknown) {
   requireOfficer(actor);
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new TimeOffError("staleEntry", 409);

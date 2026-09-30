@@ -112,6 +112,8 @@ export const videoOcrPlatformExcludes = [
 ];
 
 export const videoOcrFileTracingExcludes = [
+  "./.data/**/*",
+  "./workers/ocr/**/*",
   ...tesseractNonLstmExcludes,
   ...videoOcrPlatformExcludes,
 ];
@@ -120,6 +122,7 @@ export const videoOcrFileTracingExcludes = [
 export const videoOcrTracedRoutes = {
   // Queue cron always HTTP-dispatches to [jobId] — do NOT force OCR NFT here.
   "/api/internal/video-process/[jobId]": videoOcrFileTracing,
+  "/api/internal/video-process/ocr-media/[taskId]": sharpNativeFileTracing,
   "/api/members/roster-import/parse": videoOcrFileTracing,
   "/api/tools/video-upload/[jobId]/reprocess": videoOcrFileTracing,
   "/api/admin/video-jobs/[jobId]/reprocess": videoOcrFileTracing,
@@ -127,7 +130,17 @@ export const videoOcrTracedRoutes = {
   // sharp/tesseract stack — worker-script + LSTM WASM must be on disk.
   "/api/webhooks/discord/interactions": videoOcrFileTracing,
   "/api/thp/me/submit": videoOcrFileTracing,
+  "/api/vs-performance/captures/parse": videoOcrFileTracing,
+  "/api/internal/notes/process": videoOcrFileTracing,
+  "/api/notes/imports/[id]/process": videoOcrFileTracing,
 };
+
+export const videoOcrFileTracingIncludes = Object.fromEntries(
+  Object.entries(videoOcrTracedRoutes).map(([route, includes]) => [
+    route.replaceAll("[", "\\[").replaceAll("]", "\\]"),
+    includes,
+  ]),
+);
 
 /**
  * Mirrored in next.config.ts outputFileTracingIncludes["*"].
@@ -139,11 +152,46 @@ export const globalOutputFileTracingIncludes = {
   "*": sharpNativeFileTracing,
 };
 
+export const ocrControlPlaneRoutes = [
+  "/api/admin/ocr-learning/worker-jobs",
+  "/api/internal/ocr-worker/claim",
+  "/api/internal/ocr-worker/jobs/[jobId]/complete",
+  "/api/internal/ocr-worker/artifacts/[artifactId]",
+];
+
 /**
  * Uncompressed size budgets (bytes). CI runs on linux-x64 to approximate Vercel.
  * Fat OCR gate: video-process [jobId]. Queue must stay dispatch-only (no ffmpeg/tesseract).
  */
 export const functionTraceBudgets = [
+  {
+    route: "/api/vs-performance/captures/parse",
+    nftPath: ".next/server/app/api/vs-performance/captures/parse/route.js.nft.json",
+    maxUncompressedBytes: 200 * 1024 * 1024,
+    requireLibvips: true,
+    requireWorkerScript: true,
+  },
+  ...["/api/vs-performance/captures/[reviewId]/commit", "/api/vs-performance/week", "/api/vs-performance/matchup/sync"].map(route => ({
+    route,
+    nftPath: `.next/server/app${route}/route.js.nft.json`,
+    maxUncompressedBytes: 120 * 1024 * 1024,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src"],
+  })),
+  ...ocrControlPlaneRoutes.map((route) => ({
+    route,
+    nftPath: `.next/server/app${route}/route.js.nft.json`,
+    maxUncompressedBytes: 120 * 1024 ** 2,
+    requireLibvips: true,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src", "workers/ocr/"],
+  })),
+  ...["/api/internal/notes/process", "/api/notes/imports/[id]/process"].map((route) => ({
+    route, nftPath: `.next/server/app${route}/route.js.nft.json`, maxUncompressedBytes: 200 * 1024 * 1024,
+    requireLibvips: true, requireWorkerScript: true,
+  })),
+  ...["/api/notes/imports", "/api/notes/imports/[id]"].map((route) => ({
+    route, nftPath: `.next/server/app${route}/route.js.nft.json`, maxUncompressedBytes: 120 * 1024 * 1024,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src"],
+  })),
   {
     route: "/api/internal/video-process/queue",
     nftPath: ".next/server/app/api/internal/video-process/queue/route.js.nft.json",
@@ -155,6 +203,20 @@ export const functionTraceBudgets = [
       "tesseract.js-core",
       "tesseract.js/src",
     ],
+  },
+  {
+    route: "/api/admin/ocr-learning/imports",
+    nftPath: ".next/server/app/api/admin/ocr-learning/imports/route.js.nft.json",
+    maxUncompressedBytes: 120 * 1024 * 1024,
+    requireLibvips: true,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src"],
+  },
+  {
+    route: "/api/internal/video-process/ocr-media/[taskId]",
+    nftPath: ".next/server/app/api/internal/video-process/ocr-media/[taskId]/route.js.nft.json",
+    maxUncompressedBytes: 180 * 1024 * 1024,
+    requireLibvips: true,
+    forbidPathSubstrings: ["tesseract.js-core", "tesseract.js/src"],
   },
   {
     route: "/api/internal/video-process/[jobId]",
@@ -182,4 +244,7 @@ export const functionTraceBudgets = [
     requireLibvips: true,
     requireWorkerScript: true,
   },
-];
+].map((budget) => ({
+  ...budget,
+  forbidPathSubstrings: [...new Set([...(budget.forbidPathSubstrings ?? []), ".data/", "workers/ocr/"])],
+}));

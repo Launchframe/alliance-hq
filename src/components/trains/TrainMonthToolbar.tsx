@@ -15,13 +15,16 @@ import {
 import { useTranslations } from "next-intl";
 import { useState, type ReactNode } from "react";
 
-import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
+import { RulePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
 import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
-import { TEMPLATE_PALETTE_STYLES } from "@/lib/trains/mechanism-styles";
-import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
-import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
-import { isTopNPaintTemplate } from "@/lib/trains/conductor-top-n.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import {
+  DAY_RULE_PALETTE,
+  RULE_PALETTE_SWATCHES,
+  paletteEntryRequiresScope,
+  ruleForPaletteSelection,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
 
 type Props = {
   selectedDates: string[];
@@ -34,14 +37,10 @@ type Props = {
   canShareImage: boolean;
   canSpinSelected: boolean;
   spinDisabledReason?: string | null;
-  templateLabels: Record<string, string>;
+  ruleLabels: Record<DayRulePaletteId, string>;
   vrReporterCount: number;
   busy?: boolean;
-  onPaint: (
-    dates: string[],
-    template: WeekTemplateType,
-    options?: { topN?: number },
-  ) => void;
+  onPaint: (dates: string[], rule: ConductorRule | null) => void;
   onSpinSelected: () => void;
   onManualPick: () => void;
   onManualPickVip: () => void;
@@ -99,7 +98,7 @@ export function TrainMonthToolbar({
   canShareImage,
   canSpinSelected,
   spinDisabledReason,
-  templateLabels,
+  ruleLabels,
   vrReporterCount,
   busy = false,
   onPaint,
@@ -114,17 +113,15 @@ export function TrainMonthToolbar({
 }: Props) {
   const t = useTranslations("trains.monthToolbar");
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [pendingScopeTemplate, setPendingScopeTemplate] =
-    useState<WeekTemplateType | null>(null);
-  const [activeTemplate, setActiveTemplate] = useState<WeekTemplateType | null>(
-    null,
-  );
+  const [pendingScopeBoard, setPendingScopeBoard] = useState<
+    "vs_top_n" | "vr_top_n" | null
+  >(null);
+  const [activePaletteId, setActivePaletteId] =
+    useState<DayRulePaletteId | null>(null);
 
   const selectedCount = selectedDates.length;
   const hasSelection = selectedCount > 0;
   const singleDay = selectedCount === 1;
-  const paletteTemplates =
-    selectedCount > 1 ? SELECTABLE_WEEK_TEMPLATES : DAY_PAINT_TEMPLATES;
 
   const canManualPick = singleDay && !locked;
   const canManualPickVip = singleDay && locked && vipNeeded;
@@ -136,23 +133,25 @@ export function TrainMonthToolbar({
   const canHistory = singleDay && hasConductor;
   const canPool = singleDay;
 
-  function handlePaletteClick(template: WeekTemplateType) {
+  function handlePaletteClick(paletteId: DayRulePaletteId) {
     if (!hasSelection) return;
-    if (isTopNPaintTemplate(template)) {
-      setPendingScopeTemplate(template);
+    // Scoped boards must pick a scope first — painting Top VS from the
+    // toolbar can never fall back to a default scope.
+    if (paletteEntryRequiresScope(paletteId)) {
+      setPendingScopeBoard(paletteId as "vs_top_n" | "vr_top_n");
       return;
     }
-    setActiveTemplate(template);
-    onPaint(selectedDates, template);
+    setActivePaletteId(paletteId);
+    onPaint(selectedDates, ruleForPaletteSelection(paletteId));
     setPaletteOpen(false);
-    setPendingScopeTemplate(null);
+    setPendingScopeBoard(null);
   }
 
   function handleScopeSelect(topN: number) {
-    if (!pendingScopeTemplate || !hasSelection) return;
-    setActiveTemplate(pendingScopeTemplate);
-    onPaint(selectedDates, pendingScopeTemplate, { topN });
-    setPendingScopeTemplate(null);
+    if (!pendingScopeBoard || !hasSelection) return;
+    setActivePaletteId(pendingScopeBoard);
+    onPaint(selectedDates, ruleForPaletteSelection(pendingScopeBoard, topN));
+    setPendingScopeBoard(null);
     setPaletteOpen(false);
   }
 
@@ -170,19 +169,19 @@ export function TrainMonthToolbar({
             label={t("palette")}
             disabled={!hasSelection}
             busy={busy}
-            active={paletteOpen || activeTemplate != null}
+            active={paletteOpen || activePaletteId != null}
             testId="trains-month-toolbar-palette"
             onClick={() => setPaletteOpen((open) => !open)}
           >
             <Palette className="h-4 w-4" aria-hidden />
           </ToolbarIconButton>
-          {activeTemplate ? (
+          {activePaletteId ? (
             <span
               className="inline-flex items-center gap-1 rounded-md border border-hq-border px-1.5 py-0.5 text-[10px] font-medium text-hq-fg-muted"
               data-testid="trains-month-toolbar-active-rule"
             >
-              <TemplatePaletteBadge template={activeTemplate} shape="square" />
-              {templateLabels[activeTemplate] ?? activeTemplate}
+              <RulePaletteBadge paletteId={activePaletteId} shape="square" />
+              {ruleLabels[activePaletteId] ?? activePaletteId}
             </span>
           ) : null}
         </div>
@@ -287,34 +286,33 @@ export function TrainMonthToolbar({
           className="mt-2 flex flex-wrap gap-1.5"
           data-testid="trains-month-toolbar-palette-menu"
         >
-          {paletteTemplates.map((template) => {
-            const palette = TEMPLATE_PALETTE_STYLES[template];
+          {DAY_RULE_PALETTE.map((entry) => {
+            const palette = RULE_PALETTE_SWATCHES[entry.id];
             return (
               <button
-                key={template}
+                key={entry.id}
                 type="button"
-                data-testid={`trains-month-paint-${template}`}
-                onClick={() => handlePaletteClick(template)}
+                data-testid={`trains-month-paint-${entry.id}`}
+                onClick={() => handlePaletteClick(entry.id)}
                 className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors border-hq-border text-hq-fg hover:bg-hq-canvas hover:ring-1 ${palette.ring}`}
               >
-                <TemplatePaletteBadge template={template} shape="square" />
-                {templateLabels[template] ?? template}
+                <RulePaletteBadge paletteId={entry.id} shape="square" />
+                {ruleLabels[entry.id] ?? entry.id}
               </button>
             );
           })}
         </div>
       ) : null}
 
-      {pendingScopeTemplate &&
-      (pendingScopeTemplate === "top_vs" || pendingScopeTemplate === "top_vr") ? (
+      {pendingScopeBoard ? (
         <div
           className="mt-2 overflow-hidden rounded-lg border border-hq-border bg-hq-surface"
           data-testid="trains-month-topn-scope"
         >
           <TopNScopePicker
-            paintTemplate={pendingScopeTemplate}
+            board={pendingScopeBoard}
             vrReporterCount={vrReporterCount}
-            onBack={() => setPendingScopeTemplate(null)}
+            onBack={() => setPendingScopeBoard(null)}
             onSelect={handleScopeSelect}
           />
         </div>

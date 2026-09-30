@@ -1,106 +1,40 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
-import {
-  attachMembersToPerformanceNote,
-  createPerformanceNote,
-  listPerformanceNoteRoster,
-  listPerformanceNotes,
-} from "@/lib/performance-notes/repository.server";
-import {
-  PERFORMANCE_NOTE_KINDS,
-  type PerformanceNoteKind,
-} from "@/lib/performance-notes/types.shared";
-import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { requireApiSession } from "@/lib/session";
+import { notesErrorResponse, requireNotesApiContext } from "@/lib/notes/access.server";
+import { countCaptureDrafts } from "@/lib/notes/drafts.server";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { noteFieldsSchema, parseNoteListCursor, readNoteListFilter } from "@/lib/notes/workspace.shared";
+import { createPerformanceNote, getPerformanceNoteDto, listPerformanceNotePage, listPerformanceNoteRoster, listPerformanceNotes } from "@/lib/performance-notes/repository.server";
 
 export const dynamic = "force-dynamic";
+const headers = { "Cache-Control": "private, no-store" };
 
-function isKind(value: unknown): value is PerformanceNoteKind {
-  return (
-    typeof value === "string" &&
-    (PERFORMANCE_NOTE_KINDS as readonly string[]).includes(value)
-  );
-}
-
-export async function GET() {
-  const sessionOrError = await requireApiSession();
-  if (sessionOrError instanceof NextResponse) return sessionOrError;
-  const session = sessionOrError;
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-  return NextResponse.json({ notes, roster });
+export async function GET(request: Request) {
+  try {
+    const context = await requireNotesApiContext();
+    if (context instanceof NextResponse) return context;
+    const params = new URL(request.url).searchParams;
+    if (params.get("format") === "summary") {
+      const [page, drafts] = await Promise.all([listPerformanceNotePage(context.actor, readNoteListFilter(params), parseNoteListCursor(params.get("cursor"))), countCaptureDrafts(context.actor)]);
+      return NextResponse.json({ ...page, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, draftCount: drafts }, { headers });
+    }
+    if (params.has("format")) throw new KnowledgeAccessError("invalid");
+    const [notes, roster, drafts] = await Promise.all([listPerformanceNotes(context.actor), listPerformanceNoteRoster(context.actor.allianceId), countCaptureDrafts(context.actor)]);
+    return NextResponse.json({ notes, roster, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, draftCount: drafts }, { headers });
+  } catch (error) { return notesErrorResponse(error instanceof ZodError || error instanceof SyntaxError ? new KnowledgeAccessError("invalid") : error); }
 }
 
 export async function POST(request: Request) {
-  const sessionOrError = await requireApiSession();
-  if (sessionOrError instanceof NextResponse) return sessionOrError;
-  const session = sessionOrError;
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId || !session.hqUserId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  let body: { body?: unknown; kind?: unknown; memberIds?: unknown };
   try {
-    const parsed: unknown = await request.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("invalid");
-    }
-    body = parsed as { body?: unknown; kind?: unknown; memberIds?: unknown };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const text = typeof body.body === "string" ? body.body.trim() : "";
-  if (!text) {
-    return NextResponse.json({ error: "Note body is required." }, { status: 400 });
-  }
-  const kind = isKind(body.kind) ? body.kind : "note";
-  const memberIds = Array.isArray(body.memberIds)
-    ? body.memberIds.filter((id): id is string => typeof id === "string")
-    : [];
-
-  const noteId = await createPerformanceNote({
-    allianceId,
-    kind,
-    intakeMode: kind === "note" ? "thought" : "batch",
-    body: text,
-    source: "web",
-    createdByHqUserId: session.hqUserId,
-  });
-
-  if (memberIds.length > 0) {
-    const roster = await listPerformanceNoteRoster(allianceId);
-    const nameById = new Map(roster.map((row) => [row.ashedMemberId, row.name]));
-    await attachMembersToPerformanceNote({
-      allianceId,
-      noteId,
-      members: memberIds
-        .map((ashedMemberId) => {
-          const name = nameById.get(ashedMemberId);
-          if (!name) return null;
-          return { ashedMemberId, memberNameRaw: name };
-        })
-        .filter((row): row is { ashedMemberId: string; memberNameRaw: string } => row != null),
-    });
-  }
-
-  const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-  return NextResponse.json({ notes, roster, noteId });
+    const context = await requireNotesApiContext("notes:create");
+    if (context instanceof NextResponse) return context;
+    const parsed = noteFieldsSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) throw new KnowledgeAccessError("invalid");
+    const fields = parsed.data;
+    const noteId = await createPerformanceNote({ ...fields, actor: context.actor, intakeMode: fields.kind === "note" ? "thought" : "batch" });
+    if (new URL(request.url).searchParams.get("format") === "summary") return NextResponse.json({ noteId, note: await getPerformanceNoteDto({ actor: context.actor, noteId }) }, { headers });
+    const [notes, roster, drafts] = await Promise.all([listPerformanceNotes(context.actor), listPerformanceNoteRoster(context.actor.allianceId), countCaptureDrafts(context.actor)]);
+    return NextResponse.json({ notes, roster, noteId, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, draftCount: drafts }, { headers });
+  } catch (error) { return notesErrorResponse(error); }
 }

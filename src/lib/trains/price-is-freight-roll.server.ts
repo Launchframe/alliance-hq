@@ -4,7 +4,6 @@ import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { filterDaySpinCandidates } from "@/lib/trains/day-spin-exclusions.shared";
-import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
   classifyPriceIsFreightEmptyReason,
@@ -29,12 +28,11 @@ import {
 } from "@/lib/trains/train-economy-threshold.server";
 import { tpirEligibleLiveCandidates } from "@/lib/trains/train-economy-threshold.shared";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type {
-  ConductorMechanismType,
   PoolType,
   RollCandidate,
   RollResult,
-  WeekTemplateType,
 } from "@/lib/trains/types";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
@@ -44,7 +42,7 @@ export async function applyConductorMinimumsFilter(
   trainDate: string,
   candidates: RollCandidate[],
   options?: {
-    paintTemplate?: WeekTemplateType | null;
+    rule?: ConductorRule | null;
     leadDays?: number;
   },
 ): Promise<RollCandidate[]> {
@@ -80,7 +78,7 @@ function throwFromPriceIsFreightEmptyReason(
 export async function loadPriceIsFreightR3Candidates(input: {
   allianceId: string;
   date: string;
-  paintTemplate?: WeekTemplateType | null;
+  rule?: ConductorRule | null;
   leadDays?: number;
 }): Promise<RollCandidate[]> {
   const [members, rankEvents] = await Promise.all([
@@ -103,7 +101,7 @@ export async function loadPriceIsFreightR3Candidates(input: {
     });
   }
   return applyConductorMinimumsFilter(input.allianceId, input.date, candidates, {
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
     leadDays: input.leadDays,
   });
 }
@@ -115,25 +113,22 @@ export async function loadPriceIsFreightR3Candidates(input: {
 export async function rollPriceIsFreightConductor(input: {
   allianceId: string;
   date: string;
-  paintTemplate: WeekTemplateType | null | undefined;
-  mechanism: ConductorMechanismType;
+  rule: Extract<ConductorRule, { kind: "price_is_freight" }>;
   /** Day-scoped re-spin exclusions (does not touch depleting pools). */
   excludedMemberIds?: ReadonlySet<string>;
 }): Promise<RollResult> {
-  const isSaturday = isPriceIsRightHeavyHitterSaturday(
-    input.paintTemplate,
-    input.date,
-  );
+  // The board is stated by the rule — no weekday inference.
+  const isHeavyHitter = input.rule.board === "heavy_hitter";
   const excluded = input.excludedMemberIds ?? new Set<string>();
   const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
   const scoreDate = vsScoreReferenceDate(input.date, leadDays);
 
-  if (isSaturday || input.mechanism === "heavy_hitter_lottery") {
+  if (isHeavyHitter) {
     const rosterCandidates = await applyConductorMinimumsFilter(
       input.allianceId,
       input.date,
       await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
-      { paintTemplate: input.paintTemplate, leadDays },
+      { rule: input.rule, leadDays },
     );
     const wheelCandidates = filterDaySpinCandidates(rosterCandidates, excluded);
     if (wheelCandidates.length === 0) {
@@ -157,7 +152,7 @@ export async function rollPriceIsFreightConductor(input: {
   const rosterR3 = await loadPriceIsFreightR3Candidates({
     allianceId: input.allianceId,
     date: input.date,
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
     leadDays,
   });
   const r3Candidates = filterDaySpinCandidates(rosterR3, excluded);

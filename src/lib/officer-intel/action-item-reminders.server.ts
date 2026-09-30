@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { materializeOfficerActionItemDueInboxItem } from "@/lib/officer-intel/action-item-inbox.server";
@@ -18,6 +18,7 @@ export async function runOfficerActionItemReminderPass(): Promise<number> {
       dueAt: schema.officerActionItems.dueAt,
     })
     .from(schema.officerActionItems)
+    .innerJoin(schema.knowledgeResources, and(eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId), eq(schema.knowledgeResources.allianceId, schema.officerActionItems.allianceId), isNull(schema.knowledgeResources.archivedAt)))
     .where(
       and(
         inArray(schema.officerActionItems.status, ["open", "in_progress"]),

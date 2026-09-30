@@ -1,5 +1,13 @@
-import { addCalendarDays, getWeekStartMonday } from "@/lib/trains/game-time";
-import { dayIndexInWeek } from "@/lib/trains/week-template-registry.shared";
+import {
+  addCalendarDays,
+  getWeekStartMonday,
+  weekDatesFromMonday,
+} from "@/lib/trains/game-time";
+
+/** Monday-start index of a date within its calendar week (Mon = 0). */
+export function dayIndexInWeek(date: string, weekStart: string): number {
+  return weekDatesFromMonday(weekStart).indexOf(date);
+}
 
 /** VS match days Mon–Sat within a calendar week (Mon = day 1). */
 export const VS_WEEK_DAY_MESSAGE_KEYS = {

@@ -1,4 +1,4 @@
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 
@@ -73,22 +73,15 @@ export function formatWheelShareWinChance(
 }
 
 function vsLeaderboardSuffix(
-  mechanism: string | null | undefined,
+  rule: ConductorRule | null,
 ): "VS" | "VR" | null {
-  if (
-    mechanism === "vs_top_10" ||
-    mechanism === "vs_high_score" ||
-    mechanism === "vs_top_n"
-  ) {
-    return "VS";
-  }
-  if (mechanism === "vr_top_n") return "VR";
+  if (rule?.kind === "vs_top_n") return "VS";
+  if (rule?.kind === "vr_top_n") return "VR";
   return null;
 }
 
 export function resolveWheelShareEligibility(input: {
-  mechanism: string | null | undefined;
-  paintTemplate: string | null | undefined;
+  rule: ConductorRule | null;
   winner: WheelShareCandidate;
   qualification?: MemberQualificationPayload | null;
   /** Explicit scoreboard rank among alliance VS/VR scores (1-based). */
@@ -111,7 +104,11 @@ export function resolveWheelShareEligibility(input: {
   // TPIF / scoreboard proof beats conductor-minimums framing. Qualification is
   // attached on Price Is Freight paints, so preferring vs_minimum hid win chance
   // (and used the evaluation-window score instead of prior-day VS).
-  if (isPriceIsRightPaintTemplate(input.paintTemplate) && score != null) {
+  if (
+    input.rule?.kind === "price_is_freight" &&
+    input.rule.board === "weekday" &&
+    score != null
+  ) {
     return {
       kind: "tpif",
       score,
@@ -123,7 +120,7 @@ export function resolveWheelShareEligibility(input: {
     };
   }
 
-  const suffix = vsLeaderboardSuffix(input.mechanism);
+  const suffix = vsLeaderboardSuffix(input.rule);
   if (suffix && score != null) {
     return {
       kind: "vs_leaderboard",

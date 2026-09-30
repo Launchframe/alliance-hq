@@ -102,6 +102,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         allianceId: alliance.allianceId,
         hqUserId: session.hqUserId ?? undefined,
         action: "trains.alliance_train_lead_time_update",
+        severity: "update",
         resourceType: "alliance",
         resourceId: alliance.allianceId,
         resourceName: alliance.name,

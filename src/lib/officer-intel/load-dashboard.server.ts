@@ -1,6 +1,7 @@
 import "server-only";
 
 import { sessionHasPermission } from "@/lib/rbac/context";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import {
   OFFICER_INTEL_READ_PERMISSION,
   OFFICER_INTEL_WRITE_PERMISSION,
@@ -28,9 +29,11 @@ export async function loadOfficerIntelDashboard(
     sessionId,
     OFFICER_INTEL_WRITE_PERMISSION,
   );
-  const sessions = await listOfficerChatSessions(allianceId);
-  const openActionItemCount = await countOpenOfficerActionItems(allianceId);
-  const approvedNoteCount = await countApprovedOfficerMeetingNotes(allianceId);
+  const actor = await getKnowledgeActorForSession(sessionId);
+  if (!actor || actor.allianceId !== allianceId) return null;
+  const sessions = await listOfficerChatSessions(allianceId, actor);
+  const openActionItemCount = await countOpenOfficerActionItems(allianceId, actor);
+  const approvedNoteCount = await countApprovedOfficerMeetingNotes(allianceId, actor);
 
   return {
     sessions,

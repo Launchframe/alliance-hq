@@ -25,6 +25,7 @@ import { loadVideoUploadCoverage } from "@/lib/dashboard/video-upload-coverage.s
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadMembersAttentionSummary } from "@/lib/members/members-attention-summary.server";
 import { loadReminderInboxForUser } from "@/lib/eur/satisfaction";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
@@ -76,6 +77,7 @@ export async function loadDashboardSummary(
       ? loadReminderInboxForUser({
           hqUserId: session.hqUserId,
           principalHqUserId: ctx?.hqUserId,
+          notesActor: await getKnowledgeActorForSession(sessionId),
           allianceId,
           permissions,
         })

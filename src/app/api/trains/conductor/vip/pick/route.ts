@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
@@ -9,7 +10,8 @@ import {
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import { getServerCalendarDate } from "@/lib/trains/service";
-import { supportsManualVipPick } from "@/lib/trains/templates";
+import { supportsManualVipPickForRule } from "@/lib/trains/rules/derive.shared";
+import { encodeLegacyVipMechanism } from "@/lib/trains/rules/encode.shared";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -74,8 +76,9 @@ async function post(request: Request) {
       date,
       seasonKey,
     );
-    const mechanism = dayConfig.vipMechanism ?? "none";
-    if (!supportsManualVipPick(mechanism)) {
+    const vipRule = dayConfig.vipRule;
+    const mechanism = encodeLegacyVipMechanism(vipRule);
+    if (!supportsManualVipPickForRule(vipRule)) {
       return NextResponse.json(
         { error: "Manual VIP pick is not allowed for this day." },
         { status: 400 },
@@ -96,8 +99,34 @@ async function post(request: Request) {
       vipMemberName: memberName,
       vipRankEventId: rankEvent?.id ?? null,
       vipMechanism: mechanism,
+      vipRule,
       dayConfigId: dayConfig.dayConfigId,
       guardianIsVip: body.guardianIsVip ? 1 : 0,
+    });
+
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.vip_pick",
+      severity:
+        existing.vipMemberId && existing.vipMemberId !== memberId
+          ? "update"
+          : "routine",
+      resourceType: "train_conductor_record",
+      resourceId: record.id ?? `${ctx.allianceId}:${date}`,
+      resourceName: memberName,
+      metadata: {
+        date,
+        memberId,
+        previousMemberId: existing.vipMemberId ?? null,
+        previousMemberName: existing.vipMemberName ?? null,
+        overwritten: Boolean(
+          existing.vipMemberId && existing.vipMemberId !== memberId,
+        ),
+        source: "manual",
+        guardianIsVip: Boolean(body.guardianIsVip),
+      },
     });
 
     return NextResponse.json({

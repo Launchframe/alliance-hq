@@ -45,7 +45,7 @@ export async function GET(_request: Request, { params }: Props) {
       return NextResponse.json({ error: "Member not found." }, { status: 404 });
     }
 
-    return NextResponse.json(profile);
+    return NextResponse.json(profile, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof CommanderAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

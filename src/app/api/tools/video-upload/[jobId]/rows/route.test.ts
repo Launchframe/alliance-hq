@@ -188,4 +188,30 @@ describe("POST /api/tools/video-upload/[jobId]/rows", () => {
     );
     expect(insertValuesMock).not.toHaveBeenCalled();
   });
+
+  it("does not synthesize a rank for manual Frontline Breakthrough rows", async () => {
+    selectLimitMock.mockResolvedValueOnce([
+      {
+        allianceId: "alliance-1",
+        scoreTarget: "frontline-breakthrough",
+      },
+    ]);
+    selectWhereMock.mockResolvedValueOnce([{ rank: 1 }, { rank: 2 }]);
+
+    const res = await POST(
+      new Request("http://localhost/job/rows", {
+        method: "POST",
+        body: JSON.stringify({ position: "start" }),
+      }),
+      { params: Promise.resolve({ jobId: "job-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.row.rank).toBeNull();
+    expect(body.row.frontlineStage).toBeNull();
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ rank: null }),
+    );
+  });
 });
