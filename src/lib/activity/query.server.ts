@@ -30,7 +30,11 @@ import {
   type ActivityFeedPage,
   type ActivityFeedScope,
 } from "./feed.shared";
-import { projectActivityRecord, safeVisibleName } from "./projection.server";
+import {
+  projectActivityRecord,
+  safeActorKey,
+  safeVisibleName,
+} from "./projection.server";
 import { ACTIVITY_CHANNELS, activityIdentifierSchema } from "./types.shared";
 
 export type ActivityFeedQueryInput = ActivityFeedFilters & {
@@ -44,9 +48,31 @@ const e = schema.activityEvents;
 
 const cursorTime = sql<string>`to_char(${e.occurredAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
-const actorKey = sql<
-  string | null
->`case when ${e.originalHqUserId} is not null then 'hq:' || ${e.originalHqUserId} when ${e.originalDiscordUserId} is not null then 'discord:' || ${e.originalDiscordUserId} else null end`;
+function safeActorIdSql(column: SQLWrapper) {
+  const id = sql`btrim(${column})`;
+  return sql`${column} is not null
+    and ${id} <> ''
+    and char_length(${id}) <= 200
+    and position('@' in ${id}) = 0
+    and ${id} !~ '[[:space:]]'
+    and ${id} !~ '^[0-9]{12,16}$'`;
+}
+
+const actorKey = sql<string | null>`case
+  when ${e.originalHqUserId} is not null then
+    case
+      when ${safeActorIdSql(e.originalHqUserId)}
+      then 'hq:' || btrim(${e.originalHqUserId})
+      else null
+    end
+  when ${e.originalDiscordUserId} is not null then
+    case
+      when ${safeActorIdSql(e.originalDiscordUserId)}
+      then 'discord:' || btrim(${e.originalDiscordUserId})
+      else null
+    end
+  else null
+end`;
 
 function safeNameSql(column: SQLWrapper) {
   const value = sql<string>`left(btrim(${column}),160)`;
@@ -180,6 +206,17 @@ function filterConditions(query: ActivityFeedQueryInput) {
 
 function escapeIlikePattern(value: string): string {
   return `%${value.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
+}
+
+function visibleActorOption(value: string | null): string | null {
+  if (value === null) {
+    return null;
+  }
+  const match = /^(hq|discord):(.*)$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  return safeActorKey(match[1] as "hq" | "discord", match[2]);
 }
 
 function assertScopeAllowed(
@@ -348,12 +385,13 @@ export async function queryActivityFilterOptions(
 
   return {
     options: {
-      actors: actors
-        .filter((actor) => actor.value !== null)
-        .map((actor) => ({
-          value: actor.value as string,
-          label: safeVisibleName(actor.label),
-        })),
+      actors: actors.flatMap((actor) => {
+        const value = visibleActorOption(actor.value);
+        if (value === null) {
+          return [];
+        }
+        return [{ value, label: safeVisibleName(actor.label) }];
+      }),
       alliances: alliances
         .filter((alliance) => alliance.value !== null)
         .map((alliance) => ({

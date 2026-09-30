@@ -43,6 +43,27 @@ export function safeActivityServerNumber(value: unknown): string | null {
   return /^\d{1,8}$/.test(trimmed) ? trimmed : null;
 }
 
+/** HQ and Discord ids are free text. A whole-column game UID or email must not become an actor key. */
+export function safeActorKey(
+  kind: "hq" | "discord",
+  id: string | null,
+): string | null {
+  if (id === null) {
+    return null;
+  }
+  const trimmed = id.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.length > 200 ||
+    trimmed.includes("@") ||
+    /\s/.test(trimmed) ||
+    /^\d{12,16}$/.test(trimmed)
+  ) {
+    return null;
+  }
+  return `${kind}:${trimmed}`;
+}
+
 function invalidRecord(): ActivityReadError {
   return new ActivityReadError("invalid_record", 500);
 }
@@ -144,10 +165,8 @@ export function projectActivityRecord(
       : {
           key:
             row.originalHqUserId !== null
-              ? `hq:${row.originalHqUserId}`
-              : row.originalDiscordUserId !== null
-                ? `discord:${row.originalDiscordUserId}`
-                : null,
+              ? safeActorKey("hq", row.originalHqUserId)
+              : safeActorKey("discord", row.originalDiscordUserId),
           displayName: safeVisibleName(row.actorDisplayName),
           hqRole: closedValue(row.actorHqRole, ACTIVITY_ROLES),
           gameRank: closedValue(row.actorGameRank, ACTIVITY_RANKS),
