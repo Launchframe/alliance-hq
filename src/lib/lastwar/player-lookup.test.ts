@@ -69,6 +69,21 @@ describe("parseLastWarLookupResponse", () => {
     });
   });
 
+  it("returns gameUserName on success (accounts CDN numeric level)", () => {
+    expect(
+      parseLastWarLookupResponse({
+        code: 0,
+        message: "ok",
+        result: { server: "1203", gameUserName: "BOGGLE", gameUserLevel: 35 },
+      }),
+    ).toEqual({
+      ok: true,
+      gameUserName: "BOGGLE",
+      gameUserLevel: 35,
+      gameServerNumber: 1203,
+    });
+  });
+
   it("falls back to UID suffix for server number", () => {
     expect(
       parseLastWarLookupResponse(
@@ -91,10 +106,10 @@ describe("parseLastWarLookupResponse", () => {
     expect(parseLastWarGameUserLevel("")).toBeNull();
   });
 
-  it("builds platform lookup URL with uid query param", async () => {
+  it("builds accounts CDN lookup URL (uid is sent in POST body)", async () => {
     const { buildLastWarPlayerLookupUrl } = await import("@/lib/lastwar/player-lookup");
     expect(buildLastWarPlayerLookupUrl("1623941123001203")).toBe(
-      "https://lastwar-platform.lastwargame.com/redemptionCode.php?method=login&uid=1623941123001203",
+      "https://accounts-cdn-api.lastwar.com/api/platform/redemptionCode/login",
     );
   });
 
@@ -175,8 +190,28 @@ describe("lookupPlayerByUid E2E fixtures", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("E2E_TEST", "");
-    const fetchImpl = vi.fn();
-    await lookupPlayerByUid("1234567890121203", fetchImpl);
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 0,
+        message: "ok",
+        result: { server: "1203", gameUserName: "ProdPlayer", gameUserLevel: 10 },
+      }),
+    });
+    await expect(lookupPlayerByUid("1234567890121203", fetchImpl)).resolves.toEqual({
+      ok: true,
+      gameUserName: "ProdPlayer",
+      gameUserLevel: 10,
+      gameServerNumber: 1203,
+    });
     expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://accounts-cdn-api.lastwar.com/api/platform/redemptionCode/login",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ uid: "1234567890121203" }),
+      }),
+    );
   });
 });

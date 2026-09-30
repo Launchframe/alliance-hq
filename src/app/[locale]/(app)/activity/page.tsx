@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import {
-  activityAllowedScopes,
   getActivityPrincipalForSession,
+  resolveActivityPageGate,
 } from "@/lib/activity/access.server";
 import {
   ACTIVITY_SCOPES,
@@ -48,9 +48,13 @@ export default async function ActivityPage({
   }
 
   const t = await getTranslations("activity");
-  if (scope === "alliance" && !principal.currentAllianceId) {
+  const gate = resolveActivityPageGate(principal, scope);
+  if (gate.type === "not-found") {
+    notFound();
+  }
+  if (gate.type === "select-alliance") {
     return (
-      <div className="px-4 py-6 md:px-0">
+      <div className="min-w-0 px-4 py-6 md:px-0">
         <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
         <p className="mt-4 text-sm text-hq-fg-muted">{t("selectAlliance")}</p>
         <Link
@@ -63,10 +67,7 @@ export default async function ActivityPage({
     );
   }
 
-  const allowedScopes = activityAllowedScopes(principal);
-  if (!allowedScopes.includes(scope)) {
-    notFound();
-  }
+  const allowedScopes = gate.allowedScopes;
 
   let initial: ActivityFeedPage | null = null;
   let initialOptions: ActivityFeedOptionsResponse | null = null;
@@ -84,7 +85,7 @@ export default async function ActivityPage({
   }
 
   return (
-    <div className="px-4 py-6 md:px-0">
+    <div className="min-w-0 px-4 py-6 md:px-0">
       <ActivityFeed
         key={`${principal.scopeFence}:${scope}`}
         scope={scope}

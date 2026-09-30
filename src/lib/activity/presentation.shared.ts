@@ -42,6 +42,39 @@ export type ActivityTranslator = (
   values?: Record<string, string | number>,
 ) => string;
 
+/** Names, tags, and labels. A game UID or email anywhere in the text is not shown. */
+export function activityVisibleText(
+  value: string | null | undefined,
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes("@") || /[0-9]{12,16}/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+export function activityVisibleServerNumber(
+  value: string | null | undefined,
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return /^\d{1,8}$/.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * Actor option values are `hq:` / `discord:` keys. Drop a key whose id is itself
+ * a game UID. Longer Discord snowflakes stay, because `{12,16}` would otherwise
+ * match inside them.
+ */
+export function activityActorKeyIsSensitive(value: string): boolean {
+  const trimmed = value.trim();
+  const id = trimmed.replace(/^(hq|discord):/, "");
+  if (id.includes("@") || /^\d{12,16}$/.test(id)) return true;
+  if (/^(hq|discord):/.test(trimmed)) return false;
+  return /[0-9]{12,16}/.test(trimmed);
+}
+
 export function formatActivityNumber(
   value: string | number,
   locale: string,
@@ -59,7 +92,8 @@ function actorLabel(
   if (scope === "personal") {
     return t("activity.you");
   }
-  const name = item.actor?.displayName ?? t("activity.unknownActor");
+  const name =
+    activityVisibleText(item.actor?.displayName) ?? t("activity.unknownActor");
   if (scope === "alliance") {
     return name;
   }
@@ -67,12 +101,10 @@ function actorLabel(
   if (item.alliance === null) {
     parts.push(t("activity.noAlliance"));
   } else {
-    if (item.alliance.serverNumber) {
-      parts.push(item.alliance.serverNumber);
-    }
-    if (item.alliance.tag) {
-      parts.push(`[${item.alliance.tag}]`);
-    }
+    const server = activityVisibleServerNumber(item.alliance.serverNumber);
+    const tag = activityVisibleText(item.alliance.tag);
+    if (server) parts.push(server);
+    if (tag) parts.push(`[${tag}]`);
   }
   parts.push(name);
   return parts.join(" ");
@@ -91,7 +123,8 @@ export function formatActivitySentence(
     values.value = formatActivityNumber(item.values.value, locale);
   }
   if (item.values.member !== undefined) {
-    values.member = item.values.member ?? t("activity.unknownActor");
+    values.member =
+      activityVisibleText(item.values.member) ?? t("activity.unknownActor");
   }
   if (item.values.fromRank !== undefined) {
     values.fromRank = item.values.fromRank;
