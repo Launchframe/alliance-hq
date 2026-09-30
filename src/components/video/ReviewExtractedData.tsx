@@ -352,12 +352,18 @@ function ReviewActionErrorBanner({
   message,
   connectUrl,
   connectLabel,
+  actionLabel,
+  onAction,
+  actionPending,
   onDismiss,
   dismissLabel,
 }: {
   message: string;
   connectUrl?: string;
   connectLabel: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionPending?: boolean;
   onDismiss: () => void;
   dismissLabel: string;
 }) {
@@ -376,6 +382,16 @@ function ReviewActionErrorBanner({
             >
               {connectLabel}
             </Link>
+          ) : null}
+          {onAction && actionLabel ? (
+            <button
+              type="button"
+              disabled={actionPending}
+              onClick={onAction}
+              className="rounded-lg border border-hq-danger/60 bg-[#f8514910] px-3 py-1.5 text-sm font-medium text-hq-danger hover:bg-[#f8514925] disabled:opacity-50"
+            >
+              {actionLabel}
+            </button>
           ) : null}
           <button
             type="button"
@@ -399,6 +415,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
+  const tTeam = useTranslations("team");
   const tBanks = useTranslations("bankManagement");
   const tErr = useTranslations("httpErrors");
   const formatDepositSlipStatus = useCallback(
@@ -479,6 +496,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [scoreboardMemberBusy, setScoreboardMemberBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
+  const [rosterGapAction, setRosterGapAction] = useState<"refresh" | "save" | null>(null);
+  const [rosterRefreshBusy, setRosterRefreshBusy] = useState(false);
+  const autoRosterRefreshStartedRef = useRef(false);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [overlappingLockedConfirmOpen, setOverlappingLockedConfirmOpen] =
@@ -858,11 +878,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   function clearActionError() {
     setError(null);
     setErrorConnectUrl(null);
+    setRosterGapAction(null);
   }
 
-  function setActionError(message: string, connectUrl?: string) {
+  function setActionError(
+    message: string,
+    connectUrl?: string,
+    roster?: "refresh" | "save" | null,
+  ) {
     setError(message);
     setErrorConnectUrl(connectUrl ?? null);
+    setRosterGapAction(roster ?? null);
   }
 
   const rematchMembers = useCallback(async () => {
@@ -2818,6 +2844,36 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setActionError(t(code));
           return;
         }
+        if (
+          data.code === "roster_refresh_ashed" ||
+          data.code === "invalid_member"
+        ) {
+          setActionError(
+            data.error ?? t("rosterRefreshAshed"),
+            undefined,
+            "refresh",
+          );
+          if (
+            data.code === "roster_refresh_ashed" &&
+            !autoRosterRefreshStartedRef.current
+          ) {
+            autoRosterRefreshStartedRef.current = true;
+            void refreshRosterFromReview();
+          }
+          return;
+        }
+        if (data.code === "roster_ask_ashed_officer") {
+          setActionError(data.error ?? t("rosterAskAshedOfficer"));
+          return;
+        }
+        if (data.code === "roster_save_members") {
+          setActionError(
+            data.error ?? t("rosterSaveMembers"),
+            undefined,
+            "save",
+          );
+          return;
+        }
         if (isVsPerformanceTarget) {
           const vsErrorKey =
             data.code === "stale"
@@ -2851,6 +2907,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           data.matchResultsSaved === true,
         );
       }
+      autoRosterRefreshStartedRef.current = false;
       clearDraft();
       setServerFrontlineIssues([]);
       if (scoreGhostDiscardRowIds.size > 0) {
@@ -2911,6 +2968,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
   }
 
+  async function refreshRosterFromReview() {
+    if (rosterRefreshBusy) return;
+    setRosterRefreshBusy(true);
+    try {
+      const res = await fetch("/api/members?refresh=1");
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setActionError(
+          payload.error ?? tTeam("refreshFailed"),
+          undefined,
+          "refresh",
+        );
+        return;
+      }
+      await load();
+      clearActionError();
+    } catch {
+      setActionError(tTeam("refreshFailed"), undefined, "refresh");
+    } finally {
+      setRosterRefreshBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!error) return;
     // Submit CTA sits below a long table — bring the banner into view.
@@ -2930,6 +3010,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           message={error}
           connectUrl={errorConnectUrl ?? undefined}
           connectLabel={tQueue("connectCta")}
+          actionLabel={
+            rosterGapAction === "refresh"
+              ? rosterRefreshBusy
+                ? tTeam("refreshing")
+                : tTeam("refreshFromAshed")
+              : rosterGapAction === "save" && scoreboardCreateIds.length > 0
+                ? t("createAllAsMembers", { count: scoreboardCreateIds.length })
+                : undefined
+          }
+          actionPending={rosterRefreshBusy || scoreboardMemberBusy}
+          onAction={
+            rosterGapAction === "refresh"
+              ? () => void refreshRosterFromReview()
+              : rosterGapAction === "save" && scoreboardCreateIds.length > 0
+                ? () => void runScoreboardMemberAction("create", scoreboardCreateIds)
+                : undefined
+          }
           onDismiss={clearActionError}
           dismissLabel={t("comparisonClose")}
         />
@@ -4483,7 +4580,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                     searchable
                     searchMode="fuzzy"
+                    searchRank="prefix-alpha"
                     combobox
+                    clearSearchLabel={t("clearMemberSearch")}
                     hideEmptyOptionWhileSearching
                     searchPlaceholder={tMembers("searchPlaceholder")}
                     noSearchResultsLabel={t("memberSearchNoResults")}
