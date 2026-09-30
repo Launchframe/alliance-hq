@@ -80,7 +80,7 @@ export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClos
   const detected = detection.memberIds.filter((id) => !excluded.has(id) && !manual.has(id));
   const selectedIds = [...new Set([...manual, ...detected])];
   const captureFields: NoteFields = { ...draft, notebook: draft.notebook.trim() || null, journalDate: draft.journalDate || null, labels: normalizeNoteLabels(labels.split(",")), memberIds: selectedIds, detectedMemberIds: detected, excludedMemberIds: [...excluded] };
-  const captureState: CaptureDraftState = { fields: captureFields, revision, overrideRevision, analysisRevision, analysisId, tasks: suggestions, aiEnabled: captureAi && intake.preference?.enabled === true, archive: null };
+  const captureState: CaptureDraftState = { fields: captureFields, revision, overrideRevision, analysisRevision, analysisId, audience: restored?.audience ?? "private", tasks: suggestions, aiEnabled: captureAi && intake.preference?.enabled === true, archive: null };
   const completeRoster = useMemo(() => {
     const members = new Map(roster.map((member) => [member.ashedMemberId, member]));
     for (const member of original?.members ?? []) if (!members.has(member.ashedMemberId)) members.set(member.ashedMemberId, member);

@@ -33,7 +33,7 @@ test("support foundation rejects bootstrap and underprivileged officers' endpoin
 test("native setup is versioned, UID-safe and cannot bypass publication", async ({ request }) => {
   const f = await createSupportTeamFixture();
   const headers = { Cookie: authCookieHeader(f.owner) };
-  const input = { command: { kind: "createTeam", teamId: `team-${nanoid(8)}`, leadId: f.leads[0].ashedMemberId, expectedVersion: 0 }, idempotencyKey: nanoid() };
+  const input = { command: { kind: "createTeam", teamId: `team-${nanoid(8)}`, name: "Setup", leadId: f.leads[0].ashedMemberId, expectedVersion: 0 }, idempotencyKey: nanoid() };
   const created = await request.post("/api/support-teams", { headers, data: input });
   expect(created.status()).toBe(200);
   const replay = await request.post("/api/support-teams", { headers, data: input });
@@ -43,8 +43,8 @@ test("native setup is versioned, UID-safe and cannot bypass publication", async 
   expect(body.roster).toHaveLength(8);
   expect(body.roster[0]).toMatchObject({ thp: null, basePower: null, country: null });
   expect(JSON.stringify(body)).not.toMatch(/game_?uid|notes/i);
-  const move = await request.post("/api/support-teams", { headers, data: { command: { kind: "move", memberId: f.members[0].ashedMemberId, from: null, to: input.command.teamId, expectedVersion: body.version }, idempotencyKey: nanoid() } });
-  expect(move.status()).toBe(409);
+  const move = await request.post("/api/support-teams", { headers: { Cookie: authCookieHeader(f.officer) }, data: { command: { kind: "move", memberId: f.members[0].ashedMemberId, from: null, to: input.command.teamId, expectedVersion: body.version }, idempotencyKey: nanoid() } });
+  expect(move.status()).toBe(403);
   const other = await createNativeAlliance(f.sql, { tag: `SO${nanoid(5)}`, name: "Other support fixture" });
   await selectSupportAlliance(f.officer, other.allianceId);
   expect((await request.get("/api/support-teams/history", { headers: { Cookie: authCookieHeader(f.officer) } })).status()).toBe(403);
@@ -66,7 +66,7 @@ for (const intermediatePoll of [false, true]) {
     const f = await createSupportTeamFixture();
     const Cookie = authCookieHeader(f.owner);
     const teamId = `team-${nanoid(8)}`;
-    expect((await maintenanceCommand(request, Cookie, { kind: "createTeam", teamId, leadId: f.leads[0].ashedMemberId })).status()).toBe(200);
+    expect((await maintenanceCommand(request, Cookie, { kind: "createTeam", teamId, name: "Setup", leadId: f.leads[0].ashedMemberId })).status()).toBe(200);
     await seedPublishedSupportBoard(f.sql, f.allianceId);
     const memberId = f.members[0].ashedMemberId;
     const moved = await maintenanceCommand(request, Cookie, { kind: "move", memberId, from: null, to: teamId });
@@ -101,7 +101,7 @@ test("lead departure preserves the named team, explicit return is owner-only, an
   const Cookie = authCookieHeader(f.owner);
   const teamId = `team-${nanoid(8)}`;
   const leadId = f.leads[0].ashedMemberId;
-  expect((await maintenanceCommand(request, Cookie, { kind: "createTeam", teamId, leadId })).status()).toBe(200);
+  expect((await maintenanceCommand(request, Cookie, { kind: "createTeam", teamId, name: "Setup", leadId })).status()).toBe(200);
   expect((await maintenanceCommand(request, authCookieHeader(f.officer), { kind: "rename", teamId, name: "Persistent" })).status()).toBe(200);
   await seedPublishedSupportBoard(f.sql, f.allianceId);
   await f.sql`UPDATE alliance_members SET alliance_rank = 3 WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${leadId}`;
@@ -114,7 +114,7 @@ test("lead departure preserves the named team, explicit return is owner-only, an
   expect(returned.teams[0]).toMatchObject({ id: teamId, name: "Persistent", leadId: null, needsReplacement: true });
   expect((await maintenanceCommand(request, authCookieHeader(f.officer), { kind: "replaceLead", teamId, leadId })).status()).toBe(403);
   expect((await maintenanceCommand(request, Cookie, { kind: "replaceLead", teamId, leadId })).status()).toBe(200);
-  const extra = { kind: "createTeam", teamId: `team-${nanoid(8)}`, leadId: f.leads[1].ashedMemberId };
+  const extra = { kind: "createTeam", teamId: `team-${nanoid(8)}`, name: "Extra", leadId: f.leads[1].ashedMemberId };
   expect((await maintenanceCommand(request, authCookieHeader(f.officer), extra)).status()).toBe(403);
   expect((await maintenanceCommand(request, Cookie, extra)).status()).toBe(200);
   const snapshot = await (await request.get("/api/support-teams", { headers: { Cookie } })).json();
