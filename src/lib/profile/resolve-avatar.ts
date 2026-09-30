@@ -59,7 +59,7 @@ export function isLastWarAvatarStale(
 /**
  * Whether a Last War network lookup is needed.
  * Respects avatarRefreshedAt even when avatarUrl is null (failed lookup /
- * player has no portrait) so we do not hammer lastwar-platform on every poll.
+ * player has no portrait) so we do not hammer the Last War accounts CDN on every poll.
  */
 export function needsLastWarAvatarRefresh(
   user: Pick<
@@ -165,7 +165,7 @@ export async function resolveAndCacheHqUserAvatar(
 
   const lookup = await lookupPlayerByUid(uid);
   // Always bump avatarRefreshedAt — including failed lookups — so TTL backoff
-  // applies when lastwar-platform returns 5xx / is unreachable.
+  // applies when the accounts CDN returns 5xx / is unreachable.
   const lastWarResolved = pickAvatarFromProviders(
     providers,
     lookup.ok ? lookup.avatarUrl : null,
