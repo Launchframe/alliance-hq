@@ -154,7 +154,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 ## Learned User Preferences
 
 - During OCR-stack validation, comparable fixture-only browser/session isolation repairs are approved as separate maintenance slices. Preserve all permission assertions; this does not authorize production-auth changes or weaker tests.
-- Propagate stacked fixes with normal direct-parent merges. If a parent was already rebased and repair requires history rewriting (`git rebase --onto`), obtain explicit approval rather than applying the older automatic-rebase preference.
+- Propagate stacked fixes with normal direct-parent merges only while the parent's history is preserved. Before merging, verify that the recorded old parent tip is an ancestor of the fetched parent tip. If the parent was rebased/force-pushed or that ancestry cannot be established, stop: do not merge the rewritten parent into its child. Propose a bounded `git rebase --onto` repair using the verified old parent boundary, and obtain explicit approval for that rewrite and any required force-push. Routine stack updates remain merge-based.
 - On `_journal.json` merge conflicts, keep main's migration and renumber the branch SQL + journal tag; propagate renumbers parent→child in stacked work — never drop migration SQL or journal entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
 - Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.

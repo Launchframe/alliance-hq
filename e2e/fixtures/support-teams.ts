@@ -21,8 +21,8 @@ export async function createSupportTeamFixture() {
   for (const [index, member] of [...leads, ...members].entries()) {
     await sql`INSERT INTO member_alliance_tenure (id, game_uid, alliance_id, ashed_member_id, joined_at) VALUES (${nanoid()}, ${`97${Date.now()}${index}`}, ${alliance.allianceId}, ${member.ashedMemberId}, ${new Date("2026-01-01T00:00:00Z")})`;
   }
-  await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: leads[0].ashedMemberId, gameUid: `98${Date.now()}` });
-  await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: owner.hqUserId, ashedMemberId: leads[1].ashedMemberId, gameUid: `96${Date.now()}` });
+  await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: leads[0].ashedMemberId });
+  await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: owner.hqUserId, ashedMemberId: leads[1].ashedMemberId });
   return { sql, allianceId: alliance.allianceId, owner, officer, leads, members, actor };
 }
 
