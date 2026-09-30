@@ -397,7 +397,9 @@ export function RosterVideoReviewTable({
                       triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                       searchable
                       searchMode="fuzzy"
+                      searchRank="prefix-alpha"
                       combobox
+                      clearSearchLabel={t("clearMemberSearch")}
                       hideEmptyOptionWhileSearching
                       searchPlaceholder={tMembersList("searchPlaceholder")}
                       noSearchResultsLabel={t("memberSearchNoResults")}
