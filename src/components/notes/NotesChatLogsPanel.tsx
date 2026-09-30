@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useNotesDirtyState, useNotesFetch, useNotesNavigation } from "./NotesNavigation";
 import { workspaceOffset } from "@/lib/notes/workspace.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
-import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryReviewRow } from "@/lib/notes/imports.shared";
+import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryAudience, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryMessageMediaDto, type HistoryReviewRow } from "@/lib/notes/imports.shared";
 
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
@@ -16,8 +16,29 @@ function utcDatetimeLocal(iso: string | null) {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 16);
 }
 
-export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
+function CoordinateChip({ coordinates, label }: { coordinates: HistoryReviewRow["coordinates"]; label: string }) {
+  if (!coordinates) return null;
+  const parts = [coordinates.server === null ? null : `S${coordinates.server}`, `${coordinates.x}:${coordinates.y}`, coordinates.label].filter(Boolean).join(" ");
+  return <span className="inline-flex items-center rounded-full border border-hq-border px-2 py-0.5 text-xs text-hq-fg-muted">{label} {parts}</span>;
+}
+
+function TranscriptMessage({ row, locale, t, replyName, evidenceHref, evidenceLabel }: { row: HistoryReviewRow; locale: string; t: (key: string, values?: Record<string, string | number>) => string; replyName: string | null; evidenceHref: string | null; evidenceLabel: string }) {
+  return <div className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4">
+    <p className="text-xs text-hq-fg-muted"><span className="font-medium text-hq-fg">{row.sender ?? t("unknown")}</span>{row.sentAt ? ` · ${new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.sentAt))}` : ""}</p>
+    {row.isReply ? <p className="text-xs text-hq-fg-muted">{replyName ? t("replyingTo", { name: replyName }) : t("missingReply")}</p> : null}
+    <p className="whitespace-pre-wrap text-sm">{row.englishText}</p>
+    <div className="flex flex-wrap items-center gap-2">
+      <CoordinateChip coordinates={row.coordinates} label={t("coordinate")} />
+      {row.originalText !== row.englishText ? <details className="text-xs"><summary className="cursor-pointer text-hq-fg-muted">{t("showOriginal")}</summary><p className="mt-1 whitespace-pre-wrap text-hq-fg-muted">{row.originalText}</p></details> : null}
+      {evidenceHref ? <a href={evidenceHref} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{evidenceLabel}</a> : null}
+    </div>
+    {row.media.length ? <div className="flex flex-wrap gap-2">{row.media.map((item) => <a key={item.id} href={item.fullHref} target="_blank" rel="noreferrer" className="block rounded-lg border border-hq-border p-1" title={t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></a>)}</div> : null}
+  </div>;
+}
+
+export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
   const t = useTranslations("notes.imports");
+  const tIntel = useTranslations("officerIntel");
   const locale = useLocale();
   const fetchNotes = useNotesFetch(), navigation = useNotesNavigation();
   const urlCursor = navigation.params.get("importCursor");
@@ -33,11 +54,14 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const [scope, setScope] = useState("");
   const [detail, setDetail] = useState<HistoryImportDetail | null>(null);
   const [edits, setEdits] = useState<HistoryReviewRow[]>([]);
+  const [mediaEdits, setMediaEdits] = useState<HistoryMessageMediaDto[]>([]);
   const [kind, setKind] = useState<HistoryImportKind>("text");
   const [title, setTitle] = useState("");
+  const [audience, setAudience] = useState<HistoryAudience>("private");
   const [paste, setPaste] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [synthesizing, setSynthesizing] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
@@ -55,24 +79,24 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const receipt = useRef({ hash: "", id: "" });
   const scopeRef = useRef("");
   useNotesDirtyState(() => ({
-    dirty: dirty.current || !focusId && !!(paste || title || files.length), keys: ["pathname", "view", "import", "messageOffset"],
+    dirty: dirty.current || !focusId && !!(paste || title || files.length), keys: ["pathname", "view", "chatLog", "messageOffset"],
     busy: busy && !!focusId && detail?.state === "review",
     discard: () => {
-      revision.current++; dirty.current = false; setEdits(current.current?.messages ?? []); setTitle(""); setPaste(""); setFiles([]);
+      revision.current++; dirty.current = false; setEdits(current.current?.messages ?? []); setMediaEdits(current.current?.sessionMedia ?? []); setTitle(""); setPaste(""); setFiles([]); setAudience("private");
       if (busy) { lifetime.current.abort(); lifetime.current = new AbortController(); setBusy(false); }
     },
   }));
   const applyScope = useCallback((next: string) => {
     if (scopeRef.current && scopeRef.current !== next) {
       revision.current++; listCursor.current = null; setPreviousCursor(null); setNextCursor(null); setList([]); setDetail(null);
-      setFiles([]); setPaste(""); setTitle(""); setEdits([]); setDiscardAction(null); dirty.current = false; current.current = null;
+      setFiles([]); setPaste(""); setTitle(""); setAudience("private"); setEdits([]); setMediaEdits([]); setDiscardAction(null); dirty.current = false; current.current = null;
     }
     scopeRef.current = next; setScope(next);
   }, []);
   useEffect(() => { alive.current = true; const controller = new AbortController(); lifetime.current = controller; return () => { alive.current = false; controller.abort(); lifetime.current.abort(); }; }, []);
   const fail = useCallback((failure: unknown, listFailure = false) => {
     if (!alive.current) return;
-    if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setError(null); setListError(null); dirty.current = false; }
+    if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setMediaEdits([]); setError(null); setListError(null); dirty.current = false; }
     (listFailure ? setListError : setError)(failure instanceof ImportError ? failure.message : t("error"));
     if (!listFailure) requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
   }, [t, applyScope]);
@@ -102,11 +126,11 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     if (!body || !alive.current || generation !== revision.current || id !== selection.current || number !== readNumber.current) return;
     applyScope(body.import.scope);
     if (dirty.current && !reset) { if (body.import.version !== current.current?.version) setError(t("changed")); return; }
-    current.current = body.import; setDetail(body.import); setEdits(body.import.messages); dirty.current = false;
+    current.current = body.import; setDetail(body.import); setEdits(body.import.messages); setMediaEdits(body.import.sessionMedia); dirty.current = false;
     return true;
   }, [api, t, applyScope]);
   useEffect(() => {
-    revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]);
+    revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]); setMediaEdits([]);
     if (focusId) void load(focusId, offset).catch(fail);
     else void loadList().catch((failure) => fail(failure, true));
   }, [focusId, offset, load, loadList, fail]);
@@ -120,8 +144,9 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     return () => window.removeEventListener("focus", refresh);
   }, [focusId, offset, load, loadList, fail]);
   const processingState = detail?.state;
+  const owned = detail?.owned !== false;
   useEffect(() => {
-    if (!focusId || !processingState || !["queued", "processing"].includes(processingState)) return;
+    if (!focusId || !processingState || !["queued", "processing"].includes(processingState) || !owned) return;
     let disposed = false;
     const tick = async () => {
       if (processing.current) return;
@@ -133,7 +158,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     const start = window.setTimeout(() => { void tick(); }, 200);
     const timer = window.setInterval(() => { void tick(); }, 4_000);
     return () => { disposed = true; window.clearTimeout(start); window.clearInterval(timer); };
-  }, [focusId, processingState, canCreate, offset, api, load, fail]);
+  }, [focusId, processingState, owned, canCreate, offset, api, load, fail]);
   function payload(value: object, resourceId = focusId ?? "new") {
     const hash = JSON.stringify([scope, resourceId, value]);
     if (receipt.current.hash !== hash) receipt.current = { hash, id: crypto.randomUUID() };
@@ -159,7 +184,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     try {
       const format = existing?.kind ?? kind;
       const selected = files.length ? files : format !== "screenshots" && paste.trim() ? [new File([paste], format === "discord_json" ? "history.json" : format === "markdown" ? "history.md" : "history.txt", { type: format === "discord_json" ? "application/json" : format === "markdown" ? "text/markdown" : "text/plain" })] : [];
-      const checked = historyInitSchema.safeParse({ expectedScope: scope, requestId: crypto.randomUUID(), title: existing?.title ?? title, kind: format, locale, files: selected.map((file) => ({ name: file.name, size: file.size, contentType: format === "screenshots" ? file.type : format === "discord_json" ? "application/json" : format === "markdown" ? "text/markdown" : "text/plain", sha256: "0".repeat(64) })) });
+      const checked = historyInitSchema.safeParse({ expectedScope: scope, requestId: crypto.randomUUID(), title: existing?.title ?? title, kind: format, locale, audience: existing?.audience ?? audience, files: selected.map((file) => ({ name: file.name, size: file.size, contentType: format === "screenshots" ? file.type : format === "discord_json" ? "application/json" : format === "markdown" ? "text/markdown" : "text/plain", sha256: "0".repeat(64) })) });
       if (!checked.success) throw new ImportError(t("invalid"), 400);
       const descriptors: typeof checked.data.files = [];
       for (let index = 0; index < selected.length; index++) {
@@ -182,7 +207,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
         await api(`/api/notes/imports/${id}`, payload({ command: "finalize", expectedVersion: snapshot.version }, id));
       }
       if (!alive.current || generation !== revision.current) return;
-      setFiles([]); setPaste(""); setTitle("");
+      setFiles([]); setPaste(""); setTitle(""); setAudience("private");
       if (id === focusId) await load(id, 0, true); else onOpen(id);
     } catch (failure) { if (id && id !== focusId && alive.current && generation === revision.current) onOpen(id); throw failure; }
   }
@@ -197,18 +222,34 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     if (!detail) return;
     if (await load(detail.id, next, true)) setOffset(next);
   }
+  const patchRow = (index: number, patch: Partial<HistoryReviewRow>) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, ...patch } : item)); };
+  const evidenceHref = (row: HistoryReviewRow) => row.sourceImageIndex === null ? null : detail?.files[row.sourceImageIndex]?.viewHref ?? null;
+  const replyTargetName = (row: HistoryReviewRow) => {
+    if (row.replyToMessageId) {
+      const target = detail?.messages.find((message) => message.id === row.replyToMessageId);
+      if (target) return target.sender ?? t("unknown");
+    }
+    return row.replyToName;
+  };
   const errorBox = error ? <p role="alert" className="text-sm text-hq-danger">{error}</p> : null;
+  const transcript = detail && <div className="space-y-3">
+    {detail.messages.filter((row) => row.included).map((row) => <TranscriptMessage key={row.id} row={row} locale={locale} t={t} replyName={replyTargetName(row)} evidenceHref={evidenceHref(row)} evidenceLabel={tIntel("sourceScreenshots")} />)}
+    {detail.sessionMedia.length ? <div className="flex flex-wrap gap-2">{detail.sessionMedia.map((item) => <a key={item.id} href={item.fullHref} target="_blank" rel="noreferrer" className="block rounded-lg border border-hq-border p-1"><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></a>)}</div> : null}
+  </div>;
   return <section className="min-w-0 flex-1 space-y-5 p-5 sm:p-7">
-    <header className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">{t("title")}</h2>{focusId && <button className={control} disabled={busy} onClick={() => navigate(null)}>{t("back")}</button>}</header>
-    <p className="max-w-3xl text-sm text-hq-fg-muted">{t("privacy")}</p>
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">{t("title")}</h2><p className="mt-1 max-w-3xl text-sm text-hq-fg-muted">{t("intro")}</p></div>{focusId && <button className={control} disabled={busy} onClick={() => navigate(null)}>{t("back")}</button>}</header>
     {!focusId && <>
       {canCreate && <form onSubmit={(event) => { preventDefaultFormSubmit(event); void run(() => upload()); }} className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-4">
         <h3 className="font-medium">{t("new")}</h3><p className="text-xs text-hq-fg-muted">{t("limits")}</p>
         <label className="flex flex-col gap-1 text-sm">{t("sourceTitle")}<input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} className={control} /></label>
+        <fieldset className="space-y-2"><legend className="text-sm">{t("audience")}</legend>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" name="chat-log-audience" checked={audience === "private"} onChange={() => setAudience("private")} className="accent-hq-accent" />{t("audiencePrivate")}</label>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" name="chat-log-audience" checked={audience === "officers_read"} onChange={() => setAudience("officers_read")} className="accent-hq-accent" />{t("audienceOfficers")}</label>
+        </fieldset>
         <label className="flex flex-col gap-1 text-sm">{t("format")}<select aria-label={t("format")} value={kind} onChange={(event) => { setKind(event.target.value as HistoryImportKind); setFiles([]); }} className={control}>{HISTORY_IMPORT_KINDS.map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
         {kind === "discord_json" && <p className="text-xs text-hq-fg-muted">{t("jsonHint")}</p>}
         {kind !== "screenshots" && <label className="flex flex-col gap-1 text-sm">{t("paste")}<textarea aria-label={t("paste")} data-no-enter-submit rows={5} maxLength={HISTORY_TEXT_BYTES} value={paste} onChange={(event) => setPaste(event.target.value)} className={control} /></label>}
-        <label className="flex flex-col gap-1 text-sm">{t("files")}<input key={kind} type="file" multiple={kind === "screenshots"} accept={kind === "screenshots" ? "image/png,image/jpeg,image/webp" : kind === "discord_json" ? ".json" : kind === "markdown" ? ".md,.markdown" : ".txt"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
+        <label className="flex flex-col gap-1 text-sm">{kind === "screenshots" ? t("uploadScreenshots") : t("files")}<input key={kind} type="file" multiple={kind === "screenshots"} accept={kind === "screenshots" ? "image/png,image/jpeg,image/webp" : kind === "discord_json" ? ".json" : kind === "markdown" ? ".md,.markdown" : ".txt"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
         <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}<button className={control} disabled={busy || !scope || !title.trim() || !files.length && !paste.trim()}>{busy ? t("busy") : t("start")}</button></div>
       </form>}
       {!list.length ? <p className="text-sm text-hq-fg-muted">{t("empty")}</p> : <div className="grid gap-3 sm:grid-cols-2">{list.map((item) => <button key={item.id} onClick={() => navigate(item.id)} className="space-y-2 rounded-xl border border-hq-border bg-hq-canvas p-4 text-left"><p className="font-medium">{item.title}</p><p className="text-xs text-hq-fg-muted">{t(`states.${item.state}`)} · {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.updatedAt))}</p></button>)}</div>}
@@ -223,19 +264,52 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     </>}
     {focusId && !detail && <div ref={errorAnchor}>{errorBox ?? <p role="status">{t("busy")}</p>}</div>}
     {detail && <>
-      <div className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4"><h3 className="font-semibold">{detail.title}</h3><p role="status" className="text-sm">{t(`states.${detail.state}`)}</p><p className="text-xs text-hq-fg-muted">{t("fileProgress", { done: detail.cursor, total: detail.files.length })} · {t("progress", { reviewed: detail.reviewed, total: detail.total })}</p>{detail.errorCode && <p className="text-sm text-hq-danger">{t("processingError")}</p>}{detail.state === "committed" && <p className="text-sm text-hq-success">{t("saved")}</p>}</div>
-      {detail.state === "uploading" && canCreate && <div className="space-y-3"><p className="text-sm">{t("resumeHint")}</p><label className="flex flex-col gap-2 text-sm">{t("files")}<input type="file" multiple={detail.kind === "screenshots"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label><button className={control} disabled={busy || !files.length} onClick={() => void run(() => upload(detail))}>{t("resumeUpload")}</button></div>}
-      {["review", "committed"].includes(detail.state) && <div className="space-y-4">{edits.map((row, index) => <fieldset key={row.id} disabled={busy || !canCreate || detail.state !== "review"} className="space-y-3 rounded-xl border border-hq-border p-4">
+      <div className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4"><h3 className="font-semibold">{detail.title}</h3><p role="status" className="text-sm">{t(`states.${detail.state}`)}</p><p className="text-xs text-hq-fg-muted">{t("fileProgress", { done: detail.cursor, total: detail.files.length })} · {t("progress", { reviewed: detail.reviewed, total: detail.total })}</p>{detail.errorCode && <p className="text-sm text-hq-danger">{t("processingError")}</p>}{detail.state === "committed" && <p className="text-sm text-hq-success">{t("saved")}</p>}{detail.evidence.length ? <div className="flex flex-wrap gap-2">{detail.evidence.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{tIntel("sourceScreenshots")}</a>)}</div> : null}</div>
+      {detail.state === "uploading" && canCreate && owned && <div className="space-y-3"><p className="text-sm">{t("resumeHint")}</p><label className="flex flex-col gap-2 text-sm">{t("files")}<input type="file" multiple={detail.kind === "screenshots"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label><button className={control} disabled={busy || !files.length} onClick={() => void run(() => upload(detail))}>{t("resumeUpload")}</button></div>}
+      {detail.state === "review" && owned && <div className="space-y-4">
+        <h3 className="font-medium">{t("reviewTitle")}</h3><p className="text-xs text-hq-fg-muted">{t("reviewGuidance")}</p>
+        {edits.map((row, index) => <fieldset key={row.id} disabled={busy || !canCreate} className="space-y-3 rounded-xl border border-hq-border p-4">
         <legend className="px-1 text-xs text-hq-fg-muted">{(row.position + 1).toLocaleString(locale)} · {row.reviewed ? t("reviewed") : t("unreviewed")}</legend>
-        <div className="grid gap-3 sm:grid-cols-2"><label className="flex flex-col gap-1 text-xs">{t("sender")}<input aria-label={t("sender")} className={control} maxLength={160} placeholder={t("unknown")} value={row.sender ?? ""} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, sender: event.target.value || null } : item)); }} /></label>
-          <label className="flex flex-col gap-1 text-xs">{t("date")}<input aria-label={t("date")} type="datetime-local" className={control} value={utcDatetimeLocal(row.sentAt)} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, sentAt: event.target.value ? `${event.target.value}:00.000Z` : null } : item)); }} /></label></div>
-        <label className="flex flex-col gap-1 text-xs">{t("body")}<textarea aria-label={t("body")} data-no-enter-submit rows={4} maxLength={HISTORY_MESSAGE_LENGTH} className={control} value={row.body} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, body: event.target.value } : item)); }} /></label>
-        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={row.included} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, included: event.target.checked } : item)); }} />{t("include")}</label>
+        <div className="grid gap-3 sm:grid-cols-2"><label className="flex flex-col gap-1 text-xs">{t("sender")}<input aria-label={t("sender")} className={control} maxLength={160} placeholder={t("unknown")} value={row.sender ?? ""} onChange={(event) => patchRow(index, { sender: event.target.value || null })} /></label>
+          <label className="flex flex-col gap-1 text-xs">{t("date")}<input aria-label={t("date")} type="datetime-local" className={control} value={utcDatetimeLocal(row.sentAt)} onChange={(event) => patchRow(index, { sentAt: event.target.value ? `${event.target.value}:00.000Z` : null })} /></label></div>
+        <label className="flex flex-col gap-1 text-xs">{t("englishText")}<textarea aria-label={t("englishText")} data-no-enter-submit rows={3} maxLength={HISTORY_MESSAGE_LENGTH} className={control} value={row.englishText} onChange={(event) => patchRow(index, { englishText: event.target.value })} /></label>
+        <label className="flex flex-col gap-1 text-xs">{t("originalText")}<textarea aria-label={t("originalText")} data-no-enter-submit rows={3} maxLength={HISTORY_MESSAGE_LENGTH} className={control} value={row.originalText} onChange={(event) => patchRow(index, { originalText: event.target.value })} /></label>
+        <label className="flex flex-col gap-1 text-xs">{t("replyTo")}<select aria-label={t("replyTo")} className={control} value={row.replyToMessageId ?? ""} onChange={(event) => patchRow(index, { replyToMessageId: event.target.value || null, isReply: !!event.target.value || !!row.replyToName })}>
+          <option value="">{t("noLinkedMessage")}</option>
+          {edits.filter((candidate) => candidate.position < row.position).map((candidate) => <option key={candidate.id} value={candidate.id}>{(candidate.position + 1).toLocaleString(locale)} · {candidate.sender ?? t("unknown")}</option>)}
+        </select></label>
+        {row.coordinates ? <div className="grid gap-3 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-xs">{t("coordServer")}<input aria-label={t("coordServer")} type="number" className={control} value={row.coordinates.server ?? ""} onChange={(event) => patchRow(index, { coordinates: { ...row.coordinates!, server: event.target.value === "" ? null : Number(event.target.value) } })} /></label>
+          <label className="flex flex-col gap-1 text-xs">{t("coordX")}<input aria-label={t("coordX")} type="number" required className={control} value={row.coordinates.x} onChange={(event) => patchRow(index, { coordinates: { ...row.coordinates!, x: Number(event.target.value) } })} /></label>
+          <label className="flex flex-col gap-1 text-xs">{t("coordY")}<input aria-label={t("coordY")} type="number" required className={control} value={row.coordinates.y} onChange={(event) => patchRow(index, { coordinates: { ...row.coordinates!, y: Number(event.target.value) } })} /></label>
+        </div> : null}
+        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={row.included} onChange={(event) => patchRow(index, { included: event.target.checked })} />{t("include")}</label>
+        {row.media.length ? <div className="space-y-2">{row.media.map((item, mediaIndex) => <div key={item.id} className="flex items-center gap-3 rounded-lg border border-hq-border p-2">
+          <a href={item.fullHref} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{t("openFullImage")} · {t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}</a>
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.reviewed} onChange={(event) => patchRow(index, { media: row.media.map((media, at) => at === mediaIndex ? { ...media, reviewed: event.target.checked } : media) })} />{t("reviewed")}</label>
+        </div>)}</div> : null}
+        {evidenceHref(row) ? <a href={evidenceHref(row)!} target="_blank" rel="noreferrer" className="inline-block text-xs text-hq-accent hover:underline">{tIntel("sourceScreenshots")}</a> : null}
       </fieldset>)}
+        {mediaEdits.length ? <div className="space-y-2">{mediaEdits.map((item, mediaIndex) => <div key={item.id} className="flex items-center gap-3 rounded-lg border border-hq-border p-2">
+          <a href={item.fullHref} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{t("openFullImage")} · {t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}</a>
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.reviewed} onChange={(event) => { dirty.current = true; setMediaEdits((rows) => rows.map((media, at) => at === mediaIndex ? { ...media, reviewed: event.target.checked } : media)); }} />{t("reviewed")}</label>
+        </div>)}</div> : null}
         <div className="flex flex-wrap gap-2"><button className={control} disabled={busy || offset === 0} onClick={() => confirmDiscard(() => void run(() => page(Math.max(0, offset - 50))))}>{t("previous")}</button><button className={control} disabled={busy || offset + 50 >= detail.total} onClick={() => confirmDiscard(() => void run(() => page(offset + 50)))}>{t("next")}</button><button className={control} disabled={busy} onClick={() => confirmDiscard(() => void run(() => load(detail.id, offset, true)))}>{t("reload")}</button></div>
       </div>}
-      <div ref={focusId ? errorAnchor : undefined} className="space-y-3">{errorBox}{canCreate && <div className="flex flex-wrap gap-2">
-        {detail.state === "review" && <><button className={control} disabled={busy || !edits.length} onClick={() => void run(async () => { await api(`/api/notes/imports/${detail.id}`, { ...payload({ expectedVersion: detail.version, edits: edits.map(({ id, sender, sentAt, body, included }) => ({ id, sender, sentAt, body, included })) }), method: "PATCH" }); await load(detail.id, offset, true); })}>{t("reviewPage")}</button><button className={`${control} bg-hq-accent text-white`} disabled={busy || dirty.current || detail.reviewed !== detail.total || !detail.total} onClick={() => void run(() => command("commit"))}>{t("commit")}</button></>}
+      {detail.state === "committed" && <>
+        {transcript}
+        <button className={control} disabled={busy || synthesizing} onClick={() => void run(async () => {
+          setSynthesizing(true);
+          try {
+            const response = await fetchNotes(`/api/officer-intel/sessions/${detail.id}/synthesize`, { method: "POST", signal: lifetime.current.signal });
+            const body = await response.json().catch(() => null);
+            if (!response.ok) throw new ImportError(body?.error ?? tIntel("synthesizeFailed"), response.status);
+            if (body?.noteId) window.location.assign(`/officer-intel/notes/${body.noteId}`);
+          } finally { if (alive.current) setSynthesizing(false); }
+        })}>{synthesizing ? tIntel("synthesizing") : tIntel("synthesizeNotes")}</button>
+      </>}
+      <div ref={focusId ? errorAnchor : undefined} className="space-y-3">{errorBox}{canCreate && owned && <div className="flex flex-wrap gap-2">
+        {detail.state === "review" && <><button className={control} disabled={busy || !edits.length && !mediaEdits.length} onClick={() => void run(async () => { await api(`/api/notes/imports/${detail.id}`, { ...payload({ expectedVersion: detail.version, edits: edits.map(({ id, sender, sentAt, englishText, originalText, included, replyToMessageId, coordinates }) => ({ id, sender, sentAt, englishText, originalText, included, replyToMessageId, coordinates })), mediaReviews: [...edits.flatMap((row) => row.media), ...mediaEdits].map((item) => ({ id: item.id, reviewed: item.reviewed })) }), method: "PATCH" }); await load(detail.id, offset, true); })}>{t("reviewPage")}</button><button className={`${control} bg-hq-accent text-white`} disabled={busy || dirty.current || edits.some((row) => row.included && !row.reviewed) || edits.some((row) => row.media.some((item) => !item.reviewed)) || mediaEdits.some((item) => !item.reviewed) || !edits.some((row) => row.included) && !mediaEdits.some((item) => item.reviewed)} onClick={() => void run(() => command("commit"))}>{t("commit")}</button></>}
         {["failed", "cancelled"].includes(detail.state) && <button className={control} disabled={busy} onClick={() => void run(() => command("retry"))}>{t("retry")}</button>}
         {!["committed", "cancelled"].includes(detail.state) && <button className={control} disabled={busy} onClick={() => confirmDiscard(() => void run(() => command("cancel")))}>{t("cancel")}</button>}
       </div>}</div>

@@ -317,6 +317,17 @@ export async function importOfficerChatSession(input: {
         committedHistory(schema.officerChatSessions.id),
           ),
         );
+      await tx.insert(schema.knowledgeHistoryImports).values({
+        id: input.sessionId,
+        allianceId: input.allianceId,
+        resourceId: session.resourceId,
+        kind: "screenshots",
+        state: "committed",
+        sourceHash: `legacy-officer-intel:${input.sessionId}`,
+        locale: "en-US",
+        audience: "private",
+        updatedAt: now,
+      }).onConflictDoNothing();
     });
   } catch (error) {
     await Promise.allSettled(uploadedStorageKeys.map((key) => deleteObject(key)));

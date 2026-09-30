@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => {
   const imports = { id: "import.id", allianceId: "import.alliance", resourceId: "import.resource", updatedAt: "import.updatedAt" };
@@ -17,7 +18,7 @@ vi.mock("@/lib/db", async () => ({
     };
   },
 }));
-vi.mock("@/lib/notes/resources.server", async (original) => ({ ...await original<typeof import("./resources.server")>(), knowledgeAccessCondition: () => undefined }));
+vi.mock("@/lib/notes/resources.server", async (original) => ({ ...await original<typeof import("./resources.server")>(), knowledgeAccessCondition: () => sql`true` }));
 vi.mock("@/lib/notes/import-storage.server", () => ({ readHistoryObject: async () => Buffer.from("source") }));
 vi.mock("@/lib/storage", () => ({ putObject: mocks.put, deleteObject: mocks.remove }));
 vi.mock("@/lib/storage/r2", () => ({}));
@@ -32,8 +33,8 @@ const timestamp = "2026-09-15T12:00:00.123456Z";
 beforeEach(() => {
   vi.clearAllMocks(); mocks.put.mockResolvedValue(undefined); mocks.remove.mockResolvedValue(undefined);
   mocks.rows = Array.from({ length: 51 }, (_, index) => ({
-    record: { id: `source-${index}`, kind: "text", state: "committed", updatedAt: new Date(timestamp) },
-    title: `Source ${index}`, cursorTime: timestamp,
+    record: { id: `source-${index}`, kind: "text", state: "committed", audience: "private", updatedAt: new Date(timestamp) },
+    title: `Source ${index}`, owned: true, cursorTime: timestamp,
   }));
 });
 it("retains the sealed object when database commit outcome is unknown", async () => {
