@@ -1765,7 +1765,8 @@
       "seasonal": "Sazonal",
       "allianceStar": "THP",
       "memberRosterVideo": "Membros",
-      "bankDepositSlipHistory": "Depósitos"
+      "bankDepositSlipHistory": "Depósitos",
+      "chatLogs": "Logs de chat"
     },
     "hqOcrOnlyScoreTargetLockedHint": "Este tipo de vídeo sempre usa o OCR interno do Alliance HQ."
   },
@@ -7667,8 +7668,14 @@
       "resumeHint": "Escolha novamente os arquivos originais para retomar um envio interrompido. Lotes idênticos retomam a importação existente; arquivos alterados criam uma fonte separada.",
       "processingError": "O processamento foi pausado ou falhou. O progresso foi mantido; você pode tentar novamente após o cancelamento ou o limite de tentativas.",
       "changed": "Esta revisão foi alterada em outro lugar. Suas alterações continuam aqui. Recarregue a revisão antes de salvar novamente.",
-      "kinds": { "text": "Texto simples", "markdown": "Markdown", "discord_json": "JSON do Discord", "screenshots": "Capturas de tela" },
-      "states": { "uploading": "Aguardando envio", "queued": "Na fila", "processing": "Processando", "review": "Pronto para revisão", "committed": "Confirmado", "cancelled": "Cancelado", "failed": "Falha no processamento" }
+      "kinds": { "text": "Texto simples", "markdown": "Markdown", "discord_json": "JSON do Discord", "screenshots": "Capturas de tela", "video": "Vídeo do chat" },
+      "states": { "uploading": "Aguardando envio", "queued": "Na fila", "processing": "Processando", "pending_approval": "Aguardando aprovação do processador", "review": "Pronto para revisão", "committed": "Confirmado", "cancelled": "Cancelado", "failed": "Falha no processamento" },
+      "uploadChatVideo": "Enviar vídeo do chat",
+      "videoExtracting": "Extraindo chat",
+      "videoLimits": "Vídeos do chat podem ter até 2 minutos e {size} MB.",
+      "videoDisclosure": "O HQ envia os quadros de vídeo selecionados à OpenAI para extração de texto e layout multilíngue e envia textos que não estão em inglês ao Google Translate. Revise o resultado antes de salvar.",
+      "videoQuality": "As imagens são salvas na maior qualidade disponível na sua gravação.",
+      "videoRetention": "O vídeo original é excluído sete dias após você confirmar o log do chat."
     },
     "drafts": {
       "private": "Só você pode ver seus rascunhos. Salvar um rascunho não cria tarefas nem atualiza uma nota compartilhada.",

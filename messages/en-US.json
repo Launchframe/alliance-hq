@@ -1777,7 +1777,8 @@
       "seasonal": "Seasonal",
       "allianceStar": "THP",
       "memberRosterVideo": "Members",
-      "bankDepositSlipHistory": "Deposits"
+      "bankDepositSlipHistory": "Deposits",
+      "chatLogs": "Chat logs"
     },
     "hqOcrOnlyScoreTargetLockedHint": "This video type always uses Alliance HQ in-house OCR."
   },
@@ -7686,8 +7687,14 @@
       "resumeHint": "Choose the original files again to resume an interrupted upload. Identical batches resume their existing import; changed files create a separate source.",
       "processingError": "Processing paused or failed. Progress is kept; retry is available after cancellation or the attempt limit.",
       "changed": "This review changed elsewhere. Your edits are still here. Reload the review before saving again.",
-      "kinds": { "text": "Plain text", "markdown": "Markdown", "discord_json": "Discord JSON", "screenshots": "Screenshots" },
-      "states": { "uploading": "Awaiting upload", "queued": "Queued", "processing": "Processing", "review": "Ready for review", "committed": "Committed", "cancelled": "Cancelled", "failed": "Processing failed" }
+      "kinds": { "text": "Plain text", "markdown": "Markdown", "discord_json": "Discord JSON", "screenshots": "Screenshots", "video": "Chat video" },
+      "states": { "uploading": "Awaiting upload", "queued": "Queued", "processing": "Processing", "pending_approval": "Waiting for processor approval", "review": "Ready for review", "committed": "Committed", "cancelled": "Cancelled", "failed": "Processing failed" },
+      "uploadChatVideo": "Upload chat video",
+      "videoExtracting": "Extracting chat",
+      "videoLimits": "Chat videos can be up to 2 minutes and {size} MB.",
+      "videoDisclosure": "HQ sends selected video frames to OpenAI for multilingual text and layout extraction and sends non-English text to Google Translate. Review the result before saving.",
+      "videoQuality": "Images are saved at the highest quality available in your recording.",
+      "videoRetention": "The original video is deleted seven days after you commit the chat log."
     },
     "drafts": {
       "private": "Drafts are visible only to you. Saving a draft does not create tasks or update a shared note.",

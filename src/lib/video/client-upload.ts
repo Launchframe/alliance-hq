@@ -1,3 +1,5 @@
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
+
 export type UploadConfig = {
   mode: "r2" | "direct";
   maxUploadBytes: number;
@@ -49,6 +51,7 @@ export async function uploadVideoFile(options: {
   boardKey?: string;
   hqEventId?: string;
   bankId?: string | null;
+  knowledgeImportId?: string;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
@@ -57,6 +60,13 @@ export async function uploadVideoFile(options: {
   const { file, scoreTarget, boardKey, uploadConfig, onProgress, onJobCreated } =
     options;
 
+  if (options.knowledgeImportId && !isOfficerChatVideoTarget(scoreTarget)) {
+    throw new Error("knowledgeImportId is only valid for chat video uploads");
+  }
+  if (isOfficerChatVideoTarget(scoreTarget) && !options.knowledgeImportId) {
+    throw new Error("knowledgeImportId is required for chat video uploads");
+  }
+
   if (uploadConfig.mode === "direct") {
     const formData = new FormData();
     formData.set("video", file);
@@ -64,9 +74,15 @@ export async function uploadVideoFile(options: {
     if (boardKey) formData.set("boardKey", boardKey);
     if (options.hqEventId) formData.set("hqEventId", options.hqEventId);
     if (options.bankId) formData.set("bankId", options.bankId);
+    if (options.knowledgeImportId) {
+      formData.set("knowledgeImportId", options.knowledgeImportId);
+    }
 
+    const marker = isOfficerChatVideoTarget(scoreTarget)
+      ? `?${new URLSearchParams({ scoreTarget, knowledgeImportId: options.knowledgeImportId! })}`
+      : "";
     onProgress?.(0, file.size);
-    const res = await fetch("/api/tools/video-upload", {
+    const res = await fetch(`/api/tools/video-upload${marker}`, {
       method: "POST",
       body: formData,
     });
@@ -96,6 +112,7 @@ export async function uploadVideoFile(options: {
       boardKey: boardKey ?? null,
       hqEventId: options.hqEventId ?? null,
       bankId: options.bankId ?? null,
+      knowledgeImportId: options.knowledgeImportId ?? null,
     }),
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };

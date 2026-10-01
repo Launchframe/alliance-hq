@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
@@ -14,6 +14,7 @@ import {
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
 import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -118,6 +119,18 @@ export async function PATCH(_request: Request, { params }: Props) {
       { error: "Job cannot be discarded in its current state." },
       { status: 409 },
     );
+  }
+
+  if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category) && job.knowledgeImportId) {
+    await db
+      .update(schema.knowledgeHistoryImports)
+      .set({ state: "cancelled", updatedAt: endedAt })
+      .where(
+        and(
+          eq(schema.knowledgeHistoryImports.id, job.knowledgeImportId),
+          inArray(schema.knowledgeHistoryImports.state, ["uploading", "pending_approval", "processing", "review", "failed"]),
+        ),
+      );
   }
 
   await emitVideoJobStatus({

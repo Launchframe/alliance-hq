@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
@@ -9,6 +9,7 @@ import { deleteObject } from "@/lib/storage";
 import { requireApiSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -91,6 +92,18 @@ export async function POST(request: Request, { params }: Props) {
         { error: "Only pending jobs can be rejected." },
         { status: 409 },
       );
+    }
+
+    if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category) && job.knowledgeImportId) {
+      await db
+        .update(schema.knowledgeHistoryImports)
+        .set({ state: "cancelled", updatedAt: now })
+        .where(
+          and(
+            eq(schema.knowledgeHistoryImports.id, job.knowledgeImportId),
+            inArray(schema.knowledgeHistoryImports.state, ["uploading", "pending_approval", "processing", "review", "failed"]),
+          ),
+        );
     }
 
     await writeAuditLog({

@@ -1,4 +1,5 @@
 import { getScoreTarget } from "@/lib/video/score-targets";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 import { isInFlightProcessingStatus } from "@/lib/video/video-lifecycle.shared";
 
 /** i18n key under `videoQueue.targets` for a compact queue target label. */
@@ -6,6 +7,7 @@ export function videoQueueTargetLabelKey(
   scoreTarget: string | null | undefined,
 ): string | null {
   if (!scoreTarget) return null;
+  if (isOfficerChatVideoTarget(scoreTarget)) return "chatLogs";
   return getScoreTarget(scoreTarget)?.labelKey ?? null;
 }
 

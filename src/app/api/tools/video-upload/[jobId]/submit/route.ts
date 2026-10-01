@@ -57,6 +57,7 @@ import {
   isMemberRosterVideoTarget,
   usesHqEventStore,
 } from "@/lib/video/score-targets";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import {
   normalizeFrontlineScore,
@@ -312,6 +313,9 @@ export async function POST(request: Request, { params }: Props) {
     };
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    if (isOfficerChatVideoTarget(scoreTargetId)) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     const target = getScoreTargetOrThrow(scoreTargetId);
     const isFrontlineTarget = isFrontlineBreakthroughVideoTarget(scoreTargetId);
     const automaticDeletedIds: string[] = [];

@@ -8,6 +8,8 @@ import { workspaceOffset } from "@/lib/notes/workspace.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryAudience, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryMessageMediaDto, type HistoryReviewRow } from "@/lib/notes/imports.shared";
 
+const VISIBLE_IMPORT_KINDS = HISTORY_IMPORT_KINDS.filter((value) => value !== "video");
+
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
 function utcDatetimeLocal(iso: string | null) {
@@ -246,7 +248,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="chat-log-audience" checked={audience === "private"} onChange={() => setAudience("private")} className="accent-hq-accent" />{t("audiencePrivate")}</label>
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="chat-log-audience" checked={audience === "officers_read"} onChange={() => setAudience("officers_read")} className="accent-hq-accent" />{t("audienceOfficers")}</label>
         </fieldset>
-        <label className="flex flex-col gap-1 text-sm">{t("format")}<select aria-label={t("format")} value={kind} onChange={(event) => { setKind(event.target.value as HistoryImportKind); setFiles([]); }} className={control}>{HISTORY_IMPORT_KINDS.map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
+        <label className="flex flex-col gap-1 text-sm">{t("format")}<select aria-label={t("format")} value={kind} onChange={(event) => { setKind(event.target.value as HistoryImportKind); setFiles([]); }} className={control}>{VISIBLE_IMPORT_KINDS.map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
         {kind === "discord_json" && <p className="text-xs text-hq-fg-muted">{t("jsonHint")}</p>}
         {kind !== "screenshots" && <label className="flex flex-col gap-1 text-sm">{t("paste")}<textarea aria-label={t("paste")} data-no-enter-submit rows={5} maxLength={HISTORY_TEXT_BYTES} value={paste} onChange={(event) => setPaste(event.target.value)} className={control} /></label>}
         <label className="flex flex-col gap-1 text-sm">{kind === "screenshots" ? t("uploadScreenshots") : t("files")}<input key={kind} type="file" multiple={kind === "screenshots"} accept={kind === "screenshots" ? "image/png,image/jpeg,image/webp" : kind === "discord_json" ? ".json" : kind === "markdown" ? ".md,.markdown" : ".txt"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
