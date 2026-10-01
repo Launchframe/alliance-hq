@@ -1,8 +1,14 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { ActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  captureActivityContext,
+  type ActivityIdentity,
+} from "@/lib/activity/identity.server";
+import { appendActivityEvent, withActivityTransaction } from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 import { breakdownsEqual } from "@/lib/thp/breakdown.shared";
 import type { ThpEventSource } from "@/lib/thp/constants";
@@ -12,6 +18,19 @@ import { parseStoredThpPending } from "@/lib/thp/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
+
+export type ThpSubmissionActivity = {
+  identity: Exclude<ActivityIdentity, { kind: "automation" }>;
+  method: "manual" | "screenshot";
+  pending?: { expected: ThpPendingState; required: boolean };
+};
+
+export class ThpPendingChangedError extends Error {
+  constructor() {
+    super("thp_pending_changed");
+    this.name = "ThpPendingChangedError";
+  }
+}
 
 function ashedSyncedAtForSource(source: ThpEventSource): Date | null {
   if (source === "ashed_sync" || source === "officer_override") {
@@ -123,46 +142,143 @@ export async function upsertCommanderThp(input: {
   source: ThpEventSource;
   hqUserId?: string | null;
   discordUserId?: string | null;
+  activity?: ThpSubmissionActivity;
 }): Promise<boolean> {
-  const db = getDb();
-  const now = new Date();
-  const current = await getCommanderThpState(input.commanderId);
-  const previousTotal = current?.currentTotalHeroPower ?? null;
-  const previousBreakdown = (current?.currentThpBreakdown as ThpBreakdown | null) ?? null;
-  const breakdown = input.breakdown ?? null;
+  return withActivityTransaction(async (db) => {
+    const activityInput = input.activity;
+    const activity = activityInput
+      ? await captureActivityContext(db, {
+          eventKey: "thp.submitted",
+          identity: activityInput.identity,
+          alliance: input.allianceId
+            ? { kind: "hq", id: input.allianceId }
+            : null,
+          actingMemberId: input.ashedMemberId,
+          method: activityInput.method,
+        })
+      : null;
+    if (
+      activity &&
+      activityInput &&
+      (!input.allianceId ||
+        !input.ashedMemberId ||
+        activity.actor.commanderId !== input.commanderId ||
+        (activityInput.identity.kind === "web" &&
+          (input.hqUserId !== activity.actor.hqUserId ||
+            activityInput.identity.principal.currentAllianceId !==
+              input.allianceId)) ||
+        (activityInput.identity.kind === "discord" &&
+          input.discordUserId !== activity.actor.discordUserId))
+    ) {
+      throw new ActivityWriteError({
+        eventKey: "thp.submitted",
+        failureCategory: "validation",
+      });
+    }
 
-  const totalChanged = previousTotal !== input.total;
-  const breakdownChanged = !breakdownsEqual(previousBreakdown, breakdown);
-  if (!totalChanged && !breakdownChanged) {
-    return false;
-  }
+    if (activityInput?.pending) {
+      const expectedJson = JSON.stringify(activityInput.pending.expected);
+      const consumed =
+        activityInput.identity.kind === "web"
+          ? await db
+              .delete(schema.hqThpPending)
+              .where(
+                and(
+                  eq(schema.hqThpPending.allianceId, input.allianceId!),
+                  eq(schema.hqThpPending.hqUserId, input.hqUserId!),
+                  gt(schema.hqThpPending.expiresAt, new Date()),
+                  sql`${schema.hqThpPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning()
+          : await db
+              .delete(schema.discordBotPending)
+              .where(
+                and(
+                  eq(
+                    schema.discordBotPending.discordUserId,
+                    input.discordUserId!,
+                  ),
+                  eq(schema.discordBotPending.allianceId, input.allianceId!),
+                  gt(schema.discordBotPending.expiresAt, new Date()),
+                  sql`${schema.discordBotPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning();
+      if (consumed.length === 0 && activityInput.pending.required) {
+        throw new ThpPendingChangedError();
+      }
+    }
 
-  await db.insert(schema.commanderThpEvents).values({
-    id: nanoid(),
-    commanderId: input.commanderId,
-    total: input.total,
-    breakdown,
-    previousTotal,
-    source: input.source,
-    allianceId: input.allianceId ?? null,
-    reportedByHqUserId: input.hqUserId ?? null,
-    reportedByDiscordUserId: input.discordUserId ?? null,
-    ashedSyncedAt: ashedSyncedAtForSource(input.source),
-    discardedAt: null,
-    createdAt: now,
+    const now = new Date();
+    const [current] = await db
+      .select({
+        currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+        currentThpBreakdown: schema.commanders.currentThpBreakdown,
+        thpUpdatedAt: schema.commanders.thpUpdatedAt,
+        primaryName: schema.commanders.primaryName,
+      })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, input.commanderId))
+      .limit(1)
+      .for("update");
+    if (!current) {
+      throw new Error("commander_not_found");
+    }
+    const previousTotal = current.currentTotalHeroPower;
+    const previousBreakdown =
+      (current.currentThpBreakdown as ThpBreakdown | null) ?? null;
+    const breakdown = input.breakdown ?? null;
+
+    const totalChanged = previousTotal !== input.total;
+    const breakdownChanged = !breakdownsEqual(previousBreakdown, breakdown);
+    if (!totalChanged && !breakdownChanged) {
+      return false;
+    }
+
+    const historyId = nanoid();
+    await db.insert(schema.commanderThpEvents).values({
+      id: historyId,
+      commanderId: input.commanderId,
+      total: input.total,
+      breakdown,
+      previousTotal,
+      source: input.source,
+      allianceId: input.allianceId ?? null,
+      reportedByHqUserId: input.hqUserId ?? null,
+      reportedByDiscordUserId: input.discordUserId ?? null,
+      ashedSyncedAt: ashedSyncedAtForSource(input.source),
+      discardedAt: null,
+      createdAt: now,
+    });
+
+    await db
+      .update(schema.commanders)
+      .set({
+        currentTotalHeroPower: input.total,
+        currentThpBreakdown: breakdown,
+        thpUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.commanders.id, input.commanderId));
+
+    if (activity) {
+      await appendActivityEvent(db, {
+        ...activity,
+        eventKey: "thp.submitted",
+        occurredAt: now,
+        source: { namespace: "commander-thp-events", key: historyId },
+        severity: "update",
+        payload: {
+          value: String(input.total),
+          previousValue:
+            previousTotal === null ? null : String(previousTotal),
+        },
+      });
+    }
+
+    return true;
   });
-
-  await db
-    .update(schema.commanders)
-    .set({
-      currentTotalHeroPower: input.total,
-      currentThpBreakdown: breakdown,
-      thpUpdatedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(schema.commanders.id, input.commanderId));
-
-  return true;
 }
 
 export async function getHqThpPending(
