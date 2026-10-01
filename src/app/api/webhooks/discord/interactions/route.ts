@@ -55,7 +55,7 @@ import {
   type DiscordInteractionPayload,
 } from "@/lib/discord/interactions";
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import {
   recordMemberLinkHelpRequest,
   resolveDiscordHelpContext,

@@ -41,7 +41,7 @@ import {
   buildLastRankRosterDiff,
   type LastRankRosterDiff,
 } from "@/lib/lastrank/roster-diff.shared";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { appendCommanderPowerLevelEventIfChanged } from "@/lib/members/member-stat-history.server";
 import { upsertCommanderThp } from "@/lib/thp/repository";

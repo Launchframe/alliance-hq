@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, notInArray, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { failStaleInFlightVideoJobs } from "@/lib/video/fail-stale-in-flight-video-jobs.server";
 import { dispatchVideoJobRemote } from "@/lib/video/video-process-dispatch.server";
+import { dispatchVsVideoEvidence } from "@/lib/vs-performance/video-evidence-dispatch.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,6 +43,53 @@ export async function GET(request: Request) {
   // stuck extracting/parsing jobs become failed (SSE + requeueable).
   const stale = await failStaleInFlightVideoJobs();
 
+  let vsEvidenceDispatched = 0;
+  try {
+    const db = getDb();
+    const now = new Date();
+    const pending = await db
+      .select({ jobId: schema.videoVsEvidence.jobId })
+      .from(schema.videoVsEvidence)
+      .innerJoin(
+        schema.videoJobs,
+        eq(schema.videoJobs.id, schema.videoVsEvidence.jobId),
+      )
+      .where(
+        and(
+          isNotNull(schema.videoVsEvidence.storageKey),
+          isNotNull(schema.videoVsEvidence.imageSha256),
+          notInArray(schema.videoJobs.status, [
+            "pending_upload",
+            "pending_approval",
+            "discarded",
+          ]),
+          or(
+            isNotNull(schema.videoJobs.approvedAt),
+            and(
+              isNotNull(schema.videoJobs.parseSessionId),
+              inArray(schema.videoJobs.status, ["review", "complete"]),
+            ),
+          ),
+          or(
+            eq(schema.videoVsEvidence.status, "queued"),
+            and(
+              eq(schema.videoVsEvidence.status, "running"),
+              lt(schema.videoVsEvidence.leaseExpiresAt, now),
+            ),
+          ),
+        ),
+      )
+      .orderBy(asc(schema.videoVsEvidence.updatedAt), asc(schema.videoVsEvidence.scopeKey))
+      .limit(10);
+    for (const row of pending) {
+      try {
+        if (await dispatchVsVideoEvidence(row.jobId)) vsEvidenceDispatched += 1;
+      } catch {
+      }
+    }
+  } catch {
+  }
+
   const db = getDb();
   const [job] = await db
     .select({
@@ -62,6 +110,7 @@ export async function GET(request: Request) {
       reason: "idle",
       staleFailed: stale.failedJobIds.length,
       staleFailedJobIds: stale.failedJobIds,
+      vsEvidenceDispatched,
     });
   }
 
@@ -81,6 +130,7 @@ export async function GET(request: Request) {
       ...(result.error ? { error: result.error } : {}),
       staleFailed: stale.failedJobIds.length,
       staleFailedJobIds: stale.failedJobIds,
+      vsEvidenceDispatched,
     },
     { status: result.httpStatus },
   );
