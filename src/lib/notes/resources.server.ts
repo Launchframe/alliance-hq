@@ -86,6 +86,16 @@ export async function createKnowledgeResource(tx: KnowledgeTransaction, actor: K
   return id;
 }
 
+export async function grantOfficersReadAccess(tx: KnowledgeTransaction, actor: KnowledgeActor, resourceId: string) {
+  const [note] = await tx.select({ id: schema.knowledgeResources.id }).from(schema.knowledgeResources)
+    .where(and(eq(schema.knowledgeResources.id, resourceId), eq(schema.knowledgeResources.allianceId, actor.allianceId)));
+  if (!note) throw new KnowledgeAccessError("invalid");
+  await tx.insert(schema.knowledgeResourceGrants).values({
+    id: nanoid(), resourceId, allianceId: actor.allianceId, subjectKind: "officers", subjectId: actor.allianceId, role: "read", createdByHqUserId: actor.hqUserId,
+  }).onConflictDoNothing({ target: [schema.knowledgeResourceGrants.resourceId, schema.knowledgeResourceGrants.subjectKind, schema.knowledgeResourceGrants.subjectId] });
+  await tx.update(schema.knowledgeResources).set({ accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1` }).where(eq(schema.knowledgeResources.id, resourceId));
+}
+
 export async function lockKnowledgeResource(tx: KnowledgeTransaction, actor: KnowledgeActor, resourceId: string, access: KnowledgeAccess = "edit") {
   await recheckKnowledgeActor(tx, actor);
   const [resource] = await tx.select().from(schema.knowledgeResources)

@@ -96,6 +96,14 @@ test("member card note actions create audience-scoped drafts and view notes appl
   const notes = await (await request.get("/api/notes", { headers: officerHeaders })).json();
   expect(notes.notes).toHaveLength(1);
   expect(notes.notes[0].members.map((member: { ashedMemberId: string }) => member.ashedMemberId)).toEqual([memberId]);
+  const [grant] = await f.sql`
+    SELECT kg.role, kr.access_version
+    FROM knowledge_resource_grants kg
+    JOIN knowledge_resources kr ON kr.id = kg.resource_id AND kr.alliance_id = kg.alliance_id
+    WHERE kg.alliance_id = ${f.allianceId} AND kg.subject_kind = 'officers' AND kg.role = 'read'
+  `;
+  expect(grant).toMatchObject({ role: "read" });
+  expect(Number(grant.access_version)).toBeGreaterThan(1);
 
   await page.goto("/notes?view=teams");
   const other = page.locator(`[data-support-member="${f.members[1].ashedMemberId}"]`);
