@@ -57,6 +57,7 @@ vi.mock("@/lib/crypto/encrypt", () => ({
 import { schema } from "@/lib/db";
 import {
   fetchAshedOpponentMeta,
+  findAshedWeekRecord,
   resolveVsOpponentSyncContext,
   resolveVsScoreReadContext,
   vsAshedSyncEligibility,
@@ -315,6 +316,25 @@ describe("fetchAshedOpponentMeta", () => {
     await expect(
       fetchAshedOpponentMeta({ ...context, deadline: Date.now() - 1 }),
     ).rejects.toMatchObject({ code: "failed" });
+  });
+
+  it('finds the requested week when an older week has an empty score array', async () => {
+    vi.stubGlobal('fetch', async () => jsonResponse(200, [
+      metaRow({ id: 'legacy-empty', competition_date: '2026-08-17', opponent_server: null, opponent_tag: null, opponent_name: null, opponent_daily_scores: [], outcome: 'pending', updated_date: '2026-09-23T22:16:07.444000' }),
+      metaRow(),
+    ]));
+    await expect(findAshedWeekRecord(context, '2026-09-28')).resolves.toMatchObject({ remoteId: 'meta-1', weekStart: '2026-09-28', opponentDailyScores: ['1', '2', '3', '4', '5', '6'], compatibilityScore: '0' });
+    const rows = await fetchAshedOpponentMeta(context);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].opponentDailyScores).toEqual([null, null, null, null, null, null]);
+    expect(rows[0].compatibilityScore).toBeNull();
+  });
+  it('still rejects malformed nonempty historical score arrays', async () => {
+    vi.stubGlobal('fetch', async () => jsonResponse(200, [
+      metaRow({ id: 'legacy-malformed', competition_date: '2026-08-17', opponent_daily_scores: [1, 2, 3, 4, 5] }),
+      metaRow(),
+    ]));
+    await expect(findAshedWeekRecord(context, '2026-09-28')).rejects.toMatchObject({ code: 'invalid_snapshot' });
   });
 });
 

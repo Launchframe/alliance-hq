@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildVsCaptureCommit,
   mergeVsCaptureResults,
+  parseVsCaptureLines,
   type VsCaptureCommit,
 } from "./vs-capture.shared";
 import type { VsDayResult } from "./match-results.shared";
@@ -237,5 +238,34 @@ describe("mergeVsCaptureResults", () => {
     const capture = outcomeCommit(["unknown", "unknown", "unknown", "unknown", "unknown", "unknown"], null, null);
     const merged = mergeVsCaptureResults(capture, existing, TODAY);
     expect(merged.days.find((d) => d.recordedDate === "2026-09-22")).toBeUndefined();
+  });
+});
+
+describe("parseVsCaptureLines identity boundaries", () => {
+  it("keeps weekly identity separate from winner-column tags",()=>{
+    const candidate=parseVsCaptureLines({kind:"weekly_overview",imageWidth:1000,fields:{leftPoints:["3"],rightPoints:["0"]},lines:[
+    {text:"#1203 [LFgo]",bbox:{x0:10,y0:100,x1:200,y1:120}},
+    {text:"Live Free Die Hard",bbox:{x0:10,y0:125,x1:220,y1:145}},
+    {text:"#1236 [TriV]",bbox:{x0:750,y0:100,x1:990,y1:120}},
+    {text:"Trinity Vanguard",bbox:{x0:730,y0:125,x1:990,y1:145}},
+    {text:"Day 1",bbox:{x0:10,y0:200,x1:90,y1:220}},
+    {text:"[LFgo]",bbox:{x0:900,y0:200,x1:990,y1:220}},
+    {text:"Day 2",bbox:{x0:10,y0:230,x1:90,y1:250}},
+    {text:"[LFgo]",bbox:{x0:900,y0:230,x1:990,y1:250}},
+    ]});
+    expect(candidate.left).toEqual({server:1203,tag:"LFgo",name:"Live Free Die Hard"});
+    expect(candidate.right).toEqual({server:1236,tag:"TriV",name:"Trinity Vanguard"});
+    expect(candidate.dayResults.map(day=>day.winner)).toEqual(["left","left","unknown","unknown","unknown","unknown"]);
+  });
+  it("does not promote daily score text into an alliance name",()=>{
+    const candidate=parseVsCaptureLines({kind:"daily_totals",imageWidth:1000,fields:{leftTag:["[LFgo]"],rightTag:["[TriV]"],leftScore:["2,241,713,380"],rightScore:["2,222,858,900"]},lines:[
+    {text:"Day 2",bbox:{x0:420,y0:20,x1:580,y1:40}},
+    {text:"[LFgo] Victory",bbox:{x0:10,y0:50,x1:300,y1:70}},
+    {text:"Defeat [TriV]",bbox:{x0:600,y0:50,x1:990,y1:70}},
+    {text:"2,241,713,380",bbox:{x0:10,y0:75,x1:300,y1:95}},
+    {text:"2,222,858,900",bbox:{x0:600,y0:75,x1:990,y1:95}},
+    ]});
+    expect(candidate.left.name).toBeNull(); expect(candidate.right.name).toBeNull();
+    expect(candidate.leftScore).toBe("2241713380"); expect(candidate.rightScore).toBe("2222858900");
   });
 });
