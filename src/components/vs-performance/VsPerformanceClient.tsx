@@ -363,7 +363,7 @@ export function VsPerformanceClient({
       ) : null}
 
       {tab === "ashed" ? (
-        <div className="h-[min(70vh,720px)]">
+        <div className="overflow-hidden rounded-xl border border-hq-border">
           <AshedEmbedPane path="/vsperformance" title={tNav("vsPerformance")} />
         </div>
       ) : (
