@@ -167,7 +167,7 @@ test.describe("Video process preview", () => {
     await page.context().addCookies(playwrightAuthCookies(scenario.processor));
     await page.goto("/tools/video-upload");
 
-    const group = page.getByTestId("video-awaiting-approval-uploads");
+    const group = page.getByTestId("video-awaiting-approval-uploads").locator("visible=true");
     await expect(group).toBeVisible();
     await expect(
       group.getByRole("heading", { name: /Awaiting approval/i }),
