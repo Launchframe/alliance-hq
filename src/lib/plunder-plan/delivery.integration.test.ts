@@ -82,6 +82,9 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Plunder Plan delivery
     const [row] = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
     expect(row.status).toBe("uncertain");
     expect(transport.send.mock.calls.filter(([input]) => input.target.discordUserId === f.discordUserId)).toHaveLength(1);
+    await materializePlunderDeliveries(f.allianceId);
+    const [again] = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(again.status).toBe("uncertain");
   });
   it("gates channel settings and does not deliver after a guild rebind", async () => {
     const f = await fixture();
@@ -93,5 +96,32 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Plunder Plan delivery
     const rows = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId} AND kind = 'digest'`;
     expect(rows).toHaveLength(1); expect(rows[0].status).toBe("cancelled");
     await expect(mutatePlunderPlan(f.actor, { action: "notifications", guildId: f.guildId, channelId: snowflake(), timeSt: "00:00", locale: "en-US", enabled: true, expectedVersion: 1, requestId: randomUUID() })).rejects.toMatchObject({ code: "forbidden" });
+    const nextDiscord = snowflake();
+    const { ashedMemberId } = await createAllianceRosterMember(f.sql, { allianceId: other, currentName: "Next Officer", allianceRank: 4 });
+    const uid = snowflake();
+    await f.sql`INSERT INTO discord_member_links (id, alliance_id, discord_user_id, ashed_member_id, game_uid) VALUES (${randomUUID()}, ${other}, ${nextDiscord}, ${ashedMemberId}, ${uid})`;
+    await f.sql`INSERT INTO member_alliance_tenure (id, alliance_id, ashed_member_id, game_uid) VALUES (${randomUUID()}, ${other}, ${ashedMemberId}, ${uid})`;
+    const nextActor: PlanActor = { kind: "discord", allianceId: other, guildId: f.guildId, discordUserId: nextDiscord };
+    await mutatePlunderPlan(nextActor, { action: "notifications", guildId: f.guildId, channelId: snowflake(), timeSt: "09:15:00", locale: "en-US", enabled: true, expectedVersion: 1, requestId: randomUUID() });
+    const [setting] = await f.sql`SELECT alliance_id, time_st FROM plunder_plan_digest_settings WHERE guild_id = ${f.guildId}`;
+    expect(setting.alliance_id).toBe(other);
+    expect(setting.time_st).toBe("09:15");
+  });
+  it("revives cancelled deliveries when the occurrence is eligible again", async () => {
+    const f = await fixture();
+    await materializePlunderDeliveries(f.allianceId);
+    const timeOffId = randomUUID();
+    await f.sql`INSERT INTO member_time_off (id, alliance_id, ashed_member_id, member_name, start_date, end_date, source, global_absence) VALUES (${timeOffId}, ${f.allianceId}, ${f.memberId}, 'Friend', ${planClock(f.start, "Etc/GMT+2").date}, ${planClock(f.start, "Etc/GMT+2").date}, 'web', true)`;
+    await deliverPlunderPlans(20, f.allianceId);
+    const [cancelled] = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(cancelled.status).toBe("cancelled");
+    await f.sql`UPDATE member_time_off SET cancelled_at = now() WHERE id = ${timeOffId}`;
+    await materializePlunderDeliveries(f.allianceId);
+    const [revived] = await f.sql`SELECT status, attempts FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(revived.status).toBe("pending");
+    expect(revived.attempts).toBe(0);
+    await deliverPlunderPlans(20, f.allianceId);
+    const [sent] = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(sent.status).toBe("sent");
   });
 });

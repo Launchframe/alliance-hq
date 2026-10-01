@@ -15,6 +15,8 @@ export type CommanderIndexRow = {
   hqLinked: boolean;
   /** Discord OAuth is on a different HQ account than this member's commander link. */
   oauthIdentitySplit: boolean;
+  /** ISO-ish country from LastRank, when synced. */
+  country: string | null;
 };
 
 export type CommanderIndexHqLinkFilter = "all" | "linked" | "not_linked";
