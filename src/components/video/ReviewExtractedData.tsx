@@ -129,6 +129,14 @@ import {
 } from "@/lib/video/dedupe/merge-report.shared";
 import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
+import { useVsVideoEvidence } from "@/components/video/useVsVideoEvidence";
+import { VsVideoEvidencePanel } from "@/components/video/VsVideoEvidencePanel";
+import { VsVideoTotalsComparison } from "@/components/video/VsVideoTotalsComparison";
+import type {
+  VsVideoContext,
+  VsVideoEvidenceResponse,
+  VsVideoMatchSubmission,
+} from "@/lib/vs-performance/video-evidence.shared";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
 import { ReviewIssueNav } from "@/components/video/ReviewIssueNav";
@@ -530,9 +538,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [withholdEscapeMs, setWithholdEscapeMs] = useState(
     VS_SHADOW_WITHHOLD_DEFAULT_MS,
   );
-  const shadowWithholdEscapedByJobRef = useRef<Map<string, boolean>>(new Map());
-  const [shadowWithholdEscapeVersion, bumpShadowWithholdEscapeVersion] =
-    useState(0);
+  const [shadowWithholdEscapedByJob, setShadowWithholdEscapedByJob] = useState<
+    ReadonlyMap<string, boolean>
+  >(new Map());
   const withholdStartByJobRef = useRef<Map<string, number>>(new Map());
   const [rosterMembers, setRosterMembers] = useState<AshedMember[]>([]);
   const [allianceTag, setAllianceTag] = useState<string | null>(null);
@@ -672,9 +680,85 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
   }, [draftSavedAt, locale]);
 
+  const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
+
+  const vsSafeRecordedDate = useMemo(() => {
+    if (!isVsPerformanceTarget) return recordedDate;
+    return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
+  }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
+
+  const vsEvidenceController = useVsVideoEvidence({
+    jobId,
+    enabled: isVsPerformanceTarget === true,
+    context: { recordedDate: vsSafeRecordedDate, period: vsPeriod },
+    jobStatus,
+    locale,
+    submitting,
+    onMatchSaved: () => {
+      if (viewMode !== "review") return;
+      if (holdEventRedirectTimeoutRef.current != null) {
+        window.clearTimeout(holdEventRedirectTimeoutRef.current);
+      }
+      setHoldEventRedirect(true);
+      holdEventRedirectTimeoutRef.current = window.setTimeout(() => {
+        holdEventRedirectTimeoutRef.current = null;
+        setHoldEventRedirect(false);
+      }, 1500);
+    },
+  });
+  const {
+    captureEpoch: captureVsEvidenceEpoch,
+    ingest: ingestVsEvidence,
+    loaded: vsEvidenceLoaded,
+    dirty: vsEvidenceDirty,
+    hasUnappliedEvidence: vsHasUnappliedEvidence,
+    contextMatches: vsContextMatches,
+  } = vsEvidenceController;
+  const [pendingVsContext, setPendingVsContext] =
+    useState<VsVideoContext | null>(null);
+  const tEvidence = useTranslations("vsPerformance.videoEvidence");
+  const tVp = useTranslations("vsPerformance");
+
+  function requestVsContextChange(next: VsVideoContext) {
+    const evidence = vsEvidenceController.state?.evidence;
+    const hasEvidenceWork =
+      evidence != null &&
+      (evidence.fileName != null || evidence.draft != null);
+    if (hasEvidenceWork) {
+      setPendingVsContext(next);
+      return;
+    }
+    void applyVsContext(next);
+  }
+
+  async function applyVsContext(next: VsVideoContext) {
+    const ok = await vsEvidenceController.changeContext(next);
+    if (!ok) return;
+    markDraftDirty();
+    setVsPeriod(next.period);
+    setRecordedDate(
+      coerceVsPerformanceRecordedDate(next.recordedDate, next.period),
+    );
+    setError(null);
+    setErrorConnectUrl(null);
+  }
+
+  function confirmVsContextChange() {
+    const next = pendingVsContext;
+    setPendingVsContext(null);
+    if (!next) return;
+    void applyVsContext(next);
+  }
+
   useEffect(() => {
     if (jobStatus === "loading") return;
     if (holdEventRedirect) return;
+    if (
+      isVsPerformanceTarget &&
+      (!vsEvidenceLoaded || vsHasUnappliedEvidence || vsEvidenceDirty)
+    ) {
+      return;
+    }
     const search = window.location.search;
     if (viewMode === "review" && jobStatus === "complete") {
       if (postSubmitReturnTo) {
@@ -698,6 +782,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     postSubmitReturnTo,
     router,
     viewMode,
+    isVsPerformanceTarget,
+    vsEvidenceLoaded,
+    vsHasUnappliedEvidence,
+    vsEvidenceDirty,
   ]);
 
   useEffect(() => {
@@ -709,18 +797,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     };
   }, []);
 
-  const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
   const isFrontlineTarget =
     scoreTargetMeta?.id != null &&
     isFrontlineBreakthroughVideoTarget(scoreTargetMeta.id);
   const isAllianceKillsTarget =
     scoreTargetMeta?.id != null &&
     isAllianceKillsVideoTarget(scoreTargetMeta.id);
-
-  const vsSafeRecordedDate = useMemo(() => {
-    if (!isVsPerformanceTarget) return recordedDate;
-    return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
-  }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
 
   const isWeeklyVsUpload = useMemo(
     () => isVsPerformanceTarget && vsPeriod === "weekly",
@@ -771,6 +853,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     });
   }, [isVsPerformanceTarget, vsSafeRecordedDate, vsPeriod, t]);
 
+  function clearActionError() {
+    setError(null);
+    setErrorConnectUrl(null);
+  }
+
+  function setActionError(message: string, connectUrl?: string) {
+    setError(message);
+    setErrorConnectUrl(connectUrl ?? null);
+  }
+
   const rematchMembers = useCallback(async () => {
     setRematching(true);
     clearActionError();
@@ -813,6 +905,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const load = useCallback(
     async (options?: { skipRematch?: boolean }) => {
       const generation = ++loadGenerationRef.current;
+      const evidenceEpoch = captureVsEvidenceEpoch();
       const isStale = () => generation !== loadGenerationRef.current;
 
       try {
@@ -877,6 +970,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             offerRename?: boolean;
           };
           expectedRowCount?: number | null;
+          vsEvidence?: VsVideoEvidenceResponse | null;
           shadowPassInFlight?: boolean;
           devShadowUx?: {
             forceInadequate?: boolean;
@@ -1050,11 +1144,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             // VS dates are game-server calendar, not account-local "today"
             // (Sat night officer-local can already be Sunday ST).
             const storedPeriod = data.job?.vsPeriod === "weekly" ? "weekly" : "daily";
-            setVsPeriod(storedPeriod);
-            setVsRevision(
-              typeof data.job?.vsRevision === "number" ? data.job.vsRevision : 0,
-            );
-            setRecordedDate(data.job?.recordedDate ? coerceVsPerformanceRecordedDate(data.job.recordedDate, storedPeriod) : defaultVsPerformanceRecordedDate(storedPeriod));
+            const revision =
+              typeof data.job?.vsRevision === "number" ? data.job.vsRevision : 0;
+            const evidenceContext =
+              data.vsEvidence &&
+              (revision === 0 || data.vsEvidence.evidence.draft != null)
+                ? {
+                    recordedDate: data.vsEvidence.evidence.recordedDate,
+                    period: data.vsEvidence.evidence.period,
+                  }
+                : null;
+            const effectivePeriod = evidenceContext?.period ?? storedPeriod;
+            setVsPeriod(effectivePeriod);
+            setVsRevision(revision);
+            setRecordedDate(
+              evidenceContext
+                ? coerceVsPerformanceRecordedDate(evidenceContext.recordedDate, effectivePeriod)
+                : data.job?.recordedDate ? coerceVsPerformanceRecordedDate(data.job.recordedDate, storedPeriod) : defaultVsPerformanceRecordedDate(storedPeriod));
           }
           setMatchOutcome(ocrHeader.outcome);
           setOpponentServer(ocrHeader.opponentServer);
@@ -1079,6 +1185,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setCanReprocessAdvanced(Boolean(data.canReprocessAdvanced));
         setJobPassKey(data.job?.passKey ?? null);
         setJobExtractionConfigJson(data.job?.extractionConfigJson ?? null);
+        if (data.vsEvidence) {
+          ingestVsEvidence(data.vsEvidence, evidenceEpoch);
+        }
       } catch (err) {
         if (isStale()) {
           return;
@@ -1089,7 +1198,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         );
       }
     },
-    [jobId, markAutosaveReady, rematchMembers, setDraftRestored, tc, viewMode],
+    [captureVsEvidenceEpoch, ingestVsEvidence, jobId, markAutosaveReady, rematchMembers, setDraftRestored, tc, viewMode],
   );
 
   useEffect(() => {
@@ -1569,10 +1678,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [groupInfo, shadowPassInFlight]);
 
   const shadowWithholdEscaped =
-    shadowWithholdEscapedByJobRef.current.get(jobId) ?? false;
+    shadowWithholdEscapedByJob.get(jobId) ?? false;
 
   const shouldWithholdForShadow = useMemo(() => {
-    void shadowWithholdEscapeVersion;
     if (viewMode !== "review") return false;
     if (jobStatus !== "review") return false;
     if (scoreTargetMeta?.id !== "vs-performance") return false;
@@ -1595,7 +1703,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     expectedRowCount,
     forceInadequate,
     shadowPassStillRunning,
-    shadowWithholdEscapeVersion,
+    shadowWithholdEscaped,
   ]);
 
   useEffect(() => {
@@ -1623,8 +1731,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     const elapsed = Date.now() - start;
     const remaining = withholdEscapeMs - elapsed;
     const markEscaped = () => {
-      shadowWithholdEscapedByJobRef.current.set(jobId, true);
-      bumpShadowWithholdEscapeVersion((version) => version + 1);
+      setShadowWithholdEscapedByJob((prev) => new Map(prev).set(jobId, true));
     };
     if (remaining <= 0) {
       markEscaped();
@@ -1642,7 +1749,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     forceInadequate,
     shadowPassStillRunning,
     withholdEscapeMs,
-    shadowWithholdEscapeVersion,
   ]);
 
   const updateGroupSelection = useCallback(
@@ -2313,6 +2419,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const duplicateMembersBlockSubmit =
     hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns;
 
+  const comparisonRows = useMemo(
+    () =>
+      rows.filter(
+        (row) => !row.deleted && !scoreGhostDiscardRowIds.has(row.id),
+      ),
+    [rows, scoreGhostDiscardRowIds],
+  );
+
+  const comparisonComplete = useMemo(
+    () =>
+      !duplicateMembersBlockSubmit &&
+      !hasDuplicateOcrNames &&
+      !hasUnresolvedNameMismatches &&
+      comparisonRows.every((row) => row.memberId != null),
+    [
+      comparisonRows,
+      duplicateMembersBlockSubmit,
+      hasDuplicateOcrNames,
+      hasUnresolvedNameMismatches,
+    ],
+  );
+
   const frontlineBlockers =
     isFrontlineTarget &&
     activeRows.some(
@@ -2536,11 +2664,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     clearActionError();
     setSuccess(null);
     try {
+      let vsMatchReview: VsVideoMatchSubmission | undefined;
+      if (isVsPerformanceTarget) {
+        try {
+          vsMatchReview = await vsEvidenceController.prepareSubmission();
+        } catch {
+          return;
+        }
+      }
       const isRoster = scoreTargetMeta?.showRosterColumns;
       const isDepositSlip = scoreTargetMeta?.showDepositSlipColumns;
       const usesOcrFeedback = isVsPerformanceTarget || isAllianceKillsVideoTarget(scoreTargetMeta?.id ?? "");
       if (usesOcrFeedback) {
-        const signature = JSON.stringify([jobId, scoreTargetMeta?.id, isVsPerformanceTarget ? vsSafeRecordedDate : recordedDate, isVsPerformanceTarget ? vsPeriod : null, rows.map((row) => [row.id, row.ocrName, row.score, row.memberId, row.memberName, row.rank, row.deleted, row.frameIndex, scoreGhostDiscardRowIds.has(row.id)])]);
+        const signature = JSON.stringify([jobId, scoreTargetMeta?.id, isVsPerformanceTarget ? vsSafeRecordedDate : recordedDate, isVsPerformanceTarget ? vsPeriod : null, vsMatchReview ?? null, rows.map((row) => [row.id, row.ocrName, row.score, row.memberId, row.memberName, row.rank, row.deleted, row.frameIndex, scoreGhostDiscardRowIds.has(row.id)])]);
         if (!scoreSubmissionRequestId.current || scoreSubmissionSignature.current !== signature) {
           scoreSubmissionRequestId.current = crypto.randomUUID();
           scoreSubmissionSignature.current = signature;
@@ -2575,6 +2711,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             : recordedDate,
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           vsRevision: isVsPerformanceTarget ? vsRevision : undefined,
+          ...(vsMatchReview !== undefined ? { vsMatchReview } : {}),
           requestId: usesOcrFeedback ? scoreSubmissionRequestId.current : undefined,
           ocrFeedbackVersion: usesOcrFeedback ? 1 : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
@@ -2651,6 +2788,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         issues?: Array<{ id: string; fields: string[] }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
+        vsRevision?: number;
+        vsEvidence?: VsVideoEvidenceResponse;
+        matchResultsSaved?: boolean;
+        matchSyncStatus?: string;
       };
       if (!res.ok) {
         if (data.code === "ashed_not_connected") {
@@ -2675,8 +2816,38 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setActionError(t(code));
           return;
         }
-        setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
+        if (isVsPerformanceTarget) {
+          const vsErrorKey =
+            data.code === "stale"
+              ? tEvidence("stale")
+              : data.code === "context_mismatch"
+                ? tEvidence("contextMismatch")
+                : data.code === "identity_mismatch"
+                  ? tEvidence("identityMismatch")
+                  : data.code === "capture_invalid" || data.code === "invalid"
+                    ? tVp("capture.invalid")
+                    : data.code === "capture_point_mismatch"
+                      ? tVp("capture.pointMismatch")
+                      : data.code === "forbidden"
+                        ? tVp("errors.forbidden")
+                        : null;
+          setActionError(
+            vsErrorKey ?? data.error ?? tc("uploadFailed"),
+            data.connectUrl,
+          );
+        } else {
+          setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
+        }
         return;
+      }
+      if (typeof data.vsRevision === "number") {
+        setVsRevision(data.vsRevision);
+      }
+      if (isVsPerformanceTarget) {
+        vsEvidenceController.acceptSave(
+          data.vsEvidence,
+          data.matchResultsSaved === true,
+        );
       }
       clearDraft();
       setServerFrontlineIssues([]);
@@ -2736,16 +2907,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function clearActionError() {
-    setError(null);
-    setErrorConnectUrl(null);
-  }
-
-  function setActionError(message: string, connectUrl?: string) {
-    setError(message);
-    setErrorConnectUrl(connectUrl ?? null);
   }
 
   useEffect(() => {
@@ -3616,12 +3777,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     key={option}
                     type="button"
                     onClick={() => {
-                      markDraftDirty();
-                      setVsPeriod(option);
-                      setRecordedDate((prev) =>
-                        coerceVsPerformanceRecordedDate(prev, option),
-                      );
-                      clearActionError();
+                      if (option === vsPeriod) return;
+                      requestVsContextChange({
+                        recordedDate: coerceVsPerformanceRecordedDate(
+                          recordedDate,
+                          option,
+                        ),
+                        period: option,
+                      });
                     }}
                     aria-pressed={active}
                     className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -3656,8 +3819,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   );
                   return;
                 }
-                markDraftDirty();
-                setRecordedDate(next);
+                requestVsContextChange({
+                  recordedDate: next,
+                  period: vsPeriod,
+                });
               }}
               options={vsRecordedDateOptions}
               searchable
@@ -3680,6 +3845,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           )}
         </label>
       </div>
+      ) : null}
+
+      {isVsPerformanceTarget ? (
+        <VsVideoEvidencePanel
+          controller={vsEvidenceController}
+          jobStatus={jobStatus}
+          submitting={submitting}
+        />
       ) : null}
 
       {activeRows.length > 0 ? (
@@ -4514,6 +4687,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       )}
 
+      {isVsPerformanceTarget ? (
+        <VsVideoTotalsComparison
+          state={vsEvidenceController.state}
+          form={vsEvidenceController.form}
+          locale={locale}
+          scores={comparisonRows.map((row) => row.score)}
+          complete={comparisonComplete}
+          contextMatches={vsContextMatches}
+        />
+      ) : null}
+
       {!actionErrorNearReprocess ? renderActionErrorBanner() : null}
       {success && <p className="text-sm text-hq-green">{success}</p>}
 
@@ -4557,6 +4741,34 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ) : null}
       </div>
       </form>
+
+      <Dialog
+        open={pendingVsContext != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingVsContext(null);
+        }}
+        title={tEvidence("attachmentLabel")}
+      >
+        <div className="p-5">
+          <p className="text-sm text-hq-fg">{tEvidence("resetReview")}</p>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={confirmVsContextChange}
+              className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white"
+            >
+              {tc("next")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingVsContext(null)}
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-surface-muted"
+            >
+              {tVp("actions.cancel")}
+            </button>
+          </div>
+        </div>
+      </Dialog>
 
       {showRatingPrompt ? (
         <OcrRatingPrompt

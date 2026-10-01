@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { lookupPlayerByUid, parseGameServerNumberFromUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid, parseGameServerNumberFromUid } from "@/lib/lastwar/player-lookup.server";
 import { findExactMemberByName, namesMatch } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {

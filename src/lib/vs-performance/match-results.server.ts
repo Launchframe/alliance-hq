@@ -408,10 +408,28 @@ const matchupIdentitySchema = z
   })
   .strict();
 
-export async function saveVsMatchupIdentity(
+export async function saveVsMatchupIdentityTx(
+  tx: AvailabilityTransaction,
   actor: VsActor,
   input: unknown,
-): Promise<VsMatchupView> {
+): Promise<{
+  before: {
+    opponentName: string | null;
+    opponentTag: string | null;
+    opponentServer: number | null;
+    weekOutcome: string;
+    opponentDailyScores: VsOpponentScores;
+  } | null;
+  after: {
+    opponentName: string | null;
+    opponentTag: string | null;
+    opponentServer: number | null;
+    weekOutcome: string;
+    opponentDailyScores: VsOpponentScores;
+  };
+  identityChanged: boolean;
+  weekStart: string;
+}> {
   const body = matchupIdentitySchema.parse(input);
   assertVsScope(actor, body.weekStart, body.scope);
   const weekDays = vsDatesForWeek(body.weekStart);
@@ -420,10 +438,7 @@ export async function saveVsMatchupIdentity(
     if (scoreDays.has(entry.day)) throw new VsPerformanceError("invalid", 400);
     scoreDays.add(entry.day);
   }
-  const db = getDb();
-  const { before, after, identityChanged } = await db.transaction(
-    async (tx) => {
-      await lockAllianceAvailability(tx, actor.allianceId);
+  await lockAllianceAvailability(tx, actor.allianceId);
       const existing = await loadVsMatchupRowForUpdate(
         tx,
         actor.allianceId,
@@ -544,9 +559,17 @@ export async function saveVsMatchupIdentity(
           actorHqUserId: actor.hqUserId,
         });
       }
-      return { before, after, identityChanged };
-    },
+      return { before, after, identityChanged, weekStart: body.weekStart };
+}
+
+export async function saveVsMatchupIdentity(
+  actor: VsActor,
+  input: unknown,
+): Promise<VsMatchupView> {
+  const { before, after, identityChanged } = await getDb().transaction(
+    (tx) => saveVsMatchupIdentityTx(tx, actor, input),
   );
+  const body = matchupIdentitySchema.parse(input);
   await writeTrainsOfficerAudit({
     sessionId: actor.sessionId,
     allianceId: actor.allianceId,

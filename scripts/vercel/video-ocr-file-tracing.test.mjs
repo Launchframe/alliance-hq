@@ -46,6 +46,24 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
     );
   });
 
+  it("traces the VS video evidence OCR routes with the full worker stack", () => {
+    for (const route of [
+      "/api/tools/video-upload/[jobId]/vs-evidence/process",
+      "/api/internal/vs-video-evidence/[jobId]",
+    ]) {
+      expect(videoOcrTracedRoutes[route]).toBeDefined();
+      const budget = functionTraceBudgets.find((row) => row.route === route);
+      expect(budget, route).toBeDefined();
+      expect(budget.requireLibvips, route).toBe(true);
+      expect(budget.requireWorkerScript, route).toBe(true);
+      for (const asset of [...sharpNativeFileTracing, ...tesseractFileTracing]) {
+        expect(includesFor(route).has(asset), `${route} ${asset}`).toBe(true);
+      }
+    }
+    expect(videoOcrTracedRoutes["/api/tools/video-upload/[jobId]/vs-evidence"]).toBeUndefined();
+    expect(videoOcrTracedRoutes["/api/tools/video-upload/[jobId]/approve"]).toBeUndefined();
+  });
+
   it("requires tesseract worker-script + constants on Discord and THP OCR routes", () => {
     for (const route of [
       "/api/webhooks/discord/interactions",
