@@ -133,10 +133,10 @@ export async function processVideoJob(
   }
 
   if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category)) {
-    const { processChatVideoJobFoundation } = await import(
+    const { processChatVideoJob } = await import(
       "@/lib/video/process-chat-video-job.server"
     );
-    return processChatVideoJobFoundation(jobId);
+    return processChatVideoJob(jobId);
   }
 
   if (job.passRole === "deposit_slip_fingerprint_shadow") {
