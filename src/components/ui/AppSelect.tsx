@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 
 import {
   filterAppSelectOptions,
   type AppSelectSearchMode,
+  type AppSelectSearchRank,
 } from "@/components/ui/app-select-search";
 import { withDefaultBorderColor } from "@/components/ui/app-select-border-class";
 import {
@@ -47,8 +48,12 @@ type Props = {
   searchable?: boolean;
   /** When searchable, use fuzzy ranking instead of substring-only. */
   searchMode?: AppSelectSearchMode;
+  /** Fuzzy menus only. Prefix-alpha keeps a one-character query and lists names that start with it first. */
+  searchRank?: AppSelectSearchRank;
   /** Type-to-filter directly in the trigger (requires searchable). */
   combobox?: boolean;
+  /** Icon-only control that clears the combobox filter and opens the full list. */
+  clearSearchLabel?: string;
   explicitSelection?: boolean;
   retainFocusOnSelect?: boolean;
   searchPlaceholder?: string;
@@ -94,7 +99,9 @@ export function AppSelect({
   disabled = false,
   searchable = false,
   searchMode = "substring",
+  searchRank = "score",
   combobox = false,
+  clearSearchLabel,
   explicitSelection = false,
   retainFocusOnSelect = false,
   searchPlaceholder = "Search…",
@@ -110,6 +117,7 @@ export function AppSelect({
   const searchInputId = React.useId();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const comboboxInputRef = React.useRef<HTMLInputElement>(null);
+  const suppressSelectedFillRef = React.useRef(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const typeaheadBufferRef = React.useRef("");
   const typeaheadLastKeyAtRef = React.useRef(0);
@@ -142,6 +150,7 @@ export function AppSelect({
             searchQuery,
             searchMode,
             hideEmptyOptionWhileSearching,
+            searchRank,
           )
         : flatOptions,
     [
@@ -150,6 +159,7 @@ export function AppSelect({
       searchQuery,
       searchable,
       searchMode,
+      searchRank,
     ],
   );
   const enabledOptions = visibleOptions.filter((option) => !option.disabled);
@@ -197,6 +207,7 @@ export function AppSelect({
   }
 
   function closeMenu() {
+    suppressSelectedFillRef.current = false;
     explicitCandidateRef.current = null;
     setOpen(false);
     setActiveIndex(-1);
@@ -246,6 +257,12 @@ export function AppSelect({
       if (!(target instanceof Node)) return;
       if (triggerRef.current?.contains(target)) return;
       if (comboboxInputRef.current?.contains(target)) return;
+      if (
+        target instanceof Element &&
+        target.closest(`[data-app-select-clear="${listboxId}"]`)
+      ) {
+        return;
+      }
       if (
         target instanceof Element &&
         target.closest(`[data-app-select-menu="${listboxId}"]`)
@@ -309,12 +326,22 @@ export function AppSelect({
     setActiveIndex(currentIndex >= 0 ? currentIndex : explicitSelection ? -1 : 0);
   }
 
+  function clearSearchAndOpen() {
+    if (disabled || !useCombobox) return;
+    suppressSelectedFillRef.current = true;
+    setSearchQuery("");
+    setMenuRect(updateMenuRect());
+    setOpen(true);
+    setActiveIndex(explicitSelection ? -1 : 0);
+    comboboxInputRef.current?.focus();
+  }
+
   function handleComboboxFocus() {
     if (disabled) return;
     setComboboxFocused(true);
     setMenuRect(updateMenuRect());
     setOpen(true);
-    if (selectedOption?.value) {
+    if (selectedOption?.value && !suppressSelectedFillRef.current) {
       setSearchQuery(selectedLabelText);
     }
     const currentIndex = enabledOptions.findIndex(
@@ -591,13 +618,15 @@ export function AppSelect({
         )
       : null;
 
+  const showClearSearch = Boolean(clearSearchLabel) && useCombobox && Boolean(value);
+
   return (
-    <div className={cn("relative w-full min-w-0", className)}>
+    <div className={cn("flex w-full min-w-0 items-center gap-1", className)}>
       {name ? (
         <input type="hidden" name={name} value={value} readOnly />
       ) : null}
       {useCombobox ? (
-        <div className="relative">
+        <div className="relative min-w-0 flex-1">
           <input
             ref={comboboxInputRef}
             id={id}
@@ -674,6 +703,7 @@ export function AppSelect({
           aria-controls={open ? listboxId : undefined}
           className={mergeTriggerClassName(
             defaultTriggerClass,
+            "min-w-0 flex-1",
             triggerClassName,
           )}
           onClick={() => {
@@ -702,6 +732,19 @@ export function AppSelect({
           />
         </button>
       )}
+      {showClearSearch ? (
+        <button
+          type="button"
+          aria-label={clearSearchLabel}
+          data-app-select-clear={listboxId}
+          disabled={disabled}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg disabled:opacity-50"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={clearSearchAndOpen}
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      ) : null}
       {menu}
     </div>
   );

@@ -15,6 +15,7 @@ import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
 
+import { prepareReviewRosterForSubmit } from "@/lib/video/review-roster-recovery.server";
 import { vsEvidenceErrorResponse } from "./errors.server";
 export { vsEvidenceErrorResponse } from "./errors.server";
 
@@ -31,6 +32,12 @@ export async function submitVsReview(input: {
     if (!allianceId) throw new VsEvidenceError("forbidden", 403);
     const denied = await requireAlliancePermission(input.sessionId, allianceId, "scores:write");
     if (denied) return denied;
+    const rosterGap = await prepareReviewRosterForSubmit({
+      sessionId: input.sessionId,
+      allianceId,
+      memberIds: input.body.rows.flatMap((row) => row.deleted || !row.memberId ? [] : [row.memberId]),
+    });
+    if (rosterGap) throw new VsEvidenceError(rosterGap);
     const requestId = input.body.requestId ?? createHash("sha256").update(JSON.stringify([input.job.id, input.body.vsRevision ?? 0, input.body])).digest("hex");
     const result = await commitReviewedVsScores({
       allianceId, hqUserId: input.hqUserId, jobId: input.job.id, parseSessionId: input.job.parseSessionId,
