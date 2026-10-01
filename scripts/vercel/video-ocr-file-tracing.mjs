@@ -131,6 +131,9 @@ export const videoOcrTracedRoutes = {
   "/api/webhooks/discord/interactions": videoOcrFileTracing,
   "/api/thp/me/submit": videoOcrFileTracing,
   "/api/vs-performance/captures/parse": videoOcrFileTracing,
+  "/api/tools/video-upload/[jobId]/vs-evidence/process": videoOcrFileTracing,
+  "/api/tools/video-upload/[jobId]/vs-evidence/image": sharpNativeFileTracing,
+  "/api/internal/vs-video-evidence/[jobId]": videoOcrFileTracing,
   "/api/internal/notes/process": videoOcrFileTracing,
   "/api/notes/imports/[id]/process": videoOcrFileTracing,
 };
@@ -171,6 +174,13 @@ export const functionTraceBudgets = [
     requireLibvips: true,
     requireWorkerScript: true,
   },
+  ...["/api/tools/video-upload/[jobId]/vs-evidence/process", "/api/internal/vs-video-evidence/[jobId]"].map(route => ({
+    route,
+    nftPath: `.next/server/app${route}/route.js.nft.json`,
+    maxUncompressedBytes: 200 * 1024 * 1024,
+    requireLibvips: true,
+    requireWorkerScript: true,
+  })),
   ...["/api/vs-performance/captures/[reviewId]/commit", "/api/vs-performance/week", "/api/vs-performance/matchup/sync"].map(route => ({
     route,
     nftPath: `.next/server/app${route}/route.js.nft.json`,

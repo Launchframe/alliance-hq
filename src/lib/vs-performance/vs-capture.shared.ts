@@ -186,12 +186,14 @@ export function parseVsCaptureLines(input: {
   };
   const leftLines = input.lines.filter(line => line.bbox && line.bbox.x1 < input.imageWidth * .48);
   const rightLines = input.lines.filter(line => line.bbox && line.bbox.x0 > input.imageWidth * .52);
-  result.left.tag = fieldTag(input.fields?.leftTag ?? leftLines.map(line => line.text));
-  result.right.tag = fieldTag(input.fields?.rightTag ?? rightLines.map(line => line.text));
-  for (const [side, lines] of [[result.left, leftLines], [result.right, rightLines]] as const) {
-    const servers = lines.flatMap(line => [...line.text.matchAll(/#\s*(\d{1,7})\b/g)].map(match => Number(match[1]))).filter(value => value > 0);
+  const leftIdentity = leftLines.filter(line => /#\s*\d{1,7}\b/.test(line.text));
+  const rightIdentity = rightLines.filter(line => /#\s*\d{1,7}\b/.test(line.text));
+  result.left.tag = fieldTag(input.fields?.leftTag ?? (input.kind === "weekly_overview" ? leftIdentity : leftLines).map(line => line.text));
+  result.right.tag = fieldTag(input.fields?.rightTag ?? (input.kind === "weekly_overview" ? rightIdentity : rightLines).map(line => line.text));
+  for (const [side, lines, identityLines] of [[result.left, leftLines, leftIdentity], [result.right, rightLines, rightIdentity]] as const) {
+    if (input.kind !== "weekly_overview") continue;
+    const servers = identityLines.flatMap(line => [...line.text.matchAll(/#\s*(\d{1,7})\b/g)].map(match => Number(match[1]))).filter(value => value > 0);
     side.server = uniqueValue(servers);
-    const identityLines = lines.filter(line => /#\s*\d|\[[^\]]+\]/.test(line.text));
     const bottom = identityLines.reduce((value, line) => Math.max(value, line.bbox?.y1 ?? 0), 0);
     if (bottom > 0) {
       const next = lines.filter(line => line.bbox && line.bbox.y0 > bottom && line.bbox.y0 - bottom < input.imageWidth * .08 && !/\b(?:Day|Dia|MVP|Win|Date|Match|Use|Increase)\b/i.test(line.text)).sort((a, b) => (a.bbox?.y0 ?? 0) - (b.bbox?.y0 ?? 0));

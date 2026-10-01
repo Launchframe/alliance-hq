@@ -33,7 +33,7 @@ vi.mock("@/lib/onboarding/onboarding-audit.server", () => ({
   recordMemberLinkSubmit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/lastwar/player-lookup", () => ({
+vi.mock("@/lib/lastwar/player-lookup.server", () => ({
   lookupPlayerByUid: vi.fn(),
 }));
 
@@ -70,7 +70,7 @@ vi.mock("@/lib/member-link/claim.server", () => ({
   blockSelfServiceWhenClaimPending: vi.fn().mockResolvedValue(null),
 }));
 
-const lookup = await import("@/lib/lastwar/player-lookup");
+const lookup = await import("@/lib/lastwar/player-lookup.server");
 const roster = await import("@/lib/member-link/roster-link-request.server");
 const claim = await import("@/lib/member-link/claim.server");
 const memberRoster = await import("@/lib/vr/member-roster");
@@ -127,6 +127,27 @@ describe("runWebMemberLinkSubmit onboarding unblockers", () => {
     });
 
     expect(result.outcome).toBe("lookup_fallback");
+  });
+
+  it("asks for an R4 claim invite when Last War API is down for a non-owner", async () => {
+    vi.mocked(roster.isOwnerColdStartEligible).mockResolvedValue(false);
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: false,
+      reason: "request_failed",
+      message: "Could not reach the game server. Try again in a moment.",
+    });
+
+    const result = await runWebMemberLinkSubmit({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+    });
+
+    expect(result.outcome).toBe("lookup_error");
+    expect(result.message).toMatch(/claim invite/i);
   });
 
   it("bootstraps with owner lookup fallback only when Last War API is down", async () => {
@@ -365,7 +386,7 @@ describe("runWebMemberLinkPreview (UID-only confirm step)", () => {
     expect(result.outcome).toBe("lookup_fallback");
   });
 
-  it("returns lookup_error when the API is down for a non-eligible member", async () => {
+  it("asks for an R4 claim invite when the API is down for a non-eligible member", async () => {
     vi.mocked(roster.isOwnerColdStartEligible).mockResolvedValue(false);
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: false,
@@ -381,6 +402,7 @@ describe("runWebMemberLinkPreview (UID-only confirm step)", () => {
     });
 
     expect(result.outcome).toBe("lookup_error");
+    expect(result.message).toMatch(/claim invite/i);
   });
 
   it("blocks preview when a commander claim invite is pending", async () => {

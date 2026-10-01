@@ -298,6 +298,59 @@ describe("POST /api/tools/video-upload/[jobId]/submit", () => {
     expect(rows.find((row) => row.id === "row-2")?.deleted).toBe(false);
   });
 
+  it("rejects vsMatchReview on non-VS targets with a coded 400", async () => {
+    resolveVideoJobAccess.mockResolvedValue({
+      ok: true,
+      job: REVIEW_JOB,
+    });
+
+    const res = await POST(
+      new Request("http://localhost/submit/job-1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordedDate: "2026-07-10",
+          rows: [{ id: "row-1", memberId: "m-1", memberName: "Alpha", score: "100" }],
+          vsMatchReview: { source: "manual" },
+        }),
+      }),
+      { params: Promise.resolve({ jobId: "job-1" }) },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid", code: "invalid" });
+    expect(submitVsReview).not.toHaveBeenCalled();
+    expect(getAshedConnection).not.toHaveBeenCalled();
+  });
+
+  it("forwards vsMatchReview to submitVsReview on vs-performance jobs", async () => {
+    resolveVideoJobAccess.mockResolvedValue({
+      ok: true,
+      job: { ...REVIEW_JOB, scoreTarget: "vs-performance", category: "vs-performance" },
+    });
+    submitVsReview.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    const res = await POST(
+      new Request("http://localhost/submit/job-1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordedDate: "2026-07-10",
+          rows: [{ id: "row-1", memberId: "m-1", memberName: "Alpha", score: "100" }],
+          vsMatchReview: { source: "manual" },
+        }),
+      }),
+      { params: Promise.resolve({ jobId: "job-1" }) },
+    );
+    expect(res.status).toBe(200);
+    expect(submitVsReview).toHaveBeenCalledOnce();
+    expect(
+      (submitVsReview.mock.calls[0]![0] as { body: { vsMatchReview?: unknown } }).body
+        .vsMatchReview,
+    ).toEqual({ source: "manual" });
+  });
+
   describe("Frontline Breakthrough", () => {
     const FRONTLINE_JOB = {
       ...REVIEW_JOB,

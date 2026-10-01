@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import { denormalizeGameUidOnMember } from "@/lib/members/member-tenure.server";
 import { normalizeName } from "@/lib/vr/link-helpers";
 
