@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { ActivityPrincipal } from "@/lib/activity/access.server";
+import { ActivityWriteError } from "@/lib/activity/errors.server";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import {
   isKillsConfirmPending,
@@ -18,6 +20,7 @@ import {
   getCommanderIdForMember,
   getCommanderKillsState,
   getHqKillsPending,
+  KillsPendingChangedError,
   listAllianceCommanderKillsRows,
   saveHqKillsPending,
   upsertCommanderKills,
@@ -25,14 +28,47 @@ import {
 import type { KillsPendingState } from "@/lib/kills/types";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 
-export async function handleWebKillsCommand(input: {
+type WebKillsCommandInput = {
   allianceId: string;
   hqUserId: string;
+  principal: ActivityPrincipal;
   locale: string;
   total?: number | null;
   confirm?: "yes" | "no" | null;
   screenshotBuffer?: Buffer | null;
-}): Promise<MyKillsPostResponse | { code: "member_link_required" }> {
+};
+
+export async function handleWebKillsCommand(
+  input: WebKillsCommandInput,
+): Promise<MyKillsPostResponse | { code: "member_link_required" }> {
+  const translate = createDiscordTranslator(
+    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+  );
+  try {
+    return await executeWebKillsCommand(input);
+  } catch (error) {
+    if (error instanceof KillsPendingChangedError) {
+      return { status: "error", message: translate("errors.noConfirm") };
+    }
+    if (error instanceof ActivityWriteError) {
+      return {
+        status: "error",
+        message: translate("activity.saveBlocked"),
+      };
+    }
+    throw error;
+  }
+}
+
+async function executeWebKillsCommand(
+  input: WebKillsCommandInput,
+): Promise<MyKillsPostResponse | { code: "member_link_required" }> {
+  if (
+    input.principal.hqUserId !== input.hqUserId ||
+    input.principal.currentAllianceId !== input.allianceId
+  ) {
+    return { code: "member_link_required" };
+  }
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   if (!link) {
     return { code: "member_link_required" };
@@ -57,6 +93,7 @@ export async function handleWebKillsCommand(input: {
       commanderId,
       ashedMemberId: link.ashedMemberId,
       memberName: link.memberDisplayName ?? link.ashedMemberId,
+      principal: input.principal,
       answer: input.confirm,
       translate,
     });
@@ -113,8 +150,6 @@ export async function handleWebKillsCommand(input: {
     ? processKillsOcrResult(commandInput)
     : processKillsCommand(commandInput);
 
-  await saveHqKillsPending(input.allianceId, input.hqUserId, result.pending);
-
   if (result.action.type === "set_kills") {
     await upsertCommanderKills({
       commanderId,
@@ -124,14 +159,22 @@ export async function handleWebKillsCommand(input: {
       memberName: link.memberDisplayName ?? link.ashedMemberId,
       source: input.screenshotBuffer ? "screenshot_ocr" : "web",
       hqUserId: input.hqUserId,
+      activity: {
+        identity: { kind: "web", principal: input.principal },
+        method: input.screenshotBuffer ? "screenshot" : "manual",
+        ...(pending
+          ? { pending: { expected: pending, required: false } }
+          : {}),
+      },
     });
-    await saveHqKillsPending(input.allianceId, input.hqUserId, null);
     return {
       status: "set_kills",
       message: result.reply,
       newKills: result.action.total,
     };
   }
+
+  await saveHqKillsPending(input.allianceId, input.hqUserId, result.pending);
 
   if (result.needsConfirmation && result.proposedTotal != null) {
     return {
@@ -153,6 +196,7 @@ async function handleWebKillsConfirm(input: {
   commanderId: string;
   ashedMemberId: string;
   memberName: string;
+  principal: ActivityPrincipal;
   answer: "yes" | "no";
   translate: ReturnType<typeof createDiscordTranslator>;
 }): Promise<MyKillsPostResponse> {
@@ -192,7 +236,6 @@ async function handleWebKillsConfirm(input: {
     previousUpdatedAt: commander?.killsUpdatedAt ?? null,
     commanderName: input.memberName,
   });
-  await saveHqKillsPending(input.allianceId, input.hqUserId, result.pending);
 
   if (result.action.type === "set_kills") {
     await upsertCommanderKills({
@@ -203,6 +246,11 @@ async function handleWebKillsConfirm(input: {
       memberName: input.memberName,
       source: killsConfirmEventSource(pending),
       hqUserId: input.hqUserId,
+      activity: {
+        identity: { kind: "web", principal: input.principal },
+        method: pending.kind === "ocr_confirm" ? "screenshot" : "manual",
+        pending: { expected: pending, required: true },
+      },
     });
     return {
       status: "set_kills",
@@ -210,6 +258,8 @@ async function handleWebKillsConfirm(input: {
       newKills: result.action.total,
     };
   }
+
+  await saveHqKillsPending(input.allianceId, input.hqUserId, result.pending);
 
   return {
     status: input.answer === "no" ? "anomaly_rejected" : "error",
