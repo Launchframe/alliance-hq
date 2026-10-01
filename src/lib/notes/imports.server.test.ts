@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     touchResource: vi.fn(),
     memberMayProcess: vi.fn(),
     queueJob: vi.fn(),
+    selectRows: [] as Array<Array<Record<string, unknown>>>,
     txSelect: [] as Array<Array<Record<string, unknown>>>,
     txSets: [] as unknown[],
     txWheres: [] as unknown[],
@@ -29,7 +30,7 @@ vi.mock("@/lib/db", async () => ({
   getDb: () => {
     const query = { from: () => query, innerJoin: () => query, where: () => query, orderBy: () => query, limit: async () => mocks.rows };
     return {
-      select: (selection?: unknown) => selection ? query : ({ from: (table: unknown) => ({ where: async () => table === mocks.imports ? [{ id: "import-id", state: "uploading", resourceId: "source:import-id" }] : [{ id: "asset-id", sealedKey: null, stagingKey: "staging-key", contentType: "text/plain", size: 6, sha256: "hash" }] }) }),
+      select: (selection?: unknown) => selection ? query : ({ from: (table: unknown) => ({ where: async () => table === mocks.imports ? [{ id: "import-id", state: "uploading", resourceId: "source:import-id" }] : (mocks.selectRows.shift() ?? [{ id: "asset-id", sealedKey: null, stagingKey: "staging-key", contentType: "text/plain", size: 6, sha256: "hash" }]) }) }),
       transaction: mocks.transaction,
     };
   },
@@ -71,7 +72,7 @@ vi.mock("@/lib/notes/mutations.server", async (original) => ({
       execute: async () => undefined,
     }),
 }));
-import { commandHistoryImport, sealHistoryAsset, listHistoryImports } from "./imports.server";
+import { commandHistoryImport, sealHistoryAsset, listHistoryImports, historyMediaTarget } from "./imports.server";
 import { KnowledgeAccessError } from "./resources.server";
 import type { KnowledgeWebActor } from "./access.server";
 import { knowledgeHistoryImports } from "@/lib/db/schema";
@@ -176,6 +177,22 @@ it("emits exact microseconds in every list row and its continuation cursor", asy
   const terminal = await listHistoryImports(actor);
   expect(terminal.imports[0].updatedAt).toBe(timestamp);
   expect(terminal.nextCursor).toBeNull();
+});
+it("serves the WebP thumbnail variant and falls back to the PNG content type", async () => {
+  const mediaRow = {
+    id: "media-1", sessionId: "import-id", storageKey: "notes-history/import-id/media/media-1.png",
+    thumbnailStorageKey: "notes-history/import-id/media/media-1.webp", contentType: "image/png",
+  };
+  mocks.selectRows = [[mediaRow]];
+  await expect(historyMediaTarget(actor, "import-id", "media-1", true)).resolves.toEqual({
+    storageKey: "notes-history/import-id/media/media-1.webp",
+    contentType: "image/webp",
+  });
+  mocks.selectRows = [[{ ...mediaRow, thumbnailStorageKey: null }]];
+  await expect(historyMediaTarget(actor, "import-id", "media-1", true)).resolves.toEqual({
+    storageKey: "notes-history/import-id/media/media-1.png",
+    contentType: "image/png",
+  });
 });
 it("declares the alliance-scoped descending keyset index", () => {
   const index = getTableConfig(knowledgeHistoryImports).indexes.find((item) => item.config.name === "knowledge_history_imports_page_idx");
