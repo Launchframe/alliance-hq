@@ -17,14 +17,25 @@ import {
 } from "@/lib/ocr/ocr-diagnostics.shared";
 import { runTesseract, type OcrLineResult } from "@/lib/members/roster-ocr/tesseract";
 import {
+  matchThpLabel,
+  THP_BREAKDOWN_KEYS,
+  type ThpBreakdownKey,
+} from "@/lib/thp/breakdown.shared";
+import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
+import {
   assembleGeometryParse,
   coalesceLabelLines,
   isHeroPowerHeaderLabel,
+  isPowerDetailsModalTitle,
+  isPowerDetailsSectionStop,
   normalizeGeometryLines,
+  parseDigitsOnlyComponentCandidates,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
+  resolveUniqueBreakdownFromCandidates,
   zipLabelsToValues,
   type GeometryOcrLine,
+  type LabelValuePair,
   type NormalizedGeometryLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import {
@@ -35,6 +46,7 @@ import {
   POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
   POWER_DETAILS_LABEL_OCR_CONFIG,
   POWER_DETAILS_VALUE_OCR_CONFIG,
+  preprocessPowerDetailsComponentValueRow,
   preprocessPowerDetailsHeaderValue,
   cropPowerDetailsValueRow,
   preprocessPowerDetailsLabelBand,
@@ -56,6 +68,10 @@ type HeaderOcrPass = {
   lines: OcrLineResult[];
   cropHeight: number;
 };
+
+const COMPONENT_ROW_OFFSETS = [-0.015, -0.005, 0.005, 0.015] as const;
+const COMPONENT_ROW_INITIAL_HEIGHTS = [0.05] as const;
+const COMPONENT_ROW_FALLBACK_HEIGHTS = [0.035, 0.04, 0.045] as const;
 
 function toGeometryLines(lines: OcrLineResult[]): GeometryOcrLine[] {
   return lines.map((line) => ({
@@ -250,14 +266,118 @@ export async function parsePowerDetailsImage(
     return !(headerTotal != null && asHeader === headerTotal);
   });
 
-  const pairs = zipLabelsToValues({ labels, values });
+  const componentRowSamples: string[] = [];
+  let componentRawCount = 0;
+  let pairs: LabelValuePair[] | null = null;
+  if (headerTotal != null) {
+    const sortedLabels = [...labels].sort((a, b) => a.yNorm - b.yNorm);
+    const componentLabels: Array<{
+      label: string;
+      key: ThpBreakdownKey;
+      yNorm: number;
+    }> = [];
+    let inHeroSection = headerLabel == null;
+    for (const label of sortedLabels) {
+      if (label === headerLabel) {
+        inHeroSection = true;
+        continue;
+      }
+      if (!inHeroSection) continue;
+      if (isPowerDetailsSectionStop(label.text)) break;
+      if (isPowerDetailsModalTitle(label.text)) continue;
+      if (isHeroPowerHeaderLabel(label.text)) continue;
+      const key = matchThpLabel(label.text);
+      if (key == null) continue;
+      if (!componentLabels.some((row) => row.key === key)) {
+        componentLabels.push({ label: label.text, key, yNorm: label.yNorm });
+      }
+    }
+
+    const rowTexts = new Map<ThpBreakdownKey, string[]>();
+    const ocrComponentRows = async (heightFractions: readonly number[]) => {
+      for (const row of componentLabels) {
+        const texts = rowTexts.get(row.key) ?? [];
+        for (const heightFraction of heightFractions) {
+          for (const offset of COMPONENT_ROW_OFFSETS) {
+            const pre = await preprocessPowerDetailsComponentValueRow(
+              imageBuffer,
+              row.yNorm,
+              offset,
+              heightFraction,
+            );
+            const lines = await runTesseract(
+              pre.buffer,
+              POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+            );
+            componentRawCount += lines.length;
+            for (const line of lines) texts.push(line.text);
+          }
+        }
+        rowTexts.set(row.key, texts);
+      }
+    };
+
+    const resolveFromTexts = (): ThpBreakdown | null => {
+      const candidates: Partial<Record<ThpBreakdownKey, number[]>> = {};
+      const support: Partial<Record<ThpBreakdownKey, Map<number, number>>> = {};
+      for (const row of componentLabels) {
+        const found = new Set<number>();
+        const keySupport = new Map<number, number>();
+        for (const text of rowTexts.get(row.key) ?? []) {
+          for (const value of parseDigitsOnlyComponentCandidates(
+            text,
+            headerTotal,
+          )) {
+            found.add(value);
+            keySupport.set(value, (keySupport.get(value) ?? 0) + 1);
+          }
+        }
+        candidates[row.key] = [...found].sort((a, b) => a - b);
+        support[row.key] = keySupport;
+      }
+      return resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal,
+        support,
+      });
+    };
+
+    await ocrComponentRows(COMPONENT_ROW_INITIAL_HEIGHTS);
+    let resolved = resolveFromTexts();
+    if (resolved == null) {
+      await ocrComponentRows(COMPONENT_ROW_FALLBACK_HEIGHTS);
+      resolved = resolveFromTexts();
+    }
+    for (const row of componentLabels) {
+      componentRowSamples.push(
+        `row:${row.key}:${(rowTexts.get(row.key) ?? []).join("|")}`,
+      );
+    }
+
+    if (resolved) {
+      pairs = THP_BREAKDOWN_KEYS.map((key, index) => {
+        const row = componentLabels.find((entry) => entry.key === key);
+        return {
+          label: row?.label ?? key,
+          valueText: String(resolved[key]),
+          key,
+          value: resolved[key],
+          yNorm: row?.yNorm ?? index,
+        };
+      });
+    }
+  }
+  if (pairs == null) {
+    pairs = zipLabelsToValues({ labels, values });
+  }
   const assembled = assembleGeometryParse({ pairs, headerTotal });
 
   const sampleLines = [
     ...headerLinesRaw.map((line) => `hdr:${line.text}`),
     ...focusedNormalLinesRaw.map((line) => `rowN:${line.text}`),
     ...focusedInvertedLinesRaw.map((line) => `rowI:${line.text}`),
-    ...valueInvLinesRaw.slice(0, 3).map((line) => `inv:${line.text}`),
+    ...valueInvLinesRaw.slice(0, 2).map((line) => `inv:${line.text}`),
+    ...componentRowSamples,
     ...pairs.map(
       (pair) =>
         `${pair.key ?? "?"}=${pair.valueText} ← ${pair.label.slice(0, 40)}`,
@@ -275,7 +395,8 @@ export async function parsePowerDetailsImage(
       valueInvLinesRaw.length +
       focusedNormalLinesRaw.length +
       focusedInvertedLinesRaw.length +
-      headerLinesRaw.length,
+      headerLinesRaw.length +
+      componentRawCount,
     lines: sampleLines,
     parsedOk: assembled.complete && assembled.heroPowerTotal != null,
     parsedValue: assembled.heroPowerTotal,

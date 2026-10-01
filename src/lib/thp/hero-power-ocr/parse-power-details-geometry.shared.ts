@@ -164,6 +164,148 @@ export function parseDigitsOnlyComponent(text: string): number | null {
   });
 }
 
+export function parseDigitsOnlyComponentCandidates(
+  text: string,
+  maxValue: number,
+): number[] {
+  const raw = text.replace(/\D/g, "");
+  if (!raw) return [];
+
+  const found = new Set<number>();
+  for (let targetLength = 5; targetLength <= 9; targetLength += 1) {
+    const boundaryCount = Math.floor((targetLength - 1) / 3);
+    const firstGroup = targetLength - boundaryCount * 3;
+    const extra = raw.length - targetLength;
+    if (extra < 0 || extra > boundaryCount) continue;
+
+    const subsets: number[][] = [[]];
+    for (let i = 0; i < boundaryCount; i += 1) {
+      const size = subsets.length;
+      for (let s = 0; s < size; s += 1) {
+        subsets.push([...subsets[s]!, i]);
+      }
+    }
+
+    for (const selected of subsets) {
+      if (selected.length !== extra) continue;
+      let rawIndex = 0;
+      let out = "";
+      let ok = true;
+      for (let group = 0; group <= boundaryCount && ok; group += 1) {
+        const groupLength = group === 0 ? firstGroup : 3;
+        for (let c = 0; c < groupLength; c += 1) {
+          if (rawIndex >= raw.length) {
+            ok = false;
+            break;
+          }
+          out += raw[rawIndex]!;
+          rawIndex += 1;
+        }
+        if (group < boundaryCount && selected.includes(group)) rawIndex += 1;
+      }
+      if (!ok || rawIndex !== raw.length) continue;
+      const value = parseDigitsOnlyComponent(out);
+      if (value != null && value > 0 && value <= maxValue) found.add(value);
+    }
+  }
+
+  return [...found].sort((a, b) => a - b);
+}
+
+export function resolveUniqueBreakdownFromCandidates(input: {
+  candidates: Partial<Record<ThpBreakdownKey, number[]>>;
+  headerTotal: number;
+  support?: Partial<Record<ThpBreakdownKey, ReadonlyMap<number, number>>>;
+}): ThpBreakdown | null {
+  const lists = THP_BREAKDOWN_KEYS.map((key) => {
+    const list = input.candidates[key];
+    if (!list) return null;
+    const votes = input.support?.[key];
+    return [...new Set(list)]
+      .filter((value) => value > 0 && value <= input.headerTotal)
+      .sort((a, b) => (votes?.get(b) ?? 0) - (votes?.get(a) ?? 0) || a - b);
+  });
+  if (lists.some((list) => list == null || list.length === 0)) return null;
+
+  const keyCount = THP_BREAKDOWN_KEYS.length;
+  const suffixMin = new Array<number>(keyCount + 1).fill(0);
+  const suffixMax = new Array<number>(keyCount + 1).fill(0);
+  for (let i = keyCount - 1; i >= 0; i -= 1) {
+    const list = lists[i]!;
+    suffixMin[i] = suffixMin[i + 1] + Math.min(...list);
+    suffixMax[i] = suffixMax[i + 1] + Math.max(...list);
+  }
+
+  const SOLUTION_CAP = 64;
+  const VISIT_CAP = 250_000;
+  let solutions = 0;
+  let visits = 0;
+  let searchExhausted = false;
+  let best: { values: number[]; score: number } | null = null;
+  let bestTies = 0;
+  const chosen = new Array<number>(keyCount);
+
+  const scoreOf = (): number => {
+    if (!input.support) return 1;
+    let score = 0;
+    THP_BREAKDOWN_KEYS.forEach((key, index) => {
+      score += input.support?.[key]?.get(chosen[index]!) ?? 0;
+    });
+    return score;
+  };
+
+  const visit = (index: number, runningSum: number): boolean => {
+    visits += 1;
+    if (visits > VISIT_CAP) {
+      searchExhausted = true;
+      return true;
+    }
+    if (index === keyCount) {
+      if (runningSum !== input.headerTotal) return false;
+      solutions += 1;
+      if (solutions > SOLUTION_CAP) return true;
+      const score = scoreOf();
+      if (best == null || score > best.score) {
+        best = { values: [...chosen], score };
+        bestTies = 1;
+      } else if (score === best.score) {
+        bestTies += 1;
+      }
+      return !input.support && solutions >= 2;
+    }
+    if (
+      runningSum + suffixMin[index]! > input.headerTotal ||
+      runningSum + suffixMax[index]! < input.headerTotal
+    ) {
+      return false;
+    }
+    for (const value of lists[index]!) {
+      const nextSum = runningSum + value;
+      if (
+        nextSum > input.headerTotal ||
+        nextSum + suffixMin[index + 1]! > input.headerTotal ||
+        nextSum + suffixMax[index + 1]! < input.headerTotal
+      ) {
+        continue;
+      }
+      chosen[index] = value;
+      if (visit(index + 1, nextSum)) return true;
+    }
+    return false;
+  };
+
+  visit(0, 0);
+  if (searchExhausted || solutions > SOLUTION_CAP || best == null) return null;
+  if (!input.support && solutions !== 1) return null;
+  if (input.support && bestTies !== 1) return null;
+
+  const breakdown = {} as ThpBreakdown;
+  THP_BREAKDOWN_KEYS.forEach((key, index) => {
+    breakdown[key] = best!.values[index]!;
+  });
+  return breakdown;
+}
+
 /**
  * Last-mile length fix after digits-only OCR.
  *
@@ -372,6 +514,19 @@ export function coalesceLabelLines(
       out.push({
         text: `${current.text} Stats`,
         // Value is vertically centered on the full two-line row — use midpoint.
+        yNorm: (current.yNorm + next.yNorm) / 2,
+        yCenterPx:
+          current.yCenterPx != null && next.yCenterPx != null
+            ? (current.yCenterPx + next.yCenterPx) / 2
+            : current.yCenterPx,
+      });
+      i += 1;
+      continue;
+    }
+    const currentKey = matchThpLabel(current.text);
+    if (next && currentKey != null && matchThpLabel(next.text) === currentKey) {
+      out.push({
+        text: `${current.text} ${next.text}`,
         yNorm: (current.yNorm + next.yNorm) / 2,
         yCenterPx:
           current.yCenterPx != null && next.yCenterPx != null
