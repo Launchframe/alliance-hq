@@ -47,7 +47,13 @@ test.describe("App hotkeys", () => {
       }),
     );
 
+    const bindingsReady = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/settings/hotkeys" &&
+        response.request().method() === "GET",
+    );
     await page.goto("/members");
+    expect((await bindingsReady).ok()).toBe(true);
     await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
     await expect(page.getByRole("dialog", { name: "Quick actions" })).toBeVisible();
     await expect(page.getByPlaceholder("Search actions…")).toBeVisible();
@@ -83,7 +89,13 @@ test.describe("App hotkeys", () => {
       }),
     );
 
+    const bindingsReady = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/settings/hotkeys" &&
+        response.request().method() === "GET",
+    );
     await page.goto("/members");
+    expect((await bindingsReady).ok()).toBe(true);
     await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
     await page.getByRole("option", { name: /Go to Alliance Train/i }).click();
     await expect(page).toHaveURL(/\/trains$/);

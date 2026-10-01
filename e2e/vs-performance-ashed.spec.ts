@@ -1228,13 +1228,17 @@ test.describe("VS Ashed sync and capture UI", () => {
         body: JSON.stringify(themed),
       });
     });
-    await page.route("**/api/vs-performance/matchup/import", (route) =>
-      route.fulfill({
+    let themedImports = 0;
+    await page.route("**/api/vs-performance/matchup/import", (route) => {
+      const body = route.request().postDataJSON() as { weekStart: string };
+      if (body.weekStart !== pastWeek) return route.continue();
+      themedImports += 1;
+      return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(themed),
-      }),
-    );
+      });
+    });
     await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/en-US/vs-performance?week=${currentWeek}`);
     await expect(
@@ -1253,6 +1257,7 @@ test.describe("VS Ashed sync and capture UI", () => {
         .getByText("Theme Conflict Foe")
         .first(),
     ).toBeVisible();
+    await expect.poll(() => themedImports).toBe(1);
     const row = page
       .getByTestId("vs-conflict-theme-conflict")
       .locator("visible=true");
