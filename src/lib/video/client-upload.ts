@@ -1,4 +1,5 @@
 import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
+import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
 
 export type UploadConfig = {
   mode: "r2" | "direct";
@@ -52,6 +53,7 @@ export async function uploadVideoFile(options: {
   hqEventId?: string;
   bankId?: string | null;
   knowledgeImportId?: string;
+  vsContext?: VsVideoContext;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
@@ -59,6 +61,8 @@ export async function uploadVideoFile(options: {
 }): Promise<{ jobId: string; message: string; status: string }> {
   const { file, scoreTarget, boardKey, uploadConfig, onProgress, onJobCreated } =
     options;
+  const vsContext =
+    scoreTarget === "vs-performance" ? options.vsContext : undefined;
 
   if (options.knowledgeImportId && !isOfficerChatVideoTarget(scoreTarget)) {
     throw new Error("knowledgeImportId is only valid for chat video uploads");
@@ -76,6 +80,9 @@ export async function uploadVideoFile(options: {
     if (options.bankId) formData.set("bankId", options.bankId);
     if (options.knowledgeImportId) {
       formData.set("knowledgeImportId", options.knowledgeImportId);
+    }
+    if (vsContext) {
+      formData.set("vsContext", JSON.stringify(vsContext));
     }
 
     const marker = isOfficerChatVideoTarget(scoreTarget)
@@ -113,6 +120,7 @@ export async function uploadVideoFile(options: {
       hqEventId: options.hqEventId ?? null,
       bankId: options.bankId ?? null,
       knowledgeImportId: options.knowledgeImportId ?? null,
+      vsContext: vsContext ?? null,
     }),
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };

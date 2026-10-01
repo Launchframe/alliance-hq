@@ -31,6 +31,9 @@ import {
   discardChatVideoUploadSetup,
   resolveChatVideoUpload,
 } from "@/lib/video/chat-upload.server";
+import { defaultVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
+import { initializeVsVideoEvidence } from "@/lib/vs-performance/video-evidence.server";
+import { vsVideoContextSchema } from "@/lib/vs-performance/video-evidence.shared";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +46,7 @@ type InitBody = {
   hqEventId?: string | null;
   bankId?: string | null;
   knowledgeImportId?: string | null;
+  vsContext?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -112,6 +116,27 @@ export async function POST(request: Request) {
       scoreTarget,
       body.bankId,
     );
+    if (body.vsContext != null && scoreTarget !== "vs-performance") {
+      return NextResponse.json(
+        { error: "invalid", code: "invalid" },
+        { status: 400 },
+      );
+    }
+    const vsContextParsed =
+      scoreTarget === "vs-performance" && body.vsContext != null
+        ? vsVideoContextSchema.safeParse(body.vsContext)
+        : null;
+    if (vsContextParsed && !vsContextParsed.success) {
+      return NextResponse.json(
+        { error: "invalid", code: "invalid" },
+        { status: 400 },
+      );
+    }
+    const vsContext = vsContextParsed?.success ? vsContextParsed.data : undefined;
+    const vsRecordedDate =
+      scoreTarget === "vs-performance"
+        ? vsContext?.recordedDate ?? defaultVsPerformanceRecordedDate("daily")
+        : null;
     const now = new Date();
 
     const db = getDb();
@@ -149,6 +174,7 @@ export async function POST(request: Request) {
       storageKey,
       allianceId: session.currentAllianceId,
       bankId,
+      ...(vsRecordedDate ? { recordedDate: vsRecordedDate } : {}),
       enqueuedByHqUserId: session.hqUserId,
       ingestMethod: "video",
       frameCount: null,
@@ -163,6 +189,10 @@ export async function POST(request: Request) {
       createdAt: now,
       updatedAt: now,
     });
+
+    if (scoreTarget === "vs-performance") {
+      await initializeVsVideoEvidence(jobId, session.id, vsContext);
+    }
 
     const useMultipart = fileSize >= MULTIPART_UPLOAD_THRESHOLD_BYTES;
 

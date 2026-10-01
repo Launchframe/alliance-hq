@@ -153,6 +153,7 @@ type SubmitBody = {
   vsRevision?: number;
   requestId?: string;
   ocrFeedbackVersion?: number;
+  vsMatchReview?: unknown;
   matchOutcome?: "pending" | "win" | "loss";
   opponentServer?: string;
   opponentTag?: string;
@@ -359,6 +360,13 @@ export async function POST(request: Request, { params }: Props) {
           ),
         };
       }
+    }
+
+    if (body.vsMatchReview !== undefined && scoreTargetId !== "vs-performance") {
+      return NextResponse.json(
+        { error: "invalid", code: "invalid" },
+        { status: 400 },
+      );
     }
 
     if (scoreTargetId === "vs-performance") return submitVsReview({ sessionId: session.id, hqUserId: session.hqUserId ?? null, job, body, automaticDeletedIds });
