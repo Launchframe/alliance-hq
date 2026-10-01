@@ -210,6 +210,7 @@ describe("support board client contracts", () => {
     expect(supportErrorKey("forbidden")).toBe("readOnly");
     expect(supportErrorKey("changed", true)).toBe("history.changed");
     expect(supportErrorKey("dependencies", true)).toBe("history.dependencies");
+    expect(supportErrorKey("incomplete")).toBe("publishIncomplete");
     expect(supportErrorKey("unrecognized")).toBe("changed");
   });
   it("parses server failures without displaying raw server copy", async () => {

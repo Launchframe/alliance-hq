@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { FORM_SUBMIT_ENTER_KEY_HINT, preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { MemberBoardSearch } from "@/components/member-board/MemberBoard";
 import { SupportMemberIdentity } from "./SupportMemberChip";
 import { SupportDialog, supportButton, supportInput } from "./SupportTeamControls";
@@ -50,7 +51,7 @@ export function SupportTeamSlotActions({ snapshot, team, teamName, interactions,
       {canReplace && <button className={supportButton} onClick={() => setReplace(!replace)}>{t("replaceLead")}</button>}
       {canDelete && <button className={supportButton} disabled={pending} onClick={() => setConfirmDelete(true)}>{t("deleteTeam")}</button>}
     </div>
-    {renaming && <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); interactions.onCommand({ ...renameCommand, name }, team.id); }}><label className="text-sm">{t("teamName")}<input className={supportInput} value={name} maxLength={60} onChange={(event) => setName(event.target.value)} /></label><button className={supportButton} disabled={pending || !name.trim()}>{tr("battlePlan.actions.save")}</button></form>}
+    {renaming && <form className="space-y-2" onSubmit={(event) => { preventDefaultFormSubmit(event); if (!name.trim()) return; interactions.onCommand({ ...renameCommand, name }, team.id); }}><label className="text-sm">{t("teamName")}<input className={supportInput} value={name} maxLength={60} enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} onChange={(event) => setName(event.target.value)} /></label><button type="submit" className={supportButton} disabled={pending || !name.trim()}>{tr("battlePlan.actions.save")}</button></form>}
     {replace && <AppSelect value="" onChange={(leadId) => interactions.onCommand({ kind: "replaceLead", leadId, teamId: team.id, expectedVersion: snapshot.version }, team.id)} aria-label={t("replaceLead")} placeholder={t("leadRequired")} searchable combobox explicitSelection searchMode="fuzzy" searchPlaceholder={t("findMember")} noSearchResultsLabel={t("noMatches")} options={snapshot.roster.filter((member) => member.rank === 4 || member.rank === 5).map((member) => ({ value: member.id, label: member.name, disabled: pending || !interactions.canCommand({ kind: "replaceLead", leadId: member.id, teamId: team.id, expectedVersion: snapshot.version }) }))} />}
     {confirmDelete && <SupportDialog title={t("deleteTitle", { team: teamName(team.id) })} onClose={() => setConfirmDelete(false)}>
       <p className="text-sm text-hq-fg-muted">{t("deleteHint")}</p>
