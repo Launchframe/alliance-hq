@@ -63,11 +63,13 @@ export async function uploadVideoFile(options: {
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
   onJobCreated?: (jobId: string) => void;
+  signal?: AbortSignal;
 }): Promise<{ jobId: string; message: string; status: string }> {
-  const { file, scoreTarget, boardKey, uploadConfig, onProgress, onJobCreated } =
+  const { file, scoreTarget, boardKey, uploadConfig, onProgress, onJobCreated, signal } =
     options;
   const vsContext =
     scoreTarget === "vs-performance" ? options.vsContext : undefined;
+  signal?.throwIfAborted();
 
   if (options.knowledgeImportId && !isOfficerChatVideoTarget(scoreTarget)) {
     throw new Error("knowledgeImportId is only valid for chat video uploads");
@@ -101,6 +103,7 @@ export async function uploadVideoFile(options: {
     const res = await fetch(`/api/tools/video-upload${marker}`, {
       method: "POST",
       body: formData,
+      signal,
     });
     const data = (await res.json()) as CompleteUploadResponse & {
       error?: string;
@@ -133,6 +136,7 @@ export async function uploadVideoFile(options: {
       mediaKind: options.mediaKind ?? "video",
       eventContext: options.eventContext ?? null,
     }),
+    signal,
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };
   if (!initRes.ok) {
@@ -141,8 +145,8 @@ export async function uploadVideoFile(options: {
 
   if (init.mode === "r2_put") {
     onJobCreated?.(init.jobId);
-    await putWithProgress(init.putUrl, file, init.contentType, onProgress);
-    return completeUpload(init.jobId);
+    await putWithProgress(init.putUrl, file, init.contentType, onProgress, signal);
+    return completeUpload(init.jobId, undefined, undefined, signal);
   }
 
   if (init.mode === "r2_multipart") {
@@ -151,8 +155,9 @@ export async function uploadVideoFile(options: {
       file,
       init.presignedParts,
       onProgress,
+      signal,
     );
-    return completeUpload(init.jobId, init.uploadId, parts);
+    return completeUpload(init.jobId, init.uploadId, parts, signal);
   }
 
   throw new Error("Unexpected upload init mode.");
@@ -162,11 +167,13 @@ async function completeUpload(
   jobId: string,
   uploadId?: string,
   parts?: Array<{ partNumber: number; etag: string }>,
+  signal?: AbortSignal,
 ): Promise<{ jobId: string; message: string; status: string }> {
   const completeRes = await fetch("/api/tools/video-upload/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jobId, uploadId, parts }),
+    signal,
   });
   const complete = (await completeRes.json()) as CompleteUploadResponse & {
     error?: string;
@@ -186,9 +193,22 @@ async function putWithProgress(
   file: File,
   contentType: string,
   onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
+    const abortError = () => new DOMException("Upload aborted", "AbortError");
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
     const xhr = new XMLHttpRequest();
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      xhr.abort();
+      cleanup();
+      reject(abortError());
+    };
+    signal?.addEventListener("abort", onAbort);
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
     xhr.upload.onprogress = (event) => {
@@ -197,13 +217,15 @@ async function putWithProgress(
       }
     };
     xhr.onload = () => {
+      cleanup();
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
         return;
       }
       reject(new Error(`Upload failed (${xhr.status})`));
     };
-    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.onerror = () => { cleanup(); reject(new Error("Upload failed")); };
+    xhr.onabort = () => { cleanup(); reject(abortError()); };
     xhr.send(file);
   });
 }
@@ -212,15 +234,18 @@ async function uploadMultipartParts(
   file: File,
   presignedParts: InitR2MultipartResponse["presignedParts"],
   onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<Array<{ partNumber: number; etag: string }>> {
   const completed: Array<{ partNumber: number; etag: string }> = [];
   let loadedTotal = 0;
 
   for (const part of presignedParts) {
+    signal?.throwIfAborted();
     const chunk = file.slice(part.start, part.end + 1);
     const response = await fetch(part.url, {
       method: "PUT",
       body: chunk,
+      signal,
     });
     if (!response.ok) {
       throw new Error(`Part ${part.partNumber} upload failed (${response.status})`);

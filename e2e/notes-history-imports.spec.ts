@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { nanoid } from "nanoid";
 import sharp from "sharp";
 import { expect, test, type APIRequestContext } from "@playwright/test";
@@ -478,4 +480,306 @@ test("direct officer chat sessions bridge into chat logs with authorized evidenc
   await expect.poll(() => page.url()).toContain("view=chatLogs");
   expect(page.url()).toContain(`chatLog=${sessionId}`);
   await expect(page.getByText("Legacy hello", { exact: true })).toBeVisible();
+});
+
+const seedVideoChatLog = async (fixture: Awaited<ReturnType<typeof createNotesFixture>>, id: string, state: "review" | "committed", audience: "private" | "officers_read", count: number) => {
+  const sql = getE2eSql();
+  const resourceId = nanoid();
+  await sql`INSERT INTO knowledge_resources (id, alliance_id, kind, entity_id, ownership_state, owner_hq_user_id, owner_bound_at)
+    VALUES (${resourceId}, ${fixture.alliance.allianceId}, 'source', ${id}, 'hq', ${fixture.author.hqUserId}, now())`;
+  await sql`INSERT INTO officer_chat_sessions (id, alliance_id, resource_id, title, created_by_hq_user_id, status)
+    VALUES (${id}, ${fixture.alliance.allianceId}, ${resourceId}, ${"Video chat log"}, ${fixture.author.hqUserId}, 'imported')`;
+  await sql`INSERT INTO knowledge_history_imports (id, alliance_id, resource_id, kind, locale, source_hash, state, audience)
+    VALUES (${id}, ${fixture.alliance.allianceId}, ${resourceId}, 'video', 'en-US', ${hash(Buffer.from(id))}, ${state}, ${audience})`;
+  const firstId = `${id}-msg-0`;
+  for (let index = 0; index < count; index++) {
+    const original = index === 0 ? "Mensagem zero" : `Chat message ${index}`;
+    const isReply = index === 1;
+    const coordinates = index === 2 ? { server: 123, x: 450, y: 320, label: "Hall" } : null;
+    await sql`INSERT INTO officer_chat_messages (id, session_id, alliance_id, sender_name, original_text, locale_text, locale_code, is_reply, reply_to_name, reply_to_message_id, coordinates, sequence_order, source_locator, history_included, history_reviewed)
+      VALUES (${`${id}-msg-${index}`}, ${id}, ${fixture.alliance.allianceId}, ${`Alpha${index}`}, ${original}, ${`Chat message ${index}`}, 'en-US', ${isReply}, ${isReply ? "Alpha0" : null}, ${isReply ? firstId : null}, ${coordinates === null ? null : sql.json(coordinates)}, ${index}, ${`video:${index}`}, true, ${state === "committed"})`;
+  }
+  const messageMediaId = `${id}-media-message`;
+  const sessionMediaId = `${id}-media-session`;
+  if (count > 0) {
+    await sql`INSERT INTO officer_chat_message_media (id, session_id, alliance_id, message_id, kind, storage_key, thumbnail_storage_key, content_type, sha256, sequence_order, reviewed)
+      VALUES (${messageMediaId}, ${id}, ${fixture.alliance.allianceId}, ${firstId}, 'embedded', ${`notes-history/${id}/media/${messageMediaId}.png`}, ${`notes-history/${id}/media/${messageMediaId}.webp`}, 'image/png', ${hash(Buffer.from(messageMediaId))}, 0, ${state === "committed"})`;
+    await sql`INSERT INTO officer_chat_message_media (id, session_id, alliance_id, message_id, kind, storage_key, thumbnail_storage_key, content_type, sha256, sequence_order, reviewed)
+      VALUES (${sessionMediaId}, ${id}, ${fixture.alliance.allianceId}, ${null}, 'fullscreen', ${`notes-history/${id}/media/${sessionMediaId}.png`}, ${`notes-history/${id}/media/${sessionMediaId}.webp`}, 'image/png', ${hash(Buffer.from(sessionMediaId))}, 1, ${state === "committed"})`;
+  }
+  return { resourceId, firstId, messageMediaId, sessionMediaId };
+};
+
+test("browser chat video source shows disclosures and uploads with the import descriptor", async ({ page }) => {
+  const { author } = await createNotesFixture("officer");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  let initBody: Record<string, unknown> | null = null;
+  let marker: URLSearchParams | null = null;
+  let processCalls = 0;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/tools/video-upload**", async (route, req) => {
+    const url = new URL(req.url());
+    if (req.method() === "GET" && !url.searchParams.has("knowledgeImportId")) {
+      return route.fulfill({ json: { jobs: [], scoreTargets: [], upload: { mode: "direct", maxUploadBytes: 96 * 1024 * 1024, multipartThresholdBytes: 8 * 1024 * 1024, multipartPartBytes: 8 * 1024 * 1024, legacyDirectPostMaxBytes: 64 * 1024 * 1024 } } });
+    }
+    marker = url.searchParams;
+    await held;
+    return route.fulfill({ json: { ok: true, jobId: "job-e2e-1", status: "pending_approval", message: "ok" } });
+  });
+  await page.route("**/api/notes/imports", async (route, req) => {
+    if (req.method() !== "POST") return route.continue();
+    initBody = req.postDataJSON() as Record<string, unknown>;
+    const response = await route.fetch();
+    return route.fulfill({ response });
+  });
+  await page.route("**/api/notes/imports/*/process", (route) => { processCalls++; return route.fulfill({ status: 500, json: { error: "should not process" } }); });
+  const importsLoaded = page.waitForResponse((res) => res.url().includes("/api/notes/imports"));
+  await page.goto("/notes?view=chatLogs");
+  await importsLoaded;
+  await page.getByLabel("Import format", { exact: true }).selectOption("video");
+  await expect(page.getByLabel("Import format", { exact: true })).toHaveValue("video");
+  await expect(page.getByText("Chat videos can be up to 2 minutes and 96 MB.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/HQ sends selected video frames to OpenAI/, { exact: false })).toBeVisible();
+  await expect(page.getByText(/highest quality available in your recording/, { exact: false })).toBeVisible();
+  await expect(page.getByText(/deleted seven days after you commit/, { exact: false })).toBeVisible();
+  await expect(page.getByLabel("Paste history", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Source title", { exact: true }).fill("Recorded alliance chat");
+  const video = Buffer.alloc(3 * 1024 * 1024, 1);
+  await page.getByLabel("Upload chat video", { exact: true }).setInputFiles({ name: "chat.mp4", mimeType: "video/mp4", buffer: video });
+  await page.getByRole("button", { name: "Upload chat video", exact: true }).click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  release();
+  await expect(page.getByRole("heading", { name: "Recorded alliance chat", exact: true })).toBeVisible();
+  expect(initBody).not.toBeNull();
+  expect(initBody!.kind).toBe("video");
+  expect(initBody!.audience).toBe("private");
+  const files = initBody!.files as Array<{ name: string; size: number; contentType: string; sha256: string }>;
+  expect(files).toHaveLength(1);
+  expect(files[0]).toMatchObject({ name: "chat.mp4", size: video.length, contentType: "video/mp4" });
+  expect(files[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(marker).not.toBeNull();
+  expect(marker!.get("scoreTarget")).toBe("officer-chat-video");
+  const detail = await page.request.get("/api/notes/imports", { headers: { Cookie: authCookieHeader(author) } });
+  const importId = (await detail.json()).imports[0].id as string;
+  expect(marker!.get("knowledgeImportId")).toBe(importId);
+  expect(page.url()).toContain(`chatLog=${importId}`);
+  await page.waitForTimeout(4_500);
+  expect(processCalls).toBe(0);
+});
+
+test("committed video transcript pages media through the lightbox and keeps replies and coordinates", async ({ page }) => {
+  const fixture = await createNotesFixture("officer");
+  const id = nanoid();
+  const seeded = await seedVideoChatLog(fixture, id, "committed", "private", 55);
+  const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 32, g: 64, b: 96 } } }).png().toBuffer();
+  await page.route("**/api/notes/imports/*/media/*", (route) => route.fulfill({ contentType: "image/png", body: png }));
+  await page.context().addCookies(playwrightAuthCookies(fixture.author));
+  await page.goto(`/notes?view=chatLogs&chatLog=${id}`);
+  await expect(page.getByRole("heading", { name: "Video chat log", exact: true })).toBeVisible();
+  await expect(page.getByText("Chat message 0", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mensagem zero", { exact: true })).toBeHidden();
+  await page.getByText("Show original", { exact: true }).first().click();
+  await expect(page.getByText("Mensagem zero", { exact: true })).toBeVisible();
+  await expect(page.getByText("Replying to Alpha0", { exact: true })).toBeVisible();
+  await expect(page.getByText(/S123 450:320 Hall/, { exact: false })).toBeVisible();
+  const thumbnails = page.getByRole("button", { name: /Image extracted from video/ });
+  await expect(thumbnails).toHaveCount(2);
+  await thumbnails.first().click();
+  await expect(page.locator(".yarl__container")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".yarl__container")).toHaveCount(0);
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByText("Chat message 50", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeDisabled();
+  expect(seeded.messageMediaId).toBeTruthy();
+});
+
+test("video review commit schedules source cleanup and completes the linked job", async ({ request }) => {
+  const fixture = await createNotesFixture("officer");
+  const id = nanoid();
+  await seedVideoChatLog(fixture, id, "review", "officers_read", 1);
+  const sql = getE2eSql();
+  const jobId = nanoid(16);
+  await sql`INSERT INTO video_jobs (id, session_id, hq_user_id, status, file_name, score_target, storage_key, alliance_id, knowledge_import_id, enqueued_by_hq_user_id, ingest_method)
+    VALUES (${jobId}, ${fixture.author.sessionId}, ${fixture.author.hqUserId}, 'review', 'chat.mp4', 'officer-chat-video', ${`notes-history/${id}/staging/video`}, ${fixture.alliance.allianceId}, ${id}, ${fixture.author.hqUserId}, 'video')`;
+  await sql`UPDATE knowledge_history_imports SET source_video_job_id = ${jobId} WHERE id = ${id}`;
+  await sql`UPDATE officer_chat_messages SET history_reviewed = true WHERE session_id = ${id}`;
+  await sql`UPDATE officer_chat_message_media SET reviewed = true WHERE session_id = ${id}`;
+  const headers = { Cookie: authCookieHeader(fixture.author) };
+  const detail = async () => (await (await request.get(`/api/notes/imports/${id}`, { headers })).json()).import;
+  const version = (await detail()).version;
+  const committed = await request.post(`/api/notes/imports/${id}`, { headers, data: { command: "commit", expectedVersion: version, requestId: nanoid() } });
+  expect(committed.status(), await committed.text()).toBe(200);
+  const [row] = await sql`SELECT source_delete_after FROM knowledge_history_imports WHERE id = ${id}`;
+  const deleteAfter = new Date(row.source_delete_after).getTime();
+  expect(Math.abs(deleteAfter - (Date.now() + 7 * 24 * 60 * 60 * 1000))).toBeLessThan(60_000);
+  const [job] = await sql`SELECT status FROM video_jobs WHERE id = ${jobId}`;
+  expect(job.status).toBe("complete");
+  const peerHeaders = { Cookie: authCookieHeader(fixture.peer) };
+  const peerDetail = await request.get(`/api/notes/imports/${id}`, { headers: peerHeaders });
+  expect(peerDetail.status(), await peerDetail.text()).toBe(200);
+  expect((await peerDetail.json()).import.owned).toBe(false);
+  const peerCommit = await request.post(`/api/notes/imports/${id}`, { headers: peerHeaders, data: { command: "commit", expectedVersion: version, requestId: nanoid() } });
+  expect(peerCommit.status()).toBeGreaterThanOrEqual(400);
+  expect((await request.get("/api/internal/notes/cleanup")).status()).toBe(403);
+});
+
+test("pending_approval video import polls the detail endpoint without posting process", async ({ page }) => {
+  const fixture = await createNotesFixture("officer");
+  const id = nanoid();
+  await seedVideoChatLog(fixture, id, "review", "private", 0);
+  const sql = getE2eSql();
+  await sql`UPDATE knowledge_history_imports SET state = 'pending_approval' WHERE id = ${id}`;
+  let processCalls = 0;
+  let detailLoads = 0;
+  await page.route(`**/api/notes/imports/${id}**`, (route) => { detailLoads++; return route.continue(); });
+  await page.route("**/api/notes/imports/*/process", (route) => { processCalls++; return route.fulfill({ status: 500, json: { error: "should not process" } }); });
+  await page.context().addCookies(playwrightAuthCookies(fixture.author));
+  await page.goto(`/notes?view=chatLogs&chatLog=${id}`);
+  await expect(page.getByRole("heading", { name: "Video chat log", exact: true })).toBeVisible();
+  await expect(page.getByText("Waiting for processor approval", { exact: true })).toBeVisible();
+  await page.waitForTimeout(4_500);
+  expect(detailLoads).toBeGreaterThanOrEqual(2);
+  expect(processCalls).toBe(0);
+});
+
+test("navigating away before the chat video upload starts aborts without uploading or opening", async ({ page }) => {
+  const fixture = await createNotesFixture("officer");
+  const otherId = nanoid();
+  await seedVideoChatLog(fixture, otherId, "committed", "private", 1);
+  await page.context().addCookies(playwrightAuthCookies(fixture.author));
+  let aborted = false;
+  let initSeen = false;
+  let uploadPosts = 0;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/tools/video-upload**", async (route, req) => {
+    const url = new URL(req.url());
+    if (req.method() === "GET" && !url.searchParams.has("knowledgeImportId")) {
+      return route.fulfill({ json: { jobs: [], scoreTargets: [], upload: { mode: "direct", maxUploadBytes: 96 * 1024 * 1024, multipartThresholdBytes: 8 * 1024 * 1024, multipartPartBytes: 8 * 1024 * 1024, legacyDirectPostMaxBytes: 64 * 1024 * 1024 } } });
+    }
+    uploadPosts++;
+    return route.fulfill({ json: { ok: true, jobId: "job-e2e-abort-init", status: "pending_approval", message: "ok" } });
+  });
+  await page.route("**/api/notes/imports", async (route, req) => {
+    if (req.method() !== "POST") return route.continue();
+    initSeen = true;
+    await held;
+    try { return await route.continue(); } catch { return route.abort(); }
+  });
+  page.on("requestfailed", (req) => { if (req.method() === "POST" && req.url().includes("/api/notes/imports")) aborted = true; });
+  const importsLoaded = page.waitForResponse((res) => res.url().includes("/api/notes/imports"));
+  await page.goto("/notes?view=chatLogs");
+  await importsLoaded;
+  await page.getByLabel("Import format", { exact: true }).selectOption("video");
+  await page.getByLabel("Source title", { exact: true }).fill("Abandoned chat video");
+  const video = Buffer.alloc(2 * 1024 * 1024, 1);
+  await page.getByLabel("Upload chat video", { exact: true }).setInputFiles({ name: "abandoned.mp4", mimeType: "video/mp4", buffer: video });
+  await page.getByRole("button", { name: "Upload chat video", exact: true }).click();
+  await expect.poll(() => initSeen).toBe(true);
+  await page.getByRole("button", { name: /^Video chat log/ }).click();
+  await expect.poll(() => aborted).toBe(true);
+  release();
+  await expect(page.getByRole("heading", { name: "Video chat log", exact: true })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(0);
+  expect(uploadPosts).toBe(0);
+  expect(page.url()).toContain(`chatLog=${otherId}`);
+  expect(page.url()).not.toContain("view=imports");
+});
+
+test("discarding a held chat video upload aborts the request without opening the import", async ({ page }) => {
+  const fixture = await createNotesFixture("officer");
+  const otherId = nanoid();
+  await seedVideoChatLog(fixture, otherId, "committed", "private", 1);
+  await page.context().addCookies(playwrightAuthCookies(fixture.author));
+  let aborted = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/tools/video-upload**", async (route, req) => {
+    const url = new URL(req.url());
+    if (req.method() === "GET" && !url.searchParams.has("knowledgeImportId")) {
+      return route.fulfill({ json: { jobs: [], scoreTargets: [], upload: { mode: "direct", maxUploadBytes: 96 * 1024 * 1024, multipartThresholdBytes: 8 * 1024 * 1024, multipartPartBytes: 8 * 1024 * 1024, legacyDirectPostMaxBytes: 64 * 1024 * 1024 } } });
+    }
+    await held;
+    return route.fulfill({ json: { ok: true, jobId: "job-e2e-abort", status: "pending_approval", message: "ok" } });
+  });
+  page.on("requestfailed", (req) => { if (req.method() === "POST" && req.url().includes("/api/tools/video-upload")) aborted = true; });
+  const importsLoaded = page.waitForResponse((res) => res.url().includes("/api/notes/imports"));
+  await page.goto("/notes?view=chatLogs");
+  await importsLoaded;
+  await page.getByLabel("Import format", { exact: true }).selectOption("video");
+  await page.getByLabel("Source title", { exact: true }).fill("Abandoned chat video");
+  const video = Buffer.alloc(2 * 1024 * 1024, 1);
+  await page.getByLabel("Upload chat video", { exact: true }).setInputFiles({ name: "abandoned.mp4", mimeType: "video/mp4", buffer: video });
+  await page.getByRole("button", { name: "Upload chat video", exact: true }).click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  await page.getByRole("button", { name: /^Video chat log/ }).click();
+  await expect.poll(() => aborted).toBe(true);
+  release();
+  await expect(page.getByRole("heading", { name: "Video chat log", exact: true })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(0);
+  expect(page.url()).toContain(`chatLog=${otherId}`);
+  expect(page.url()).not.toContain("view=imports");
+});
+
+test("cleanup deletes only the due committed video source and enforces import constraints", async ({ request }) => {
+  const fixture = await createNotesFixture("officer");
+  const id = nanoid();
+  const seeded = await seedVideoChatLog(fixture, id, "committed", "officers_read", 2);
+  const sql = getE2eSql();
+  await sql`INSERT INTO knowledge_resource_grants (id, resource_id, alliance_id, subject_kind, subject_id, role, created_by_hq_user_id)
+    VALUES (${nanoid()}, ${seeded.resourceId}, ${fixture.alliance.allianceId}, 'officers', ${fixture.alliance.allianceId}, 'read', ${fixture.author.hqUserId})
+    ON CONFLICT DO NOTHING`;
+  const uploads = path.join(process.cwd(), ".data", "uploads");
+  const sourceBytes = Buffer.from("e2e chat video source bytes");
+  const mediaPng = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 200, g: 40, b: 40 } } }).png().toBuffer();
+  const mediaWebp = await sharp(mediaPng).webp().toBuffer();
+  const sourceKey = `notes-history/${id}/sealed/source.mp4`;
+  const messageMediaKey = `notes-history/${id}/media/${seeded.messageMediaId}.png`;
+  const messageThumbKey = `notes-history/${id}/media/${seeded.messageMediaId}.webp`;
+  const sessionMediaKey = `notes-history/${id}/media/${seeded.sessionMediaId}.png`;
+  for (const [key, bytes] of [[sourceKey, sourceBytes], [messageMediaKey, mediaPng], [messageThumbKey, mediaWebp], [sessionMediaKey, mediaPng]] as const) {
+    const target = path.join(uploads, key);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, bytes);
+  }
+  const assetId = nanoid();
+  await sql`INSERT INTO knowledge_history_assets (id, import_id, alliance_id, name, content_type, size, sha256, position, staging_key, sealed_key, sealed_at)
+    VALUES (${assetId}, ${id}, ${fixture.alliance.allianceId}, 'chat.mp4', 'video/mp4', ${sourceBytes.length}, ${hash(sourceBytes)}, 0, ${`notes-history/${id}/staging/source`}, ${sourceKey}, now())`;
+  await sql`UPDATE knowledge_history_imports SET source_delete_after = now() - interval '1 hour' WHERE id = ${id}`;
+
+  await expect(sql`UPDATE knowledge_history_imports SET kind = 'bogus' WHERE id = ${id}`).rejects.toThrow();
+  await expect(sql`UPDATE knowledge_history_imports SET state = 'bogus' WHERE id = ${id}`).rejects.toThrow();
+  await expect(sql`UPDATE knowledge_history_assets SET size = 536870913 WHERE id = ${assetId}`).rejects.toThrow();
+  await expect(sql`UPDATE knowledge_history_assets SET sealed_key = null WHERE id = ${assetId}`).rejects.toThrow();
+  await sql`UPDATE knowledge_history_imports SET state = 'pending_approval' WHERE id = ${id}`;
+  await sql`UPDATE knowledge_history_imports SET state = 'committed' WHERE id = ${id}`;
+  await sql`INSERT INTO knowledge_history_assets (id, import_id, alliance_id, name, content_type, size, sha256, position, staging_key)
+    VALUES (${nanoid()}, ${id}, ${fixture.alliance.allianceId}, 'large.mp4', 'video/mp4', 536870912, ${hash(sourceBytes)}, 1, 'staging/large')`;
+
+  expect((await request.get("/api/internal/notes/cleanup")).status()).toBe(403);
+  expect((await request.get("/api/internal/notes/cleanup", { headers: { Authorization: "Bearer wrong" } })).status()).toBe(403);
+  const response = await request.get("/api/internal/notes/cleanup", { headers: { Authorization: "Bearer e2e-notes-cron-secret" } });
+  expect(response.status(), await response.text()).toBe(200);
+  expect(await response.json()).toEqual({ deleted: 1, failed: 0 });
+
+  const [asset] = await sql`SELECT sealed_key, sealed_at, r2_upload_id FROM knowledge_history_assets WHERE id = ${assetId}`;
+  expect(asset).toMatchObject({ sealed_key: null, sealed_at: null, r2_upload_id: null });
+  const [row] = await sql`SELECT source_deleted_at FROM knowledge_history_imports WHERE id = ${id}`;
+  expect(row.source_deleted_at).not.toBeNull();
+  await expect(fs.access(path.join(uploads, sourceKey))).rejects.toThrow();
+  await fs.access(path.join(uploads, messageMediaKey));
+
+  const headers = { Cookie: authCookieHeader(fixture.author) };
+  const detail = await request.get(`/api/notes/imports/${id}`, { headers });
+  expect(detail.status(), await detail.text()).toBe(200);
+  const body = (await detail.json()).import;
+  expect(body.files.find((file: { id: string }) => file.id === assetId).viewHref).toBeNull();
+  expect((await request.get(`/api/notes/imports/${id}/media/${seeded.messageMediaId}`, { headers })).status()).toBe(200);
+  const peerHeaders = { Cookie: authCookieHeader(fixture.peer) };
+  const peerDetail = await request.get(`/api/notes/imports/${id}`, { headers: peerHeaders });
+  expect(peerDetail.status(), await peerDetail.text()).toBe(200);
+  const peerPatch = await request.patch(`/api/notes/imports/${id}`, { headers: peerHeaders, data: { requestId: nanoid(), expectedVersion: body.version, edits: [] } });
+  expect(peerPatch.status()).toBeGreaterThanOrEqual(400);
 });
