@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import type { HqUser } from "@/lib/db/schema";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 
 export const AVATAR_SOURCES = ["google", "discord", "lastwar"] as const;
 export type AvatarSource = (typeof AVATAR_SOURCES)[number];

@@ -58,7 +58,7 @@ const counts = async (sql: ReturnType<typeof getE2eSql>, matchupId: string) => {
   const heads =
     await sql`select count(*)::int as c from vs_match_day_results where matchup_id = ${matchupId}`;
   const obs =
-    await sql`select count(*)::int as c from vs_match_observations where matchup_id = ${matchupId}`;
+    await sql`select count(*)::int as c from vs_match_observations where matchup_id = ${matchupId} and recorded_date is not null`;
   return { heads: heads[0]!.c, observations: obs[0]!.c };
 };
 

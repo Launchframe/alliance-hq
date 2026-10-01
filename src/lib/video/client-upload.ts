@@ -1,3 +1,5 @@
+import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
+
 export type UploadConfig = {
   mode: "r2" | "direct";
   maxUploadBytes: number;
@@ -49,6 +51,7 @@ export async function uploadVideoFile(options: {
   boardKey?: string;
   hqEventId?: string;
   bankId?: string | null;
+  vsContext?: VsVideoContext;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
@@ -56,6 +59,8 @@ export async function uploadVideoFile(options: {
 }): Promise<{ jobId: string; message: string; status: string }> {
   const { file, scoreTarget, boardKey, uploadConfig, onProgress, onJobCreated } =
     options;
+  const vsContext =
+    scoreTarget === "vs-performance" ? options.vsContext : undefined;
 
   if (uploadConfig.mode === "direct") {
     const formData = new FormData();
@@ -64,6 +69,9 @@ export async function uploadVideoFile(options: {
     if (boardKey) formData.set("boardKey", boardKey);
     if (options.hqEventId) formData.set("hqEventId", options.hqEventId);
     if (options.bankId) formData.set("bankId", options.bankId);
+    if (vsContext) {
+      formData.set("vsContext", JSON.stringify(vsContext));
+    }
 
     onProgress?.(0, file.size);
     const res = await fetch("/api/tools/video-upload", {
@@ -96,6 +104,7 @@ export async function uploadVideoFile(options: {
       boardKey: boardKey ?? null,
       hqEventId: options.hqEventId ?? null,
       bankId: options.bankId ?? null,
+      vsContext: vsContext ?? null,
     }),
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };

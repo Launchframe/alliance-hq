@@ -8,7 +8,7 @@ import {
 import {
   lookupPlayerByUid,
   type LastWarPlayerLookupResult,
-} from "@/lib/lastwar/player-lookup";
+} from "@/lib/lastwar/player-lookup.server";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
   getHqMemberLinkForUser,
@@ -359,7 +359,7 @@ export async function runWebMemberLinkPreview(input: {
 
   // Degraded mode: owner bootstrapping an empty roster while the game API is
   // unreachable still needs the manual name + server fallback (no name to
-  // confirm). Everyone else just retries the UID lookup.
+  // confirm). Everyone else is directed to an R4 claim invite.
   if (lookup.reason === "request_failed") {
     const roster = await loadAllianceMembersForMemberLink(input.allianceId);
     const ownerColdStartEligible = await isOwnerColdStartEligible({
@@ -374,6 +374,11 @@ export async function runWebMemberLinkPreview(input: {
         pending: null,
       };
     }
+    return {
+      outcome: "lookup_error",
+      message: translate("lookupUnavailableAskClaimInvite"),
+      pending: null,
+    };
   }
 
   return {
@@ -534,7 +539,13 @@ export async function runWebMemberLinkSubmit(input: {
     return finishMemberLinkSubmit(
       ctx,
       toMemberLinkApiResponse(
-        { reply: lookup.message, pending: null },
+        {
+          reply:
+            lookup.reason === "request_failed"
+              ? translate("lookupUnavailableAskClaimInvite")
+              : lookup.message,
+          pending: null,
+        },
         { lookupError: true },
       ),
     );

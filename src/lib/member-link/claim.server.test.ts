@@ -10,7 +10,7 @@ vi.mock("@/lib/events/admin-alerts", () => ({
   emitMemberLinkClaimConflictAlert: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/lastwar/player-lookup", () => ({
+vi.mock("@/lib/lastwar/player-lookup.server", () => ({
   isValidGameUid: (value: string) => /^\d{12,16}$/.test(value.trim()),
   isClaimInviteMirrorDevUid: (value: string) =>
     value.trim() === "1234567890121288",
@@ -97,7 +97,8 @@ vi.mock("@/lib/db", () => ({
 const invites = await import("@/lib/native-alliance/invites");
 const repository = await import("@/lib/member-link/repository.server");
 const alerts = await import("@/lib/events/admin-alerts");
-const lookup = await import("@/lib/lastwar/player-lookup");
+const lookup = await import("@/lib/lastwar/player-lookup.server");
+const audit = await import("@/lib/bff/audit");
 const vrRepo = await import("@/lib/vr/repository");
 const resolve = await import("@/lib/member-link/roster-link-resolve.server");
 const helpQueue = await import(
@@ -114,7 +115,12 @@ const baseInput = {
 };
 
 function expectClaimConflictHelpRequest(input: {
-  reason: "name_collision" | "commander_taken" | "server_mismatch" | "target_mismatch";
+  reason:
+    | "name_collision"
+    | "commander_taken"
+    | "server_mismatch"
+    | "target_mismatch"
+    | "lookup_honor_system";
   gameUserName: string | null;
   reportedName?: string;
 }) {
@@ -180,15 +186,50 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(lookup.lookupPlayerByUid).not.toHaveBeenCalled();
   });
 
-  it("surfaces a lookup failure", async () => {
+  it("surfaces a not_found lookup failure", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: false,
+      reason: "not_found",
+      message: "UID not found",
+    } as never);
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("lookup_error");
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("honor-links on request_failed using the invite-bound commander name", async () => {
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: false,
       reason: "request_failed",
       message: "lookup down",
     } as never);
     const result = await runWebMemberLinkClaimConfirm(baseInput);
-    expect(result.outcome).toBe("lookup_error");
-    expect(repository.linkHqMember).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("linked");
+    expect(result.message).toContain("Alpha");
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "m-1",
+        memberDisplayName: "Alpha",
+        gameUid: "1001369694001203",
+      }),
+    );
+    expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "lookup_honor_system" }),
+    );
+    expectClaimConflictHelpRequest({
+      reason: "lookup_honor_system",
+      gameUserName: "Alpha",
+    });
+    expect(audit.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "member_link.claim_confirmed",
+        metadata: expect.objectContaining({
+          honorSystem: true,
+          reason: "lastwar_lookup_request_failed",
+        }),
+      }),
+    );
+    expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
   });
 
   it("links when the UID lookup server differs but the name matches the invite (transfer)", async () => {

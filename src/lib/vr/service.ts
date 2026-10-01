@@ -8,7 +8,7 @@ import {
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { isVrAnomalyConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
@@ -29,7 +29,7 @@ import {
   findUniqueSubstringRosterCandidate,
 } from "@/lib/vr/link-helpers";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
-import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
+import { tryPreApprovedMemberLink, honorLookupFromDiscordClaimInvite } from "@/lib/member-link/preapproved-link.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
 import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
@@ -242,7 +242,11 @@ async function persistLinkTarget(input: {
 function linkConfirmIdentityReply(
   translate: ReturnType<typeof createDiscordTranslator>,
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>,
+  options?: { honorSystem?: boolean },
 ): string {
+  if (options?.honorSystem) {
+    return translate("link.confirmIdentityHonor", { name: lookup.gameUserName });
+  }
   const body = translate("link.confirmIdentity", { name: lookup.gameUserName });
   if (lookup.gameServerNumber != null) {
     return `${body}\n\n${translate("link.confirmIdentityServer", {
@@ -250,6 +254,129 @@ function linkConfirmIdentityReply(
     })}`;
   }
   return body;
+}
+
+/**
+ * Pending confirm rows that already stored a live Last War server must keep that
+ * verified identity when a later lookup attempt fails — never synthesize honor.
+ */
+function verifiedLookupFromPending(
+  pending:
+    | Extract<LinkPendingState, { kind: "link_confirm_identity" }>
+    | Extract<LinkPendingState, { kind: "link_confirm_home_server" }>,
+): Extract<LastWarPlayerLookupResult, { ok: true }> | null {
+  if (pending.kind === "link_confirm_home_server") {
+    return {
+      ok: true,
+      gameUserName: pending.gameUserName,
+      gameServerNumber: pending.lookupServer,
+      ...(pending.gameUserLevel != null
+        ? { gameUserLevel: pending.gameUserLevel }
+        : {}),
+    };
+  }
+  if (typeof pending.gameServerNumber === "number") {
+    return {
+      ok: true,
+      gameUserName: pending.gameUserName,
+      gameServerNumber: pending.gameServerNumber,
+      ...(pending.gameUserLevel != null
+        ? { gameUserLevel: pending.gameUserLevel }
+        : {}),
+    };
+  }
+  return null;
+}
+
+async function finalizeDiscordHonorClaimLink(input: {
+  allianceId: string;
+  guildId?: string | null;
+  discordUserId: string;
+  discordUsername?: string;
+  gameUid: string;
+  lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  replaceAll?: boolean;
+  locale: DiscordBotLocale;
+  auditAction?: string;
+}): Promise<LinkCommandResult> {
+  const { translate } = botContext(input.locale);
+  const uid = input.gameUid.trim();
+  const hqLink = await getDiscordHqLink(input.discordUserId);
+  if (!hqLink?.hqUserId) {
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const result: LinkCommandResult = {
+      reply: translate("link.lookupUnavailableAskClaimInvite"),
+      pending: null,
+    };
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      input.auditAction ?? "link",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  const preapproved = await tryPreApprovedMemberLink({
+    allianceId: input.allianceId,
+    hqUserId: hqLink.hqUserId,
+    gameUid: uid,
+    lookup: input.lookup,
+    requesterHandle: input.discordUsername ?? input.discordUserId,
+    honorSystem: true,
+  });
+
+  if (preapproved.ok) {
+    const persisted = await persistLinkTarget({
+      allianceId: input.allianceId,
+      discordUserId: input.discordUserId,
+      discordUsername: input.discordUsername,
+      linkTarget: {
+        ashedMemberId: preapproved.target.ashedMemberId,
+        memberDisplayName: preapproved.target.memberDisplayName,
+        gameUid: preapproved.target.gameUid,
+      },
+      replaceAll: input.replaceAll,
+      translate,
+    });
+    const result: LinkCommandResult = persisted.linked
+      ? {
+          ...persisted,
+          reply: translate("link.claimLookupHonorLinked", {
+            name: preapproved.target.memberDisplayName,
+          }),
+        }
+      : persisted;
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      input.auditAction ?? "link",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+  const result: LinkCommandResult =
+    preapproved.reason === "commander_taken"
+      ? { reply: translate("link.memberTaken"), pending: null, memberTaken: true }
+      : preapproved.reason === "claim_conflict"
+        ? { reply: translate("link.awaitingOfficerResolve"), pending: null }
+        : {
+            reply: translate("link.lookupUnavailableAskClaimInvite"),
+            pending: null,
+          };
+  await audit(
+    input.allianceId,
+    input.discordUserId,
+    input.auditAction ?? "link",
+    input,
+    result,
+  );
+  return result;
 }
 
 async function finalizeDiscordMemberLink(input: {
@@ -265,7 +392,14 @@ async function finalizeDiscordMemberLink(input: {
   auditAction?: string;
   allianceHomeConfirmed?: boolean;
   userClaimedLookupAsHome?: boolean;
+  honorSystem?: boolean;
 }): Promise<LinkCommandResult> {
+  // Claim-invite honor path must not go through exact roster match + server
+  // eligibility (honor lookups have no gameServerNumber).
+  if (input.honorSystem) {
+    return finalizeDiscordHonorClaimLink(input);
+  }
+
   const { translate, walkthroughSteps } = botContext(input.locale);
   const gameUserName = input.lookup.gameUserName;
   const uid = input.gameUid.trim();
@@ -344,6 +478,7 @@ async function finalizeDiscordMemberLink(input: {
         gameUid: uid,
         lookup: input.lookup,
         requesterHandle: input.discordUsername ?? input.discordUserId,
+        honorSystem: input.honorSystem,
       });
       if (preapproved.ok) {
         resolvedResult = {
@@ -916,6 +1051,44 @@ export async function handleDiscordLinkCommanderSlash(input: {
 
   const lookup = await lookupPlayerByUid(uid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed") {
+      const honor = await honorLookupFromDiscordClaimInvite({
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      });
+      if (honor) {
+        const confirmPending: LinkPendingState = {
+          kind: "link_confirm_identity",
+          gameUid: uid,
+          gameUserName: honor.gameUserName,
+          ...(input.replaceAll ? { replaceAll: true } : {}),
+        };
+        const result: LinkCommandResult = {
+          reply: linkConfirmIdentityReply(translate, honor, { honorSystem: true }),
+          pending: confirmPending,
+          needsIdentityConfirmation: true,
+        };
+        await saveDiscordBotPending(
+          input.allianceId,
+          input.discordUserId,
+          confirmPending,
+        );
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          "link_preview",
+          input,
+          result,
+        );
+        return result;
+      }
+      const result: LinkCommandResult = {
+        reply: translate("link.lookupUnavailableAskClaimInvite"),
+        pending: null,
+      };
+      await audit(input.allianceId, input.discordUserId, "link", input, result);
+      return result;
+    }
     const result: LinkCommandResult = {
       reply: lookup.message,
       pending: null,
@@ -990,6 +1163,51 @@ export async function handleDiscordLinkIdentityConfirm(input: {
 
   const lookup = await lookupPlayerByUid(pending.gameUid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed") {
+      // Keep a previously verified pending identity; only honor via claim invite
+      // when this attempt never got a live lookup (no stored server).
+      const verified = verifiedLookupFromPending(pending);
+      if (verified) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: verified,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm",
+        });
+      }
+      const honor = await honorLookupFromDiscordClaimInvite({
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      });
+      if (honor) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: honor,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm",
+          honorSystem: true,
+        });
+      }
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      const result: LinkCommandResult = {
+        reply: translate("link.lookupUnavailableAskClaimInvite"),
+        pending: null,
+      };
+      await audit(input.allianceId, input.discordUserId, "link_confirm", input, result);
+      return result;
+    }
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
     const result: LinkCommandResult = {
       reply: lookup.message,
@@ -1054,6 +1272,60 @@ export async function handleDiscordLinkHomeServerConfirm(input: {
 
   const lookup = await lookupPlayerByUid(pending.gameUid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed") {
+      // Home-server pending always carries lookupServer from a prior live lookup.
+      const verified = verifiedLookupFromPending(pending);
+      if (verified) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: verified,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm_home",
+          allianceHomeConfirmed: input.choice === "alliance",
+          userClaimedLookupAsHome: input.choice === "lookup",
+        });
+      }
+      const honor = await honorLookupFromDiscordClaimInvite({
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      });
+      if (honor) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: honor,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm_home",
+          allianceHomeConfirmed: input.choice === "alliance",
+          userClaimedLookupAsHome: input.choice === "lookup",
+          honorSystem: true,
+        });
+      }
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      const result: LinkCommandResult = {
+        reply: translate("link.lookupUnavailableAskClaimInvite"),
+        pending: null,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        "link_confirm_home",
+        input,
+        result,
+      );
+      return result;
+    }
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
     const result: LinkCommandResult = {
       reply: lookup.message,

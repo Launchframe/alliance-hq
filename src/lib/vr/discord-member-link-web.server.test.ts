@@ -11,6 +11,9 @@ vi.mock("@/lib/vr/auth-nonce", () => ({
 
 vi.mock("@/lib/lastwar/player-lookup", () => ({
   isValidGameUid: vi.fn(),
+}));
+
+vi.mock("@/lib/lastwar/player-lookup.server", () => ({
   lookupPlayerByUid: vi.fn(),
 }));
 
@@ -33,7 +36,8 @@ vi.mock("@/lib/vr/service", () => ({
 
 import { assertDiscordMemberLinkWebSession } from "@/lib/auth/discord-member-link-gate.server";
 import { consumeDiscordAuthNonce, getValidDiscordAuthNonce } from "@/lib/vr/auth-nonce";
-import { isValidGameUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { isValidGameUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import {
   getDiscordBotPending,
   getDiscordUserLocale,
