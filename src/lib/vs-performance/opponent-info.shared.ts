@@ -59,7 +59,7 @@ const ashedOpponentRowSchema = z.object({
   opponent_server: z.number().int().positive().max(2_147_483_647).nullish(),
   opponent_tag: z.string().max(24).nullish(),
   opponent_name: z.string().max(120).nullish(),
-  opponent_daily_scores: z.array(z.unknown()).min(6).max(7).nullish(),
+  opponent_daily_scores: z.union([z.tuple([]), z.array(z.unknown()).min(6).max(7)]).nullish(),
   outcome: z.enum(VS_WEEK_OUTCOMES).nullish(),
   updated_date: z.string(),
 }).passthrough();
@@ -68,7 +68,7 @@ export function parseAshedOpponentRow(value: unknown, expectedAllianceId: string
   const parsed = ashedOpponentRowSchema.safeParse(value);
   if (!parsed.success || parsed.data.alliance_id !== expectedAllianceId) throw new VsPerformanceError("invalid_snapshot", 422);
   const row = parsed.data;
-  const scores = row.opponent_daily_scores?.map(normalizeAshedVsScore) ?? [null, null, null, null, null, null, null];
+  const scores = row.opponent_daily_scores?.length ? row.opponent_daily_scores.map(normalizeAshedVsScore) : [null, null, null, null, null, null, null];
   return {
     remoteId: row.id,
     allianceId: row.alliance_id,

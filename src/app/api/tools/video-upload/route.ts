@@ -19,6 +19,7 @@ import {
 import { finalizeVideoUploadEnqueue } from "@/lib/video/finalize-video-upload";
 import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip-upload-bank-id.server";
 import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
+import { vsVideoContextSchema } from "@/lib/vs-performance/video-evidence.shared";
 
 export async function POST(request: Request) {
   try {
@@ -59,12 +60,39 @@ export async function POST(request: Request) {
     const boardKey = formData.get("boardKey");
     const hqEventId = formData.get("hqEventId");
     const bankIdRaw = formData.get("bankId");
+    const vsContextRaw = formData.get("vsContext");
     const target = getScoreTarget(scoreTarget);
     if (!target?.enabled) {
       return NextResponse.json(
         { error: "Score target is not available yet." },
         { status: 400 },
       );
+    }
+
+    let vsContext;
+    if (vsContextRaw != null) {
+      if (scoreTarget !== "vs-performance") {
+        return NextResponse.json(
+          { error: "invalid", code: "invalid" },
+          { status: 400 },
+        );
+      }
+      let parsed;
+      try {
+        parsed = vsVideoContextSchema.safeParse(JSON.parse(String(vsContextRaw)));
+      } catch {
+        return NextResponse.json(
+          { error: "invalid", code: "invalid" },
+          { status: 400 },
+        );
+      }
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: "invalid", code: "invalid" },
+          { status: 400 },
+        );
+      }
+      vsContext = parsed.data;
     }
 
     if (isLegacyDirectPostOverLimit(file.size)) {
@@ -110,6 +138,7 @@ export async function POST(request: Request) {
       allianceId: session.currentAllianceId,
       enqueuedByHqUserId: session.hqUserId,
       bankId,
+      vsContext,
     });
 
     return NextResponse.json({
