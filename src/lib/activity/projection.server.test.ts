@@ -113,6 +113,7 @@ describe("projectActivityRecord", () => {
         fromRole: "member",
         toRole: "officer",
       },
+      "member.weekly_pass_updated": {},
       "scores.discarded": { affected: 5, completed: 3 },
       "note.updated": {},
       "account.email_changed": {},
