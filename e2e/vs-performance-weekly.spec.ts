@@ -686,9 +686,10 @@ test.describe("VS weekly planner UI", () => {
     const lastDay = page.getByTestId("vs-plan-day-5").locator("visible=true");
     await expect(lastDay.getByText("Buster Day")).toBeVisible();
     await expect(lastDay.getByText("4 points")).toBeVisible();
-    await expect(page.getByText(/Planned push points/)).toBeVisible();
+    const plan = page.getByTestId("weekly-vs-plan").locator("visible=true");
+    await expect(plan.getByText(/Planned push points/)).toBeVisible();
     await expect(
-      page.getByText("No VS plan has been set for this week.", { exact: true }),
+      plan.getByText("No VS plan has been set for this week.", { exact: true }),
     ).toBeVisible();
     expect(weekStart).toBeTruthy();
   });

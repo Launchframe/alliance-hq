@@ -9,6 +9,10 @@ describe("capture draft audience", () => {
     expect(draftStateSchema.parse({ fields: { body: "Check roster" }, revision: 1, audience: "officers_read" }).audience).toBe("officers_read");
     expect(draftStateSchema.safeParse({ fields: { body: "Check roster" }, revision: 1, audience: "everyone" }).success).toBe(false);
   });
+  it("keeps officer-read audience when interpretation updates other fields", () => {
+    const state = draftStateSchema.parse({ fields: { body: "Check roster" }, revision: 1, audience: "officers_read" });
+    expect(applyDraftInterpretation(state, result).audience).toBe("officers_read");
+  });
 });
 
 describe("durable draft provenance", () => {
