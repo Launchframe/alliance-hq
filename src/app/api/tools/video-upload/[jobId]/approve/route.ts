@@ -171,6 +171,12 @@ export async function POST(_request: Request, { params }: Props) {
     });
 
     dispatchVideoProcessing(jobId, { source: "approve" });
+    if (scoreTargetId === "vs-performance") {
+      const { dispatchVsVideoEvidence } = await import(
+        "@/lib/vs-performance/video-evidence-dispatch.server"
+      );
+      void dispatchVsVideoEvidence(jobId);
+    }
 
     return NextResponse.json({ ok: true, jobId, status: "queued" });
   } catch (error) {

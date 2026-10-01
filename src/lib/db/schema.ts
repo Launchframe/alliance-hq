@@ -1181,6 +1181,75 @@ export const allianceVideoProcessors = pgTable(
   }),
 );
 
+export const videoVsEvidence = pgTable(
+  "video_vs_evidence",
+  {
+    scopeKey: text("scope_key").primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => videoJobs.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    recordedDate: text("recorded_date").notNull(),
+    period: text("period").$type<"daily" | "weekly">().notNull().default("daily"),
+    version: integer("version").notNull().default(1),
+    imageVersion: integer("image_version").notNull().default(0),
+    requestedKind: text("requested_kind")
+      .$type<import("@/lib/vs-performance/video-evidence.shared").VsVideoRequestedKind>()
+      .notNull()
+      .default("auto"),
+    status: text("status")
+      .$type<import("@/lib/vs-performance/video-evidence.shared").VsVideoEvidenceStatus>()
+      .notNull()
+      .default("none"),
+    fileName: text("file_name"),
+    contentType: text("content_type"),
+    fileSize: integer("file_size"),
+    uploadKey: text("upload_key"),
+    storageKey: text("storage_key"),
+    imageSha256: text("image_sha256"),
+    candidate: jsonb("candidate").$type<import("@/lib/vs-performance/vs-capture.shared").VsCaptureCandidate | null>(),
+    draft: jsonb("draft").$type<import("@/lib/vs-performance/video-evidence.shared").VsVideoDraft | null>(),
+    errorCode: text("error_code"),
+    appliedImageVersion: integer("applied_image_version"),
+    leaseToken: text("lease_token"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    uploadedByHqUserId: text("uploaded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("video_vs_evidence_alliance_idx").on(table.allianceId),
+    index("video_vs_evidence_pending_idx").on(table.status, table.leaseExpiresAt),
+    unique("video_vs_evidence_scope_alliance_unique").on(table.scopeKey, table.allianceId),
+    check("video_vs_evidence_period_check", sql`${table.period} in ('daily', 'weekly')`),
+    check("video_vs_evidence_status_check", sql`${table.status} in ('none','uploading','queued','running','needs_type','ready','failed')`),
+    check("video_vs_evidence_kind_check", sql`${table.requestedKind} in ('auto','daily_totals','weekly_overview')`),
+    check("video_vs_evidence_versions_check", sql`${table.version} > 0 and ${table.imageVersion} >= 0`),
+  ],
+);
+
+export const videoVsEvidenceReceipts = pgTable(
+  "video_vs_evidence_receipts",
+  {
+    scopeKey: text("scope_key").notNull(),
+    allianceId: text("alliance_id").notNull(),
+    requestId: text("request_id").notNull(),
+    digest: text("digest").notNull(),
+    result: jsonb("result").$type<import("@/lib/vs-performance/video-evidence-submit.server").VsVideoMatchSaveResult>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.scopeKey, table.requestId] }),
+    foreignKey({
+      columns: [table.scopeKey, table.allianceId],
+      foreignColumns: [videoVsEvidence.scopeKey, videoVsEvidence.allianceId],
+    }).onDelete("cascade"),
+  ],
+);
+
 export const videoFrames = pgTable("video_frames", {
   id: text("id").primaryKey(),
   jobId: text("job_id")
