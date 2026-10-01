@@ -18,6 +18,7 @@ import {
   hasVsVideoOpponent,
   mergeVsVideoCandidate,
   seedVsVideoDraftForm,
+  vsVideoScreenshotMatchPending,
 } from "@/lib/vs-performance/video-evidence-review.shared";
 import {
   vsVideoWeekStart,
@@ -783,7 +784,14 @@ export function useVsVideoEvidence(input: {
         autosaveTimerRef.current = null;
       }
       const include = includeRef.current || options?.forceInclude === true;
-      if (!include) {
+      const snapshot = stateRef.current;
+      const pendingScreenshot =
+        include &&
+        options?.forceInclude !== true &&
+        snapshot != null &&
+        formRef.current != null &&
+        vsVideoScreenshotMatchPending(snapshot, formRef.current);
+      if (!include || pendingScreenshot) {
         await enqueue(() => flushDraft(true)).catch(() => undefined);
         return undefined;
       }

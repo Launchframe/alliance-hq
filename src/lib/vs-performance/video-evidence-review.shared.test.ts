@@ -5,6 +5,7 @@ import {
   chooseVsVideoSide,
   mergeVsVideoCandidate,
   seedVsVideoDraftForm,
+  vsVideoScreenshotMatchPending,
   vsVideoScreenshotOwnTotal,
 } from "./video-evidence-review.shared";
 import {
@@ -266,6 +267,21 @@ describe("chooseVsVideoSide / mergeVsVideoCandidate", () => {
     const newer = response({ matchup: { ...savedMatchup, version: 9 } });
     const merged = mergeVsVideoCandidate(form, newer);
     expect(merged.expectedMatchupVersion).toBe(9);
+  });
+});
+
+describe("vsVideoScreenshotMatchPending", () => {
+  it("is pending while OCR has no ready candidate, so score save can omit match results", () => {
+    const ready = response({});
+    const form = seedableForm(ready);
+    expect(vsVideoScreenshotMatchPending(ready, form)).toBe(false);
+    for (const status of ["queued", "running", "failed", "needs_type"] as const) {
+      expect(vsVideoScreenshotMatchPending(response({ status, candidate: null }), form)).toBe(true);
+    }
+    expect(vsVideoScreenshotMatchPending(response({ status: "queued" }), form)).toBe(true);
+    expect(
+      vsVideoScreenshotMatchPending(response({ status: "failed" }), { ...form, source: "manual" }),
+    ).toBe(false);
   });
 });
 

@@ -69,6 +69,11 @@ function points(value: string): number | null {
   return Number(value.trim());
 }
 
+/** Screenshot review cannot be committed until OCR has a ready candidate. Video score save must continue without it. */
+export function vsVideoScreenshotMatchPending(response: VsVideoEvidenceResponse, form: VsVideoDraftForm): boolean {
+  return form.source === "screenshot" && (response.evidence.status !== "ready" || response.evidence.candidate == null);
+}
+
 export function buildVsVideoMatchSubmission(response: VsVideoEvidenceResponse, draft: VsVideoDraft, locale: string): VsVideoMatchSubmission | undefined {
   if (!draft.includeResults) return undefined;
   if (!response.canEditMatch) throw new VsPerformanceError("forbidden", 403);
