@@ -22,7 +22,7 @@ import {
   getGuildAllianceId,
 } from "@/lib/vr/repository";
 import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import type { LinkCommandResult } from "@/lib/vr/types";
 import {
   handleDiscordLinkCommanderSlash,

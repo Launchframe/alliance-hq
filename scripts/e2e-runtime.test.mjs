@@ -340,6 +340,14 @@ describe("isolated harness source contract", () => {
     expect(nextConfig).toContain("E2E_TEST");
   });
 
+  it("restores a legacy env file from isolated teardown", () => {
+    const teardown = readSource("e2e/global-teardown-isolated.ts");
+    expect(teardown).toContain("restoreEnvFile");
+    expect(teardown).toContain("closeE2eSql");
+    const server = readSource("scripts/e2e-server-isolated.mjs");
+    expect(server).not.toContain("restoreEnvFile");
+  });
+
   it("guards dotenv loading in db maintenance scripts", () => {
     for (const file of [
       "scripts/db-migrate.mjs",
