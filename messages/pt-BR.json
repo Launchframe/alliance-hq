@@ -4398,6 +4398,11 @@
         "subtitle": "VS do dia anterior em {day} — maiores pontuações primeiro.",
         "podiumAria": "Três maiores VS do dia anterior"
       },
+      "vrPush": {
+        "title": "Maiores VR",
+        "subtitle": "Classificação de VR da temporada — maiores pontuações primeiro.",
+        "podiumAria": "Três maiores VR da temporada"
+      },
       "donations": {
         "unavailableTitle": "Pontuação de doações ainda indisponível",
         "unavailableBody": "O HQ ainda não armazena totais de doação. Use escolha manual do condutor até a pontuação de doações estar disponível."

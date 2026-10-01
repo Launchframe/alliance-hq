@@ -4,6 +4,7 @@ import {
   formatWheelShareEligibilityLine,
   formatWheelShareScore,
   formatWheelShareWinChance,
+  rankedWheelShareLeaderboard,
   resolveWheelShareEligibility,
   winProbabilityFromTicketPool,
 } from "@/lib/trains/conductor-wheel-share.shared";
@@ -206,5 +207,37 @@ describe("formatWheelShareScore", () => {
 
   it("formats win chance as a percent", () => {
     expect(formatWheelShareWinChance(0.127, "en-US")).toBe("12.7%");
+  });
+});
+
+describe("rankedWheelShareLeaderboard", () => {
+  it("sorts by score and keeps member identity for winner highlighting", () => {
+    expect(
+      rankedWheelShareLeaderboard([
+        { memberId: "b", memberName: "BOGGLE", priorDayVsScore: 39_100_000 },
+        { memberId: "d", memberName: "Deanlinquent", priorDayVsScore: 39_400_000 },
+        { memberId: "z", memberName: "Zero" },
+        { memberId: "h", memberName: "Happytokill", priorDayVsScore: 64_900_000 },
+      ]),
+    ).toEqual([
+      {
+        memberId: "h",
+        memberName: "Happytokill",
+        rank: 1,
+        score: 64_900_000,
+      },
+      {
+        memberId: "d",
+        memberName: "Deanlinquent",
+        rank: 2,
+        score: 39_400_000,
+      },
+      {
+        memberId: "b",
+        memberName: "BOGGLE",
+        rank: 3,
+        score: 39_100_000,
+      },
+    ]);
   });
 });

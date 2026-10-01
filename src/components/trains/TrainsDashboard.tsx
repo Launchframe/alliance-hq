@@ -36,6 +36,7 @@ import { fetchConductorShareScoreProof } from "@/lib/client/conductor-share-scor
 import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
 import {
   formatWheelShareEligibilityLine,
+  formatWheelShareScore,
   resolveWheelShareEligibility,
 } from "@/lib/trains/conductor-wheel-share.shared";
 import { isConductorConfirmationSatisfied } from "@/lib/trains/conductor-record.shared";
@@ -2237,7 +2238,14 @@ export function TrainsDashboard({
           ? { priorDayVsScore: scoreProof.priorDayVsScore }
           : {}),
       };
-      const viewport = buildShareViewportForWinner(winnerWithScore, data.roster, {
+      const viewportPool =
+        scoreProof.leaderboard.length > 0
+          ? scoreProof.leaderboard.map((row) => ({
+              memberId: row.memberId,
+              memberName: row.memberName,
+            }))
+          : data.roster;
+      const viewport = buildShareViewportForWinner(winnerWithScore, viewportPool, {
         seed: `${selectedDate}:${winner.memberId}`,
       });
       const dayLabel = spinWeekDayLabel(selectedDate);
@@ -2286,6 +2294,35 @@ export function TrainsDashboard({
         winnerIndex: viewport.winnerIndex,
         eligibilityLine,
         statsLine,
+        locale,
+        winnerScoreLabel:
+          scoreProof.priorDayVsScore != null &&
+          scoreProof.priorDayVsScore > 0 &&
+          (selectedConductorRule?.kind === "vs_top_n" ||
+            selectedConductorRule?.kind === "vr_top_n")
+            ? `${formatWheelShareScore(scoreProof.priorDayVsScore, locale)} ${
+                selectedConductorRule.kind === "vr_top_n" ? "VR" : "VS"
+              }`
+            : null,
+        leaderboard:
+          scoreProof.leaderboard.length > 0 &&
+          (selectedConductorRule?.kind === "vs_top_n" ||
+            selectedConductorRule?.kind === "vr_top_n")
+            ? {
+                title:
+                  selectedConductorRule.kind === "vr_top_n"
+                    ? t("wheel.vsValidation.topNVrTitle", {
+                        count: scoreProof.leaderboard.length,
+                      })
+                    : scoreProof.leaderboard.length === 1
+                      ? t("wheel.vsValidation.top1Title")
+                      : t("wheel.vsValidation.topNVsTitle", {
+                          count: scoreProof.leaderboard.length,
+                        }),
+                winnerMemberId: winner.memberId,
+                rows: scoreProof.leaderboard,
+              }
+            : null,
       });
       const safeDate =
         dayLabel.replace(/[^\w-]+/g, "-").toLowerCase() || "conductor";

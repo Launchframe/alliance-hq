@@ -1,5 +1,7 @@
 "use client";
 
+import { formatWheelShareScore } from "@/lib/trains/conductor-wheel-share.shared";
+
 const WIDTH = 1080;
 const HEIGHT = 1350;
 const CONFETTI_COLORS = [
@@ -14,6 +16,13 @@ const CONFETTI_COLORS = [
   "#f472b6",
 ];
 
+export type ConductorWheelShareLeaderboardRow = {
+  memberId: string;
+  memberName: string;
+  rank: number;
+  score: number;
+};
+
 export type ConductorWheelShareImageInput = {
   title: string;
   dayLabel?: string | null;
@@ -21,6 +30,14 @@ export type ConductorWheelShareImageInput = {
   winnerIndex: number;
   eligibilityLine?: string | null;
   statsLine?: string | null;
+  /** Ranked VS/VR board from the result dialog. */
+  leaderboard?: {
+    title: string;
+    winnerMemberId: string;
+    rows: ConductorWheelShareLeaderboardRow[];
+  } | null;
+  winnerScoreLabel?: string | null;
+  locale?: string;
 };
 
 type ConfettiPiece = {
@@ -107,6 +124,88 @@ function wrapCanvasText(
   return currentY;
 }
 
+function compactReelAroundWinner(
+  names: string[],
+  winnerIndex: number,
+): { names: string[]; winnerIndex: number } {
+  if (names.length <= 3) {
+    return { names, winnerIndex };
+  }
+  const start = Math.max(0, Math.min(winnerIndex - 1, names.length - 3));
+  const slice = names.slice(start, start + 3);
+  return { names: slice, winnerIndex: winnerIndex - start };
+}
+
+function drawShareLeaderboard(
+  ctx: CanvasRenderingContext2D,
+  input: {
+    title: string;
+    winnerMemberId: string;
+    rows: ConductorWheelShareLeaderboardRow[];
+    locale: string;
+    top: number;
+  },
+): number {
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#8b949e";
+  ctx.font = "600 26px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(input.title.toUpperCase(), WIDTH / 2, input.top);
+
+  const listTop = input.top + 24;
+  const listLeft = 90;
+  const listWidth = WIDTH - 180;
+  const available = HEIGHT - 96 - listTop;
+  const rowHeight = Math.max(
+    40,
+    Math.min(52, Math.floor((available - 24) / Math.max(input.rows.length, 1))),
+  );
+  const listHeight = input.rows.length * rowHeight + 20;
+
+  ctx.fillStyle = "rgba(22, 27, 34, 0.92)";
+  ctx.strokeStyle = "rgba(48, 54, 61, 0.9)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(listLeft, listTop, listWidth, listHeight, 22);
+  ctx.fill();
+  ctx.stroke();
+
+  input.rows.forEach((row, index) => {
+    const y = listTop + 10 + index * rowHeight;
+    const isWinner = row.memberId === input.winnerMemberId;
+    if (isWinner) {
+      ctx.fillStyle = "rgba(56, 139, 253, 0.16)";
+      ctx.beginPath();
+      ctx.roundRect(listLeft + 8, y, listWidth - 16, rowHeight, 12);
+      ctx.fill();
+    }
+
+    const textY = y + rowHeight / 2 + 8;
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "700 24px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(`#${row.rank}`, listLeft + 24, textY);
+
+    ctx.fillStyle = isWinner ? "#f0f6fc" : "#e6edf3";
+    ctx.font = isWinner
+      ? "700 28px system-ui, -apple-system, Segoe UI, sans-serif"
+      : "600 26px system-ui, -apple-system, Segoe UI, sans-serif";
+    const name = truncateName(ctx, row.memberName, listWidth - 280);
+    ctx.fillText(name, listLeft + 100, textY);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#facc15";
+    ctx.font = "700 26px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(
+      formatWheelShareScore(row.score, input.locale),
+      listLeft + listWidth - 24,
+      textY,
+    );
+  });
+
+  ctx.textAlign = "center";
+  return listTop + listHeight + 8;
+}
+
 export function renderConductorWheelShareCanvas(
   input: ConductorWheelShareImageInput,
 ): HTMLCanvasElement {
@@ -143,11 +242,19 @@ export function renderConductorWheelShareCanvas(
     ctx.fillText(input.dayLabel, WIDTH / 2, 180);
   }
 
-  const reelTop = 260;
-  const itemHeight = 132;
+  const locale = input.locale ?? "en-US";
+  const leaderboardRows = input.leaderboard?.rows ?? [];
+  const showLeaderboard = leaderboardRows.length > 0;
+
+  const reelNames = showLeaderboard
+    ? compactReelAroundWinner(input.names, input.winnerIndex)
+    : { names: input.names, winnerIndex: input.winnerIndex };
+
+  const itemHeight = showLeaderboard ? 108 : 132;
+  const reelTop = 240;
   const reelWidth = 860;
   const reelLeft = (WIDTH - reelWidth) / 2;
-  const reelHeight = itemHeight * input.names.length;
+  const reelHeight = itemHeight * reelNames.names.length;
 
   ctx.fillStyle = "rgba(22, 27, 34, 0.92)";
   ctx.strokeStyle = "rgba(48, 54, 61, 0.9)";
@@ -157,7 +264,7 @@ export function renderConductorWheelShareCanvas(
   ctx.fill();
   ctx.stroke();
 
-  const highlightTop = reelTop + input.winnerIndex * itemHeight;
+  const highlightTop = reelTop + reelNames.winnerIndex * itemHeight;
   ctx.fillStyle = "rgba(56, 139, 253, 0.14)";
   ctx.strokeStyle = "rgba(56, 139, 253, 0.75)";
   ctx.lineWidth = 3;
@@ -166,15 +273,24 @@ export function renderConductorWheelShareCanvas(
   ctx.fill();
   ctx.stroke();
 
-  input.names.forEach((name, index) => {
+  reelNames.names.forEach((name, index) => {
     const centerY = reelTop + index * itemHeight + itemHeight / 2;
-    const isWinner = index === input.winnerIndex;
+    const isWinner = index === reelNames.winnerIndex;
     ctx.fillStyle = isWinner ? "#f0f6fc" : "rgba(201, 209, 217, 0.82)";
     ctx.font = isWinner
       ? "800 58px system-ui, -apple-system, Segoe UI, sans-serif"
       : "600 40px system-ui, -apple-system, Segoe UI, sans-serif";
     const displayName = truncateName(ctx, name, reelWidth - 120);
-    ctx.fillText(displayName, WIDTH / 2, centerY + (isWinner ? 18 : 12));
+    const nameY =
+      isWinner && input.winnerScoreLabel
+        ? centerY + 4
+        : centerY + (isWinner ? 18 : 12);
+    ctx.fillText(displayName, WIDTH / 2, nameY);
+    if (isWinner && input.winnerScoreLabel) {
+      ctx.fillStyle = "#facc15";
+      ctx.font = "700 28px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText(input.winnerScoreLabel, WIDTH / 2, nameY + 36);
+    }
   });
 
   const fade = ctx.createLinearGradient(0, reelTop, 0, reelTop + reelHeight);
@@ -185,7 +301,7 @@ export function renderConductorWheelShareCanvas(
   ctx.fillStyle = fade;
   ctx.fillRect(reelLeft, reelTop, reelWidth, reelHeight);
 
-  let contentY = reelTop + reelHeight + 70;
+  let contentY = reelTop + reelHeight + 62;
   if (input.eligibilityLine) {
     ctx.fillStyle = "#79c0ff";
     ctx.font = "600 34px system-ui, -apple-system, Segoe UI, sans-serif";
@@ -199,10 +315,20 @@ export function renderConductorWheelShareCanvas(
     ) + 12;
   }
 
+  if (showLeaderboard && input.leaderboard) {
+    contentY = drawShareLeaderboard(ctx, {
+      title: input.leaderboard.title,
+      winnerMemberId: input.leaderboard.winnerMemberId,
+      rows: leaderboardRows,
+      locale,
+      top: contentY + 8,
+    });
+  }
+
   if (input.statsLine) {
     ctx.fillStyle = "#8b949e";
     ctx.font = "500 28px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText(input.statsLine, WIDTH / 2, contentY);
+    ctx.fillText(input.statsLine, WIDTH / 2, Math.min(contentY + 36, HEIGHT - 80));
   }
 
   drawConfetti(ctx, confetti.slice(0, 40));

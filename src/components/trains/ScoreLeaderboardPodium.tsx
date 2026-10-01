@@ -23,8 +23,12 @@ type Props = {
 };
 
 /** Sub-namespace under `trains.scoreLeaderboard` holding this kind's title/subtitle/aria copy. */
-function copyKeyForKind(kind: ScoreLeaderboardKind): "tpif" | "vsPush" {
-  return kind === "vs_push" ? "vsPush" : "tpif";
+function copyKeyForKind(
+  kind: ScoreLeaderboardKind,
+): "tpif" | "vsPush" | "vrPush" {
+  if (kind === "vs_push") return "vsPush";
+  if (kind === "vr_push") return "vrPush";
+  return "tpif";
 }
 
 function formatScoreDay(scoreDate: string, locale: string): string {

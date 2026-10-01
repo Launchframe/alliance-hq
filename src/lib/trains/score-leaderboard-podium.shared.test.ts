@@ -25,6 +25,12 @@ describe("resolveScoreLeaderboardKind", () => {
     ).toBe("vs_push");
   });
 
+  it("returns vr_push for a Top VR board", () => {
+    expect(
+      resolveScoreLeaderboardKind({ rule: { kind: "vr_top_n", topN: 5 } }),
+    ).toBe("vr_push");
+  });
+
   it("returns donations for the top-donor rule", () => {
     expect(
       resolveScoreLeaderboardKind({ rule: { kind: "donations_top" } }),
