@@ -18,7 +18,7 @@ import {
   loadMemberLinkClaimTarget,
 } from "@/lib/member-link/claim-target.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
-import { getAllianceById } from "@/lib/vr/repository";
+import { getAllianceById, getDiscordHqLink } from "@/lib/vr/repository";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { isClaimInviteMirrorDevUid } from "@/lib/lastwar/player-lookup";
 
@@ -28,6 +28,28 @@ export type PreApprovedLinkTarget = {
   gameUid: string;
   source: "hq_member_link" | "claim_invite";
 };
+
+/**
+ * When Last War UID lookup is down, Discord claim invitees can still confirm
+ * using the officer-bound commander name (same honor rule as web claim confirm).
+ */
+export async function honorLookupFromDiscordClaimInvite(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<Extract<LastWarPlayerLookupResult, { ok: true }> | null> {
+  const hqLink = await getDiscordHqLink(input.discordUserId);
+  if (!hqLink?.hqUserId) return null;
+  const claimTarget = await loadMemberLinkClaimTarget({
+    allianceId: input.allianceId,
+    hqUserId: hqLink.hqUserId,
+  });
+  if (!claimTarget) return null;
+  return {
+    ok: true,
+    gameUserName: claimTarget.commanderName,
+  };
+}
+
 
 async function notifyClaimConflict(input: {
   allianceId: string;
@@ -68,6 +90,8 @@ export async function tryPreApprovedMemberLink(input: {
   gameUid: string;
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
   requesterHandle?: string | null;
+  /** Last War unreachable — trust invite-bound commander name. */
+  honorSystem?: boolean;
 }): Promise<
   | { ok: true; target: PreApprovedLinkTarget }
   | { ok: false; reason: "not_preapproved" | "claim_conflict" | "commander_taken" }
@@ -97,6 +121,49 @@ export async function tryPreApprovedMemberLink(input: {
   });
   if (!claimTarget) {
     return { ok: false, reason: "not_preapproved" };
+  }
+
+  if (input.honorSystem) {
+    const linked = await linkHqMember({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      ashedMemberId: claimTarget.ashedMemberId,
+      memberDisplayName: claimTarget.commanderName,
+      gameUid: uid,
+    });
+    if (!linked.ok) {
+      return { ok: false, reason: "commander_taken" };
+    }
+    await notifyClaimConflict({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      requesterHandle: input.requesterHandle,
+      commanderName: claimTarget.commanderName,
+      ashedMemberId: claimTarget.ashedMemberId,
+      gameUserName: claimTarget.commanderName,
+      gameUid: uid,
+      reason: "lookup_honor_system",
+    });
+    try {
+      await maybeSetOwnerMemberExternalId({
+        allianceId: input.allianceId,
+        hqUserId: input.hqUserId,
+        ashedMemberId: claimTarget.ashedMemberId,
+      });
+    } catch (error) {
+      console.error("[member-link] preapproved honor owner sync failed", error);
+    }
+    await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+    await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, uid);
+    return {
+      ok: true,
+      target: {
+        ashedMemberId: claimTarget.ashedMemberId,
+        memberDisplayName: claimTarget.commanderName,
+        gameUid: uid,
+        source: "claim_invite",
+      },
+    };
   }
 
   const lookupGameUserName = isClaimInviteMirrorDevUid(uid)

@@ -34,7 +34,8 @@ export type MemberLinkClaimConflictAlert = {
     | "commander_taken"
     | "server_mismatch"
     | "target_mismatch"
-    | "discord_hq_unlinked";
+    | "discord_hq_unlinked"
+    | "lookup_honor_system";
   updatedAt: string;
 };
 
