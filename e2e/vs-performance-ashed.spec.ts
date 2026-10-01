@@ -417,7 +417,7 @@ test.describe("VS Ashed opponent sync API", () => {
     expect((await res.json()).code).toBe("ashed_unavailable");
   });
 
-  test("pull imports remote opponent identity, scores, and outcome", async ({
+  test("pull imports remote opponent identity, scores, and outcome with empty historical weeks", async ({
     request,
   }) => {
     const { cookieHeader, externalId } = await setupAshedAlliance(
@@ -426,7 +426,13 @@ test.describe("VS Ashed opponent sync API", () => {
     );
     const today = todayLocalDate();
     const pastWeek = getWeekStartMonday(addCalendarDays(today, -7));
-    mockState.records = [metaRecord(pastWeek, externalId)];
+    mockState.records = [
+      metaRecord(pastWeek, externalId),
+      metaRecord(addCalendarDays(pastWeek, -7), externalId, {
+        opponent_server: null, opponent_tag: null, opponent_name: null,
+        opponent_daily_scores: [], outcome: 'pending',
+      }),
+    ];
 
     const week = await fetchWeek(request, cookieHeader, pastWeek);
     expect(week.canImportAshed).toBe(true);
@@ -461,6 +467,23 @@ test.describe("VS Ashed opponent sync API", () => {
     expect(row?.external_competition_id).toBe(mockState.records[0]!.id);
     expect(row?.identity_source).toBe("ashed_import");
     expect(matchup.days).toHaveLength(0);
+    const syncRes = await request.post('/api/vs-performance/matchup/sync', {
+      headers: { Cookie: cookieHeader, 'Content-Type': 'application/json' },
+      data: { weekStart: pastWeek, scope: payload.scope },
+    });
+    expect(syncRes.ok(), await syncRes.text()).toBeTruthy();
+    const synced = (await syncRes.json()) as VsWeekPayload;
+    expect(synced.matchup?.sync?.status).toBe('synced');
+    expect(synced.matchup?.opponentDailyScores).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(synced.matchup?.days).toHaveLength(0);
+    const historyRes = await request.get('/api/vs-performance/matchup/opponents', { headers: { Cookie: cookieHeader } });
+    expect(historyRes.ok(), await historyRes.text()).toBeTruthy();
+    const history = await historyRes.json();
+    expect(history.ashedUnavailable).toBe(false);
+    expect(history.opponents).toContainEqual({ server: 1236, tag: 'FOE', name: 'Opponent' });
+    expect(mockState.posts).toHaveLength(0);
+    expect(mockState.puts).toHaveLength(0);
+    expect(mockState.records[1].opponent_daily_scores).toEqual([]);
   });
 
   test("member is denied import, sync, and capture parse", async ({
