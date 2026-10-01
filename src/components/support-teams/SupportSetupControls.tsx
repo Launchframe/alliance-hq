@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { FORM_SUBMIT_ENTER_KEY_HINT, preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import type { SupportCommand, SupportSnapshot } from "@/lib/support-teams/types.shared";
 import { locationOf } from "@/lib/support-teams/board-client.shared";
 import { SupportDialog, SupportErrorMessage, supportButton, supportInput } from "./SupportTeamControls";
@@ -30,10 +31,16 @@ export function SupportSetupControls({ snapshot, interactions, pending, error }:
     </div>
     <SupportErrorMessage code={error} />
     {create && <SupportDialog title={t("createTeamTitle")} onClose={() => setCreate(null)}>
-      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); interactions.onCommand(createCommand(leadId), "setup"); setCreate(null); }}>
-        <label className="block text-sm">{t("teamName")}<input className={supportInput} value={name} maxLength={60} onChange={(event) => setName(event.target.value)} /></label>
+      <form className="space-y-3" onSubmit={(event) => {
+        preventDefaultFormSubmit(event);
+        const command = { ...createCommand(leadId), name: name.trim() };
+        if (pending || !command.name || !leadId || !interactions.canCommand(command)) return;
+        interactions.onCommand(command, "setup");
+        setCreate(null);
+      }}>
+        <label className="block text-sm">{t("teamName")}<input className={supportInput} value={name} maxLength={60} enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} onChange={(event) => setName(event.target.value)} /></label>
         <AppSelect value={leadId} onChange={setLeadId} aria-label={t("teamLead")} placeholder={t("chooseLead")} combobox searchable explicitSelection searchMode="fuzzy" searchPlaceholder={t("findMember")} noSearchResultsLabel={t("noMatches")} options={snapshot.roster.filter((member) => member.rank === 4 || member.rank === 5).map((member) => ({ value: member.id, label: member.name, disabled: pending || !interactions.canCommand(createCommand(member.id)) }))} />
-        <button className={supportButton} disabled={pending || !name.trim() || !leadId || !interactions.canCommand(createCommand(leadId))}>{t("createTeam")}</button>
+        <button type="submit" className={supportButton} disabled={pending || !name.trim() || !leadId || !interactions.canCommand(createCommand(leadId))}>{t("createTeam")}</button>
       </form>
     </SupportDialog>}
     {confirmPublish && <SupportDialog title={t("publishTitle")} onClose={() => setConfirmPublish(false)}>
