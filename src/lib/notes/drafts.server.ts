@@ -1,11 +1,10 @@
 import "server-only";
 
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { createPerformanceNoteInTransaction, getPerformanceNoteForAlliance, updatePerformanceNoteInTransaction } from "@/lib/performance-notes/repository.server";
 import type { KnowledgeActor } from "./policy.shared";
-import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
+import { createKnowledgeResource, grantOfficersReadAccess, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { knowledgeHash, knowledgePrincipalKey, withKnowledgeReceipt } from "./mutations.server";
 import { draftStateSchema, reviewedDraftTasks, type CaptureDraft, type CaptureDraftState, type CaptureProvenance } from "./drafts.shared";
 import { createNoteTaskInTransaction } from "./tasks.server";
@@ -133,10 +132,7 @@ export async function commitCaptureDraft(actor: KnowledgeActor & { canCreate?: b
       await updatePerformanceNoteInTransaction(tx, actor, noteId, { ...sharedFields, documentType: state.fields.documentType, keyDecisions: state.fields.keyDecisions, openQuestions: state.fields.openQuestions, ...(source.isOwner ? { notebook, inbox, excludedMemberIds, ...(state.archive !== null ? { archived: state.archive } : {}) } : {}), expectedVersion: liveVersion });
     } else {
       noteId = await createPerformanceNoteInTransaction(tx, { ...fields, actor, captureSource: draft.source, captureDiscordUserId: resource.ownerDiscordUserId, intakeMode: fields.kind === "note" ? "thought" : "batch" });
-      if (state.audience === "officers_read") {
-        const [note] = await tx.select({ resourceId: schema.performanceNotes.resourceId }).from(schema.performanceNotes).where(eq(schema.performanceNotes.id, noteId));
-        if (note) await tx.insert(schema.knowledgeResourceGrants).values({ id: nanoid(), resourceId: note.resourceId, allianceId: actor.allianceId, subjectKind: "officers", subjectId: actor.allianceId, role: "read", createdByHqUserId: actor.hqUserId }).onConflictDoNothing();
-      }
+      if (state.audience === "officers_read") await grantOfficersReadAccess(tx, actor, `note:${noteId}`);
     }
     if (ownsNote) await tx.update(schema.performanceNotes).set({ intakeProvenance: await provenance(tx, actor, draft, resource.version, state) }).where(eq(schema.performanceNotes.id, noteId));
     const taskIds: string[] = [];
