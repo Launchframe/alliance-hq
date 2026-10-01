@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import type { Sql } from "./db";
 import {
   acceptInviteViaApi,
+  createAllianceRosterMember,
   createAshedAlliance,
   createHqInviteRow,
   createHqMemberLink,
@@ -93,6 +94,15 @@ export async function createViewOnlyMember(
     allianceId: alliance.allianceId,
     ashedMemberId,
     primaryName: "E2E Commander",
+  });
+  await sql`
+    INSERT INTO hq_user_commanders (id, hq_user_id, commander_id, is_primary, linked_at, updated_at)
+    VALUES (${nanoid(16)}, ${accepted.hqUserId}, ${commanderId}, true, ${new Date()}, ${new Date()})
+  `;
+  await createAllianceRosterMember(sql, {
+    allianceId: alliance.allianceId,
+    ashedMemberId,
+    currentName: "E2E Commander",
   });
 
   return {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { getActivityPrincipalForSession } from "@/lib/activity/access.server";
 import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { handleWebVrCommand, loadMyVrForUser } from "@/lib/vr/web-vr.server";
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
   }
 
+  const principal = await getActivityPrincipalForSession(session);
+  if (!principal || principal.currentAllianceId !== allianceId) {
+    const t = await getTranslations("activity");
+    return NextResponse.json({ error: t("accessChanged") }, { status: 403 });
+  }
+
   const body = (await request.json()) as {
     instituteLevel?: number | null;
     confirm?: "yes" | "no" | null;
@@ -58,6 +65,7 @@ export async function POST(request: Request) {
     sessionId: session.id,
     allianceId,
     hqUserId: session.hqUserId,
+    principal,
     locale,
     explicitInstituteLevel: body.instituteLevel,
     confirm: body.confirm,
