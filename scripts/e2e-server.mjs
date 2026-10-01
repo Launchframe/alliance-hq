@@ -126,6 +126,7 @@ function buildEnv(dbUrl) {
     NEXT_PUBLIC_APP_URL: appOrigin,
     CALENDAR_APP_ORIGIN: appOrigin,
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
+    CRON_SECRET: "e2e-notes-cron-secret",
     ...e2eOAuthEnv(),
     ...e2eOcrWorkerEnv(),
   };

@@ -72,7 +72,7 @@ vi.mock("@/lib/notes/mutations.server", async (original) => ({
       execute: async () => undefined,
     }),
 }));
-import { commandHistoryImport, sealHistoryAsset, listHistoryImports, historyMediaTarget } from "./imports.server";
+import { commandHistoryImport, sealHistoryAsset, listHistoryImports, historyMediaTarget, reviewHistoryMessages } from "./imports.server";
 import { KnowledgeAccessError } from "./resources.server";
 import type { KnowledgeWebActor } from "./access.server";
 import { knowledgeHistoryImports } from "@/lib/db/schema";
@@ -194,6 +194,54 @@ it("serves the WebP thumbnail variant and falls back to the PNG content type", a
     contentType: "image/png",
   });
 });
+it("commit on a video import schedules seven-day source cleanup and completes the linked job", async () => {
+  const record = videoRecord("review");
+  mocks.txSelect = [
+    [record], [record],
+    [{ unreviewed: 0, included: 2, emptyEnglish: 0 }],
+    [{ unreviewed: 0, reviewed: 1 }],
+  ];
+  const before = Date.now();
+  const result = await commandHistoryImport(actor, "import-1", { requestId: "req-5", expectedVersion: 3, command: "commit" });
+  expect(result).toMatchObject({ importId: "import-1" });
+  const committed = mocks.txSets.find((set) => typeof set === "object" && set !== null && (set as Record<string, unknown>).state === "committed") as { state: string; sourceDeleteAfter: Date; sourceDeletedAt: null; updatedAt: Date };
+  expect(committed).toBeDefined();
+  expect(committed.sourceDeletedAt).toBeNull();
+  expect(committed.sourceDeleteAfter.getTime() - committed.updatedAt.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+  expect(committed.sourceDeleteAfter.getTime() - before).toBeGreaterThan(6 * 24 * 60 * 60 * 1000);
+  expect(mocks.txSets).toContainEqual(expect.objectContaining({ status: "complete" }));
+});
+
+it("commit on a text import stays unchanged with no retention or job completion", async () => {
+  const record = { ...videoRecord("review"), kind: "text", sourceVideoJobId: null };
+  mocks.txSelect = [
+    [record], [record],
+    [{ unreviewed: 0, included: 2, emptyEnglish: 0 }],
+    [{ unreviewed: 0, reviewed: 0 }],
+  ];
+  await commandHistoryImport(actor, "import-1", { requestId: "req-6", expectedVersion: 3, command: "commit" });
+  const committed = mocks.txSets.find((set) => typeof set === "object" && set !== null && (set as Record<string, unknown>).state === "committed") as Record<string, unknown>;
+  expect(committed).toBeDefined();
+  expect("sourceDeleteAfter" in committed).toBe(false);
+  expect(mocks.txSets).not.toContainEqual(expect.objectContaining({ status: "complete" }));
+});
+
+it("review accepts 240 media observations and rejects 241", async () => {
+  const record = videoRecord("review");
+  const mediaReviews = Array.from({ length: 240 }, (_, index) => ({ id: `media-${index}`, reviewed: true }));
+  mocks.txSelect = [[record], [record]];
+  await expect(reviewHistoryMessages(actor, "import-1", { requestId: "req-7", expectedVersion: 3, edits: [], mediaReviews })).resolves.toMatchObject({ importId: "import-1" });
+  mocks.txSelect = [[record], [record]];
+  await expect(reviewHistoryMessages(actor, "import-1", { requestId: "req-8", expectedVersion: 3, edits: [], mediaReviews: [...mediaReviews, { id: "media-240", reviewed: true }] })).rejects.toBeInstanceOf(KnowledgeAccessError);
+});
+
+it("declares the expired-source cleanup partial index", () => {
+  const index = getTableConfig(knowledgeHistoryImports).indexes.find((item) => item.config.name === "knowledge_history_imports_source_cleanup_idx");
+  expect(index).toBeDefined();
+  expect(index!.config.columns).toMatchObject([{ name: "source_delete_after" }, { name: "id" }]);
+  expect(index!.config.where).toBeDefined();
+});
+
 it("declares the alliance-scoped descending keyset index", () => {
   const index = getTableConfig(knowledgeHistoryImports).indexes.find((item) => item.config.name === "knowledge_history_imports_page_idx");
   expect(index).toBeDefined();

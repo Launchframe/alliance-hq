@@ -2,7 +2,7 @@ import { z } from "zod";
 import { redactIntakeText } from "./intake.shared";
 import { MAX_OFFICER_INTEL_IMAGE_BYTES, MAX_OFFICER_INTEL_IMAGES } from "@/lib/officer-intel/storage.shared";
 import { isOfficerChatNoiseLine } from "@/lib/officer-intel/chat-ocr/parse-chat-text.shared";
-import { CHAT_VIDEO_CONTENT_TYPES } from "@/lib/video/chat-video.shared";
+import { CHAT_MEDIA_MAX_OBSERVATIONS, CHAT_VIDEO_CONTENT_TYPES } from "@/lib/video/chat-video.shared";
 import { DEFAULT_MAX_VIDEO_UPLOAD_BYTES } from "@/lib/video/upload-limit";
 
 export const HISTORY_IMPORT_VERSION = 1;
@@ -61,7 +61,7 @@ export const historyReviewSchema = historyMessageSchema.pick({ sender: true, sen
   included: z.boolean(), expectedVersion: z.number().int().positive(), body: body.optional(),
   originalText: body.optional(), englishText: body.optional(),
   replyToMessageId: identity.nullish(), replyToName: z.string().trim().max(160).nullish(),
-  coordinates: historyCoordinatesSchema.nullish(), mediaReviewed: z.array(historyMediaReviewSchema).max(MAX_OFFICER_INTEL_IMAGES * 2).optional(),
+  coordinates: historyCoordinatesSchema.nullish(), mediaReviewed: z.array(historyMediaReviewSchema).max(CHAT_MEDIA_MAX_OBSERVATIONS).optional(),
 });
 const exportMessage = z.object({ id: identity, timestamp, author: z.object({ name: z.string().max(160) }).nullable(), content: body });
 const versionedExport = z.object({ schemaVersion: z.literal(HISTORY_IMPORT_VERSION), messages: z.array(exportMessage).min(1).max(HISTORY_MESSAGE_LIMIT) });

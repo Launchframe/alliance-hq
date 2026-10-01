@@ -13,6 +13,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/internal/notes/cleanup",
+      "schedule": "17 4 * * *"
+    },
+    {
       "path": "/api/internal/calendar/sync",
       "schedule": "* * * * *"
     },
