@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { ASHED_EMBED_FRAME_CLASS } from "@/lib/nav/ashed-embed-frame.shared";
 import { ashedUrlForPath } from "@/lib/nav/routes";
 import { strongText } from "@/components/i18n/richText";
 
@@ -42,7 +43,9 @@ export function AshedEmbedPane({ path, title, disablePointerEvents }: Props) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-hq-canvas">
+    <div
+      className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-hq-canvas ${ASHED_EMBED_FRAME_CLASS}`}
+    >
       {!hintDismissed ? (
         <div className="border-b border-[#d29922]/30 bg-[#d29922]/10 px-4 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -78,7 +81,7 @@ export function AshedEmbedPane({ path, title, disablePointerEvents }: Props) {
         key={path}
         src={url}
         title={t("iframeTitle", { path: title })}
-        className={`min-h-0 w-full flex-1${disablePointerEvents ? " pointer-events-none" : ""}`}
+        className={`h-full min-h-0 w-full flex-1${disablePointerEvents ? " pointer-events-none" : ""}`}
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
         onLoad={() => setLoadedPath(path)}
       />
