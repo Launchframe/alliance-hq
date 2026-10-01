@@ -100,6 +100,16 @@ describe("parsePowerDetailsImage live fixture", () => {
       const parsed = await parsePowerDetailsImage(buffer);
 
       expect(parsed.heroPowerTotal).toBe(179_982_025);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 91_349_008,
+        decorationsAndBuildings: 41_691_896,
+        gear: 14_644_134,
+        exclusiveWeapons: 11_231_314,
+        heroTier: 7_335_078,
+        heroSkill: 6_940_820,
+        wallOfHonor: 6_789_775,
+      });
       expect(parsed.diagnostics.sampleLines).toContain("rowN:17979827025");
       expect(parsed.diagnostics.sampleLines).toContain("rowI:17979827025");
     },
@@ -113,6 +123,16 @@ describe("parsePowerDetailsImage live fixture", () => {
       const parsed = await parsePowerDetailsImage(buffer);
 
       expect(parsed.heroPowerTotal).toBe(179_979_304);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 91_346_688,
+        decorationsAndBuildings: 41_691_945,
+        gear: 14_644_134,
+        exclusiveWeapons: 11_231_314,
+        heroTier: 7_334_628,
+        heroSkill: 6_940_820,
+        wallOfHonor: 6_789_775,
+      });
       expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979304");
     },
     120_000,
@@ -125,6 +145,16 @@ describe("parsePowerDetailsImage live fixture", () => {
       const parsed = await parsePowerDetailsImage(buffer);
 
       expect(parsed.heroPowerTotal).toBe(179_979_260);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 91_346_688,
+        decorationsAndBuildings: 41_691_901,
+        gear: 14_644_134,
+        exclusiveWeapons: 11_231_314,
+        heroTier: 7_334_628,
+        heroSkill: 6_940_820,
+        wallOfHonor: 6_789_775,
+      });
       expect(parsed.diagnostics.sampleLines).toContain("rowN:1797979260");
       expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979260");
     },

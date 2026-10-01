@@ -8,7 +8,10 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/lib/db";
 import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
-import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
+import {
+  lockAllianceAvailability,
+  type AvailabilityTransaction,
+} from "@/lib/time-off/availability.server";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import {
   buildVsCaptureCommit,
@@ -118,68 +121,32 @@ const commitBodySchema = z
   })
   .strict();
 
-export async function commitVsCaptureReview(
+export type ApplyVsCaptureReviewOptions = {
+  expectedMatchupVersion: number;
+  expectedDayVersions: Record<string, number>;
+  requestId: string;
+  scope: string;
+  sourceRef: string;
+  allowOpponentIdentityChange?: boolean;
+};
+
+export async function applyVsCaptureReviewTx(
+  tx: AvailabilityTransaction,
   actor: VsActor,
-  reviewId: string,
-  input: unknown,
-): Promise<VsWeekPayload> {
-  const body = commitBodySchema.parse(input);
-  const review = vsCaptureReviewSchema.parse(body.review) as VsCaptureReview;
+  review: VsCaptureReview,
+  options: ApplyVsCaptureReviewOptions,
+): Promise<{ weekStart: string; savedDays: string[] }> {
   const weekStart = vsWeekStartSchema.parse(review.weekStart);
-  assertVsScope(actor, weekStart, body.scope);
-  await assertVsActorCurrent(actor);
+  assertVsScope(actor, weekStart, options.scope);
+  await lockAllianceAvailability(tx, actor.allianceId);
+  await assertVsActorContextTx(tx, actor);
   const today = getServerCalendarDate();
   const weekDates = vsDatesForWeek(weekStart);
-  const bodyHash = createHash("sha256")
-    .update(JSON.stringify([reviewId, review, body.expectedReviewVersion, body.expectedMatchupVersion, Object.entries(body.expectedDayVersions).sort(([a], [b]) => a.localeCompare(b)), body.requestId, body.scope]))
-    .digest("hex");
   const ourSideInfo = review.ourSide === "left" ? review.left : review.right;
   const foeSideInfo = review.ourSide === "left" ? review.right : review.left;
   const commit = buildVsCaptureCommit(review, today);
 
-  const db = getDb();
-  const result = await db.transaction(async (tx) => {
-    await lockAllianceAvailability(tx, actor.allianceId);
-    await assertVsActorContextTx(tx, actor);
-    const [row] = await tx
-      .select()
-      .from(schema.vsCaptureReviews)
-      .where(
-        and(
-          eq(schema.vsCaptureReviews.id, reviewId),
-          eq(schema.vsCaptureReviews.allianceId, actor.allianceId),
-        ),
-      )
-      .for("update")
-      .limit(1);
-    if (!row) throw captureInvalid();
-    if (row.createdByHqUserId !== actor.hqUserId) throw captureInvalid();
-    if (row.status === "complete") {
-      if (
-        row.completedRequestId === body.requestId &&
-        row.completedBodyHash === bodyHash &&
-        row.completedResult &&
-        typeof (row.completedResult as { weekStart?: unknown }).weekStart ===
-          "string"
-      ) {
-        return {
-          replayed: true,
-          weekStart: (row.completedResult as { weekStart: string }).weekStart,
-          savedDays:
-            (row.completedResult as { savedDays?: string[] }).savedDays ?? [],
-        };
-      }
-      throw new VsPerformanceError("stale", 409);
-    }
-    if (
-      row.version !== body.expectedReviewVersion ||
-      row.expiresAt <= new Date() ||
-      row.kind !== review.kind
-    ) {
-      throw captureInvalid();
-    }
-
-    const [allianceRow] = await tx
+  const [allianceRow] = await tx
       .select({
         tag: schema.alliances.tag,
         gameServerNumber: schema.alliances.gameServerNumber,
@@ -205,10 +172,11 @@ export async function commitVsCaptureReview(
       actor.allianceId,
       weekStart,
     );
-    if ((matchup?.version ?? 0) !== body.expectedMatchupVersion) {
+    if ((matchup?.version ?? 0) !== options.expectedMatchupVersion) {
       throw new VsPerformanceError("stale", 409);
     }
     if (
+      !options.allowOpponentIdentityChange &&
       matchup &&
       ((matchup.opponentTag != null &&
         (foeSideInfo.tag == null ||
@@ -258,7 +226,7 @@ export async function commitVsCaptureReview(
       today,
     );
 
-    const requestId = `capture:${reviewId}:${body.requestId}`;
+    const requestId = `capture:${options.sourceRef}:${options.requestId}`;
     const savedDays: string[] = [];
     const dirtyFields = new Set<VsOpponentField>();
     let matchupId = matchup?.id ?? null;
@@ -279,7 +247,7 @@ export async function commitVsCaptureReview(
       const dayIndex = weekDates.indexOf(day.recordedDate);
       if (dayIndex < 0 || dayIndex > 5) throw captureInvalid();
       const head = heads.get(day.recordedDate) ?? null;
-      const expected = body.expectedDayVersions[day.recordedDate];
+      const expected = options.expectedDayVersions[day.recordedDate];
       if (expected === undefined) throw captureInvalid();
       if (expected !== (head?.version ?? 0)) {
         throw new VsPerformanceError("stale", 409);
@@ -291,7 +259,7 @@ export async function commitVsCaptureReview(
         recordedDate: day.recordedDate,
         expectedVersion: expected,
         requestId: `${requestId}:${dayIndex + 1}`,
-        scope: body.scope,
+        scope: options.scope,
         normalized: {
           finality: "final",
           totals: day.totals,
@@ -300,8 +268,8 @@ export async function commitVsCaptureReview(
         hqConfirmed: true,
         evidence: {
           kind: "reviewed_upload",
-          reviewCaptureId: reviewId,
-          sourceRef: reviewId,
+          reviewCaptureId: options.sourceRef,
+          sourceRef: options.sourceRef,
         },
         markOpponentDirty: day.totals != null,
       });
@@ -366,6 +334,73 @@ export async function commitVsCaptureReview(
       throw captureInvalid();
     }
 
+    return { weekStart, savedDays };
+}
+
+export async function commitVsCaptureReview(
+  actor: VsActor,
+  reviewId: string,
+  input: unknown,
+): Promise<VsWeekPayload> {
+  const body = commitBodySchema.parse(input);
+  const review = vsCaptureReviewSchema.parse(body.review) as VsCaptureReview;
+  const weekStart = vsWeekStartSchema.parse(review.weekStart);
+  assertVsScope(actor, weekStart, body.scope);
+  await assertVsActorCurrent(actor);
+  const bodyHash = createHash("sha256")
+    .update(JSON.stringify([reviewId, review, body.expectedReviewVersion, body.expectedMatchupVersion, Object.entries(body.expectedDayVersions).sort(([a], [b]) => a.localeCompare(b)), body.requestId, body.scope]))
+    .digest("hex");
+
+  const db = getDb();
+  const result = await db.transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
+    await assertVsActorContextTx(tx, actor);
+    const [row] = await tx
+      .select()
+      .from(schema.vsCaptureReviews)
+      .where(
+        and(
+          eq(schema.vsCaptureReviews.id, reviewId),
+          eq(schema.vsCaptureReviews.allianceId, actor.allianceId),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!row) throw captureInvalid();
+    if (row.createdByHqUserId !== actor.hqUserId) throw captureInvalid();
+    if (row.status === "complete") {
+      if (
+        row.completedRequestId === body.requestId &&
+        row.completedBodyHash === bodyHash &&
+        row.completedResult &&
+        typeof (row.completedResult as { weekStart?: unknown }).weekStart ===
+          "string"
+      ) {
+        return {
+          replayed: true,
+          weekStart: (row.completedResult as { weekStart: string }).weekStart,
+          savedDays:
+            (row.completedResult as { savedDays?: string[] }).savedDays ?? [],
+        };
+      }
+      throw new VsPerformanceError("stale", 409);
+    }
+    if (
+      row.version !== body.expectedReviewVersion ||
+      row.expiresAt <= new Date() ||
+      row.kind !== review.kind
+    ) {
+      throw captureInvalid();
+    }
+
+    const applied = await applyVsCaptureReviewTx(tx, actor, review, {
+      expectedMatchupVersion: body.expectedMatchupVersion,
+      expectedDayVersions: body.expectedDayVersions,
+      requestId: body.requestId,
+      scope: body.scope,
+      sourceRef: reviewId,
+    });
+
     await tx
       .update(schema.vsCaptureReviews)
       .set({
@@ -373,10 +408,13 @@ export async function commitVsCaptureReview(
         version: body.expectedReviewVersion + 1,
         completedRequestId: body.requestId,
         completedBodyHash: bodyHash,
-        completedResult: { weekStart, savedDays },
+        completedResult: {
+          weekStart: applied.weekStart,
+          savedDays: applied.savedDays,
+        },
       })
       .where(eq(schema.vsCaptureReviews.id, reviewId));
-    return { replayed: false, weekStart, savedDays };
+    return { replayed: false, ...applied };
   });
 
   if (!result.replayed) {
