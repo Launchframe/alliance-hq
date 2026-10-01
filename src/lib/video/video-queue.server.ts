@@ -10,6 +10,7 @@ import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
 import { engineRequiresAshed, resolveVideoOcrEngineForJob } from "@/lib/video/ocr-provider.shared";
 import { isMemberRosterVideoTarget, isNativeOnlyVideoTarget } from "@/lib/video/score-targets";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 
 export type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 
@@ -87,6 +88,9 @@ async function selectActiveQueueJobs(
   ));
   return mapQueueRows(rows).map((job, index) => {
     const scoreTarget = job.scoreTarget ?? "desert-storm";
+    if (isOfficerChatVideoTarget(scoreTarget)) {
+      return { ...job, requiresAshedConnection: false };
+    }
     const engine = resolveVideoOcrEngineForJob(
       scoreTarget,
       isMemberRosterVideoTarget(scoreTarget),

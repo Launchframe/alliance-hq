@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
-import { putObject, videoStorageKey, r2Configured } from "@/lib/storage";
+import { deleteObject, putObject, videoStorageKey, r2Configured } from "@/lib/storage";
 import { requireApiSession } from "@/lib/session";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
 import {
@@ -19,6 +19,7 @@ import {
 import { finalizeVideoUploadEnqueue } from "@/lib/video/finalize-video-upload";
 import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip-upload-bank-id.server";
 import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
+import { videoContentTypeFromFileName } from "@/lib/video/resolve-job-video-storage";
 import { vsVideoContextSchema } from "@/lib/vs-performance/video-evidence.shared";
 import {
   EVENT_IMAGE_MAX_BYTES,
@@ -32,6 +33,19 @@ import {
 } from "@/lib/video/event-upload-context.server";
 import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
+import {
+  activateChatVideoUpload,
+  assertChatVideoTempFile,
+  chatAssetMatches,
+  chatUploadErrorResponse,
+  createChatVideoUploadJob,
+  discardChatVideoUploadSetup,
+  resolveChatVideoUpload,
+} from "@/lib/video/chat-upload.server";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 export async function POST(request: Request) {
   try {
@@ -40,6 +54,12 @@ export async function POST(request: Request) {
     if (sessionOrError instanceof NextResponse) return sessionOrError;
 
     const session = sessionOrError;
+
+    const url = new URL(request.url);
+    if (isOfficerChatVideoTarget(url.searchParams.get("scoreTarget"))) {
+      return directChatVideoUpload(request, session);
+    }
+
     const denied = await requireSessionPermission(
       session.id,
       VIDEO_ENQUEUE_PERMISSION,
@@ -69,6 +89,14 @@ export async function POST(request: Request) {
     const scoreTarget = String(
       formData.get("scoreTarget") ?? formData.get("category") ?? "desert-storm",
     );
+
+    if (isOfficerChatVideoTarget(scoreTarget)) {
+      return NextResponse.json(
+        { error: "Chat video uploads use the chat upload marker." },
+        { status: 400 },
+      );
+    }
+
     const boardKey = formData.get("boardKey");
     const hqEventId = formData.get("hqEventId");
     const bankIdRaw = formData.get("bankId");
@@ -246,6 +274,140 @@ export async function POST(request: Request) {
   }
 }
 
+async function directChatVideoUpload(
+  request: Request,
+  session: { id: string; hqUserId: string | null; currentAllianceId: string | null },
+): Promise<NextResponse> {
+  const url = new URL(request.url);
+  const resolved = await resolveChatVideoUpload(
+    session,
+    url.searchParams.get("knowledgeImportId"),
+  );
+  if ("response" in resolved) return resolved.response;
+  const { actor, record, asset } = resolved.context;
+
+  if (r2Configured()) {
+    return NextResponse.json(
+      { error: "Use the direct upload flow (init → R2 → complete)." },
+      { status: 400 },
+    );
+  }
+
+  const formData = await request.formData();
+  const file = formData.get("video");
+  if (!(file instanceof File)) {
+    return NextResponse.json(
+      { error: "No video file provided." },
+      { status: 400 },
+    );
+  }
+  const bodyTarget = String(formData.get("scoreTarget") ?? formData.get("category") ?? "");
+  const bodyImportId = formData.get("knowledgeImportId");
+  if (
+    !isOfficerChatVideoTarget(bodyTarget) ||
+    bodyImportId !== record.id
+  ) {
+    return NextResponse.json(
+      { error: "Upload does not match the declared chat video." },
+      { status: 400 },
+    );
+  }
+  if (isLegacyDirectPostOverLimit(file.size)) {
+    return NextResponse.json(
+      { error: `Video must be under ${Math.round(LEGACY_DIRECT_POST_MAX_BYTES / (1024 * 1024))} MB for direct upload through the app server. Configure R2 for larger files.` },
+      { status: 400 },
+    );
+  }
+  if (file.size > getMaxVideoUploadBytes()) {
+    return NextResponse.json(
+      { error: `Video must be under ${getMaxVideoUploadMb()} MB.` },
+      { status: 400 },
+    );
+  }
+
+  const contentType = file.type || videoContentTypeFromFileName(file.name);
+  if (!chatAssetMatches(asset, { name: file.name, size: file.size, contentType })) {
+    return NextResponse.json(
+      { error: "Upload does not match the declared chat video." },
+      { status: 400 },
+    );
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const tmpPath = path.join(
+    os.tmpdir(),
+    `hq-chat-upload-${record.id}${path.extname(file.name || ".mp4")}`,
+  );
+  try {
+    await fs.writeFile(tmpPath, buffer, { mode: 0o600 });
+    await assertChatVideoTempFile(tmpPath, asset.contentType);
+  } catch (error) {
+    await getDb()
+      .update(schema.knowledgeHistoryImports)
+      .set({ state: "failed", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.knowledgeHistoryImports.id, record.id),
+          eq(schema.knowledgeHistoryImports.state, "uploading"),
+        ),
+      );
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid chat video." },
+      { status: 400 },
+    );
+  } finally {
+    await fs.unlink(tmpPath).catch(() => undefined);
+  }
+
+  let putDone = false;
+  let created: { jobId: string; groupId: string } | null = null;
+  try {
+    await putObject(asset.stagingKey, buffer);
+    putDone = true;
+    created = await createChatVideoUploadJob(actor, {
+      importId: record.id,
+      storageKey: asset.stagingKey,
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      status: "pending_upload",
+    });
+    await activateChatVideoUpload({
+      sessionId: session.id,
+      jobId: created.jobId,
+      groupId: created.groupId,
+      importId: record.id,
+      allianceId: actor.allianceId,
+      assetId: asset.id,
+      storageKey: asset.stagingKey,
+      fileName: file.name,
+      actualSizeBytes: file.size,
+    });
+  } catch (error) {
+    if (created) {
+      await discardChatVideoUploadSetup({
+        jobId: created.jobId,
+        groupId: created.groupId,
+        importId: record.id,
+        assetId: asset.id,
+        storageKey: asset.stagingKey,
+        uploadId: null,
+        allianceId: actor.allianceId,
+      }).catch(() => undefined);
+    }
+    if (putDone) await deleteObject(asset.stagingKey).catch(() => undefined);
+    return chatUploadErrorResponse(error);
+  }
+
+  const { jobId } = created;
+
+  return NextResponse.json({
+    ok: true,
+    jobId,
+    status: "pending_approval",
+    message: "Video uploaded. Waiting for a video processor to review and run it.",
+  });
+}
+
 export async function GET() {
   try {
     const sessionOrError = await requireApiSession();
@@ -270,6 +432,7 @@ export async function GET() {
             session.hqUserId,
             session.currentAllianceId,
           ),
+          ne(schema.videoJobs.scoreTarget, "officer-chat-video"),
           ne(schema.videoJobs.status, "discarded"),
           ne(schema.videoJobs.status, "pending_upload"),
           or(

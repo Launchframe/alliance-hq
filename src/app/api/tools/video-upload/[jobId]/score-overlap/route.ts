@@ -4,6 +4,7 @@ import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { getAshedConnection, requireApiSession } from "@/lib/session";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 import { isStormTeam } from "@/lib/video/storm-score-overlap.shared";
 import { findStormScoreOverlap } from "@/lib/video/storm-score-overlap.server";
 import {
@@ -58,6 +59,9 @@ export async function GET(request: Request, { params }: Props) {
 
     const scoreTargetId =
       access.job.scoreTarget ?? access.job.category ?? "desert-storm";
+    if (isOfficerChatVideoTarget(scoreTargetId)) {
+      return NextResponse.json({ overlaps: false, source: null });
+    }
     const target = getScoreTargetOrThrow(scoreTargetId);
     if (!target.submitContext.includes("team")) {
       return NextResponse.json({ overlaps: false, source: null });

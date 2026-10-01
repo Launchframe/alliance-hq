@@ -94,3 +94,47 @@ describe("approve native VS", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 });
+
+describe("approve chat log video", () => {
+  const chatJob = { ...job, id: "job-chat", scoreTarget: "officer-chat-video", category: "officer-chat-video" };
+  const chatRequest = () => POST(new Request("http://localhost/approve"), { params: Promise.resolve({ jobId: chatJob.id }) });
+
+  beforeEach(() => {
+    mocks.selectLimit.mockResolvedValue([chatJob]);
+    mocks.update.mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: chatJob.id }]),
+      }),
+    });
+  });
+
+  it("queues chat videos without OCR context, credentials, or roster experiment", async () => {
+    expect((await chatRequest()).status).toBe(200);
+    expect(mocks.loadAllianceVideoOcrContext).not.toHaveBeenCalled();
+    expect(mocks.getAshedConnection).not.toHaveBeenCalled();
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ status: "queued", processingSessionId: "processor" }));
+    expect(mocks.dispatchVideoProcessing).toHaveBeenCalledWith(chatJob.id, { source: "approve" });
+  });
+
+  it("still requires the processor slot", async () => {
+    mocks.sessionCanProcessVideo.mockResolvedValue(false);
+    expect((await chatRequest()).status).toBe(403);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("denies cross-alliance chat jobs", async () => {
+    mocks.selectLimit.mockResolvedValue([{ ...chatJob, allianceId: "other" }]);
+    expect((await chatRequest()).status).toBe(404);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pending_approval CAS", async () => {
+    mocks.update.mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    expect((await chatRequest()).status).toBe(409);
+    expect(mocks.dispatchVideoProcessing).not.toHaveBeenCalled();
+  });
+});

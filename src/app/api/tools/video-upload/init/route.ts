@@ -36,6 +36,14 @@ import {
   resolveEventUploadContext,
 } from "@/lib/video/event-upload-context.server";
 import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
+import {
+  chatAssetMatches,
+  chatUploadErrorResponse,
+  createChatVideoUploadJob,
+  discardChatVideoUploadSetup,
+  resolveChatVideoUpload,
+} from "@/lib/video/chat-upload.server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +55,7 @@ type InitBody = {
   boardKey?: string | null;
   hqEventId?: string | null;
   bankId?: string | null;
+  knowledgeImportId?: string | null;
   vsContext?: unknown;
   mediaKind?: string;
   eventContext?: unknown;
@@ -59,6 +68,14 @@ export async function POST(request: Request) {
     if (sessionOrError instanceof NextResponse) return sessionOrError;
 
     const session = sessionOrError;
+
+    const body = (await request.json()) as InitBody;
+    const scoreTarget = String(body.scoreTarget ?? "desert-storm");
+
+    if (isOfficerChatVideoTarget(scoreTarget)) {
+      return initChatVideoUpload(session, body);
+    }
+
     const denied = await requireSessionPermission(
       session.id,
       VIDEO_ENQUEUE_PERMISSION,
@@ -72,10 +89,8 @@ export async function POST(request: Request) {
       });
     }
 
-    const body = (await request.json()) as InitBody;
     const fileName = body.fileName?.trim();
     const fileSize = body.fileSize;
-    const scoreTarget = String(body.scoreTarget ?? "desert-storm");
 
     if (!fileName || fileSize == null || !Number.isFinite(fileSize) || fileSize <= 0) {
       return NextResponse.json(
@@ -288,5 +303,120 @@ export async function POST(request: Request) {
       },
       { status: 500 },
     );
+  }
+}
+
+async function initChatVideoUpload(
+  session: { id: string; hqUserId: string | null; currentAllianceId: string | null },
+  body: InitBody,
+): Promise<NextResponse> {
+  if (!r2Configured()) {
+    return NextResponse.json({
+      mode: "direct" as const,
+      maxUploadBytes: getMaxVideoUploadBytes(),
+    });
+  }
+
+  const fileName = body.fileName?.trim();
+  const fileSize = body.fileSize;
+  if (!fileName || fileSize == null || !Number.isFinite(fileSize) || fileSize <= 0) {
+    return NextResponse.json(
+      { error: "fileName and fileSize are required." },
+      { status: 400 },
+    );
+  }
+  if (isVideoUploadOverLimit(fileSize)) {
+    return NextResponse.json(
+      { error: `Video must be under ${Math.round(getMaxVideoUploadBytes() / (1024 * 1024))} MB.` },
+      { status: 400 },
+    );
+  }
+
+  const resolved = await resolveChatVideoUpload(session, body.knowledgeImportId);
+  if ("response" in resolved) return resolved.response;
+  const { actor, record, asset } = resolved.context;
+
+  const contentType = body.contentType?.trim() || videoContentTypeFromFileName(fileName);
+  if (!chatAssetMatches(asset, { name: fileName, size: fileSize, contentType })) {
+    return NextResponse.json(
+      { error: "Upload does not match the declared chat video." },
+      { status: 400 },
+    );
+  }
+
+  const storageKey = asset.stagingKey;
+  let created: { jobId: string; groupId: string } | null = null;
+  let uploadId: string | null = null;
+  try {
+    const ids = await createChatVideoUploadJob(actor, {
+      importId: record.id,
+      storageKey,
+      fileName,
+      fileSizeBytes: fileSize,
+      status: "pending_upload",
+    });
+    created = ids;
+    const { jobId, groupId } = ids;
+
+    const useMultipart = fileSize >= MULTIPART_UPLOAD_THRESHOLD_BYTES;
+    if (useMultipart) {
+      uploadId = await createR2MultipartUpload(storageKey, contentType);
+      const partCount = multipartPartCount(fileSize);
+      const presignedParts = await Promise.all(
+        Array.from({ length: partCount }, async (_, index) => {
+          const partNumber = index + 1;
+          const url = await presignR2UploadPart(storageKey, uploadId!, partNumber);
+          const start = index * MULTIPART_PART_BYTES;
+          const end = Math.min(start + MULTIPART_PART_BYTES, fileSize) - 1;
+          return { partNumber, url, start, end };
+        }),
+      );
+
+      const db = getDb();
+      await db
+        .update(schema.videoJobs)
+        .set({ r2UploadId: uploadId, updatedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
+      await db
+        .update(schema.knowledgeHistoryAssets)
+        .set({ r2UploadId: uploadId })
+        .where(eq(schema.knowledgeHistoryAssets.id, asset.id));
+
+      return NextResponse.json({
+        mode: "r2_multipart" as const,
+        jobId,
+        groupId,
+        storageKey,
+        uploadId,
+        contentType,
+        partSize: MULTIPART_PART_BYTES,
+        presignedParts,
+        maxUploadBytes: getMaxVideoUploadBytes(),
+      });
+    }
+
+    const putUrl = await presignR2PutObject(storageKey, contentType);
+    return NextResponse.json({
+      mode: "r2_put" as const,
+      jobId,
+      groupId,
+      storageKey,
+      putUrl,
+      contentType,
+      maxUploadBytes: getMaxVideoUploadBytes(),
+    });
+  } catch (error) {
+    if (created) {
+      await discardChatVideoUploadSetup({
+        jobId: created.jobId,
+        groupId: created.groupId,
+        importId: record.id,
+        assetId: asset.id,
+        storageKey,
+        uploadId,
+        allianceId: actor.allianceId,
+      }).catch(() => undefined);
+    }
+    return chatUploadErrorResponse(error);
   }
 }

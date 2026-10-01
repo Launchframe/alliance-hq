@@ -2,26 +2,30 @@ import { z } from "zod";
 import { redactIntakeText } from "./intake.shared";
 import { MAX_OFFICER_INTEL_IMAGE_BYTES, MAX_OFFICER_INTEL_IMAGES } from "@/lib/officer-intel/storage.shared";
 import { isOfficerChatNoiseLine } from "@/lib/officer-intel/chat-ocr/parse-chat-text.shared";
+import { CHAT_VIDEO_CONTENT_TYPES } from "@/lib/video/chat-video.shared";
+import { DEFAULT_MAX_VIDEO_UPLOAD_BYTES } from "@/lib/video/upload-limit";
 
 export const HISTORY_IMPORT_VERSION = 1;
 export const HISTORY_IMPORT_PAGE_SIZE = 50;
-export const HISTORY_IMPORT_KINDS = ["text", "markdown", "discord_json", "screenshots"] as const;
+export const HISTORY_IMPORT_KINDS = ["text", "markdown", "discord_json", "screenshots", "video"] as const;
 export const HISTORY_TEXT_BYTES = 5 * 1024 * 1024;
 export const HISTORY_IMAGE_BYTES = MAX_OFFICER_INTEL_IMAGE_BYTES;
 export const HISTORY_BATCH_BYTES = 60 * 1024 * 1024;
 export const HISTORY_MESSAGE_LIMIT = 5_000;
 export const HISTORY_MESSAGE_LENGTH = 10_000;
 export type HistoryImportKind = typeof HISTORY_IMPORT_KINDS[number];
-export type HistoryImportState = "uploading" | "queued" | "processing" | "review" | "committed" | "cancelled" | "failed";
+export type HistoryImportState = "uploading" | "queued" | "processing" | "pending_approval" | "review" | "committed" | "cancelled" | "failed";
 export type HistoryJobState = "pending" | "running" | "completed" | "cancelled" | "failed";
 export type HistoryAudience = "private" | "officers_read";
 export const historyInitSchema = z.object({
   expectedScope: z.string().min(1).max(300), requestId: z.string().min(8).max(120), title: z.string().trim().min(1).max(160), kind: z.enum(HISTORY_IMPORT_KINDS), locale: z.enum(["en-US", "pt-BR", "id"]),
   audience: z.enum(["private", "officers_read"]).default("private"),
-  files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp"]), size: z.number().int().positive().max(HISTORY_IMAGE_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
-}).refine((input) => input.files.reduce((sum, file) => sum + file.size, 0) <= HISTORY_BATCH_BYTES && (input.kind === "screenshots"
-  ? input.files.every((file) => file.contentType.startsWith("image/"))
-  : input.files.length === 1 && input.files[0].size <= HISTORY_TEXT_BYTES && input.files[0].contentType === ({ text: "text/plain", markdown: "text/markdown", discord_json: "application/json" } as const)[input.kind]));
+  files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp", "video/mp4", "video/quicktime", "video/webm"]), size: z.number().int().positive().max(DEFAULT_MAX_VIDEO_UPLOAD_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
+}).refine((input) => input.kind === "video"
+  ? input.files.length === 1 && (CHAT_VIDEO_CONTENT_TYPES as readonly string[]).includes(input.files[0].contentType) && input.files[0].size <= DEFAULT_MAX_VIDEO_UPLOAD_BYTES
+  : input.files.reduce((sum, file) => sum + file.size, 0) <= HISTORY_BATCH_BYTES && (input.kind === "screenshots"
+    ? input.files.every((file) => file.contentType.startsWith("image/"))
+    : input.files.length === 1 && input.files[0].size <= HISTORY_TEXT_BYTES && input.files[0].contentType === ({ text: "text/plain", markdown: "text/markdown", discord_json: "application/json" } as const)[input.kind]));
 export type HistoryInit = z.infer<typeof historyInitSchema>;
 export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; audience: HistoryAudience; owned: boolean; editable: boolean; version: number; updatedAt: string; total: number; reviewed: number; included: number; unreviewedIncluded: number; emptyEnglish: number; mediaReviewed: number; mediaUnreviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean; viewHref: string | null }> };
 export function historyCommitReady(detail: Pick<HistoryImportSummary, "included" | "unreviewedIncluded" | "emptyEnglish" | "mediaReviewed" | "mediaUnreviewed">) {
@@ -34,7 +38,8 @@ export const historyCoordinatesSchema = z.object({
 export type HistoryCoordinates = z.infer<typeof historyCoordinatesSchema>;
 export type HistoryMessageMediaDto = { id: string; kind: "embedded" | "fullscreen"; contentType: string; width: number | null; height: number | null; reviewed: boolean; thumbnailHref: string; fullHref: string };
 export type HistoryReviewRow = { id: string; sender: string | null; sentAt: string | null; body: string; originalText: string; englishText: string; sourceImageIndex: number | null; included: boolean; reviewed: boolean; position: number; isReply: boolean; replyToName: string | null; replyToMessageId: string | null; replyMatchConfidence: number | null; coordinates: HistoryCoordinates | null; extractionConfidence: number | null; reviewReasons: string[]; media: HistoryMessageMediaDto[] };
-export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; sessionMedia: HistoryMessageMediaDto[]; evidence: Array<{ id: string; href: string }>; offset: number };
+export type HistoryImportVideoJob = { id: string; status: string; errorMessage: string | null };
+export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; sessionMedia: HistoryMessageMediaDto[]; evidence: Array<{ id: string; href: string }>; offset: number; videoJob: HistoryImportVideoJob | null };
 export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "audience" | "owned" | "updatedAt">;
 export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null; previousCursor: string | null };
 
