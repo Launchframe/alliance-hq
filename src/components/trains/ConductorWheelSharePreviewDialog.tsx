@@ -87,8 +87,12 @@ export function ConductorWheelSharePreviewDialog({
       aria-modal="true"
       aria-labelledby="conductor-wheel-share-preview-title"
       data-testid="trains-wheel-share-preview"
+      onClick={handleClose}
     >
-      <div className="flex w-full max-w-md flex-col rounded-2xl border border-hq-border bg-hq-surface p-5 shadow-2xl">
+      <div
+        className="flex w-full max-w-md flex-col rounded-2xl border border-hq-border bg-hq-surface p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2
           id="conductor-wheel-share-preview-title"
           className="text-center text-sm font-semibold uppercase tracking-wide text-hq-fg-muted"

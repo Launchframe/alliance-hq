@@ -18,6 +18,8 @@ import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
+  rankedWheelShareLeaderboard,
+  formatWheelShareScore,
   winProbabilityFromTicketPool,
 } from "@/lib/trains/conductor-wheel-share.shared";
 import {
@@ -131,12 +133,10 @@ export function ConductorWheelModal({
         ?.priorDayVsScore ?? winner.priorDayVsScore)
     : undefined;
 
-  const rankedCandidates = useMemo(() => {
-    if (!showScoreValidation) return [];
-    return [...candidates]
-      .filter((c) => c.priorDayVsScore != null && c.priorDayVsScore > 0)
-      .sort((a, b) => (b.priorDayVsScore ?? 0) - (a.priorDayVsScore ?? 0));
-  }, [candidates, showScoreValidation]);
+  const rankedCandidates = useMemo(
+    () => rankedWheelShareLeaderboard(candidates),
+    [candidates],
+  );
 
   const reelSession = useMemo((): ReelSessionView | null => {
     if (!open || !winner || candidates.length === 0) return null;
@@ -160,9 +160,8 @@ export function ConductorWheelModal({
     if (!winner) return null;
     const leaderboardRank =
       showScoreValidation && rankedCandidates.length > 0
-        ? rankedCandidates.findIndex(
-            (candidate) => candidate.memberId === winner.memberId,
-          ) + 1 || null
+        ? rankedCandidates.find((candidate) => candidate.memberId === winner.memberId)
+            ?.rank ?? null
         : null;
     const winnerWithScore =
       winnerScore != null && winnerScore > 0
@@ -237,6 +236,28 @@ export function ConductorWheelModal({
         winnerIndex: shareViewport.winnerIndex,
         eligibilityLine: shareEligibilityLine,
         statsLine,
+        locale,
+        winnerScoreLabel:
+          winnerScore != null && winnerScore > 0
+            ? `${formatWheelShareScore(winnerScore, locale)} ${scoreSuffix}`
+            : null,
+        leaderboard:
+          showScoreValidation && rankedCandidates.length > 0
+            ? {
+                title:
+                  boardKind === "vr"
+                    ? t("vsValidation.topNVrTitle", {
+                        count: rankedCandidates.length,
+                      })
+                    : rankedCandidates.length === 1
+                      ? t("vsValidation.top1Title")
+                      : t("vsValidation.topNVsTitle", {
+                          count: rankedCandidates.length,
+                        }),
+                winnerMemberId: winner.memberId,
+                rows: rankedCandidates,
+              }
+            : null,
       });
       const safeDate =
         dayLabel?.replace(/[^\w-]+/g, "-").toLowerCase() ?? "conductor";
@@ -257,6 +278,12 @@ export function ConductorWheelModal({
     stats,
     dayLabel,
     shareEligibilityLine,
+    locale,
+    winnerScore,
+    scoreSuffix,
+    showScoreValidation,
+    rankedCandidates,
+    boardKind,
     t,
   ]);
 
@@ -406,8 +433,16 @@ export function ConductorWheelModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="conductor-wheel-title"
+      data-testid="trains-wheel-modal"
+      onClick={() => {
+        if (phase !== "revealed") return;
+        handleClose();
+      }}
     >
-      <div className="w-full max-w-lg rounded-2xl border border-hq-border bg-hq-surface p-6 shadow-2xl">
+      <div
+        className="w-full max-w-lg rounded-2xl border border-hq-border bg-hq-surface p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2
           id="conductor-wheel-title"
           className="text-center text-sm uppercase tracking-wide text-hq-fg-muted"
@@ -498,7 +533,7 @@ export function ConductorWheelModal({
             </p>
             <div className="overflow-hidden rounded-lg border border-hq-border">
               <ul className="divide-y divide-hq-border/60">
-                {rankedCandidates.map((candidate, idx) => {
+                {rankedCandidates.map((candidate) => {
                   const isWinner =
                     winner && candidate.memberId === winner.memberId;
                   return (
@@ -510,7 +545,7 @@ export function ConductorWheelModal({
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="shrink-0 text-xs font-semibold text-hq-fg-muted">
-                          #{idx + 1}
+                          #{candidate.rank}
                         </span>
                         <span
                           className={`truncate text-sm font-medium ${
@@ -523,9 +558,9 @@ export function ConductorWheelModal({
                         </span>
                       </div>
                       <span
-                        className={`shrink-0 text-sm font-semibold ${vsScoreColor(candidate.priorDayVsScore!)}`}
+                        className={`shrink-0 text-sm font-semibold ${vsScoreColor(candidate.score)}`}
                       >
-                        {formatVsScore(candidate.priorDayVsScore!)}
+                        {formatVsScore(candidate.score)}
                       </span>
                     </li>
                   );

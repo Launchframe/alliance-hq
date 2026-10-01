@@ -214,3 +214,31 @@ export function winProbabilityFromTicketPool(
   if (tickets <= 0) return null;
   return tickets / total;
 }
+
+export type WheelShareLeaderboardRow = {
+  memberId: string;
+  memberName: string;
+  rank: number;
+  score: number;
+};
+
+/** Ranked VS/VR board for the share image — same ordering as the result dialog. */
+export function rankedWheelShareLeaderboard(
+  candidates: ReadonlyArray<{
+    memberId: string;
+    memberName: string;
+    priorDayVsScore?: number;
+  }>,
+  limit = 10,
+): WheelShareLeaderboardRow[] {
+  return [...candidates]
+    .filter((row) => row.priorDayVsScore != null && row.priorDayVsScore > 0)
+    .sort((a, b) => (b.priorDayVsScore ?? 0) - (a.priorDayVsScore ?? 0))
+    .slice(0, limit)
+    .map((row, index) => ({
+      memberId: row.memberId,
+      memberName: row.memberName,
+      rank: index + 1,
+      score: row.priorDayVsScore!,
+    }));
+}
