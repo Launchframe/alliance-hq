@@ -17,7 +17,7 @@ function setup() {
   let serial = 0;
   const identity = (now: number) => ({ id: `e${serial++}`, at: new Date(now).toISOString(), idempotencyKey: `i${serial}` });
   for (const [teamId, leadId] of [["a-team", "lead-a"], ["b-team", "lead-b"]]) {
-    const result = applyCommand(board, roster, owner, { kind: "createTeam", teamId, leadId, expectedVersion: board.version }, identity(start - 10000));
+    const result = applyCommand(board, roster, owner, { kind: "createTeam", teamId, name: `Team ${teamId}`, leadId, expectedVersion: board.version }, identity(start - 10000));
     board = result.board;
     events.push(result.event);
   }

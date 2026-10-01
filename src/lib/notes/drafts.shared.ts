@@ -10,6 +10,7 @@ export const draftStateSchema = z.object({
   fields: noteFieldsSchema.extend({ body: z.string().max(100_000), documentType: notePatchSchema.shape.documentType, keyDecisions: notePatchSchema.shape.keyDecisions, openQuestions: notePatchSchema.shape.openQuestions }),
   revision: z.number().int().nonnegative().default(0), overrideRevision: z.number().int().nonnegative().default(0),
   analysisRevision: z.number().int().default(-1), analysisId: z.string().max(120).nullable().default(null),
+  audience: z.enum(["private", "officers_read"]).default("private"),
   tasks: z.array(draftActionSchema).max(10).default([]), aiEnabled: z.boolean().default(true), archive: z.boolean().nullable().default(null),
 });
 export const draftSaveSchema = z.object({

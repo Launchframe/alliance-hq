@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, balancedTargets, decideCommand, emptyBoard, fieldKey, readField } from "./policy.shared";
+import { applyCommand, balancedTargets, decideCommand, emptyBoard, fieldKey, memberTeam, readField } from "./policy.shared";
 import { confirmUndo, previewUndo } from "./history.shared";
 import type { SupportActor, SupportBoard, SupportCommand, SupportEvent, SupportRosterMember } from "./types.shared";
 
@@ -16,8 +16,8 @@ function setup() {
     events.push(result.event);
     return result.event;
   };
-  run({ kind: "createTeam", teamId: "a-team", leadId: "lead-a", expectedVersion: 0 });
-  run({ kind: "createTeam", teamId: "b-team", leadId: "lead-b", expectedVersion: 1 });
+  run({ kind: "createTeam", teamId: "a-team", name: "Alpha", leadId: "lead-a", expectedVersion: 0 });
+  run({ kind: "createTeam", teamId: "b-team", name: "Beta", leadId: "lead-b", expectedVersion: 1 });
   board = { ...board, published: true };
   return { get board() { return board; }, set board(value: SupportBoard) { board = value; }, events, run };
 }
@@ -44,7 +44,7 @@ describe("support team shared command boundary", () => {
   });
   it("cannot construct or mutate a future draft/proposal through generic maintenance", () => {
     const s = setup();
-    for (const board of [{ ...s.board, published: false }, { ...s.board, construction: { kind: "draft" as const, id: "d" } }, { ...s.board, construction: { kind: "proposal" as const, id: "p" } }]) {
+    for (const board of [{ ...s.board, construction: { kind: "draft" as const, id: "d" } }, { ...s.board, construction: { kind: "proposal" as const, id: "p" } }]) {
       expect(decideCommand(board, roster, owner, move(board.version, "member-0", null, "a-team"))).toBe("changed");
     }
   });
@@ -147,5 +147,78 @@ describe("field-versioned immutable undo", () => {
     expect(() => previewUndo(s.board, s.events, roster.filter((m) => m.id !== "member-0"), owner, removed.id)).toThrow("invalid");
     const replacement = s.run({ kind: "replaceLead", teamId: "a-team", leadId: "next-lead", expectedVersion: s.board.version });
     expect(() => previewUndo(s.board, s.events, roster.map((m) => m.id === "lead-a" ? { ...m, rank: 3 } : m), owner, replacement.id)).toThrow("invalid");
+  });
+});
+
+describe("unpublished setup lifecycle", () => {
+  const setupRoster = [member("lead-1", 4), member("lead-2", 5), ...Array.from({ length: 6 }, (_, i) => member(`setup-${i}`))];
+  function draft() {
+    let board = emptyBoard("a");
+    const events: SupportEvent[] = [];
+    const run = (command: SupportCommand, actor = owner) => {
+      const result = applyCommand(board, setupRoster, actor, command, { id: `action-${events.length}`, at: "2026-09-09T00:00:00.000Z", idempotencyKey: `intent-${events.length}` });
+      board = result.board;
+      events.push(result.event);
+      return result.event;
+    };
+    return { get board() { return board; }, set board(value: SupportBoard) { board = value; }, events, run };
+  }
+  const create = (version: number, teamId: string, name: string, leadId: string): SupportCommand => ({ kind: "createTeam", teamId, name, leadId, expectedVersion: version });
+
+  it("creates named teams with a unique eligible lead and assigns the lead atomically", () => {
+    const s = draft();
+    const event = s.run(create(0, "one", " First ", "lead-1"));
+    expect(event.kind).toBe("createTeam");
+    expect(readField(s.board, fieldKey("team", "one", "name"))).toBe("First");
+    expect(memberTeam(s.board, "lead-1")).toBe("one");
+    for (const [command, code] of [
+      [create(s.board.version, "two", "", "lead-2"), "nameRequired"],
+      [create(s.board.version, "two", "   ", "lead-2"), "nameRequired"],
+      [create(s.board.version, "two", "x".repeat(61), "lead-2"), "nameLimit"],
+      [create(s.board.version, "two", "Two", "lead-1"), "leadRequired"],
+      [create(s.board.version, "two", "Two", "setup-0"), "leadRequired"],
+      [create(s.board.version, "one", "Again", "lead-2"), "changed"],
+      [create(0, "two", "Two", "lead-2"), "changed"],
+    ] as const) expect(decideCommand(s.board, setupRoster, owner, command)).toBe(code);
+    expect(decideCommand(s.board, setupRoster, officer, create(s.board.version, "two", "Two", "lead-2"))).toBe("forbidden");
+    expect(() => s.run(create(s.board.version, "two", "Two", "lead-2"), { ...owner, allianceId: "other" })).toThrow("forbidden");
+  });
+  it("lets only override actors move members while unpublished", () => {
+    const s = draft();
+    s.run(create(s.board.version, "one", "One", "lead-1"));
+    expect(decideCommand(s.board, setupRoster, officer, move(s.board.version, "setup-0", null, "one"))).toBe("forbidden");
+    s.run(move(s.board.version, "setup-0", null, "one"));
+    expect(memberTeam(s.board, "setup-0")).toBe("one");
+  });
+  it("deletes an empty setup team, returns its lead, and rejects occupied or published teams", () => {
+    const s = draft();
+    s.run(create(s.board.version, "one", "One", "lead-1"));
+    s.run(create(s.board.version, "two", "Two", "lead-2"));
+    s.run(move(s.board.version, "setup-0", null, "one"));
+    expect(decideCommand(s.board, setupRoster, owner, { kind: "deleteTeam", teamId: "one", expectedVersion: s.board.version })).toBe("changed");
+    expect(decideCommand(s.board, setupRoster, officer, { kind: "deleteTeam", teamId: "two", expectedVersion: s.board.version })).toBe("forbidden");
+    expect(decideCommand(s.board, setupRoster, owner, { kind: "deleteTeam", teamId: "ghost", expectedVersion: s.board.version })).toBe("changed");
+    s.run({ kind: "deleteTeam", teamId: "two", expectedVersion: s.board.version });
+    expect(readField(s.board, fieldKey("team", "two", "exists"))).toBe(false);
+    expect(readField(s.board, fieldKey("team", "two", "name"))).toBe("Two");
+    expect(memberTeam(s.board, "lead-2")).toBeNull();
+    s.board = { ...s.board, published: true };
+    expect(decideCommand(s.board, setupRoster, owner, { kind: "deleteTeam", teamId: "one", expectedVersion: s.board.version })).toBe("changed");
+  });
+  it("publishes only a complete balanced setup and blocks ordinary officers", () => {
+    const s = draft();
+    const publish: SupportCommand = { kind: "publishSetup", expectedVersion: s.board.version };
+    expect(decideCommand(s.board, setupRoster, owner, publish)).toBe("incomplete");
+    s.run(create(s.board.version, "one", "One", "lead-1"));
+    s.run(create(s.board.version, "two", "Two", "lead-2"));
+    for (const [index, memberId] of ["setup-0", "setup-1", "setup-2"].entries()) s.run(move(s.board.version, memberId, null, index < 2 ? "one" : "two"));
+    for (const memberId of ["setup-3", "setup-4"]) s.run(move(s.board.version, memberId, null, "two"));
+    expect(decideCommand(s.board, setupRoster, owner, { ...publish, expectedVersion: s.board.version })).toBe("incomplete");
+    s.run(move(s.board.version, "setup-5", null, "one"));
+    expect(decideCommand(s.board, setupRoster, officer, { ...publish, expectedVersion: s.board.version })).toBe("forbidden");
+    const event = s.run({ kind: "publishSetup", expectedVersion: s.board.version });
+    expect(event.kind).toBe("publishSetup");
+    expect(s.board.published).toBe(true);
+    expect(decideCommand(s.board, setupRoster, owner, { kind: "publishSetup", expectedVersion: s.board.version })).toBe("changed");
   });
 });

@@ -14,7 +14,7 @@ function fixture() {
   const actor: SupportActor = { allianceId: "alliance", principalId: "owner", canRead: true, canWrite: true, override: true, linkedMemberIds: ["lead-a"] };
   const roster = [member("lead-a", 4), member("lead-b", 5), member("one"), member("two"), member("three"), member("four")];
   let board = emptyBoard("alliance");
-  for (const id of ["a", "b"]) board = applyCommand(board, roster, actor, { kind: "createTeam", teamId: id, leadId: `lead-${id}`, expectedVersion: board.version }, { id, at: "2026-01-01T00:00:00Z", idempotencyKey: id }).board;
+  for (const id of ["a", "b"]) board = applyCommand(board, roster, actor, { kind: "createTeam", teamId: id, name: id === "a" ? "Alpha" : "Bravo", leadId: `lead-${id}`, expectedVersion: board.version }, { id, at: "2026-01-01T00:00:00Z", idempotencyKey: id }).board;
   board.published = true;
   board.fields[fieldKey("board", board.allianceId, "published")] = { value: true, version: board.version, actionId: null };
   const snapshot: SupportSnapshot = { version: board.version, published: true, board, actor, roster, canWrite: true, linkedMemberIds: actor.linkedMemberIds, teams: ["a", "b"].map((id) => ({ id, name: id === "a" ? "Alpha" : "Bravo", leadId: `lead-${id}`, memberIds: [`lead-${id}`], target: 3, needsReplacement: false })) };
@@ -67,6 +67,11 @@ describe("support board client contracts", () => {
     interactions.onCommand(rename, "a");
     expect(execute).toHaveBeenCalledExactlyOnceWith({ ...rename, expectedVersion: live.version }, "a");
     expect(interactions.canCommand({ ...rename, teamId: "proposal-only-team" })).toBe(false);
+    const setup = { kind: "deleteTeam" as const, teamId: "a", expectedVersion: 0 };
+    expect(interactions.canCommand(setup)).toBe(false);
+    interactions.onCommand(setup, "a");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(interactions.canCommand({ kind: "publishSetup", expectedVersion: 0 })).toBe(false);
   });
   it("rejects wrong selection, tenant, actor and older responses but retains obsolete proposals", () => {
     const { live, proposal } = proposalFixture();
@@ -119,6 +124,10 @@ describe("support board client contracts", () => {
     interactions.onCommand(rename, "a");
     expect(execute).toHaveBeenCalledWith({ ...rename, expectedVersion: live.version }, "a");
     expect(interactions.canCommand({ ...rename, teamId: "unpublished-new-team" })).toBe(false);
+    for (const setup of [{ kind: "deleteTeam" as const, teamId: "a", expectedVersion: 0 }, { kind: "publishSetup" as const, expectedVersion: 0 }]) {
+      expect(interactions.canCommand(setup)).toBe(false);
+      interactions.onCommand(setup, "a");
+    }
     interactions.onCommand(moveCommand(live, "two", "a"), "a");
     expect(execute).toHaveBeenCalledTimes(1);
   });
@@ -157,7 +166,7 @@ describe("support board client contracts", () => {
   it.each([false, true])("blocks maintenance for unpublished/construction boards (%s)", (construction) => {
     const snapshot = fixture();
     snapshot.board = { ...snapshot.board!, published: construction, construction: construction ? { kind: "draft", id: "draft" } : null };
-    expect(commandEligibility(snapshot, moveCommand(snapshot, "one", "a"))).toBe("changed");
+    expect(commandEligibility(snapshot, moveCommand(snapshot, "one", "a"))).toBe(construction ? "changed" : null);
   });
   it("does not invent authority for other officers' teams or lead cards", () => {
     const snapshot = fixture();
@@ -201,6 +210,7 @@ describe("support board client contracts", () => {
     expect(supportErrorKey("forbidden")).toBe("readOnly");
     expect(supportErrorKey("changed", true)).toBe("history.changed");
     expect(supportErrorKey("dependencies", true)).toBe("history.dependencies");
+    expect(supportErrorKey("incomplete")).toBe("publishIncomplete");
     expect(supportErrorKey("unrecognized")).toBe("changed");
   });
   it("parses server failures without displaying raw server copy", async () => {

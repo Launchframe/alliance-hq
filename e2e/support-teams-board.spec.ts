@@ -9,7 +9,7 @@ async function openBoard(page: Page, context: BrowserContext, actor: Parameters<
   await context.addCookies(playwrightAuthCookies(actor));
   const ready = page.waitForResponse((response) => response.url().endsWith("/api/support-teams") && response.request().method() === "GET" && response.status() === 200);
   await page.goto("/support-teams");
-  await expect(page.getByRole("heading", { name: "Support teams", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: en.supportTeams.title, exact: true })).toBeVisible();
   await ready;
   if (createProposal) {
     await page.getByRole("button", { name: "New proposal", exact: true }).click();
