@@ -1,8 +1,8 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -15,6 +15,7 @@ import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAfterUploadPanel";
 import { VideoAwaitingApprovalDialog } from "@/components/video/VideoAwaitingApprovalDialog";
 import { VideoHygieneCoachBanner } from "@/components/video/VideoHygieneCoachBanner";
+import { VsVideoScreenshotInput } from "@/components/video/VsVideoScreenshotInput";
 import {
   clearPreferredDepositSlipBankId,
   readPreferredDepositSlipBankId,
@@ -37,6 +38,18 @@ import {
 } from "@/lib/video/upload-limit";
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
+import {
+  getVsVideoEvidence,
+  uploadVsVideoScreenshot,
+  VsVideoClientError,
+} from "@/lib/video/client-vs-evidence";
+import {
+  coerceVsPerformanceRecordedDate,
+  defaultVsPerformanceRecordedDate,
+  isValidVsPerformanceRecordedDate,
+  listRecentVsPerformanceDates,
+  type VsScorePeriod,
+} from "@/lib/video/vs-recorded-date.shared";
 import { partitionRecentUploadJobs } from "@/lib/video/recent-upload-jobs.shared";
 import {
   isAllianceKillsVideoTarget,
@@ -160,6 +173,8 @@ export function VideoUploadForm({
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
+  const tReview = useTranslations("videoReview");
+  const tEvidence = useTranslations("vsPerformance.videoEvidence");
   const { push } = useShellNavigation();
   const router = useRouter();
 
@@ -217,6 +232,32 @@ export function VideoUploadForm({
   const [awaitingDialogFileName, setAwaitingDialogFileName] = useState<
     string | null
   >(null);
+  const isVsTarget = scoreTarget === "vs-performance";
+  const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
+  const [vsDate, setVsDate] = useState<string>(() =>
+    contextRecordedDate &&
+    isValidVsPerformanceRecordedDate(contextRecordedDate, "daily")
+      ? contextRecordedDate
+      : defaultVsPerformanceRecordedDate("daily"),
+  );
+  const locale = useLocale();
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const screenshotTaskRef = useRef<Promise<void> | null>(null);
+  const vsDateOptions = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeZone: "UTC",
+    });
+    return listRecentVsPerformanceDates({
+      period: vsPeriod,
+      includeDate: vsDate,
+    }).map((date) => ({
+      value: date,
+      label: formatter.format(new Date(`${date}T00:00:00Z`)),
+      searchText: date,
+    }));
+  }, [locale, vsPeriod, vsDate]);
   const activeProcessPromptJobId =
     processPromptJobId ??
     (processJobQueryId && dismissedProcessJobId !== processJobQueryId
@@ -234,7 +275,9 @@ export function VideoUploadForm({
 
   function reviewHref(jobId: string): string {
     const params = new URLSearchParams();
-    if (contextRecordedDate) {
+    if (isVsTarget) {
+      params.set("recordedDate", vsDate);
+    } else if (contextRecordedDate) {
       params.set("recordedDate", contextRecordedDate);
     }
     if (contextReturnTo) {
@@ -299,6 +342,10 @@ export function VideoUploadForm({
 
   function handleScoreTargetChange(nextId: string) {
     setScoreTarget(nextId);
+    if (nextId !== "vs-performance") {
+      setScreenshot(null);
+      setScreenshotError(null);
+    }
     const next = scoreTargets.find((target) => target.id === nextId);
     if (next?.leaderboardModel === "multi-board") {
       setBoardKey(next.boardTypes?.[0] ?? "");
@@ -361,14 +408,17 @@ export function VideoUploadForm({
     setUploadProgress({ loaded: 0, total: file.size });
     setError(null);
     setSuccess(null);
+    screenshotTaskRef.current = null;
 
     const uploadFile = file;
+    const screenshotFile = isVsTarget ? screenshot : null;
     // Processors keep the file for the post-approve survey. Other officers
     // stop at upload until a processor picks the job up on Video queue.
     if (canProcess) {
       setPendingSurveyFile(uploadFile);
     }
     setFile(null);
+    setScreenshotError(null);
 
     try {
       const data = await uploadVideoFile({
@@ -376,11 +426,50 @@ export function VideoUploadForm({
         scoreTarget,
         boardKey: effectiveBoardKey || undefined,
         bankId: uploadBankId,
+        vsContext: isVsTarget
+          ? { recordedDate: vsDate, period: vsPeriod }
+          : undefined,
         uploadConfig,
         onProgress: (loaded, total) => {
           setUploadProgress({ loaded, total });
         },
+        onJobCreated: (jobId) => {
+          if (!screenshotFile) return;
+          screenshotTaskRef.current = (async () => {
+            const evidence = await getVsVideoEvidence(jobId).catch(() => null);
+            if (!evidence) {
+              throw new VsVideoClientError("attach_failed");
+            }
+            if (
+              evidence.evidence.fileName != null ||
+              evidence.evidence.draft != null
+            ) {
+              throw new VsVideoClientError("stale", 409);
+            }
+            return uploadVsVideoScreenshot(
+              jobId,
+              screenshotFile,
+              evidence.evidence.version,
+            );
+          })()
+            .then(() => {
+              setScreenshot(null);
+            })
+            .catch((error: unknown) => {
+              setScreenshotError(
+                error instanceof VsVideoClientError
+                  ? error.code
+                  : "attach_failed",
+              );
+            });
+        },
       });
+
+      const screenshotTask = screenshotTaskRef.current as Promise<void> | null;
+      if (screenshotTask) {
+        await screenshotTask.catch(() => undefined);
+        screenshotTaskRef.current = null;
+      }
 
       if (canProcess) {
         setSuccess(null);
@@ -416,7 +505,7 @@ export function VideoUploadForm({
     setPendingSurveyFile(null);
   }
 
-  function handleSurveyClose(_result: { complete: boolean }) {
+  function handleSurveyClose() {
     const session = activeSurvey;
     setActiveSurvey(null);
     if (session?.navigateOnClose && session.jobId) {
@@ -648,6 +737,69 @@ export function VideoUploadForm({
             </p>
           ) : null}
         </label>
+        ) : null}
+
+        {showFileStep && isVsTarget ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm text-hq-fg-muted">
+                {tReview("vsPeriodLabel")}
+              </span>
+              <AppSelect
+                value={vsPeriod}
+                onChange={(next) => {
+                  const period = next as VsScorePeriod;
+                  setVsPeriod(period);
+                  setVsDate((date) =>
+                    coerceVsPerformanceRecordedDate(date, period),
+                  );
+                }}
+                aria-label={tReview("vsPeriodLabel")}
+                options={[
+                  { value: "daily", label: tReview("vsPeriodDaily") },
+                  { value: "weekly", label: tReview("vsPeriodWeekly") },
+                ]}
+              />
+              <p className="mt-2 text-xs text-hq-fg-muted">
+                {vsPeriod === "weekly"
+                  ? tReview("vsPeriodWeeklyHint")
+                  : tReview("vsPeriodDailyHint")}
+              </p>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm text-hq-fg-muted">
+                {tReview("dateLabel")}
+              </span>
+              <AppSelect
+                value={vsDate}
+                onChange={setVsDate}
+                aria-label={tReview("dateLabel")}
+                options={vsDateOptions}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        {showFileStep && isVsTarget ? (
+          <VsVideoScreenshotInput
+            file={screenshot}
+            onChange={setScreenshot}
+            disabled={uploading}
+            error={
+              screenshotError
+                ? screenshotError === "stale"
+                  ? tEvidence("stale")
+                  : tEvidence("attachFailed")
+                : null
+            }
+          />
+        ) : null}
+        {screenshotError && !(showFileStep && isVsTarget) ? (
+          <p className="mt-4 text-sm text-hq-danger" role="alert">
+            {screenshotError === "stale"
+              ? tEvidence("stale")
+              : tEvidence("attachFailed")}
+          </p>
         ) : null}
 
         {showUploadControls ? (
