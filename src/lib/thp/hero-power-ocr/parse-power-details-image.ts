@@ -372,16 +372,19 @@ export async function parsePowerDetailsImage(
   }
   const assembled = assembleGeometryParse({ pairs, headerTotal });
 
+  // Pair assignments stay ahead of per-row crop dumps. Diagnostics keep
+  // only the first 12 lines, and the crop dumps would otherwise evict the
+  // `key=value` lines the live fixtures assert.
   const sampleLines = [
     ...headerLinesRaw.map((line) => `hdr:${line.text}`),
     ...focusedNormalLinesRaw.map((line) => `rowN:${line.text}`),
     ...focusedInvertedLinesRaw.map((line) => `rowI:${line.text}`),
     ...valueInvLinesRaw.slice(0, 2).map((line) => `inv:${line.text}`),
-    ...componentRowSamples,
     ...pairs.map(
       (pair) =>
         `${pair.key ?? "?"}=${pair.valueText} ← ${pair.label.slice(0, 40)}`,
     ),
+    ...componentRowSamples,
     ...valueLinesRaw.slice(0, 4).map((line) => `val:${line.text}`),
   ];
 

@@ -15,6 +15,8 @@
  * ## What this deliberately does NOT do
  *
  * - No combinatorial digit-confusion search (`candidateDigitRepairs` floods).
+ *   Overlong row crops may still list separator-slot readings; a breakdown is
+ *   accepted only when one seven-row combination equals the header total.
  * - No fixed row index → breakdown key (pt-BR/KO reorder components).
  */
 
@@ -495,6 +497,14 @@ export function zipLabelsToValues(input: {
 }
 
 /**
+ * Same-key fragments belong to one wrapped row (German
+ * "Dekorationen und" / "Gebäudestatistiken"). A full component row is about
+ * 0.08 of the modal; keep the merge inside that pitch so two detections a
+ * row apart are not averaged into the gap between them.
+ */
+const SAME_KEY_LABEL_WRAP_MAX_Y_GAP = 0.06;
+
+/**
  * Coalesce a label that is only "Decorations & Building" with a following
  * "Stats" line (common OCR split) before matching.
  */
@@ -524,7 +534,12 @@ export function coalesceLabelLines(
       continue;
     }
     const currentKey = matchThpLabel(current.text);
-    if (next && currentKey != null && matchThpLabel(next.text) === currentKey) {
+    if (
+      next &&
+      currentKey != null &&
+      matchThpLabel(next.text) === currentKey &&
+      Math.abs(next.yNorm - current.yNorm) <= SAME_KEY_LABEL_WRAP_MAX_Y_GAP
+    ) {
       out.push({
         text: `${current.text} ${next.text}`,
         yNorm: (current.yNorm + next.yNorm) / 2,

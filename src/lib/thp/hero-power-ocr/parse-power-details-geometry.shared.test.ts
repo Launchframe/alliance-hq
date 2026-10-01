@@ -176,6 +176,32 @@ describe("parseDigitsOnlyValue", () => {
     expect(tied).toBeNull();
   });
 
+  it("resolveUniqueBreakdownFromCandidates fails closed when too many combinations sum", () => {
+    const values = [10, 11, 12, 13, 14, 15, 16, 17];
+    const candidates = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [key, values]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal: 98,
+      }),
+    ).toBeNull();
+    const support = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [
+        key,
+        new Map(values.map((value) => [value, 1])),
+      ]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal: 98,
+        support,
+      }),
+    ).toBeNull();
+  });
+
   it("resolveUniqueBreakdownFromCandidates returns null when suffix bounds exclude the total", () => {
     const candidates = Object.fromEntries(
       THP_BREAKDOWN_KEYS.map((key) => [key, [1_000_000, 2_000_000]]),
@@ -411,6 +437,26 @@ describe("zipLabelsToValues + assembleGeometryParse", () => {
     expect(merged[0]?.text).toBe("Dekorationen und Gebäudestatistiken");
     expect(matchThpLabel(merged[0]!.text)).toBe("decorationsAndBuildings");
     expect(merged[0]?.yNorm).toBeCloseTo(0.315, 3);
+  });
+
+  it("does not coalesce same-key labels a row apart or different components", () => {
+    const far = coalesceLabelLines([
+      { text: "Dekorationen und", yNorm: 0.2, yCenterPx: 200 },
+      { text: "Gebäudestatistiken", yNorm: 0.4, yCenterPx: 400 },
+    ]);
+    expect(far.map((line) => line.text)).toEqual([
+      "Dekorationen und",
+      "Gebäudestatistiken",
+    ]);
+
+    const distinct = coalesceLabelLines([
+      { text: "Gear", yNorm: 0.4, yCenterPx: 400 },
+      { text: "Exclusive Weapon", yNorm: 0.43, yCenterPx: 430 },
+    ]);
+    expect(distinct.map((line) => line.text)).toEqual([
+      "Gear",
+      "Exclusive Weapon",
+    ]);
   });
 
   it("coalesces split decorations label at row midpoint yNorm", () => {
