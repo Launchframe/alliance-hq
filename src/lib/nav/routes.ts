@@ -110,6 +110,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
       },
       {
+        id: "activity",
+        labelKey: "activity",
+        href: "/activity",
+        kind: "native",
+      },
+      {
         id: "alliances",
         labelKey: "alliances",
         href: "/alliances",

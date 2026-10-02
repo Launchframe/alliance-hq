@@ -369,6 +369,7 @@
     "supportTeams": "Support teams",
     "teamWork": "Team work",
     "dashboard": "Dashboard",
+    "activity": "Activity",
     "alliances": "Alliances",
     "members": "Members",
     "membersDescription": "Live roster from Ashed for score matching",
@@ -590,7 +591,8 @@
       "users": "HQ users",
       "openSections": "Admin sections",
       "closeSections": "Close admin menu",
-      "sectionsTitle": "Sections"
+      "sectionsTitle": "Sections",
+      "activity": "Activity"
     },
     "opsInbox": {
       "title": "Ops inbox",
@@ -1887,6 +1889,7 @@
     "supportTeams": "Support teams",
         "teamWork": "Team work",
         "dashboard": "Go to Dashboard",
+        "activity": "Activity",
         "members": "Go to Members",
         "vsPerformance": "Go to VS Performance",
         "donations": "Go to Donations",
@@ -1943,7 +1946,8 @@
         "experienceFeedback": "Experience feedback",
         "translationReports": "Translation reports",
         "memberLinkHelp": "Member link help",
-        "uidInspector": "UID inspector"
+        "uidInspector": "UID inspector",
+        "activity": "Activity"
       },
       "notes": {
         "newNote": "Create a note",

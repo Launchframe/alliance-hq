@@ -58,6 +58,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/dashboard",
   },
   {
+    id: "nav.activity",
+    labelKey: "actions.nav.activity",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/activity",
+  },
+  {
     id: "nav.members",
     labelKey: "actions.nav.members",
     category: "navigation",
@@ -486,6 +494,7 @@ const ADMIN_SEQUENCE_KEYS = [
   "g",
   "h",
   "i",
+  "j",
 ] as const;
 
 const ADMIN_ACTIONS: HotkeyActionDef[] = ADMIN_LINKS.map((link, index) => ({
