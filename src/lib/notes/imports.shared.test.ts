@@ -56,6 +56,7 @@ describe("reviewed history adapters", () => {
     const file = { name: "capture.png", contentType: "image/png", size: 20 * 1024 * 1024, sha256: "a".repeat(64) };
     const input = { expectedScope: "alliance:author", requestId: "request-one", title: "History", kind: "screenshots", locale: "en-US", files: [file] };
     expect(historyInitSchema.safeParse(input).success).toBe(true);
+    expect(historyInitSchema.safeParse({ ...input, files: [{ ...file, size: 20 * 1024 * 1024 + 1 }] }).success).toBe(false);
     expect(historyInitSchema.safeParse({ ...input, files: Array(4).fill(file) }).success).toBe(false);
     expect(historyInitSchema.safeParse({ ...input, kind: "text" }).success).toBe(false);
     expect(historyInitSchema.safeParse({ ...input, files: [{ ...file, sha256: "invalid" }] }).success).toBe(false);
@@ -99,5 +100,26 @@ describe("reviewed history adapters", () => {
     const messages = parseHistoryText("text", `Player ${"1".repeat(14)} token=example-secret`, "file");
     expect(/\d{12,20}/.test(messages[0].body)).toBe(false);
     expect(messages[0].body.includes("example-secret")).toBe(false);
+  });
+});
+
+describe("chat video init schema", () => {
+  const base = { expectedScope: "scope", requestId: "request-1", title: "Chat video", kind: "video", locale: "en-US", audience: "private" } as const;
+  const file = { name: "chat.mp4", size: 2 * 1024 * 1024, contentType: "video/mp4", sha256: "a".repeat(64) };
+  it("accepts exactly one supported video file", () => {
+    for (const contentType of ["video/mp4", "video/quicktime", "video/webm"]) {
+      const parsed = historyInitSchema.safeParse({ ...base, files: [{ ...file, contentType }] });
+      expect(parsed.success).toBe(true);
+    }
+  });
+  it("rejects multiple files, unsupported content types, and non-positive sizes", () => {
+    expect(historyInitSchema.safeParse({ ...base, files: [file, file] }).success).toBe(false);
+    expect(historyInitSchema.safeParse({ ...base, files: [{ ...file, contentType: "image/png" }] }).success).toBe(false);
+    expect(historyInitSchema.safeParse({ ...base, files: [{ ...file, size: 0 }] }).success).toBe(false);
+    expect(historyInitSchema.safeParse({ ...base, files: [] }).success).toBe(false);
+  });
+  it("caps the declared size at the shared upload ceiling", () => {
+    expect(historyInitSchema.safeParse({ ...base, files: [{ ...file, size: 512 * 1024 * 1024 }] }).success).toBe(true);
+    expect(historyInitSchema.safeParse({ ...base, files: [{ ...file, size: 512 * 1024 * 1024 + 1 }] }).success).toBe(false);
   });
 });

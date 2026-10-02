@@ -46,6 +46,18 @@ vi.mock("@/lib/banks/resolve-deposit-slip-upload-bank-id.server", () => ({
 vi.mock("@/lib/video/video-job-ownership.server", () => ({
   videoJobsOwnedByViewerInAllianceWhere: vi.fn(),
 }));
+vi.mock("@/lib/video/chat-video.shared", () => ({
+  isOfficerChatVideoTarget: vi.fn(() => false),
+}));
+vi.mock("@/lib/video/chat-upload.server", () => ({
+  activateChatVideoUpload: vi.fn(),
+  assertChatVideoTempFile: vi.fn(),
+  chatAssetMatches: vi.fn(),
+  chatUploadErrorResponse: vi.fn(),
+  createChatVideoUploadJob: vi.fn(),
+  discardChatVideoUploadSetup: vi.fn(),
+  resolveChatVideoUpload: vi.fn(),
+}));
 vi.mock("@/lib/db", () => ({ getDb: vi.fn(), schema: {} }));
 
 import { POST } from "./route";

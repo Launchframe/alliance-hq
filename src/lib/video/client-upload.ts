@@ -1,3 +1,4 @@
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
 
 export type UploadConfig = {
@@ -51,6 +52,7 @@ export async function uploadVideoFile(options: {
   boardKey?: string;
   hqEventId?: string;
   bankId?: string | null;
+  knowledgeImportId?: string;
   vsContext?: VsVideoContext;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
@@ -62,6 +64,13 @@ export async function uploadVideoFile(options: {
   const vsContext =
     scoreTarget === "vs-performance" ? options.vsContext : undefined;
 
+  if (options.knowledgeImportId && !isOfficerChatVideoTarget(scoreTarget)) {
+    throw new Error("knowledgeImportId is only valid for chat video uploads");
+  }
+  if (isOfficerChatVideoTarget(scoreTarget) && !options.knowledgeImportId) {
+    throw new Error("knowledgeImportId is required for chat video uploads");
+  }
+
   if (uploadConfig.mode === "direct") {
     const formData = new FormData();
     formData.set("video", file);
@@ -69,12 +78,18 @@ export async function uploadVideoFile(options: {
     if (boardKey) formData.set("boardKey", boardKey);
     if (options.hqEventId) formData.set("hqEventId", options.hqEventId);
     if (options.bankId) formData.set("bankId", options.bankId);
+    if (options.knowledgeImportId) {
+      formData.set("knowledgeImportId", options.knowledgeImportId);
+    }
     if (vsContext) {
       formData.set("vsContext", JSON.stringify(vsContext));
     }
 
+    const marker = isOfficerChatVideoTarget(scoreTarget)
+      ? `?${new URLSearchParams({ scoreTarget, knowledgeImportId: options.knowledgeImportId! })}`
+      : "";
     onProgress?.(0, file.size);
-    const res = await fetch("/api/tools/video-upload", {
+    const res = await fetch(`/api/tools/video-upload${marker}`, {
       method: "POST",
       body: formData,
     });
@@ -104,6 +119,7 @@ export async function uploadVideoFile(options: {
       boardKey: boardKey ?? null,
       hqEventId: options.hqEventId ?? null,
       bankId: options.bankId ?? null,
+      knowledgeImportId: options.knowledgeImportId ?? null,
       vsContext: vsContext ?? null,
     }),
   });

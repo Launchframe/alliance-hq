@@ -53,6 +53,7 @@ import {
   isNativeOnlyVideoTarget,
   isFrontlineBreakthroughVideoTarget,
 } from "@/lib/video/score-targets";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import {
@@ -122,6 +123,13 @@ export async function processVideoJob(
       "@/lib/video/process-tesseract-shadow-roster-job"
     );
     return processTesseractShadowRosterJob(jobId, options);
+  }
+
+  if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category)) {
+    const { processChatVideoJobFoundation } = await import(
+      "@/lib/video/process-chat-video-job.server"
+    );
+    return processChatVideoJobFoundation(jobId);
   }
 
   if (job.passRole === "deposit_slip_fingerprint_shadow") {

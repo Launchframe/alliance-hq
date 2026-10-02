@@ -19,7 +19,9 @@ export async function processHistoryStep(importId?: string) {
     if (file) {
       if (!file.sealedKey) throw new Error("unsealed_import");
       const bytes = await readHistoryObject(file.sealedKey, file.size, file.contentType, file.sha256);
-      if (record.kind === "screenshots" && testProvider && bytes.equals(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n8AAAAASUVORK5CYII=", "base64"))) {
+      if (record.kind === "video") {
+        throw new Error("unsupported_import");
+      } else if (record.kind === "screenshots" && testProvider && bytes.equals(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n8AAAAASUVORK5CYII=", "base64"))) {
         messages = [{ sender: null, sentAt: null, body: `Reviewed screenshot ${file.position + 1}`, externalId: null, sourceImageIndex: file.position, locator: `${file.id}:ocr:0` }];
       } else if (record.kind === "screenshots") {
         const sharp = (await import("sharp")).default;

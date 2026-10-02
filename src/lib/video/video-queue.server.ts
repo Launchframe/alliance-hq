@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { loadSession } from "@/lib/session";
@@ -10,6 +10,10 @@ import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
 import { engineRequiresAshed, resolveVideoOcrEngineForJob } from "@/lib/video/ocr-provider.shared";
 import { isMemberRosterVideoTarget, isNativeOnlyVideoTarget } from "@/lib/video/score-targets";
+import {
+  OFFICER_CHAT_VIDEO_TARGET,
+  isOfficerChatVideoTarget,
+} from "@/lib/video/chat-video.shared";
 
 export type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 
@@ -87,6 +91,9 @@ async function selectActiveQueueJobs(
   ));
   return mapQueueRows(rows).map((job, index) => {
     const scoreTarget = job.scoreTarget ?? "desert-storm";
+    if (isOfficerChatVideoTarget(scoreTarget)) {
+      return { ...job, requiresAshedConnection: false };
+    }
     const engine = resolveVideoOcrEngineForJob(
       scoreTarget,
       isMemberRosterVideoTarget(scoreTarget),
@@ -101,7 +108,12 @@ async function selectActiveQueueJobs(
 export async function listAllianceActiveVideoJobs(
   allianceId: string,
 ): Promise<AllianceQueueJob[]> {
-  return selectActiveQueueJobs(eq(schema.videoJobs.allianceId, allianceId));
+  return selectActiveQueueJobs(
+    and(
+      eq(schema.videoJobs.allianceId, allianceId),
+      ne(schema.videoJobs.scoreTarget, OFFICER_CHAT_VIDEO_TARGET),
+    ),
+  );
 }
 
 /** Jobs enqueued by this HQ user (used when alliance context is unset). */

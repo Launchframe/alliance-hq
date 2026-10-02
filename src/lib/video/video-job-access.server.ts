@@ -13,6 +13,7 @@ import {
   isVideoJobAccessibleViaSession,
   isVideoJobOwningHqUser,
 } from "@/lib/video/video-job-access.shared";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 
 export type VideoJobAccessLevel = "read" | "mutate" | "process";
 
@@ -51,6 +52,19 @@ export async function resolveVideoJobAccess(
     job,
   );
   const isOwningHqUser = isVideoJobOwningHqUser(session.hqUserId, job);
+
+  if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category)) {
+    if (level === "process" && job.allianceId) {
+      if (!(await sessionCanProcessVideoForAlliance(sessionId, job.allianceId))) {
+        return { ok: false, status: 403 };
+      }
+      return { ok: true, job };
+    }
+    if (isUploaderSession || isOwningHqUser) {
+      return { ok: true, job };
+    }
+    return { ok: false, status: 404 };
+  }
 
   if (!job.allianceId) {
     if (isUploaderSession || isOwningHqUser) {
