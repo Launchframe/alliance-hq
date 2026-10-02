@@ -3,6 +3,16 @@ import "server-only";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { toActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  ActivityIdentityChangedError,
+  claimDiscordActivityOwnership,
+  lockActivityIdentity,
+  lockActivityMergeOwners,
+  remapActivityOwnership,
+} from "@/lib/activity/ownership.server";
+import { withActivityTransaction } from "@/lib/activity/writer.server";
+import type { ActivityTransaction } from "@/lib/activity/writer.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { revokeAshedMembershipsForHqUser } from "@/lib/ashed/rebind-session";
 import { getDb, schema } from "@/lib/db";
@@ -320,13 +330,97 @@ export async function mergeHqUsersIntoCanonical(input: {
 
   const canonicalId = input.canonicalHqUserId.trim();
   const sourceId = input.sourceHqUserId.trim();
-  const db = getDb();
   const now = new Date();
 
   const movedAllianceIds = preview.alliances.map((row) => row.allianceId);
 
-  await db.transaction(async (tx) => {
-    await revokeAshedMembershipsForHqUser(sourceId);
+  const mergeWork = async (tx: ActivityTransaction) => {
+    const loadDiscordLinks = () =>
+      tx
+        .select({
+          discordUserId: schema.discordHqLinks.discordUserId,
+          hqUserId: schema.discordHqLinks.hqUserId,
+        })
+        .from(schema.discordHqLinks)
+        .where(
+          inArray(schema.discordHqLinks.hqUserId, [
+            sourceId,
+            canonicalId,
+          ]),
+        );
+    const sortLinkPairs = (
+      rows: { discordUserId: string; hqUserId: string }[],
+    ) =>
+      rows
+        .map((row) => `${row.discordUserId}:${row.hqUserId}`)
+        .sort();
+
+    const beforeLinks = await loadDiscordLinks();
+    for (const id of [
+      ...new Set(beforeLinks.map((row) => row.discordUserId)),
+    ].sort()) {
+      await lockActivityIdentity(tx, { discordUserId: id });
+    }
+    try {
+      await lockActivityMergeOwners(tx, sourceId, canonicalId);
+    } catch (error) {
+      if (error instanceof ActivityIdentityChangedError) {
+        throw error;
+      }
+      throw toActivityWriteError(error, "account.merged");
+    }
+    const afterLinks = await loadDiscordLinks();
+    if (
+      sortLinkPairs(beforeLinks).join("\n") !==
+      sortLinkPairs(afterLinks).join("\n")
+    ) {
+      throw new ActivityIdentityChangedError();
+    }
+    if (
+      new Set(afterLinks.map((row) => row.discordUserId)).size > 1
+    ) {
+      throw new MergeHqUsersError(
+        "Both accounts are linked to different Discord users.",
+        "discord_conflict",
+      );
+    }
+
+    const userRows = await tx
+      .select({
+        id: schema.hqUsers.id,
+        isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer,
+        ashedUserId: schema.hqUsers.ashedUserId,
+      })
+      .from(schema.hqUsers)
+      .where(inArray(schema.hqUsers.id, [sourceId, canonicalId]))
+      .orderBy(schema.hqUsers.id)
+      .for("update");
+    const canonicalUser = userRows.find((row) => row.id === canonicalId);
+    const sourceUser = userRows.find((row) => row.id === sourceId);
+    if (!sourceUser || !canonicalUser) {
+      throw new MergeHqUsersError(
+        "Source account not found.",
+        "source_not_found",
+      );
+    }
+    if (canonicalUser.isPlatformMaintainer || sourceUser.isPlatformMaintainer) {
+      throw new MergeHqUsersError(
+        "Platform maintainer accounts cannot be merged here.",
+        "platform_maintainer",
+      );
+    }
+    if (
+      canonicalUser.ashedUserId &&
+      sourceUser.ashedUserId &&
+      canonicalUser.ashedUserId !== sourceUser.ashedUserId
+    ) {
+      throw new MergeHqUsersError(
+        "These accounts are linked to different Ashed identities.",
+        "ashed_identity_conflict",
+      );
+    }
+
+    await revokeAshedMembershipsForHqUser(sourceId, undefined, tx);
 
     const canonicalMemberships = await tx
       .select({
@@ -533,6 +627,17 @@ export async function mergeHqUsersIntoCanonical(input: {
         .update(schema.discordHqLinks)
         .set({ hqUserId: canonicalId })
         .where(eq(schema.discordHqLinks.discordUserId, sourceDiscord.discordUserId));
+      try {
+        await claimDiscordActivityOwnership(tx, {
+          discordUserId: sourceDiscord.discordUserId,
+          hqUserId: canonicalId,
+        });
+      } catch (error) {
+        if (error instanceof ActivityIdentityChangedError) {
+          throw error;
+        }
+        throw toActivityWriteError(error, "account.merged");
+      }
     }
 
     const sourcePending = await tx
@@ -720,9 +825,29 @@ export async function mergeHqUsersIntoCanonical(input: {
         .where(eq(schema.hqUsers.id, canonicalId));
     }
 
+    try {
+      await remapActivityOwnership(tx, sourceId, canonicalId);
+    } catch (error) {
+      if (error instanceof ActivityIdentityChangedError) {
+        throw error;
+      }
+      throw toActivityWriteError(error, "account.merged");
+    }
+
     await remapKnowledgeUser(tx, sourceId, canonicalId);
     await tx.delete(schema.hqUsers).where(eq(schema.hqUsers.id, sourceId));
-  });
+  };
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await withActivityTransaction(mergeWork);
+      break;
+    } catch (error) {
+      if (!(error instanceof ActivityIdentityChangedError) || attempt === 2) {
+        throw error;
+      }
+    }
+  }
 
   const discordLink = await loadDiscordHqLink(canonicalId);
   if (discordLink) {
