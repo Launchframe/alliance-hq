@@ -117,13 +117,14 @@ export async function processChatVideoJob(
         ),
       )
       .returning({ id: schema.videoJobs.id });
-    if (failedRow && job.knowledgeImportId) {
+    if (failedRow && job.knowledgeImportId && job.allianceId) {
       await db
         .update(imports)
         .set({ state: importState, updatedAt })
         .where(
           and(
             eq(imports.id, job.knowledgeImportId),
+            eq(imports.allianceId, job.allianceId),
             eq(imports.sourceVideoJobId, jobId),
             inArray(imports.state, ["uploading", "pending_approval", "processing"]),
           ),
@@ -307,8 +308,12 @@ export async function processChatVideoJob(
       throw new Error("chat_import_limit");
     }
     for (const message of stitched.messages) {
-      message.replyToIndex =
+      const remapped =
         message.replyToIndex != null ? (keptIndexByOld.get(message.replyToIndex) ?? null) : null;
+      if (message.replyToIndex != null && remapped == null) {
+        message.reviewReasons.push("reply_unresolved");
+      }
+      message.replyToIndex = remapped;
       if (message.replyToIndex == null) message.replyMatchConfidence = null;
     }
     if (!stitched.messages.length && !stitched.media.length) {
@@ -382,7 +387,7 @@ export async function processChatVideoJob(
               sequenceOrder: index,
               sourceImageIndex: message.observationFrameIndex,
               sourceLocator: `chat-video:${message.observationFrameIndex}:${message.timestampMs ?? 0}:${message.localId}`,
-              historyIncluded: true,
+              historyIncluded: message.originalText.trim().length > 0,
               historyReviewed: false,
               sentAt: null,
             })),

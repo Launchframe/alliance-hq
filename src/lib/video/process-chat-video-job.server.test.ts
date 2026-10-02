@@ -206,6 +206,54 @@ describe("processChatVideoJob", () => {
     }));
   });
 
+  it("does not auto-include empty-text stubs that only exist to hold media", async () => {
+    mocks.resolveChatFrameParser.mockReturnValue(parseOutput({
+      messages: [{ ...parsedMessage, originalText: "   " }],
+      media: [parsedMedia],
+    }));
+    mocks.uploadChatMediaArtifacts.mockResolvedValue([artifact.storageKey, artifact.thumbnailStorageKey]);
+    await processChatVideoJob(job.id);
+    expect(mocks.inserted.messages[0]![0]).toEqual(expect.objectContaining({
+      originalText: "   ",
+      historyIncluded: false,
+    }));
+    expect(mocks.inserted.media[0]![0]).toEqual(expect.objectContaining({
+      messageId: (mocks.inserted.messages[0]![0] as { id: string }).id,
+    }));
+  });
+
+  it("flags reply_unresolved when the reply target is dropped as empty", async () => {
+    mocks.resolveChatFrameParser.mockReturnValue(parseOutput({
+      messages: [
+        { ...parsedMessage, localId: "target", sender: "Rhea", originalText: "   " },
+        {
+          ...parsedMessage,
+          localId: "reply",
+          originalText: "on my way",
+          isReply: true,
+          replyToName: "Rhea",
+          replyExcerpt: "   ",
+        },
+      ],
+    }));
+    await processChatVideoJob(job.id);
+    expect(mocks.inserted.messages[0]).toHaveLength(1);
+    expect(mocks.inserted.messages[0]![0]).toEqual(expect.objectContaining({
+      originalText: "on my way",
+      isReply: true,
+      replyToMessageId: null,
+      replyMatchConfidence: null,
+      reviewReasons: expect.arrayContaining(["reply_unresolved"]),
+    }));
+  });
+
+  it("does not mark the import failed when job.allianceId is missing", async () => {
+    mocks.selectLimit.mockResolvedValue([{ ...job, allianceId: null }]);
+    await expect(processChatVideoJob(job.id)).rejects.toThrow("lost import linkage");
+    expect(setCalls()).toContainEqual(expect.objectContaining({ status: "failed" }));
+    expect(setCalls()).not.toContainEqual(expect.objectContaining({ state: "failed" }));
+  });
+
   it("succeeds with media-only content and links the media to its stitched message", async () => {
     mocks.resolveChatFrameParser.mockReturnValue(parseOutput({ media: [parsedMedia] }));
     mocks.uploadChatMediaArtifacts.mockResolvedValue([artifact.storageKey, artifact.thumbnailStorageKey]);
