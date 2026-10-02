@@ -20,11 +20,11 @@ export type HistoryAudience = "private" | "officers_read";
 export const historyInitSchema = z.object({
   expectedScope: z.string().min(1).max(300), requestId: z.string().min(8).max(120), title: z.string().trim().min(1).max(160), kind: z.enum(HISTORY_IMPORT_KINDS), locale: z.enum(["en-US", "pt-BR", "id"]),
   audience: z.enum(["private", "officers_read"]).default("private"),
-  files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp", "video/mp4", "video/quicktime", "video/webm"]), size: z.number().int().positive().max(DEFAULT_MAX_VIDEO_UPLOAD_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
+  files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp", "video/mp4", "video/quicktime", "video/webm"]), size: z.number().int().positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
 }).refine((input) => input.kind === "video"
   ? input.files.length === 1 && (CHAT_VIDEO_CONTENT_TYPES as readonly string[]).includes(input.files[0].contentType) && input.files[0].size <= DEFAULT_MAX_VIDEO_UPLOAD_BYTES
   : input.files.reduce((sum, file) => sum + file.size, 0) <= HISTORY_BATCH_BYTES && (input.kind === "screenshots"
-    ? input.files.every((file) => file.contentType.startsWith("image/"))
+    ? input.files.every((file) => file.contentType.startsWith("image/") && file.size <= HISTORY_IMAGE_BYTES)
     : input.files.length === 1 && input.files[0].size <= HISTORY_TEXT_BYTES && input.files[0].contentType === ({ text: "text/plain", markdown: "text/markdown", discord_json: "application/json" } as const)[input.kind]));
 export type HistoryInit = z.infer<typeof historyInitSchema>;
 export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; audience: HistoryAudience; owned: boolean; editable: boolean; version: number; updatedAt: string; total: number; reviewed: number; included: number; unreviewedIncluded: number; emptyEnglish: number; mediaReviewed: number; mediaUnreviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean; viewHref: string | null }> };
@@ -85,7 +85,7 @@ export function parseHistoryScreenshot(parsed: { messages: ReadonlyArray<{ sende
   return text.trim() ? parseHistoryText("text", text, assetId).map((row, index) => historyMessageSchema.parse({ ...row, sourceImageIndex, locator: `${assetId}:ocr:${index}` })) : [];
 }
 
-export function parseHistoryText(kind: Exclude<HistoryImportKind, "screenshots">, text: string, assetId: string): HistoryMessage[] {
+export function parseHistoryText(kind: Exclude<HistoryImportKind, "screenshots" | "video">, text: string, assetId: string): HistoryMessage[] {
   identity.parse(assetId);
   if (!text.trim() || text.includes("\0") || new TextEncoder().encode(text).byteLength > HISTORY_TEXT_BYTES) throw new Error("invalid_import");
   if (kind === "discord_json") {

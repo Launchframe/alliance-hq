@@ -10,6 +10,10 @@ import { requireApiSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
 import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
+import {
+  isVideoJobAccessibleViaSession,
+  isVideoJobOwningHqUser,
+} from "@/lib/video/video-job-access.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -29,10 +33,6 @@ export async function POST(request: Request, { params }: Props) {
     const session = sessionOrError;
     const { jobId } = await params;
 
-    if (!(await sessionCanProcessVideo(session.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     let reason: string | null = null;
     try {
       const body = (await request.json()) as RejectBody;
@@ -50,6 +50,18 @@ export async function POST(request: Request, { params }: Props) {
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const chatVideo = isOfficerChatVideoTarget(job.scoreTarget ?? job.category);
+    const ownsChatJob =
+      isVideoJobOwningHqUser(session.hqUserId, job) ||
+      isVideoJobAccessibleViaSession(session.id, session.hqUserId, job);
+    if (chatVideo) {
+      if (!ownsChatJob) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+    } else if (!(await sessionCanProcessVideo(session.id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (
@@ -94,13 +106,15 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category) && job.knowledgeImportId) {
+    if (chatVideo && job.knowledgeImportId && job.allianceId) {
       await db
         .update(schema.knowledgeHistoryImports)
         .set({ state: "cancelled", updatedAt: now })
         .where(
           and(
             eq(schema.knowledgeHistoryImports.id, job.knowledgeImportId),
+            eq(schema.knowledgeHistoryImports.allianceId, job.allianceId),
+            eq(schema.knowledgeHistoryImports.sourceVideoJobId, jobId),
             inArray(schema.knowledgeHistoryImports.state, ["uploading", "pending_approval", "processing", "review", "failed"]),
           ),
         );

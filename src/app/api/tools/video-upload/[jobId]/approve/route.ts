@@ -19,6 +19,10 @@ import {
   isNativeOnlyVideoTarget,
 } from "@/lib/video/score-targets";
 import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
+import {
+  isVideoJobAccessibleViaSession,
+  isVideoJobOwningHqUser,
+} from "@/lib/video/video-job-access.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -39,10 +43,6 @@ export async function POST(_request: Request, { params }: Props) {
     const session = sessionOrError;
     const { jobId } = await params;
 
-    if (!(await sessionCanProcessVideo(session.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const db = getDb();
     const [job] = await db
       .select()
@@ -52,6 +52,20 @@ export async function POST(_request: Request, { params }: Props) {
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    const chatVideo = isOfficerChatVideoTarget(scoreTargetId);
+    const ownsChatJob =
+      isVideoJobOwningHqUser(session.hqUserId, job) ||
+      isVideoJobAccessibleViaSession(session.id, session.hqUserId, job);
+
+    if (chatVideo) {
+      if (!ownsChatJob) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+    } else if (!(await sessionCanProcessVideo(session.id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Tenant isolation: only process jobs uploaded within the current alliance.
@@ -70,9 +84,7 @@ export async function POST(_request: Request, { params }: Props) {
       );
     }
 
-    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const allianceId = job.allianceId ?? session.currentAllianceId;
-    const chatVideo = isOfficerChatVideoTarget(scoreTargetId);
 
     let nativeConfigPatch: {
       passKey?: string | null;

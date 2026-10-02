@@ -310,13 +310,6 @@ async function initChatVideoUpload(
   session: { id: string; hqUserId: string | null; currentAllianceId: string | null },
   body: InitBody,
 ): Promise<NextResponse> {
-  if (!r2Configured()) {
-    return NextResponse.json({
-      mode: "direct" as const,
-      maxUploadBytes: getMaxVideoUploadBytes(),
-    });
-  }
-
   const fileName = body.fileName?.trim();
   const fileSize = body.fileSize;
   if (!fileName || fileSize == null || !Number.isFinite(fileSize) || fileSize <= 0) {
@@ -334,6 +327,14 @@ async function initChatVideoUpload(
 
   const resolved = await resolveChatVideoUpload(session, body.knowledgeImportId);
   if ("response" in resolved) return resolved.response;
+
+  if (!r2Configured()) {
+    return NextResponse.json({
+      mode: "direct" as const,
+      maxUploadBytes: getMaxVideoUploadBytes(),
+    });
+  }
+
   const { actor, record, asset } = resolved.context;
 
   const contentType = body.contentType?.trim() || videoContentTypeFromFileName(fileName);
