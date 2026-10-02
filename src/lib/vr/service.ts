@@ -68,7 +68,10 @@ import {
   upsertMemberSeasonVr,
   VrPendingChangedError,
   VrSubmissionChangedError,
+  WeeklyPassPendingChangedError,
+  WeeklyPassTargetChangedError,
   writeDiscordBotAudit,
+  type WeeklyPassActivity,
 } from "@/lib/vr/repository";
 import { getCommanderMembershipInAlliance } from "@/lib/thp/repository";
 import type {
@@ -1679,14 +1682,25 @@ export async function handleDiscordWeeklyPass(input: {
     return { reply, characterPicker };
   }
 
+  const pendingRow = await getDiscordBotPending(input.discordUserId);
+  const optionalPending: WeeklyPassActivity["pending"] =
+    pendingRow?.allianceId === input.allianceId &&
+    pendingRow.pending?.kind === "weekly_pass_pick_character"
+      ? {
+          expected: pendingRow.pending,
+          required: false,
+          linkId: target.id,
+        }
+      : undefined;
+
   const result = await applyWeeklyPassForLink({
     allianceId: input.allianceId,
     discordUserId: input.discordUserId,
     ashedMemberId: target.ashedMemberId,
     active: input.active,
+    pending: optionalPending,
     translate,
   });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   await audit(input.allianceId, input.discordUserId, "weekly-pass", input, result);
   return result;
 }
@@ -1699,9 +1713,12 @@ export async function handleDiscordWeeklyPassCharacterPick(input: {
 }): Promise<WeeklyPassCommandResult> {
   const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
-  const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+  const pending =
+    pendingRow?.pending?.kind === "weekly_pass_pick_character"
+      ? pendingRow.pending
+      : null;
 
-  if (!pending || pending.kind !== "weekly_pass_pick_character") {
+  if (pendingRow?.allianceId !== input.allianceId || !pending) {
     const reply = translate("weeklyPass.pickExpired");
     await audit(
       input.allianceId,
@@ -1736,9 +1753,9 @@ export async function handleDiscordWeeklyPassCharacterPick(input: {
     discordUserId: input.discordUserId,
     ashedMemberId: link.ashedMemberId,
     active: pending.active,
+    pending: { expected: pending, required: true, linkId: link.id },
     translate,
   });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   await audit(
     input.allianceId,
     input.discordUserId,
@@ -1754,6 +1771,7 @@ async function applyWeeklyPassForLink(input: {
   discordUserId: string;
   ashedMemberId: string;
   active: boolean;
+  pending?: WeeklyPassActivity["pending"];
   translate: DiscordTranslate;
 }): Promise<WeeklyPassCommandResult> {
   const commander = await getCommanderByAshedMemberId(
@@ -1767,10 +1785,25 @@ async function applyWeeklyPassForLink(input: {
   try {
     await setWeeklyPass({
       commanderId: commander.commanderId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
       active: input.active,
       source: "self",
+      activity: {
+        identity: { kind: "discord", discordUserId: input.discordUserId },
+        ...(input.pending ? { pending: input.pending } : {}),
+      },
     });
   } catch (error) {
+    if (error instanceof WeeklyPassPendingChangedError) {
+      return { reply: input.translate("weeklyPass.pickExpired") };
+    }
+    if (error instanceof WeeklyPassTargetChangedError) {
+      return { reply: input.translate("weeklyPass.commanderNotFound") };
+    }
+    if (error instanceof ActivityWriteError) {
+      return { reply: input.translate("activity.saveBlocked") };
+    }
     console.error("[discord-bot] weekly-pass update failed", error);
     return { reply: input.translate("weeklyPass.updateFailed") };
   }

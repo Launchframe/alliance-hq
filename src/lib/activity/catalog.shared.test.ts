@@ -74,6 +74,7 @@ const minimalPayloads: Record<ActivityEventKey, Record<string, unknown>> = {
     fromRole: "member",
     toRole: "officer",
   },
+  "member.weekly_pass_updated": {},
   "scores.discarded": { affected: 3, completed: 2 },
   "note.updated": {},
   "account.email_changed": {},
@@ -105,6 +106,7 @@ describe("activityCatalog", () => {
         "member.rank_cleared",
         "member.rank_set",
         "member.role_changed",
+        "member.weekly_pass_updated",
         "note.updated",
         "scores.discarded",
         "thp.submitted",
@@ -164,6 +166,18 @@ describe("parseActivityEvent", () => {
       const result = parseActivityEvent(
         inputFor("thp.submitted", {
           payload: { value: "123", [field]: "secret" },
+        }),
+      );
+      expect(result.success).toBe(false);
+    },
+  );
+
+  it.each(["active", "source", "ashedMemberId", "commanderId"])(
+    "rejects arbitrary payload field %s on weekly pass updates",
+    (field) => {
+      const result = parseActivityEvent(
+        inputFor("member.weekly_pass_updated", {
+          payload: { [field]: "x" },
         }),
       );
       expect(result.success).toBe(false);
