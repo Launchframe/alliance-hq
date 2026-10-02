@@ -8,6 +8,7 @@ import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
 import { loadWorkContext } from "./work-context.server";
 import { fieldKey, memberTeam, readField, teamIds, teamLead } from "./policy.shared";
 import { canViewTeamWork, routeTeamWork, type TeamWorkDetail } from "./work-routing.shared";
+import { isOfficerWorkQueueItem, type TeamWorkDashboard } from "./work-dashboard.shared";
 import { SupportError } from "./types.shared";
 import type { SupportTransaction } from "./repository.server";
 
@@ -89,13 +90,13 @@ export async function reconcileTeamWork(allianceId: string) {
   return getDb().transaction((tx) => reconcileTeamWorkTx(tx, allianceId));
 }
 
-export async function loadTeamWorkDashboard(actor: WorkSession, options: { personal?: boolean; teamId?: string; kind?: string } = {}) {
+export async function loadTeamWorkDashboard(actor: WorkSession, options: { personal?: boolean; teamId?: string; kind?: string } = {}): Promise<TeamWorkDashboard> {
   return getDb().transaction(async (tx) => {
     const result = await reconcileTeamWorkTx(tx, actor.allianceId, actor);
     const viewer = result.viewer!;
     const published = result.board.published || viewer.permissions.includes("support_teams:read");
     const teams = teamIds(result.board).filter(() => published).map((id) => ({ id, name: readField(result.board, fieldKey("team", id, "name")) as string | null, leadName: result.roster.find((member) => member.id === teamLead(result.board, id))?.name ?? null }));
-    const items = result.items.filter((item) => (item.kind === "coverage" || item.kind === "vs") && canViewTeamWork(item, viewer, options.personal !== false) && (!options.teamId || item.teamId === options.teamId) && (!options.kind || item.kind === options.kind)).map((item) => ({ id: item.id, memberId: item.memberId, kind: item.kind, teamId: published ? item.teamId : null, detail: item.detail, href: item.href, assigneeName: result.recipients.find((recipient) => recipient.id === item.assigneeId)?.name ?? null,
+    const items = result.items.filter(isOfficerWorkQueueItem).filter((item) => canViewTeamWork(item, viewer, options.personal !== false) && (!options.teamId || item.teamId === options.teamId) && (!options.kind || item.kind === options.kind)).map((item) => ({ id: item.id, memberId: item.memberId, kind: item.kind, teamId: published ? item.teamId : null, detail: item.detail, href: item.href, assigneeName: result.recipients.find((recipient) => recipient.id === item.assigneeId)?.name ?? null,
       leadName: published ? result.roster.find((member) => member.id === (item.teamId ? teamLead(result.board, item.teamId) : null))?.name ?? null : null,
       leadUnlinked: published && !!item.teamId && !result.recipients.some((recipient) => recipient.memberIds.includes(teamLead(result.board, item.teamId!) ?? "")),
       leadAway: published && !!item.teamId && result.currentNotices.some((notice) => notice.memberId === teamLead(result.board, item.teamId!) && notice.startDate <= getServerCalendarDate() && notice.endDate >= getServerCalendarDate()),

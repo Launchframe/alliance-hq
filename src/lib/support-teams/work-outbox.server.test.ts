@@ -38,6 +38,7 @@ describe("durable team digest lease and authorization", () => {
     expect(mocks.reconcile).toHaveBeenCalledTimes(2);
     expect(db.writes.map((write) => write.value.status)).toEqual(["leased", "posting", "sent"]);
     expect(mocks.send.mock.calls[0][0].content).toContain("Resumo do trabalho em equipe");
+    expect(mocks.send.mock.calls[0][0].content).toContain("/notes?view=workQueue");
     expect(mocks.send.mock.calls[0][0].content).not.toContain("member");
     expect(db.writes.every((write) => write.table === "team_work_digests")).toBe(true);
   });
