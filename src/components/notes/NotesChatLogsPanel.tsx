@@ -7,8 +7,12 @@ import { useNotesDirtyState, useNotesFetch, useNotesNavigation } from "./NotesNa
 import { workspaceOffset } from "@/lib/notes/workspace.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyCommitReady, historyInitSchema, type HistoryAudience, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryMessageMediaDto, type HistoryReviewRow } from "@/lib/notes/imports.shared";
+import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
+import { fingerprintVideoFile, normalizeChatVideoFile } from "@/lib/notes/history-video.client";
+import { OFFICER_CHAT_VIDEO_TARGET } from "@/lib/video/chat-video.shared";
+import { uploadVideoFile, type UploadConfig } from "@/lib/video/client-upload";
 
-const VISIBLE_IMPORT_KINDS = HISTORY_IMPORT_KINDS.filter((value) => value !== "video");
+const CHAT_VIDEO_ACCEPT = ".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm";
 
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
@@ -24,7 +28,7 @@ function CoordinateChip({ coordinates, label }: { coordinates: HistoryReviewRow[
   return <span className="inline-flex items-center rounded-full border border-hq-border px-2 py-0.5 text-xs text-hq-fg-muted">{label} {parts}</span>;
 }
 
-function TranscriptMessage({ row, locale, t, replyName, evidenceHref, evidenceLabel }: { row: HistoryReviewRow; locale: string; t: (key: string, values?: Record<string, string | number>) => string; replyName: string | null; evidenceHref: string | null; evidenceLabel: string }) {
+function TranscriptMessage({ row, locale, t, replyName, evidenceHref, evidenceLabel, openMedia }: { row: HistoryReviewRow; locale: string; t: (key: string, values?: Record<string, string | number>) => string; replyName: string | null; evidenceHref: string | null; evidenceLabel: string; openMedia: (mediaId: string) => void }) {
   return <div className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4">
     <p className="text-xs text-hq-fg-muted"><span className="font-medium text-hq-fg">{row.sender ?? t("unknown")}</span>{row.sentAt ? ` · ${new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.sentAt))}` : ""}</p>
     {row.isReply ? <p className="text-xs text-hq-fg-muted">{replyName ? t("replyingTo", { name: replyName }) : t("missingReply")}</p> : null}
@@ -34,7 +38,7 @@ function TranscriptMessage({ row, locale, t, replyName, evidenceHref, evidenceLa
       {row.originalText !== row.englishText ? <details className="text-xs"><summary className="cursor-pointer text-hq-fg-muted">{t("showOriginal")}</summary><p className="mt-1 whitespace-pre-wrap text-hq-fg-muted">{row.originalText}</p></details> : null}
       {evidenceHref ? <a href={evidenceHref} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{evidenceLabel}</a> : null}
     </div>
-    {row.media.length ? <div className="flex flex-wrap gap-2">{row.media.map((item) => <a key={item.id} href={item.fullHref} target="_blank" rel="noreferrer" className="block rounded-lg border border-hq-border p-1" title={t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></a>)}</div> : null}
+    {row.media.length ? <div className="flex flex-wrap gap-2">{row.media.map((item) => <button key={item.id} type="button" onClick={() => openMedia(item.id)} className="block rounded-lg border border-hq-border p-1" title={t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></button>)}</div> : null}
   </div>;
 }
 
@@ -65,6 +69,9 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
   const [busy, setBusy] = useState(false);
   const [synthesizing, setSynthesizing] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
+  const [uploadConfig, setUploadConfig] = useState<UploadConfig | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ loaded: number; total: number } | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const alive = useRef(false);
@@ -84,20 +91,21 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     dirty: dirty.current || !focusId && !!(paste || title || files.length), keys: ["pathname", "view", "chatLog", "messageOffset"],
     busy: busy && !!focusId && detail?.state === "review",
     discard: () => {
-      revision.current++; dirty.current = false; setEdits(current.current?.messages ?? []); setMediaEdits(current.current?.sessionMedia ?? []); setTitle(""); setPaste(""); setFiles([]); setAudience("private");
+      revision.current++; dirty.current = false; setEdits(current.current?.messages ?? []); setMediaEdits(current.current?.sessionMedia ?? []); setTitle(""); setPaste(""); setFiles([]); setAudience("private"); setUploadProgress(null); setLightboxIndex(null);
       if (busy) { lifetime.current.abort(); lifetime.current = new AbortController(); setBusy(false); }
     },
   }));
   const applyScope = useCallback((next: string) => {
     if (scopeRef.current && scopeRef.current !== next) {
-      revision.current++; listCursor.current = null; setPreviousCursor(null); setNextCursor(null); setList([]); setDetail(null);
-      setFiles([]); setPaste(""); setTitle(""); setAudience("private"); setEdits([]); setMediaEdits([]); setDiscardAction(null); dirty.current = false; current.current = null;
+      revision.current++; lifetime.current.abort(); lifetime.current = new AbortController();
+      listCursor.current = null; setPreviousCursor(null); setNextCursor(null); setList([]); setDetail(null);
+      setFiles([]); setPaste(""); setTitle(""); setAudience("private"); setEdits([]); setMediaEdits([]); setDiscardAction(null); setUploadProgress(null); setLightboxIndex(null); dirty.current = false; current.current = null;
     }
     scopeRef.current = next; setScope(next);
   }, []);
   useEffect(() => { alive.current = true; const controller = new AbortController(); lifetime.current = controller; return () => { alive.current = false; controller.abort(); lifetime.current.abort(); }; }, []);
   const fail = useCallback((failure: unknown, listFailure = false) => {
-    if (!alive.current) return;
+    if (!alive.current || (failure as { name?: string } | null)?.name === "AbortError") return;
     if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setMediaEdits([]); setError(null); setListError(null); dirty.current = false; }
     (listFailure ? setListError : setError)(failure instanceof ImportError ? failure.message : t("error"));
     if (!listFailure) requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
@@ -109,6 +117,14 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     if (!response.ok || !body) throw new ImportError(body?.error ?? t("error"), response.status);
     return body;
   }, [t, fetchNotes]);
+  useEffect(() => {
+    if (kind !== "video" || uploadConfig || focusId) return;
+    let disposed = false;
+    api<{ upload: UploadConfig }>("/api/tools/video-upload")
+      .then((body) => { if (!disposed && alive.current) setUploadConfig(body.upload); })
+      .catch(() => { if (!disposed) setError(t("error")); });
+    return () => { disposed = true; };
+  }, [kind, uploadConfig, focusId, api, fail, t]);
   const loadList = useCallback(async (cursor = urlCursor) => {
     const generation = revision.current;
     const number = ++listReadNumber.current;
@@ -132,7 +148,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     return true;
   }, [api, t, applyScope]);
   useEffect(() => {
-    revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]); setMediaEdits([]);
+    revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]); setMediaEdits([]); setLightboxIndex(null);
     if (focusId) void load(focusId, offset).catch(fail);
     else void loadList().catch((failure) => fail(failure, true));
   }, [focusId, offset, load, loadList, fail]);
@@ -148,12 +164,12 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
   const processingState = detail?.state;
   const owned = detail?.owned !== false;
   useEffect(() => {
-    if (!focusId || !processingState || !["queued", "processing"].includes(processingState) || !owned) return;
+    if (!focusId || !processingState || !["pending_approval", "queued", "processing"].includes(processingState) || !owned) return;
     let disposed = false;
     const tick = async () => {
       if (processing.current) return;
       processing.current = true;
-      try { if (canCreate) await api(`/api/notes/imports/${focusId}/process`, { method: "POST" }); if (!disposed) await load(focusId, offset); }
+      try { if (canCreate && current.current?.kind !== "video") await api(`/api/notes/imports/${focusId}/process`, { method: "POST" }); if (!disposed) await load(focusId, offset); }
       catch (failure) { if (!disposed) fail(failure); }
       finally { processing.current = false; }
     };
@@ -182,9 +198,39 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
   }
   async function upload(existing?: HistoryImportDetail) {
     const generation = revision.current;
+    const operationSignal = lifetime.current.signal;
+    const operationCurrent = () => { operationSignal.throwIfAborted(); if (!alive.current || generation !== revision.current) return false; return true; };
     let id = existing?.id;
+    let expectedVersion = existing?.version;
     try {
       const format = existing?.kind ?? kind;
+      if (format === "video") {
+        const chosen = files[0];
+        if (!chosen) throw new ImportError(t("invalid"), 400);
+        const file = normalizeChatVideoFile(chosen);
+        const sha256 = await fingerprintVideoFile(file);
+        if (!operationCurrent()) return;
+        const checkedVideo = historyInitSchema.safeParse({ expectedScope: existing?.scope ?? scope, requestId: crypto.randomUUID(), title: existing?.title ?? title, kind: "video", locale, audience: existing?.audience ?? audience, files: [{ name: file.name, size: file.size, contentType: file.type, sha256 }] });
+        if (!checkedVideo.success) throw new ImportError(t("invalid"), 400);
+        const config = uploadConfig ?? (await api<{ upload: UploadConfig }>("/api/tools/video-upload", { signal: operationSignal }).catch((failure) => { if ((failure as { name?: string } | null)?.name === "AbortError") throw failure; throw new ImportError(t("error"), 0); })).upload;
+        if (!operationCurrent()) return;
+        setUploadConfig(config);
+        if (!id) id = (await api<{ importId: string }>("/api/notes/imports", { ...payload({ ...checkedVideo.data }), signal: operationSignal })).importId;
+        if (!operationCurrent()) return;
+        const snapshot = (await api<{ import: HistoryImportDetail }>(`/api/notes/imports/${id}`, { signal: operationSignal })).import;
+        if (!operationCurrent()) return;
+        expectedVersion = snapshot.version;
+        const descriptor = snapshot.files[0];
+        if (snapshot.state !== "uploading" || !descriptor || descriptor.name !== file.name || descriptor.size !== file.size || descriptor.contentType !== file.type || descriptor.sha256 !== sha256) throw new ImportError(t("invalid"), 400);
+        try {
+          setUploadProgress({ loaded: 0, total: file.size });
+          await uploadVideoFile({ file, scoreTarget: OFFICER_CHAT_VIDEO_TARGET, knowledgeImportId: id, uploadConfig: config, signal: operationSignal, onProgress: (loaded, total) => { if (alive.current) setUploadProgress({ loaded, total }); } });
+        } finally { if (alive.current) setUploadProgress(null); }
+        if (!alive.current || generation !== revision.current) return;
+        setFiles([]); setTitle(""); setAudience("private");
+        if (id === focusId) await load(id, 0, true); else onOpen(id);
+        return;
+      }
       const selected = files.length ? files : format !== "screenshots" && paste.trim() ? [new File([paste], format === "discord_json" ? "history.json" : format === "markdown" ? "history.md" : "history.txt", { type: format === "discord_json" ? "application/json" : format === "markdown" ? "text/markdown" : "text/plain" })] : [];
       const checked = historyInitSchema.safeParse({ expectedScope: scope, requestId: crypto.randomUUID(), title: existing?.title ?? title, kind: format, locale, audience: existing?.audience ?? audience, files: selected.map((file) => ({ name: file.name, size: file.size, contentType: format === "screenshots" ? file.type : format === "discord_json" ? "application/json" : format === "markdown" ? "text/markdown" : "text/plain", sha256: "0".repeat(64) })) });
       if (!checked.success) throw new ImportError(t("invalid"), 400);
@@ -195,6 +241,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
       }
       if (!id) id = (await api<{ importId: string }>("/api/notes/imports", payload({ ...checked.data, files: descriptors }))).importId;
       const snapshot = (await api<{ import: HistoryImportDetail }>(`/api/notes/imports/${id}`)).import;
+      expectedVersion = snapshot.version;
       if (snapshot.state === "uploading") {
         if (snapshot.files.length !== selected.length || snapshot.files.some((file, index) => file.sha256 !== descriptors[index].sha256)) throw new ImportError(t("invalid"), 400);
         for (let index = 0; index < snapshot.files.length; index++) {
@@ -211,7 +258,21 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
       if (!alive.current || generation !== revision.current) return;
       setFiles([]); setPaste(""); setTitle(""); setAudience("private");
       if (id === focusId) await load(id, 0, true); else onOpen(id);
-    } catch (failure) { if (id && id !== focusId && alive.current && generation === revision.current) onOpen(id); throw failure; }
+    } catch (failure) {
+      if ((failure as { name?: string } | null)?.name === "AbortError") {
+        if (id && expectedVersion != null && (existing?.kind ?? kind) === "video") {
+          await fetchNotes(`/api/notes/imports/${id}`, {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "cancel", expectedVersion, requestId: crypto.randomUUID() }),
+            signal: new AbortController().signal,
+          }).catch(() => undefined);
+        }
+        return;
+      }
+      if (id && id !== focusId && alive.current && generation === revision.current) onOpen(id); throw failure;
+    }
   }
   async function command(command: "commit" | "cancel" | "retry") {
     if (!detail) return;
@@ -219,7 +280,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     await load(detail.id, offset, true);
   }
   function confirmDiscard(action: () => void) { if (dirty.current) setDiscardAction(() => action); else action(); }
-  function navigate(id: string | null) { confirmDiscard(() => { setError(null); onOpen(id); }); }
+  function navigate(id: string | null) { confirmDiscard(() => { revision.current++; lifetime.current.abort(); lifetime.current = new AbortController(); setError(null); onOpen(id); }); }
   async function page(next: number) {
     if (!detail) return;
     if (await load(detail.id, next, true)) setOffset(next);
@@ -233,10 +294,15 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     }
     return row.replyToName;
   };
+  const orderedMedia = [...edits.flatMap((row) => row.media), ...mediaEdits];
+  const slideIndexById = new Map(orderedMedia.map((item, index) => [item.id, index]));
+  const slides = orderedMedia.map((item) => ({ src: item.fullHref }));
+  const openMedia = (mediaId: string) => setLightboxIndex(slideIndexById.get(mediaId) ?? 0);
+  const progressBar = uploadProgress ? <progress className="h-2 w-full accent-hq-accent" value={uploadProgress.loaded} max={uploadProgress.total} aria-label={t("uploadChatVideo")} /> : null;
   const errorBox = error ? <p role="alert" className="text-sm text-hq-danger">{error}</p> : null;
   const transcript = detail && <div className="space-y-3">
-    {detail.messages.filter((row) => row.included).map((row) => <TranscriptMessage key={row.id} row={row} locale={locale} t={t} replyName={replyTargetName(row)} evidenceHref={evidenceHref(row)} evidenceLabel={tIntel("sourceScreenshots")} />)}
-    {detail.sessionMedia.length ? <div className="flex flex-wrap gap-2">{detail.sessionMedia.map((item) => <a key={item.id} href={item.fullHref} target="_blank" rel="noreferrer" className="block rounded-lg border border-hq-border p-1"><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></a>)}</div> : null}
+    {detail.messages.filter((row) => row.included).map((row) => <TranscriptMessage key={row.id} row={row} locale={locale} t={t} replyName={replyTargetName(row)} evidenceHref={evidenceHref(row)} evidenceLabel={tIntel("sourceScreenshots")} openMedia={openMedia} />)}
+    {detail.sessionMedia.length ? <div className="flex flex-wrap gap-2">{detail.sessionMedia.map((item) => <button key={item.id} type="button" onClick={() => openMedia(item.id)} className="block rounded-lg border border-hq-border p-1" title={t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></button>)}</div> : null}
   </div>;
   return <section className="min-w-0 flex-1 space-y-5 p-5 sm:p-7">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">{t("title")}</h2><p className="mt-1 max-w-3xl text-sm text-hq-fg-muted">{t("intro")}</p></div>{focusId && <button className={control} disabled={busy} onClick={() => navigate(null)}>{t("back")}</button>}</header>
@@ -248,11 +314,15 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="chat-log-audience" checked={audience === "private"} onChange={() => setAudience("private")} className="accent-hq-accent" />{t("audiencePrivate")}</label>
           <label className="flex items-center gap-2 text-sm"><input type="radio" name="chat-log-audience" checked={audience === "officers_read"} onChange={() => setAudience("officers_read")} className="accent-hq-accent" />{t("audienceOfficers")}</label>
         </fieldset>
-        <label className="flex flex-col gap-1 text-sm">{t("format")}<select aria-label={t("format")} value={kind} onChange={(event) => { setKind(event.target.value as HistoryImportKind); setFiles([]); }} className={control}>{VISIBLE_IMPORT_KINDS.map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
+        <label className="flex flex-col gap-1 text-sm">{t("format")}<select aria-label={t("format")} value={kind} onChange={(event) => { setKind(event.target.value as HistoryImportKind); setFiles([]); }} className={control}>{HISTORY_IMPORT_KINDS.map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
         {kind === "discord_json" && <p className="text-xs text-hq-fg-muted">{t("jsonHint")}</p>}
-        {kind !== "screenshots" && <label className="flex flex-col gap-1 text-sm">{t("paste")}<textarea aria-label={t("paste")} data-no-enter-submit rows={5} maxLength={HISTORY_TEXT_BYTES} value={paste} onChange={(event) => setPaste(event.target.value)} className={control} /></label>}
-        <label className="flex flex-col gap-1 text-sm">{kind === "screenshots" ? t("uploadScreenshots") : t("files")}<input key={kind} type="file" multiple={kind === "screenshots"} accept={kind === "screenshots" ? "image/png,image/jpeg,image/webp" : kind === "discord_json" ? ".json" : kind === "markdown" ? ".md,.markdown" : ".txt"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
-        <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}<button className={control} disabled={busy || !scope || !title.trim() || !files.length && !paste.trim()}>{busy ? t("busy") : t("start")}</button></div>
+        {kind === "video" && <div className="space-y-1 text-xs text-hq-fg-muted">
+          {uploadConfig ? <p>{t("videoLimits", { size: Math.round(uploadConfig.maxUploadBytes / (1024 * 1024)).toLocaleString(locale) })}</p> : null}
+          <p>{t("videoDisclosure")}</p><p>{t("videoQuality")}</p><p>{t("videoRetention")}</p>
+        </div>}
+        {kind !== "screenshots" && kind !== "video" && <label className="flex flex-col gap-1 text-sm">{t("paste")}<textarea aria-label={t("paste")} data-no-enter-submit rows={5} maxLength={HISTORY_TEXT_BYTES} value={paste} onChange={(event) => setPaste(event.target.value)} className={control} /></label>}
+        <label className="flex flex-col gap-1 text-sm">{kind === "screenshots" ? t("uploadScreenshots") : kind === "video" ? t("uploadChatVideo") : t("files")}<input key={kind} type="file" multiple={kind === "screenshots"} accept={kind === "screenshots" ? "image/png,image/jpeg,image/webp" : kind === "video" ? CHAT_VIDEO_ACCEPT : kind === "discord_json" ? ".json" : kind === "markdown" ? ".md,.markdown" : ".txt"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
+        <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}{progressBar}<button className={control} disabled={busy || !scope || !title.trim() || (kind === "video" ? !files.length : !files.length && !paste.trim())}>{busy ? t("busy") : kind === "video" ? t("uploadChatVideo") : t("start")}</button></div>
       </form>}
       {!list.length ? <p className="text-sm text-hq-fg-muted">{t("empty")}</p> : <div className="grid gap-3 sm:grid-cols-2">{list.map((item) => <button key={item.id} onClick={() => navigate(item.id)} className="space-y-2 rounded-xl border border-hq-border bg-hq-canvas p-4 text-left"><p className="font-medium">{item.title}</p><p className="text-xs text-hq-fg-muted">{t(`states.${item.state}`)} · {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.updatedAt))}</p></button>)}</div>}
       {(previousCursor || nextCursor || listError) && <div ref={listErrorAnchor} className="space-y-2">
@@ -266,8 +336,8 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     </>}
     {focusId && !detail && <div ref={errorAnchor}>{errorBox ?? <p role="status">{t("busy")}</p>}</div>}
     {detail && <>
-      <div className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4"><h3 className="font-semibold">{detail.title}</h3><p role="status" className="text-sm">{t(`states.${detail.state}`)}</p><p className="text-xs text-hq-fg-muted">{t("fileProgress", { done: detail.cursor, total: detail.files.length })} · {t("progress", { reviewed: detail.reviewed, total: detail.total })}</p>{detail.errorCode && <p className="text-sm text-hq-danger">{t("processingError")}</p>}{detail.state === "committed" && <p className="text-sm text-hq-success">{t("saved")}</p>}{detail.evidence.length ? <div className="flex flex-wrap gap-2">{detail.evidence.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{tIntel("sourceScreenshots")}</a>)}</div> : null}</div>
-      {detail.state === "uploading" && canCreate && owned && <div className="space-y-3"><p className="text-sm">{t("resumeHint")}</p><label className="flex flex-col gap-2 text-sm">{t("files")}<input type="file" multiple={detail.kind === "screenshots"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label><button className={control} disabled={busy || !files.length} onClick={() => void run(() => upload(detail))}>{t("resumeUpload")}</button></div>}
+      <div className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4"><h3 className="font-semibold">{detail.title}</h3><p role="status" className="text-sm">{t(`states.${detail.state}`)}</p><p className="text-xs text-hq-fg-muted">{detail.kind === "video" ? (detail.total ? t("progress", { reviewed: detail.reviewed, total: detail.total }) : "") : `${t("fileProgress", { done: detail.cursor, total: detail.files.length })} · ${t("progress", { reviewed: detail.reviewed, total: detail.total })}`}</p>{detail.errorCode && <p className="text-sm text-hq-danger">{t("processingError")}</p>}{detail.state === "committed" && <p className="text-sm text-hq-success">{t("saved")}</p>}{detail.evidence.length ? <div className="flex flex-wrap gap-2">{detail.evidence.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{tIntel("sourceScreenshots")}</a>)}</div> : null}</div>
+      {detail.state === "uploading" && canCreate && owned && <div className="space-y-3"><p className="text-sm">{t("resumeHint")}</p><label className="flex flex-col gap-2 text-sm">{detail.kind === "video" ? t("uploadChatVideo") : t("files")}<input type="file" multiple={detail.kind === "screenshots"} accept={detail.kind === "video" ? CHAT_VIDEO_ACCEPT : undefined} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>{progressBar}<button className={control} disabled={busy || !files.length} onClick={() => void run(() => upload(detail))}>{t("resumeUpload")}</button></div>}
       {detail.state === "review" && owned && <div className="space-y-4">
         <h3 className="font-medium">{t("reviewTitle")}</h3><p className="text-xs text-hq-fg-muted">{t("reviewGuidance")}</p>
         {edits.map((row, index) => <fieldset key={row.id} disabled={busy || !canCreate} className="space-y-3 rounded-xl border border-hq-border p-4">
@@ -287,19 +357,20 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
         </div> : null}
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={row.included} onChange={(event) => patchRow(index, { included: event.target.checked })} />{t("include")}</label>
         {row.media.length ? <div className="space-y-2">{row.media.map((item, mediaIndex) => <div key={item.id} className="flex items-center gap-3 rounded-lg border border-hq-border p-2">
-          <a href={item.fullHref} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{t("openFullImage")} · {t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}</a>
+          <button type="button" onClick={() => openMedia(item.id)} className="block rounded-lg border border-hq-border p-1" title={t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></button>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.reviewed} onChange={(event) => patchRow(index, { media: row.media.map((media, at) => at === mediaIndex ? { ...media, reviewed: event.target.checked } : media) })} />{t("reviewed")}</label>
         </div>)}</div> : null}
         {evidenceHref(row) ? <a href={evidenceHref(row)!} target="_blank" rel="noreferrer" className="inline-block text-xs text-hq-accent hover:underline">{tIntel("sourceScreenshots")}</a> : null}
       </fieldset>)}
         {mediaEdits.length ? <div className="space-y-2">{mediaEdits.map((item, mediaIndex) => <div key={item.id} className="flex items-center gap-3 rounded-lg border border-hq-border p-2">
-          <a href={item.fullHref} target="_blank" rel="noreferrer" className="text-xs text-hq-accent hover:underline">{t("openFullImage")} · {t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}</a>
+          <button type="button" onClick={() => openMedia(item.id)} className="block rounded-lg border border-hq-border p-1" title={t(item.kind === "embedded" ? "mediaEmbedded" : "mediaFullscreen")}><img src={item.thumbnailHref} alt={t("imageFromVideo")} className="max-h-32 rounded" /><span className="mt-1 block text-xs text-hq-accent">{t("openFullImage")}</span></button>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.reviewed} onChange={(event) => { dirty.current = true; setMediaEdits((rows) => rows.map((media, at) => at === mediaIndex ? { ...media, reviewed: event.target.checked } : media)); }} />{t("reviewed")}</label>
         </div>)}</div> : null}
         <div className="flex flex-wrap gap-2"><button className={control} disabled={busy || offset === 0} onClick={() => confirmDiscard(() => void run(() => page(Math.max(0, offset - 50))))}>{t("previous")}</button><button className={control} disabled={busy || offset + 50 >= detail.total} onClick={() => confirmDiscard(() => void run(() => page(offset + 50)))}>{t("next")}</button><button className={control} disabled={busy} onClick={() => confirmDiscard(() => void run(() => load(detail.id, offset, true)))}>{t("reload")}</button></div>
       </div>}
       {detail.state === "committed" && <>
         {transcript}
+        <div className="flex gap-2"><button className={control} disabled={busy || offset === 0} onClick={() => void run(() => page(Math.max(0, offset - 50)))}>{t("previous")}</button><button className={control} disabled={busy || offset + 50 >= detail.total} onClick={() => void run(() => page(offset + 50))}>{t("next")}</button></div>
         {owned ? <button className={control} disabled={busy || synthesizing} onClick={() => void run(async () => {
           setSynthesizing(true);
           try {
@@ -316,6 +387,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
         {!["committed", "cancelled"].includes(detail.state) && <button className={control} disabled={busy} onClick={() => confirmDiscard(() => void run(() => command("cancel")))}>{t("cancel")}</button>}
       </div>}</div>
     </>}
+    <ScreenshotLightbox open={lightboxIndex !== null} index={lightboxIndex ?? 0} slides={slides} onClose={() => setLightboxIndex(null)} closeLabel={t("openFullImage")} />
     <Dialog open={!!discardAction} onOpenChange={(open) => { if (!open) setDiscardAction(null); }} title={t("discard")} className="max-w-md">
       <div className="space-y-4 p-5"><p>{t("discard")}</p><div className="flex flex-wrap gap-2"><button autoFocus className={control} onClick={() => setDiscardAction(null)}>{t("keepReviewing")}</button><button className={control} onClick={() => { dirty.current = false; const action = discardAction; setDiscardAction(null); action?.(); }}>{t("discardChanges")}</button></div></div>
     </Dialog>

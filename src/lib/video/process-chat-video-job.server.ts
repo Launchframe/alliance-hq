@@ -33,10 +33,10 @@ import {
 } from "@/lib/video/chat-vision.server";
 import {
   buildChatMediaArtifacts,
-  CHAT_MEDIA_MAX_OBSERVATIONS,
   dedupeMediaArtifacts,
   uploadChatMediaArtifacts,
 } from "@/lib/video/chat-media.server";
+import { CHAT_MEDIA_MAX_OBSERVATIONS } from "@/lib/video/chat-video.shared";
 import { HISTORY_MESSAGE_LIMIT } from "@/lib/notes/imports.shared";
 import { resolveOfficerChatLocaleText } from "@/lib/officer-intel/locale-text.server";
 

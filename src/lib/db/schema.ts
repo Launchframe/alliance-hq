@@ -5527,9 +5527,13 @@ export const knowledgeHistoryImports = pgTable("knowledge_history_imports", {
   foreignKey({ name: "knowledge_history_imports_source_fk", columns: [table.id, table.allianceId, table.resourceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId, officerChatSessions.resourceId] }).onDelete("restrict"),
   index("knowledge_history_imports_hash_idx").on(table.allianceId, table.sourceHash),
   index("knowledge_history_imports_page_idx").on(table.allianceId, table.updatedAt.desc(), table.id.desc()),
+  index("knowledge_history_imports_source_cleanup_idx").on(table.sourceDeleteAfter, table.id).where(sql`${table.kind} = 'video' and ${table.state} = 'committed' and ${table.sourceDeletedAt} is null`),
   uniqueIndex("knowledge_history_imports_source_video_job_unique").on(table.sourceVideoJobId).where(sql`${table.sourceVideoJobId} is not null`),
   foreignKey({ name: "knowledge_history_imports_source_video_job_fk", columns: [table.sourceVideoJobId], foreignColumns: [videoJobs.id] }).onDelete("set null"),
   check("knowledge_history_imports_audience_check", sql`${table.audience} in ('private', 'officers_read')`),
+  check("knowledge_history_imports_kind_check", sql`${table.kind} in ('text', 'markdown', 'discord_json', 'screenshots', 'video')`),
+  check("knowledge_history_imports_state_check", sql`${table.state} in ('uploading', 'queued', 'processing', 'pending_approval', 'review', 'committed', 'cancelled', 'failed')`),
+  check("knowledge_history_imports_format_version_check", sql`${table.formatVersion} = 1`),
 ]);
 
 export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
@@ -5539,6 +5543,8 @@ export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
   r2UploadId: text("r2_upload_id"),
 }, (table) => [unique("knowledge_history_assets_position_unique").on(table.importId, table.position),
   foreignKey({ name: "knowledge_history_assets_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+  check("knowledge_history_assets_size_check", sql`${table.size} > 0 and ${table.size} <= 536870912`),
+  check("knowledge_history_assets_position_check", sql`${table.position} >= 0 and ${table.position} < 12`),
 ]);
 
 export const knowledgeProcessingJobs = pgTable("knowledge_processing_jobs", {

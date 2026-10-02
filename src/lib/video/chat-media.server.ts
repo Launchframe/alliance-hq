@@ -9,11 +9,13 @@ import { deleteObject, putObject } from "@/lib/storage";
 import type { ChatExtractedFrame } from "@/lib/video/chat-frames.server";
 import { fingerprintDistance } from "@/lib/video/chat-frames.server";
 import type { StitchedChatMedia } from "@/lib/video/chat-parser.shared";
+import { CHAT_MEDIA_MAX_OBSERVATIONS } from "@/lib/video/chat-video.shared";
+
+export { CHAT_MEDIA_MAX_OBSERVATIONS };
 
 export const CHAT_MEDIA_MIN_CROP = 32;
 export const CHAT_MEDIA_MAX_BYTES = 20 * 1024 * 1024;
 export const CHAT_MEDIA_THUMB_MAX = 480;
-export const CHAT_MEDIA_MAX_OBSERVATIONS = 240;
 export const CHAT_MEDIA_TOTAL_BYTES = 60 * 1024 * 1024;
 const MEDIA_FINGERPRINT_SIZE = 16;
 const MEDIA_FINGERPRINT_MAX_MEAN_DIFF = 2.0;
