@@ -121,6 +121,6 @@ test.describe("App hotkeys", () => {
 
     await page.goto("/settings/hotkeys");
     await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toBeVisible();
-    await expect(page.getByText("Go to Members")).toBeVisible();
+    await expect(page.getByRole("listitem").filter({ hasText: "Go to Members" }).first()).toBeVisible();
   });
 });
