@@ -72,6 +72,7 @@ describe("durable team work source projection", () => {
     expect(db.tables.team_work_items).toHaveLength(1);
     expect(db.tables.team_work_digests).toHaveLength(1);
     expect(db.tables.inbox_reminder_items).toHaveLength(1);
+    expect(db.tables.inbox_reminder_items[0].href).toBe("/notes?view=workQueue");
     expect(first.items[0].assigneeId).toBe("lead");
   });
   it("reassigns unresolved ownership without editing original actions or actors", async () => {
