@@ -144,6 +144,22 @@ describe("extractChatVideoFrames", () => {
     expect(frames[0]!.sharpness).toBeLessThanOrEqual(1);
   });
 
+  it("collapses consecutive near-identical frames while analyzing so unkept PNGs are dropped", async () => {
+    const same = await solidPng({ r: 10, g: 10, b: 10 });
+    const other = await solidPng({ r: 200, g: 200, b: 200 });
+    mocks.extractLeaderboardFrames.mockResolvedValue({
+      frames: [
+        { index: 0, buffer: same, filePath: "/tmp/a.png", videoTimestampSeconds: 0 },
+        { index: 1, buffer: same, filePath: "/tmp/b.png", videoTimestampSeconds: 1 },
+        { index: 2, buffer: other, filePath: "/tmp/c.png", videoTimestampSeconds: 2 },
+      ],
+      videoDurationSeconds: 3,
+    });
+    const { frames } = await extractChatVideoFrames("/tmp/video.mp4");
+    expect(frames).toHaveLength(2);
+    expect(frames.map((f) => f.timestampMs)).toEqual([0, 2000]);
+  });
+
   it("caps provider frames at 120 while retaining the closing frame", async () => {
     const buffers = await Promise.all(
       Array.from({ length: 130 }, (_, i) => {

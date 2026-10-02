@@ -93,13 +93,18 @@ export async function extractChatVideoFrames(videoPath: string): Promise<{
   const analyzed: ChatExtractedFrame[] = [];
   try {
     for (const frame of extracted.frames) {
-      analyzed.push(await analyzeFrame(frame));
+      const next = await analyzeFrame(frame);
+      const last = analyzed[analyzed.length - 1];
+      if (last && fingerprintDistance(last.fingerprint, next.fingerprint) < CHAT_FINGERPRINT_MAX_MEAN_DIFF) {
+        if (next.sharpness > last.sharpness) analyzed[analyzed.length - 1] = next;
+        continue;
+      }
+      analyzed.push(next);
     }
   } finally {
     await cleanupFrameTempDir(extracted.frames);
   }
-  const deduped = collapseNearIdenticalFrames(analyzed);
-  const capped = sampleChatFramesEvenly(deduped, CHAT_FRAME_MAX_PROVIDER_FRAMES);
+  const capped = sampleChatFramesEvenly(analyzed, CHAT_FRAME_MAX_PROVIDER_FRAMES);
   return {
     frames: capped.map((frame, index) => ({ ...frame, frameIndex: index })),
     videoDurationSeconds: extracted.videoDurationSeconds,
