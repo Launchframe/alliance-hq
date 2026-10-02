@@ -6,7 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { deleteObject, putObject, r2Configured } from "@/lib/storage";
 import { abortR2MultipartUpload, presignR2PutObject } from "@/lib/storage/r2";
 import type { KnowledgeWebActor } from "./access.server";
-import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
+import { createKnowledgeResource, grantOfficersReadAccess, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { knowledgeHash, knowledgePrincipalKey, withKnowledgeReceipt } from "./mutations.server";
 import { assertHistoryStorage, historyByteHash, readHistoryObject, readHistoryStream, validateHistoryBytes } from "./import-storage.server";
 import { HISTORY_IMPORT_PAGE_SIZE, historyInitSchema, historyReviewSchema, type HistoryImportDetail, type HistoryImportPage, type HistoryInit, type HistoryListCursor, type HistoryMessageMediaDto } from "./imports.shared";
@@ -50,7 +50,17 @@ export async function historyImportDetail(actor: KnowledgeWebActor, id: string, 
     .innerJoin(schema.knowledgeResources, eq(schema.knowledgeResources.id, schema.officerChatSessions.resourceId)).where(eq(schema.officerChatSessions.id, record.id));
   const [owned] = await db.select({ id: imports.id }).from(imports).where(and(eq(imports.id, id), ownerAccess(actor)));
   const files = await db.select().from(assets).where(and(eq(assets.importId, id), eq(assets.allianceId, actor.allianceId))).orderBy(assets.position);
-  const [totals] = await db.select({ total: count(), reviewed: sql<number>`count(*) filter (where history_reviewed)` }).from(messages).where(and(eq(messages.sessionId, id), eq(messages.allianceId, actor.allianceId)));
+  const [totals] = await db.select({
+    total: count(),
+    reviewed: sql<number>`count(*) filter (where history_reviewed)`,
+    included: sql<number>`count(*) filter (where history_included)`,
+    unreviewedIncluded: sql<number>`count(*) filter (where history_included and not history_reviewed)`,
+    emptyEnglish: sql<number>`count(*) filter (where history_included and btrim(locale_text) = '')`,
+  }).from(messages).where(and(eq(messages.sessionId, id), eq(messages.allianceId, actor.allianceId)));
+  const [mediaTotals] = await db.select({
+    unreviewed: sql<number>`count(*) filter (where not reviewed)`,
+    reviewed: sql<number>`count(*) filter (where reviewed)`,
+  }).from(media).where(and(eq(media.sessionId, id), eq(media.allianceId, actor.allianceId)));
   const [job] = await db.select().from(schema.knowledgeProcessingJobs).where(and(eq(schema.knowledgeProcessingJobs.importId, id), eq(schema.knowledgeProcessingJobs.allianceId, actor.allianceId)));
   const rows = await db.select().from(messages).where(and(eq(messages.sessionId, id), eq(messages.allianceId, actor.allianceId))).orderBy(messages.sequenceOrder).limit(50).offset(offset);
   const mediaRows = rows.length ? await db.select().from(media).where(and(eq(media.sessionId, id), eq(media.allianceId, actor.allianceId), inArray(media.messageId, rows.map((row) => row.id)))).orderBy(media.sequenceOrder) : [];
@@ -65,7 +75,8 @@ export async function historyImportDetail(actor: KnowledgeWebActor, id: string, 
   await getHistoryImport(actor, id);
   const mediaDto = (item: typeof media.$inferSelect): HistoryMessageMediaDto => ({ id: item.id, kind: item.kind, contentType: item.contentType, width: item.width, height: item.height, reviewed: item.reviewed, thumbnailHref: `/api/notes/imports/${id}/media/${item.id}?variant=thumbnail`, fullHref: `/api/notes/imports/${id}/media/${item.id}` });
   return { scope: `${actor.allianceId}:${actor.hqUserId}`, id, title: redactIntakeText(source.title), version: source.version, kind: record.kind, state: record.state, audience: record.audience, owned: !!owned, editable: !!owned, updatedAt: record.updatedAt.toISOString(),
-    total: Number(totals.total), reviewed: Number(totals.reviewed), cursor: job?.cursor ?? 0, attempts: job?.attempts ?? 0, errorCode: job?.errorCode ?? null,
+    total: Number(totals.total), reviewed: Number(totals.reviewed), included: Number(totals.included), unreviewedIncluded: Number(totals.unreviewedIncluded), emptyEnglish: Number(totals.emptyEnglish),
+    mediaReviewed: Number(mediaTotals?.reviewed ?? 0), mediaUnreviewed: Number(mediaTotals?.unreviewed ?? 0), cursor: job?.cursor ?? 0, attempts: job?.attempts ?? 0, errorCode: job?.errorCode ?? null,
     files: files.map((file) => ({ id: file.id, name: redactIntakeText(file.name), contentType: file.contentType, size: file.size, sha256: file.sha256, sealed: !!file.sealedKey, viewHref: file.sealedKey ? `/api/notes/imports/${id}/assets/${file.id}/view` : null })), offset,
     messages: rows.map((row) => {
       const original = redactIntakeText(row.originalText), english = redactIntakeText(row.localeText);
@@ -186,7 +197,7 @@ export async function commandHistoryImport(actor: KnowledgeWebActor, id: string,
       }
       await tx.update(schema.officerChatSessions).set({ status: "imported", updatedAt: now }).where(eq(schema.officerChatSessions.id, id));
       if (record.audience === "officers_read") {
-        await tx.insert(schema.knowledgeResourceGrants).values({ id: nanoid(), resourceId: record.resourceId, allianceId: actor.allianceId, subjectKind: "officers", subjectId: actor.allianceId, role: "read", createdByHqUserId: actor.hqUserId }).onConflictDoNothing();
+        await grantOfficersReadAccess(tx, actor, record.resourceId);
       }
     } else if (input.command === "cancel") {
       if (record.state === "committed") throw new KnowledgeAccessError("changed");
