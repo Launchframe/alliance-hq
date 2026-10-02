@@ -7,7 +7,7 @@ export function parseStoredKillsPending(value: unknown): KillsPendingState | nul
   }
   const row = value as Record<string, unknown>;
 
-  if (row.kind === "anomaly_confirm") {
+  if (row.kind === "anomaly_confirm" || row.kind === "ocr_confirm") {
     if (
       typeof row.proposedTotal !== "number" ||
       !Number.isFinite(row.proposedTotal) ||
@@ -18,13 +18,17 @@ export function parseStoredKillsPending(value: unknown): KillsPendingState | nul
       return null;
     }
     return {
-      kind: "anomaly_confirm",
+      kind: row.kind,
       proposedTotal: row.proposedTotal,
       commanderId: row.commanderId.trim(),
     };
   }
 
-  if (row.kind === "pick_character" && Array.isArray(row.linkIds)) {
+  if (
+    row.kind === "pick_character" &&
+    Array.isArray(row.linkIds) &&
+    "proposedTotal" in row
+  ) {
     const proposedTotal =
       typeof row.proposedTotal === "number" && Number.isFinite(row.proposedTotal)
         ? row.proposedTotal
