@@ -283,6 +283,7 @@ async function directChatVideoUpload(
     });
     await activateChatVideoUpload({
       sessionId: session.id,
+      hqUserId: session.hqUserId,
       jobId: created.jobId,
       groupId: created.groupId,
       importId: record.id,
@@ -313,7 +314,7 @@ async function directChatVideoUpload(
   return NextResponse.json({
     ok: true,
     jobId,
-    status: "pending_approval",
+    status: "queued",
     message: "Video uploaded. Waiting for a video processor to review and run it.",
   });
 }

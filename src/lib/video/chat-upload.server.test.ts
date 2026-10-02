@@ -42,7 +42,7 @@ vi.mock("@/lib/notes/resources.server", () => ({
 vi.mock("@/lib/storage/r2", () => ({}));
 vi.mock("@/lib/bff/audit", () => ({ writeAuditLog: vi.fn() }));
 vi.mock("@/lib/events/video-jobs", () => ({ emitVideoJobStatus: vi.fn() }));
-vi.mock("@/lib/video/frame-extractor", () => ({ probeVideoDurationSeconds: vi.fn() }));
+vi.mock("@/lib/video/trigger-processing", () => ({ dispatchVideoProcessing: vi.fn() }));
 
 import { NextResponse } from "next/server";
 import { KnowledgeAccessError } from "@/lib/notes/resources.server";

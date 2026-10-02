@@ -137,6 +137,7 @@ async function uploadAsset(actor: KnowledgeWebActor, id: string, assetId: string
 export async function historyUploadTarget(actor: KnowledgeWebActor, id: string, assetId: string) {
   assertHistoryStorage();
   const { record, asset } = await uploadAsset(actor, id, assetId);
+  if (record.kind === "video") throw new KnowledgeAccessError("invalid");
   if (record.state !== "uploading" || asset.sealedKey) throw new KnowledgeAccessError("changed");
   return { url: r2Configured() ? await presignR2PutObject(asset.stagingKey, asset.contentType, 300, asset.size) : `/api/notes/imports/${id}/assets/${assetId}`, contentType: asset.contentType };
 }
@@ -144,6 +145,7 @@ export async function putLocalHistoryAsset(actor: KnowledgeWebActor, id: string,
   assertHistoryStorage();
   if (r2Configured()) throw new KnowledgeAccessError("forbidden");
   const { record, asset } = await uploadAsset(actor, id, assetId);
+  if (record.kind === "video") throw new KnowledgeAccessError("invalid");
   if (record.state !== "uploading" || asset.sealedKey) throw new KnowledgeAccessError("changed");
   if (request.headers.get("content-type")?.split(";")[0].trim() !== asset.contentType) throw new KnowledgeAccessError("invalid");
   const bytes = await readHistoryStream(request.body, asset.size);
@@ -153,6 +155,7 @@ export async function putLocalHistoryAsset(actor: KnowledgeWebActor, id: string,
 }
 export async function sealHistoryAsset(actor: KnowledgeWebActor, id: string, assetId: string) {
   const { record, asset } = await uploadAsset(actor, id, assetId);
+  if (record.kind === "video") throw new KnowledgeAccessError("invalid");
   if (asset.sealedKey) return;
   if (record.state !== "uploading") throw new KnowledgeAccessError("changed");
   const bytes = await readHistoryObject(asset.stagingKey, asset.size, asset.contentType, asset.sha256, true);
@@ -202,6 +205,7 @@ export async function commandHistoryImport(actor: KnowledgeWebActor, id: string,
     } else {
       if (input.command === "finalize" ? record.state !== "uploading" : !["failed", "cancelled"].includes(record.state)) throw new KnowledgeAccessError("changed");
       const files = await tx.select().from(assets).where(and(eq(assets.importId, id), eq(assets.allianceId, actor.allianceId)));
+      if (record.kind === "video" && input.command === "finalize") throw new KnowledgeAccessError("invalid");
       if (record.kind === "video" && input.command !== "finalize") {
         const preCommitJobStatuses = ["pending_upload", "pending_approval", "queued", "extracting", "parsing", "review", "failed", "discarded"] as const;
         cleanup = await tx

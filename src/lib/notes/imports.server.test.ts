@@ -150,6 +150,14 @@ it("cancel -> retry clears discarded job links so a second upload can bind", asy
   expect(containsDiscarded(updateWheres[discardIndex])).toBe(true);
   expect(mocks.txSets).toContainEqual(expect.objectContaining({ state: "uploading", sourceVideoJobId: null }));
 });
+it("refuses to finalize a video import into the text history worker", async () => {
+  const record = videoRecord("uploading");
+  mocks.txSelect = [[record], [record], [{ id: "asset-1", sealedKey: "staging/chat.mp4" }]];
+  await expect(
+    commandHistoryImport(actor, "import-1", { requestId: "req-finalize", expectedVersion: 3, command: "finalize" }),
+  ).rejects.toBeInstanceOf(KnowledgeAccessError);
+  expect(mocks.queueJob).not.toHaveBeenCalled();
+});
 it("retains the sealed object when database commit outcome is unknown", async () => {
   mocks.transaction.mockRejectedValueOnce(new Error("commit acknowledgement lost"));
   await expect(sealHistoryAsset(actor, "import-id", "asset-id")).rejects.toThrow("commit acknowledgement lost");
