@@ -73,11 +73,12 @@ describe("chat video complete", () => {
   it("seals and activates a valid upload without VIDEO_ENQUEUE_PERMISSION", async () => {
     const response = await request(body);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ jobId: "job-1", status: "pending_approval" });
+    expect(await response.json()).toMatchObject({ jobId: "job-1", status: "queued" });
     expect(mocks.requireSessionPermission).not.toHaveBeenCalled();
     expect(mocks.completeR2MultipartUpload).toHaveBeenCalledWith("staging/chat.mp4", "upload-1", body.parts);
     expect(mocks.activateChatVideoUpload).toHaveBeenCalledWith(expect.objectContaining({
       jobId: "job-1", importId: "import-1", assetId: "asset-1", storageKey: "staging/chat.mp4",
+      hqUserId: "hq-1",
     }));
   });
 
@@ -135,6 +136,7 @@ describe("chat video complete", () => {
     mocks.assertChatVideoTempFile.mockRejectedValue(new Error("Chat video exceeds the 2 minute limit."));
     const response = await request(body);
     expect(response.status).toBe(400);
+    expect(mocks.failChatVideoUpload).toHaveBeenCalled();
     expect(mocks.activateChatVideoUpload).not.toHaveBeenCalled();
   });
 });

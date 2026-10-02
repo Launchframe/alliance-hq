@@ -218,22 +218,23 @@ export async function discardChatVideoUploadSetup(input: {
     await tx
       .update(imports)
       .set({ sourceVideoJobId: null, updatedAt: now })
-      .where(and(eq(imports.id, input.importId), eq(imports.sourceVideoJobId, input.jobId)));
+      .where(and(eq(imports.id, input.importId), eq(imports.allianceId, input.allianceId), eq(imports.sourceVideoJobId, input.jobId)));
     await tx
       .update(assets)
       .set({ r2UploadId: null })
-      .where(and(eq(assets.id, input.assetId), eq(assets.importId, input.importId), input.uploadId ? eq(assets.r2UploadId, input.uploadId) : isNull(assets.r2UploadId)));
+      .where(and(eq(assets.id, input.assetId), eq(assets.importId, input.importId), eq(assets.allianceId, input.allianceId), input.uploadId ? eq(assets.r2UploadId, input.uploadId) : isNull(assets.r2UploadId)));
     await tx
       .delete(schema.videoJobs)
-      .where(and(eq(schema.videoJobs.id, input.jobId), eq(schema.videoJobs.status, "pending_upload"), eq(schema.videoJobs.knowledgeImportId, input.importId)));
+      .where(and(eq(schema.videoJobs.id, input.jobId), eq(schema.videoJobs.allianceId, input.allianceId), eq(schema.videoJobs.status, "pending_upload"), eq(schema.videoJobs.knowledgeImportId, input.importId)));
     await tx
       .delete(schema.videoUploadGroups)
-      .where(and(eq(schema.videoUploadGroups.id, input.groupId), isNull(schema.videoUploadGroups.primaryJobId)));
+      .where(and(eq(schema.videoUploadGroups.id, input.groupId), eq(schema.videoUploadGroups.allianceId, input.allianceId), isNull(schema.videoUploadGroups.primaryJobId)));
   });
 }
 
 export async function activateChatVideoUpload(input: {
   sessionId: string;
+  hqUserId: string | null;
   jobId: string;
   groupId: string;
   importId: string;
@@ -256,12 +257,16 @@ export async function activateChatVideoUpload(input: {
     )).returning({ id: schema.videoUploadGroups.id });
     if (!group) throw new KnowledgeAccessError("changed");
     const [job] = await tx.update(schema.videoJobs).set({
-      status: "pending_approval",
+      status: "queued",
       fileSizeBytes: input.actualSizeBytes,
       passIndex: 0,
       passRole: "primary",
       r2UploadId: null,
       expectedFileSizeBytes: null,
+      processingSessionId: input.sessionId,
+      approvedByHqUserId: input.hqUserId,
+      approvedAt: now,
+      errorMessage: null,
       updatedAt: now,
     }).where(and(
       eq(schema.videoJobs.id, input.jobId),
@@ -307,13 +312,15 @@ export async function activateChatVideoUpload(input: {
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     jobId: input.jobId,
-    status: "pending_approval",
+    status: "queued",
     fileName: input.fileName,
     scoreTarget: OFFICER_CHAT_VIDEO_TARGET,
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,
   });
+  const { dispatchVideoProcessing } = await import("@/lib/video/trigger-processing");
+  dispatchVideoProcessing(input.jobId, { source: "upload" });
 }
 
 export async function assertChatVideoTempFile(
@@ -352,9 +359,9 @@ export async function failChatVideoUpload(input: {
   const now = new Date();
   await getDb().transaction(async (tx) => {
     await tx.update(schema.videoJobs).set({ status: "failed", errorMessage: input.errorMessage, updatedAt: now })
-      .where(and(eq(schema.videoJobs.id, input.jobId), inArray(schema.videoJobs.status, ["pending_upload", "pending_approval", "queued", "extracting", "parsing"])));
+      .where(and(eq(schema.videoJobs.id, input.jobId), eq(schema.videoJobs.allianceId, input.allianceId), inArray(schema.videoJobs.status, ["pending_upload", "pending_approval", "queued", "extracting", "parsing"])));
     await tx.update(imports).set({ state: "failed", updatedAt: now })
-      .where(and(eq(imports.id, input.importId), inArray(imports.state, ["uploading", "pending_approval", "processing"])));
+      .where(and(eq(imports.id, input.importId), eq(imports.allianceId, input.allianceId), eq(imports.sourceVideoJobId, input.jobId), inArray(imports.state, ["uploading", "pending_approval", "processing"])));
   });
   await emitVideoJobStatus({
     sessionId: input.sessionId,

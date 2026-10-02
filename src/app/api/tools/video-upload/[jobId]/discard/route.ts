@@ -121,13 +121,15 @@ export async function PATCH(_request: Request, { params }: Props) {
     );
   }
 
-  if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category) && job.knowledgeImportId) {
+  if (isOfficerChatVideoTarget(job.scoreTarget ?? job.category) && job.knowledgeImportId && job.allianceId) {
     await db
       .update(schema.knowledgeHistoryImports)
       .set({ state: "cancelled", updatedAt: endedAt })
       .where(
         and(
           eq(schema.knowledgeHistoryImports.id, job.knowledgeImportId),
+          eq(schema.knowledgeHistoryImports.allianceId, job.allianceId),
+          eq(schema.knowledgeHistoryImports.sourceVideoJobId, jobId),
           inArray(schema.knowledgeHistoryImports.state, ["uploading", "pending_approval", "processing", "review", "failed"]),
         ),
       );

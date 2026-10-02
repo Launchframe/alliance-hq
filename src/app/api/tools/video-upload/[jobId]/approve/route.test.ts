@@ -74,10 +74,10 @@ describe("approve native VS", () => {
     expect(mocks.dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 
-  it("denies unauthorized processors before reading a job", async () => {
+  it("denies unauthorized processors after loading a non-chat job", async () => {
     mocks.sessionCanProcessVideo.mockResolvedValue(false);
     expect((await request()).status).toBe(403);
-    expect(mocks.selectLimit).not.toHaveBeenCalled();
+    expect(mocks.selectLimit).toHaveBeenCalled();
     expect(mocks.dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 
@@ -96,7 +96,15 @@ describe("approve native VS", () => {
 });
 
 describe("approve chat log video", () => {
-  const chatJob = { ...job, id: "job-chat", scoreTarget: "officer-chat-video", category: "officer-chat-video" };
+  const chatJob = {
+    ...job,
+    id: "job-chat",
+    scoreTarget: "officer-chat-video",
+    category: "officer-chat-video",
+    sessionId: "processor",
+    hqUserId: "owner",
+    enqueuedByHqUserId: "owner",
+  };
   const chatRequest = () => POST(new Request("http://localhost/approve"), { params: Promise.resolve({ jobId: chatJob.id }) });
 
   beforeEach(() => {
@@ -118,7 +126,18 @@ describe("approve chat log video", () => {
 
   it("still requires the processor slot", async () => {
     mocks.sessionCanProcessVideo.mockResolvedValue(false);
-    expect((await chatRequest()).status).toBe(403);
+    expect((await chatRequest()).status).toBe(200);
+    expect(mocks.update).toHaveBeenCalled();
+  });
+
+  it("hides chat jobs from alliance processors who do not own them", async () => {
+    mocks.requireApiSession.mockResolvedValue({
+      id: "other-session",
+      hqUserId: "other-officer",
+      currentAllianceId: chatJob.allianceId,
+    });
+    mocks.sessionCanProcessVideo.mockResolvedValue(true);
+    expect((await chatRequest()).status).toBe(404);
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
