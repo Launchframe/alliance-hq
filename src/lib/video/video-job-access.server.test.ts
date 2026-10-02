@@ -173,6 +173,39 @@ describe("resolveVideoJobAccess", () => {
     expect(sessionCanAccessAllianceVideoJob).not.toHaveBeenCalled();
   });
 
+  it("allows owning HQ users to read chat jobs and 404s other alliance processors", async () => {
+    selectLimit.mockResolvedValue([
+      {
+        ...baseJob,
+        scoreTarget: "officer-chat-video",
+        category: "officer-chat-video",
+        hqUserId: "officer-hq-user",
+        enqueuedByHqUserId: "officer-hq-user",
+      },
+    ]);
+    loadSession.mockResolvedValue({
+      id: "laptop-session",
+      currentAllianceId: "alliance-a",
+      hqUserId: "officer-hq-user",
+    });
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(true);
+
+    await expect(resolveVideoJobAccess("job-1", "laptop-session", "read")).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(sessionCanAccessAllianceVideoJob).not.toHaveBeenCalled();
+
+    loadSession.mockResolvedValue({
+      id: "processor-session",
+      currentAllianceId: "alliance-a",
+      hqUserId: "other-hq-user",
+    });
+    await expect(resolveVideoJobAccess("job-1", "processor-session", "read")).resolves.toEqual({
+      ok: false,
+      status: 404,
+    });
+  });
+
   it("allows enqueuing HQ user on a new session without uploader cookie match", async () => {
     sessionCanAccessAllianceVideoJob.mockResolvedValue(false);
     loadSession.mockResolvedValue({

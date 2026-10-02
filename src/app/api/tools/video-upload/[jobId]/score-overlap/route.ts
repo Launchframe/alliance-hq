@@ -60,7 +60,7 @@ export async function GET(request: Request, { params }: Props) {
     const scoreTargetId =
       access.job.scoreTarget ?? access.job.category ?? "desert-storm";
     if (isOfficerChatVideoTarget(scoreTargetId)) {
-      return NextResponse.json({ overlaps: false, source: null });
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     const target = getScoreTargetOrThrow(scoreTargetId);
     if (!target.submitContext.includes("team")) {

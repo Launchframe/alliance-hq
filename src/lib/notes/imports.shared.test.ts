@@ -56,6 +56,7 @@ describe("reviewed history adapters", () => {
     const file = { name: "capture.png", contentType: "image/png", size: 20 * 1024 * 1024, sha256: "a".repeat(64) };
     const input = { expectedScope: "alliance:author", requestId: "request-one", title: "History", kind: "screenshots", locale: "en-US", files: [file] };
     expect(historyInitSchema.safeParse(input).success).toBe(true);
+    expect(historyInitSchema.safeParse({ ...input, files: [{ ...file, size: 20 * 1024 * 1024 + 1 }] }).success).toBe(false);
     expect(historyInitSchema.safeParse({ ...input, files: Array(4).fill(file) }).success).toBe(false);
     expect(historyInitSchema.safeParse({ ...input, kind: "text" }).success).toBe(false);
     expect(historyInitSchema.safeParse({ ...input, files: [{ ...file, sha256: "invalid" }] }).success).toBe(false);

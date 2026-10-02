@@ -258,6 +258,7 @@ async function completeChatVideoUpload(
   try {
     await activateChatVideoUpload({
       sessionId: session.id,
+      hqUserId: session.hqUserId,
       jobId: job.id,
       groupId: job.groupId,
       importId: record.id,
@@ -276,7 +277,8 @@ async function completeChatVideoUpload(
   return NextResponse.json({
     ok: true,
     jobId: job.id,
-    status: "pending_approval",
-    message: "Video uploaded. Waiting for a video processor to review and run it.",
+    status: "queued",
+    message:
+      "Video uploaded. Waiting for a video processor to review and run it.",
   });
 }

@@ -98,6 +98,14 @@ describe("chat video init", () => {
     mocks.r2Configured.mockReturnValue(false);
     const response = await request(body);
     expect(await response.json()).toMatchObject({ mode: "direct" });
+    expect(mocks.resolveChatVideoUpload).toHaveBeenCalled();
+    expect(mocks.createChatVideoUploadJob).not.toHaveBeenCalled();
+  });
+
+  it("still authorizes chat init when R2 is not configured", async () => {
+    mocks.r2Configured.mockReturnValue(false);
+    mocks.resolveChatVideoUpload.mockResolvedValue({ response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) });
+    expect((await request(body)).status).toBe(403);
     expect(mocks.createChatVideoUploadJob).not.toHaveBeenCalled();
   });
 
