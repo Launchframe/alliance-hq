@@ -201,6 +201,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
     const operationSignal = lifetime.current.signal;
     const operationCurrent = () => { operationSignal.throwIfAborted(); if (!alive.current || generation !== revision.current) return false; return true; };
     let id = existing?.id;
+    let expectedVersion = existing?.version;
     try {
       const format = existing?.kind ?? kind;
       if (format === "video") {
@@ -218,6 +219,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
         if (!operationCurrent()) return;
         const snapshot = (await api<{ import: HistoryImportDetail }>(`/api/notes/imports/${id}`, { signal: operationSignal })).import;
         if (!operationCurrent()) return;
+        expectedVersion = snapshot.version;
         const descriptor = snapshot.files[0];
         if (snapshot.state !== "uploading" || !descriptor || descriptor.name !== file.name || descriptor.size !== file.size || descriptor.contentType !== file.type || descriptor.sha256 !== sha256) throw new ImportError(t("invalid"), 400);
         try {
@@ -239,6 +241,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
       }
       if (!id) id = (await api<{ importId: string }>("/api/notes/imports", payload({ ...checked.data, files: descriptors }))).importId;
       const snapshot = (await api<{ import: HistoryImportDetail }>(`/api/notes/imports/${id}`)).import;
+      expectedVersion = snapshot.version;
       if (snapshot.state === "uploading") {
         if (snapshot.files.length !== selected.length || snapshot.files.some((file, index) => file.sha256 !== descriptors[index].sha256)) throw new ImportError(t("invalid"), 400);
         for (let index = 0; index < snapshot.files.length; index++) {
@@ -256,7 +259,18 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
       setFiles([]); setPaste(""); setTitle(""); setAudience("private");
       if (id === focusId) await load(id, 0, true); else onOpen(id);
     } catch (failure) {
-      if ((failure as { name?: string } | null)?.name === "AbortError") return;
+      if ((failure as { name?: string } | null)?.name === "AbortError") {
+        if (id && expectedVersion != null && (existing?.kind ?? kind) === "video") {
+          await fetchNotes(`/api/notes/imports/${id}`, {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "cancel", expectedVersion, requestId: crypto.randomUUID() }),
+            signal: new AbortController().signal,
+          }).catch(() => undefined);
+        }
+        return;
+      }
       if (id && id !== focusId && alive.current && generation === revision.current) onOpen(id); throw failure;
     }
   }

@@ -75,7 +75,7 @@ vi.mock("@/lib/notes/mutations.server", async (original) => ({
 import { commandHistoryImport, sealHistoryAsset, listHistoryImports, historyMediaTarget, reviewHistoryMessages } from "./imports.server";
 import { KnowledgeAccessError } from "./resources.server";
 import type { KnowledgeWebActor } from "./access.server";
-import { knowledgeHistoryImports } from "@/lib/db/schema";
+import { knowledgeHistoryImports, knowledgeHistoryAssets } from "@/lib/db/schema";
 
 const actor = { canCreate: true, allianceId: "alliance", hqUserId: "owner" } as KnowledgeWebActor;
 const timestamp = "2026-09-15T12:00:00.123456Z";
@@ -248,6 +248,20 @@ it("declares the expired-source cleanup partial index", () => {
   expect(index).toBeDefined();
   expect(index!.config.columns).toMatchObject([{ name: "source_delete_after" }, { name: "id" }]);
   expect(index!.config.where).toBeDefined();
+});
+
+it("declares import kind, state, and format-version checks plus asset size and position checks", () => {
+  const importChecks = getTableConfig(knowledgeHistoryImports).checks.map((item) => item.name);
+  expect(importChecks).toEqual(expect.arrayContaining([
+    "knowledge_history_imports_kind_check",
+    "knowledge_history_imports_state_check",
+    "knowledge_history_imports_format_version_check",
+  ]));
+  const assetChecks = getTableConfig(knowledgeHistoryAssets).checks.map((item) => item.name);
+  expect(assetChecks).toEqual(expect.arrayContaining([
+    "knowledge_history_assets_size_check",
+    "knowledge_history_assets_position_check",
+  ]));
 });
 
 it("declares the alliance-scoped descending keyset index", () => {

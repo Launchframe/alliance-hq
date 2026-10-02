@@ -17,6 +17,7 @@ export async function cleanupExpiredChatVideoSources(limit = 25): Promise<{ dele
     .innerJoin(schema.knowledgeHistoryAssets, and(
       eq(schema.knowledgeHistoryAssets.importId, schema.knowledgeHistoryImports.id),
       eq(schema.knowledgeHistoryAssets.allianceId, schema.knowledgeHistoryImports.allianceId),
+      eq(schema.knowledgeHistoryAssets.position, 0),
     ))
     .where(and(
       eq(schema.knowledgeHistoryImports.kind, "video"),
@@ -51,6 +52,7 @@ export async function cleanupExpiredChatVideoSources(limit = 25): Promise<{ dele
             eq(schema.knowledgeHistoryAssets.id, candidate.assetId),
             eq(schema.knowledgeHistoryAssets.importId, candidate.importId),
             eq(schema.knowledgeHistoryAssets.allianceId, candidate.allianceId),
+            eq(schema.knowledgeHistoryAssets.position, 0),
             eq(schema.knowledgeHistoryAssets.sealedKey, candidate.sealedKey!),
           )).returning({ id: schema.knowledgeHistoryAssets.id });
         if (!assetUpdate.length) throw new Error("chat_cleanup_lost");

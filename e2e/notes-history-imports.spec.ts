@@ -752,7 +752,14 @@ test("cleanup deletes only the due committed video source and enforces import co
   await expect(sql`UPDATE knowledge_history_imports SET kind = 'bogus' WHERE id = ${id}`).rejects.toThrow();
   await expect(sql`UPDATE knowledge_history_imports SET state = 'bogus' WHERE id = ${id}`).rejects.toThrow();
   await expect(sql`UPDATE knowledge_history_assets SET size = 536870913 WHERE id = ${assetId}`).rejects.toThrow();
+  await expect(sql`UPDATE knowledge_history_imports SET format_version = 2 WHERE id = ${id}`).rejects.toThrow();
+  await expect(sql`INSERT INTO knowledge_history_assets (id, import_id, alliance_id, name, content_type, size, sha256, position, staging_key)
+    VALUES (${nanoid()}, ${id}, ${fixture.alliance.allianceId}, 'overflow.mp4', 'video/mp4', 8, ${hash(sourceBytes)}, 12, 'staging/overflow')`).rejects.toThrow();
   await expect(sql`UPDATE knowledge_history_assets SET sealed_key = null WHERE id = ${assetId}`).rejects.toThrow();
+  await sql`UPDATE knowledge_history_imports SET state = 'failed' WHERE id = ${id}`;
+  await sql`UPDATE knowledge_history_assets SET sealed_key = null, sealed_at = null WHERE id = ${assetId}`;
+  await sql`UPDATE knowledge_history_assets SET sealed_key = ${sourceKey}, sealed_at = now() WHERE id = ${assetId}`;
+  await sql`UPDATE knowledge_history_imports SET state = 'committed' WHERE id = ${id}`;
   await sql`UPDATE knowledge_history_imports SET state = 'pending_approval' WHERE id = ${id}`;
   await sql`UPDATE knowledge_history_imports SET state = 'committed' WHERE id = ${id}`;
   await sql`INSERT INTO knowledge_history_assets (id, import_id, alliance_id, name, content_type, size, sha256, position, staging_key)
