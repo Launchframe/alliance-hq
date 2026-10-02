@@ -23,7 +23,10 @@ export const historyInitSchema = z.object({
   ? input.files.every((file) => file.contentType.startsWith("image/"))
   : input.files.length === 1 && input.files[0].size <= HISTORY_TEXT_BYTES && input.files[0].contentType === ({ text: "text/plain", markdown: "text/markdown", discord_json: "application/json" } as const)[input.kind]));
 export type HistoryInit = z.infer<typeof historyInitSchema>;
-export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; audience: HistoryAudience; owned: boolean; editable: boolean; version: number; updatedAt: string; total: number; reviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean; viewHref: string | null }> };
+export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; audience: HistoryAudience; owned: boolean; editable: boolean; version: number; updatedAt: string; total: number; reviewed: number; included: number; unreviewedIncluded: number; emptyEnglish: number; mediaReviewed: number; mediaUnreviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean; viewHref: string | null }> };
+export function historyCommitReady(detail: Pick<HistoryImportSummary, "included" | "unreviewedIncluded" | "emptyEnglish" | "mediaReviewed" | "mediaUnreviewed">) {
+  return detail.unreviewedIncluded === 0 && detail.emptyEnglish === 0 && detail.mediaUnreviewed === 0 && (detail.included > 0 || detail.mediaReviewed > 0);
+}
 export const historyCoordinatesSchema = z.object({
   server: z.number().int().min(0).max(99_999).nullable(), x: z.number().min(-100_000).max(100_000), y: z.number().min(-100_000).max(100_000),
   label: z.string().trim().max(160).nullable(),

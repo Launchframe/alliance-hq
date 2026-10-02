@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useNotesDirtyState, useNotesFetch, useNotesNavigation } from "./NotesNavigation";
 import { workspaceOffset } from "@/lib/notes/workspace.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
-import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryAudience, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryMessageMediaDto, type HistoryReviewRow } from "@/lib/notes/imports.shared";
+import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyCommitReady, historyInitSchema, type HistoryAudience, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryMessageMediaDto, type HistoryReviewRow } from "@/lib/notes/imports.shared";
 
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
@@ -298,7 +298,7 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
       </div>}
       {detail.state === "committed" && <>
         {transcript}
-        <button className={control} disabled={busy || synthesizing} onClick={() => void run(async () => {
+        {owned ? <button className={control} disabled={busy || synthesizing} onClick={() => void run(async () => {
           setSynthesizing(true);
           try {
             const response = await fetchNotes(`/api/officer-intel/sessions/${detail.id}/synthesize`, { method: "POST", signal: lifetime.current.signal });
@@ -306,10 +306,10 @@ export function NotesChatLogsPanel({ canCreate, focusId, onOpen }: { canCreate: 
             if (!response.ok) throw new ImportError(body?.error ?? tIntel("synthesizeFailed"), response.status);
             if (body?.noteId) window.location.assign(`/officer-intel/notes/${body.noteId}`);
           } finally { if (alive.current) setSynthesizing(false); }
-        })}>{synthesizing ? tIntel("synthesizing") : tIntel("synthesizeNotes")}</button>
+        })}>{synthesizing ? tIntel("synthesizing") : tIntel("synthesizeNotes")}</button> : null}
       </>}
       <div ref={focusId ? errorAnchor : undefined} className="space-y-3">{errorBox}{canCreate && owned && <div className="flex flex-wrap gap-2">
-        {detail.state === "review" && <><button className={control} disabled={busy || !edits.length && !mediaEdits.length} onClick={() => void run(async () => { await api(`/api/notes/imports/${detail.id}`, { ...payload({ expectedVersion: detail.version, edits: edits.map(({ id, sender, sentAt, englishText, originalText, included, replyToMessageId, coordinates }) => ({ id, sender, sentAt, englishText, originalText, included, replyToMessageId, coordinates })), mediaReviews: [...edits.flatMap((row) => row.media), ...mediaEdits].map((item) => ({ id: item.id, reviewed: item.reviewed })) }), method: "PATCH" }); await load(detail.id, offset, true); })}>{t("reviewPage")}</button><button className={`${control} bg-hq-accent text-white`} disabled={busy || dirty.current || edits.some((row) => row.included && !row.reviewed) || edits.some((row) => row.media.some((item) => !item.reviewed)) || mediaEdits.some((item) => !item.reviewed) || !edits.some((row) => row.included) && !mediaEdits.some((item) => item.reviewed)} onClick={() => void run(() => command("commit"))}>{t("commit")}</button></>}
+        {detail.state === "review" && <><button className={control} disabled={busy || !edits.length && !mediaEdits.length} onClick={() => void run(async () => { await api(`/api/notes/imports/${detail.id}`, { ...payload({ expectedVersion: detail.version, edits: edits.map(({ id, sender, sentAt, englishText, originalText, included, replyToMessageId, coordinates }) => ({ id, sender, sentAt, englishText, originalText, included, replyToMessageId, coordinates })), mediaReviews: [...edits.flatMap((row) => row.media), ...mediaEdits].map((item) => ({ id: item.id, reviewed: item.reviewed })) }), method: "PATCH" }); await load(detail.id, offset, true); })}>{t("reviewPage")}</button><button className={`${control} bg-hq-accent text-white`} disabled={busy || dirty.current || !historyCommitReady(detail)} onClick={() => void run(() => command("commit"))}>{t("commit")}</button></>}
         {["failed", "cancelled"].includes(detail.state) && <button className={control} disabled={busy} onClick={() => void run(() => command("retry"))}>{t("retry")}</button>}
         {!["committed", "cancelled"].includes(detail.state) && <button className={control} disabled={busy} onClick={() => confirmDiscard(() => void run(() => command("cancel")))}>{t("cancel")}</button>}
       </div>}</div>

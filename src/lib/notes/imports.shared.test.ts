@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryListCursor, parseHistoryText, parseHistoryScreenshot } from "./imports.shared";
+import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyCommitReady, historyInitSchema, parseHistoryListCursor, parseHistoryText, parseHistoryScreenshot } from "./imports.shared";
 
 describe("history list cursors", () => {
   const cursor = { version: 1, scope: "alliance:author", updatedAt: "2026-09-15T12:00:00.123456Z", id: "source-one" };
@@ -35,6 +35,15 @@ describe("reviewed history adapters", () => {
   it("retains structured reply and translation fields from recognized screenshots", () => {
     const parsed = { messages: [{ senderName: "Alpha", originalText: "On my way", senderAllianceTag: "TEST", senderLevel: 30, senderVipLevel: 8, inGameTranslatedText: "Estou a caminho", isReply: true, replyToName: "Beta" }], rawLines: [] };
     expect(parseHistoryScreenshot(parsed, "file-one", 1)[0]).toMatchObject({ sender: "Alpha", body: "On my way", isReply: true, replyToName: "Beta", inGameTranslatedText: "Estou a caminho", senderAllianceTag: "TEST", sourceImageIndex: 1 });
+  });
+  it("enables commit from server-wide review totals, not the current page", () => {
+    const ready = { included: 1, unreviewedIncluded: 0, emptyEnglish: 0, mediaReviewed: 0, mediaUnreviewed: 0 };
+    expect(historyCommitReady(ready)).toBe(true);
+    expect(historyCommitReady({ ...ready, unreviewedIncluded: 1 })).toBe(false);
+    expect(historyCommitReady({ ...ready, emptyEnglish: 1 })).toBe(false);
+    expect(historyCommitReady({ ...ready, included: 0 })).toBe(false);
+    expect(historyCommitReady({ ...ready, included: 0, mediaReviewed: 1 })).toBe(true);
+    expect(historyCommitReady({ ...ready, mediaUnreviewed: 1, mediaReviewed: 1 })).toBe(false);
   });
   it("defaults chat log audience to private and rejects unknown audiences", () => {
     const file = { name: "history.txt", contentType: "text/plain", size: 12, sha256: "a".repeat(64) };

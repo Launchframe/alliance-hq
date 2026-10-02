@@ -44,5 +44,6 @@ export async function synthesizeOfficerMeetingNote(input: {
   sessionTitle: string; channelLabel: string | null;
 }): Promise<{ ok: true; noteId: string } | { error: "not_configured" | "no_messages" | "not_found" | "approved" }> {
   const source = await getOfficerChatSessionForAlliance(input);
-  return { error: source ? "not_configured" : "not_found" };
+  if (!source || input.hqUserId == null || source.createdByHqUserId !== input.hqUserId) return { error: "not_found" };
+  return { error: "not_configured" };
 }
