@@ -14,12 +14,20 @@ import {
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { toActivityWriteError } from "@/lib/activity/errors.server";
+import { ActivityWriteError, toActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  captureActivityContext,
+  type ActivityIdentity,
+} from "@/lib/activity/identity.server";
 import {
   claimDiscordActivityOwnership,
   lockActivityIdentity,
 } from "@/lib/activity/ownership.server";
-import { withActivityTransaction } from "@/lib/activity/writer.server";
+import {
+  appendActivityEvent,
+  withActivityTransaction,
+  type ActivityTransaction,
+} from "@/lib/activity/writer.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   denormalizeGameUidOnMember,
@@ -33,7 +41,9 @@ import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
-import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
+import { coerceInstituteLevelFromBaseVr, validateBaseVrForSeason } from "@/lib/vr/institute-levels.shared";
+import { shouldApplySeasonVrWrite } from "@/lib/vr/season-high-write.shared";
+import { maxAllowedDowngradeForSeason } from "@/lib/vr/validation";
 import {
   canRebindGuildToDifferentAlliance,
   evaluateGuildRegistrationAuth,
@@ -57,6 +67,26 @@ import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 import { parseStoredVrPending } from "@/lib/vr/pending-state";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
+
+export type VrSubmissionActivity = {
+  identity: Exclude<ActivityIdentity, { kind: "automation" }>;
+  expectedPreviousBaseVr: number | null;
+  pending?: { expected: VrPendingState; required: boolean };
+};
+
+export class VrPendingChangedError extends Error {
+  constructor() {
+    super("vr_pending_changed");
+    this.name = "VrPendingChangedError";
+  }
+}
+
+export class VrSubmissionChangedError extends Error {
+  constructor() {
+    super("vr_submission_changed");
+    this.name = "VrSubmissionChangedError";
+  }
+}
 
 export type DiscordBotPendingState =
   | VrPendingState
@@ -701,8 +731,9 @@ export async function resolveCommanderIdForMember(
 export async function getCommanderSeasonHigh(
   commanderId: string,
   seasonKey: string,
+  tx?: ActivityTransaction,
 ): Promise<number | null> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const [row] = await db
     .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
     .from(schema.commanderSeasonVr)
@@ -750,8 +781,9 @@ export async function getMemberSeasonHigh(
 export async function listAllianceSeasonVrForLeaderboard(
   allianceId: string,
   seasonKey: string,
+  tx?: ActivityTransaction,
 ): Promise<AllianceSeasonVrLeaderboardRow[]> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const rows = await db
     .select({
       id: schema.commanderSeasonVr.id,
@@ -849,10 +881,15 @@ export async function countAllianceSeasonVrReporters(
   return row?.count ?? 0;
 }
 
-export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
+export async function listSeasonVrRows(
+  allianceId: string,
+  seasonKey: string,
+  tx?: ActivityTransaction,
+) {
   const allianceRows = await listAllianceSeasonVrForLeaderboard(
     allianceId,
     seasonKey,
+    tx,
   );
   return allianceRows.map((row) => ({
     id: row.id,
@@ -881,47 +918,165 @@ export async function upsertCommanderSeasonVr(input: {
   hqUserId?: string | null;
   flagReason?: string | null;
   eventSource?: VrEventSource;
-}): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-  const previousBaseVr = await getCommanderSeasonHigh(
-    input.commanderId,
-    input.seasonKey,
-  );
-  const instituteLevel =
-    input.instituteLevel ??
-    coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
-  const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
-  const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
-  const peerMaxLevel = peerMaxInstituteLevelExcludingMember(
-    rows,
-    input.ashedMemberId,
-    input.seasonKey,
-  );
-  const flagReason =
-    input.flagReason ??
-    (shouldAnomalyConfirm({
-      seasonKey: input.seasonKey,
-      proposedVr: input.baseVr,
-      proposedLevel: instituteLevel,
-      reporterCount: rows.length,
-      peerMax,
-      peerMaxLevel,
-    })
-      ? buildFlagReason(
-          input.seasonKey,
-          input.baseVr,
-          peerMax,
-          instituteLevel,
-          peerMaxLevel,
-        )
-      : null);
+  activity?: VrSubmissionActivity;
+}): Promise<boolean> {
+  return withActivityTransaction(async (db) => {
+    const activityInput = input.activity;
+    const activity = activityInput
+      ? await captureActivityContext(db, {
+          eventKey: "vr.submitted",
+          identity: activityInput.identity,
+          alliance: { kind: "hq", id: input.allianceId },
+          actingMemberId: input.ashedMemberId,
+          method: "manual",
+        })
+      : null;
+    if (
+      activity &&
+      activityInput &&
+      (!input.allianceId ||
+        !input.ashedMemberId ||
+        activity.actor.commanderId !== input.commanderId ||
+        input.eventSource !== activityInput.identity.kind ||
+        !(
+          activityInput.expectedPreviousBaseVr === null ||
+          (Number.isInteger(activityInput.expectedPreviousBaseVr) &&
+            activityInput.expectedPreviousBaseVr >= 0)
+        ) ||
+        (activityInput.identity.kind === "web" &&
+          (input.hqUserId !== activity.actor.hqUserId ||
+            activityInput.identity.principal.currentAllianceId !==
+              input.allianceId)) ||
+        (activityInput.identity.kind === "discord" &&
+          input.discordUserId !== activity.actor.discordUserId))
+    ) {
+      throw new ActivityWriteError({
+        eventKey: "vr.submitted",
+        failureCategory: "validation",
+      });
+    }
 
-  // Atomic conflict resolution: never let a stale lower write clobber a
-  // concurrent higher season high. Intentional downgrades apply only when the
-  // stored high still matches the caller's pre-read (see shouldApplySeasonVrWrite).
-  const expectedPrevious = previousBaseVr;
-  const applyIncoming = sql`
+    const expectedPrevious = activityInput
+      ? activityInput.expectedPreviousBaseVr
+      : await getCommanderSeasonHigh(input.commanderId, input.seasonKey, db);
+
+    if (activityInput?.pending) {
+      const expectedPending = activityInput.pending.expected;
+      if (
+        activityInput.pending.required &&
+        expectedPending.kind === "anomaly_confirm" &&
+        expectedPending.seasonKey !== input.seasonKey
+      ) {
+        throw new VrPendingChangedError();
+      }
+      const expectedJson = JSON.stringify(expectedPending);
+      const consumed =
+        activityInput.identity.kind === "web"
+          ? await db
+              .delete(schema.hqVrPending)
+              .where(
+                and(
+                  eq(schema.hqVrPending.allianceId, input.allianceId),
+                  eq(schema.hqVrPending.hqUserId, input.hqUserId!),
+                  gt(schema.hqVrPending.expiresAt, new Date()),
+                  sql`${schema.hqVrPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning()
+          : await db
+              .delete(schema.discordBotPending)
+              .where(
+                and(
+                  eq(
+                    schema.discordBotPending.discordUserId,
+                    input.discordUserId!,
+                  ),
+                  eq(schema.discordBotPending.allianceId, input.allianceId),
+                  gt(schema.discordBotPending.expiresAt, new Date()),
+                  sql`${schema.discordBotPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning();
+      if (consumed.length === 0 && activityInput.pending.required) {
+        throw new VrPendingChangedError();
+      }
+    }
+
+    const now = new Date();
+    const [locked] = await db
+      .select({ id: schema.commanders.id })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, input.commanderId))
+      .limit(1)
+      .for("update");
+    if (!locked) {
+      throw new Error("commander_required_for_vr");
+    }
+
+    const [current] = await db
+      .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
+      .from(schema.commanderSeasonVr)
+      .where(
+        and(
+          eq(schema.commanderSeasonVr.commanderId, input.commanderId),
+          eq(schema.commanderSeasonVr.seasonKey, input.seasonKey),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    const previousBaseVr = current?.highestBaseVr ?? null;
+
+    if (
+      activityInput &&
+      (!validateBaseVrForSeason(input.seasonKey, input.baseVr).ok ||
+        (previousBaseVr !== null &&
+          (input.baseVr <
+            maxAllowedDowngradeForSeason(input.seasonKey, previousBaseVr) ||
+            !shouldApplySeasonVrWrite({
+              incomingBaseVr: input.baseVr,
+              storedHighestBaseVr: previousBaseVr,
+              expectedPreviousBaseVr: expectedPrevious,
+            }))))
+    ) {
+      throw new VrSubmissionChangedError();
+    }
+    if (activityInput && previousBaseVr === input.baseVr) {
+      return false;
+    }
+
+    const instituteLevel =
+      input.instituteLevel ??
+      coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
+    const rows = await listSeasonVrRows(input.allianceId, input.seasonKey, db);
+    const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
+    const peerMaxLevel = peerMaxInstituteLevelExcludingMember(
+      rows,
+      input.ashedMemberId,
+      input.seasonKey,
+    );
+    const flagReason =
+      input.flagReason ??
+      (shouldAnomalyConfirm({
+        seasonKey: input.seasonKey,
+        proposedVr: input.baseVr,
+        proposedLevel: instituteLevel,
+        reporterCount: rows.length,
+        peerMax,
+        peerMaxLevel,
+      })
+        ? buildFlagReason(
+            input.seasonKey,
+            input.baseVr,
+            peerMax,
+            instituteLevel,
+            peerMaxLevel,
+          )
+        : null);
+
+    // Atomic conflict resolution: never let a stale lower write clobber a
+    // concurrent higher season high. Intentional downgrades apply only when the
+    // stored high still matches the caller's pre-read (see shouldApplySeasonVrWrite).
+    const applyIncoming = sql`
     (${input.baseVr} >= ${schema.commanderSeasonVr.highestBaseVr})
     OR (
       ${expectedPrevious}::int IS NOT NULL
@@ -929,92 +1084,114 @@ export async function upsertCommanderSeasonVr(input: {
     )
   `;
 
-  const [written] = await db
-    .insert(schema.commanderSeasonVr)
-    .values({
-      id: nanoid(),
-      commanderId: input.commanderId,
-      seasonKey: input.seasonKey,
-      highestBaseVr: input.baseVr,
-      instituteLevel,
-      updatedByDiscordUserId: input.discordUserId ?? null,
-      updatedByHqUserId: input.hqUserId ?? null,
-      flaggedAt: flagReason ? now : null,
-      flagReason,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.commanderSeasonVr.commanderId,
-        schema.commanderSeasonVr.seasonKey,
-      ],
-      set: {
-        highestBaseVr: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${input.baseVr}
-            ELSE ${schema.commanderSeasonVr.highestBaseVr}
-          END
-        `,
-        instituteLevel: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${instituteLevel}
-            ELSE ${schema.commanderSeasonVr.instituteLevel}
-          END
-        `,
-        updatedByDiscordUserId: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${input.discordUserId ?? null}
-            ELSE ${schema.commanderSeasonVr.updatedByDiscordUserId}
-          END
-        `,
-        updatedByHqUserId: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${input.hqUserId ?? null}
-            ELSE ${schema.commanderSeasonVr.updatedByHqUserId}
-          END
-        `,
-        updatedAt: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${now.toISOString()}::timestamptz
-            ELSE ${schema.commanderSeasonVr.updatedAt}
-          END
-        `,
-        flaggedAt: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${flagReason ? now.toISOString() : null}::timestamptz
-            ELSE ${schema.commanderSeasonVr.flaggedAt}
-          END
-        `,
-        flagReason: sql`
-          CASE
-            WHEN ${applyIncoming} THEN ${flagReason}
-            ELSE ${schema.commanderSeasonVr.flagReason}
-          END
-        `,
-      },
-    })
-    .returning({
-      highestBaseVr: schema.commanderSeasonVr.highestBaseVr,
-    });
+    const [written] = await db
+      .insert(schema.commanderSeasonVr)
+      .values({
+        id: nanoid(),
+        commanderId: input.commanderId,
+        seasonKey: input.seasonKey,
+        highestBaseVr: input.baseVr,
+        instituteLevel,
+        updatedByDiscordUserId: input.discordUserId ?? null,
+        updatedByHqUserId: input.hqUserId ?? null,
+        flaggedAt: flagReason ? now : null,
+        flagReason,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.commanderSeasonVr.commanderId,
+          schema.commanderSeasonVr.seasonKey,
+        ],
+        set: {
+          highestBaseVr: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${input.baseVr}
+              ELSE ${schema.commanderSeasonVr.highestBaseVr}
+            END
+          `,
+          instituteLevel: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${instituteLevel}
+              ELSE ${schema.commanderSeasonVr.instituteLevel}
+            END
+          `,
+          updatedByDiscordUserId: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${input.discordUserId ?? null}
+              ELSE ${schema.commanderSeasonVr.updatedByDiscordUserId}
+            END
+          `,
+          updatedByHqUserId: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${input.hqUserId ?? null}
+              ELSE ${schema.commanderSeasonVr.updatedByHqUserId}
+            END
+          `,
+          updatedAt: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${now.toISOString()}::timestamptz
+              ELSE ${schema.commanderSeasonVr.updatedAt}
+            END
+          `,
+          flaggedAt: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${flagReason ? now.toISOString() : null}::timestamptz
+              ELSE ${schema.commanderSeasonVr.flaggedAt}
+            END
+          `,
+          flagReason: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${flagReason}
+              ELSE ${schema.commanderSeasonVr.flagReason}
+            END
+          `,
+        },
+      })
+      .returning({
+        highestBaseVr: schema.commanderSeasonVr.highestBaseVr,
+      });
 
-  const applied =
-    written?.highestBaseVr === input.baseVr && previousBaseVr !== input.baseVr;
-  if (input.eventSource && applied) {
-    await db.insert(schema.commanderSeasonVrEvents).values({
-      id: nanoid(),
-      commanderId: input.commanderId,
-      seasonKey: input.seasonKey,
-      baseVr: input.baseVr,
-      instituteLevel,
-      previousBaseVr,
-      source: input.eventSource,
-      allianceId: input.allianceId,
-      reportedByHqUserId: input.hqUserId ?? null,
-      reportedByDiscordUserId: input.discordUserId ?? null,
-      createdAt: now,
-    });
-  }
+    if (activityInput && written?.highestBaseVr !== input.baseVr) {
+      throw new VrSubmissionChangedError();
+    }
+
+    const applied =
+      written?.highestBaseVr === input.baseVr &&
+      previousBaseVr !== input.baseVr;
+    if (input.eventSource && applied) {
+      const historyId = nanoid();
+      await db.insert(schema.commanderSeasonVrEvents).values({
+        id: historyId,
+        commanderId: input.commanderId,
+        seasonKey: input.seasonKey,
+        baseVr: input.baseVr,
+        instituteLevel,
+        previousBaseVr,
+        source: input.eventSource,
+        allianceId: input.allianceId,
+        reportedByHqUserId: input.hqUserId ?? null,
+        reportedByDiscordUserId: input.discordUserId ?? null,
+        createdAt: now,
+      });
+      if (activity) {
+        await appendActivityEvent(db, {
+          ...activity,
+          eventKey: "vr.submitted",
+          occurredAt: now,
+          source: { namespace: "commander-season-vr-events", key: historyId },
+          severity: "update",
+          payload: {
+            value: String(input.baseVr),
+            previousValue:
+              previousBaseVr === null ? null : String(previousBaseVr),
+          },
+        });
+      }
+    }
+    return applied;
+  });
 }
 
 export async function upsertMemberSeasonVr(input: {
@@ -1028,14 +1205,15 @@ export async function upsertMemberSeasonVr(input: {
   flagReason?: string | null;
   eventSource?: VrEventSource;
   commanderId?: string | null;
-}): Promise<void> {
+  activity?: VrSubmissionActivity;
+}): Promise<boolean> {
   const commanderId =
     input.commanderId ??
     (await resolveCommanderIdForMember(input.allianceId, input.ashedMemberId));
   if (!commanderId) {
     throw new Error("commander_required_for_vr");
   }
-  await upsertCommanderSeasonVr({
+  return upsertCommanderSeasonVr({
     ...input,
     commanderId,
   });

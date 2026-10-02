@@ -2,22 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 
-vi.mock("@/lib/vr/repository", () => ({
-  countSeasonReporters: vi.fn(),
-  getCommanderByAshedMemberId: vi.fn().mockResolvedValue({
-    commanderId: "cmd-1",
-    weeklyPassActive: false,
-  }),
-  getDiscordBotPending: vi.fn(),
-  getDiscordLinkById: vi.fn(),
-  getMemberSeasonHigh: vi.fn(),
-  listDiscordLinksForUser: vi.fn(),
-  listSeasonVrRows: vi.fn(),
-  resolveVrSeasonContext: vi.fn(),
-  saveDiscordBotPending: vi.fn(),
-  upsertMemberSeasonVr: vi.fn(),
-  writeDiscordBotAudit: vi.fn(),
-}));
+vi.mock("@/lib/vr/repository", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/lib/vr/repository")>();
+  return {
+    ...original,
+    countSeasonReporters: vi.fn(),
+    getCommanderByAshedMemberId: vi.fn().mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: false,
+    }),
+    getDiscordBotPending: vi.fn(),
+    getDiscordLinkById: vi.fn(),
+    getMemberSeasonHigh: vi.fn(),
+    listDiscordLinksForUser: vi.fn(),
+    listSeasonVrRows: vi.fn(),
+    resolveVrSeasonContext: vi.fn(),
+    saveDiscordBotPending: vi.fn(),
+    upsertMemberSeasonVr: vi.fn(),
+    writeDiscordBotAudit: vi.fn(),
+  };
+});
 
 import {
   countSeasonReporters,
