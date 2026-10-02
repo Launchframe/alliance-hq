@@ -3,12 +3,12 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { listCoverageConflictsTx, professionCoverageDuties, trainCoverageDuties } from "@/lib/time-off/coverage.server";
+import { listCoverageConflictsTx } from "@/lib/time-off/coverage.server";
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
-import { evaluateVsWeek, vsWeekEndingDate } from "@/lib/vs-scores/evidence.shared";
 import { loadWorkContext } from "./work-context.server";
 import { fieldKey, memberTeam, readField, teamIds, teamLead } from "./policy.shared";
-import { canViewTeamWork, routeTeamWork, type TeamWorkDetail, type WorkRecipient } from "./work-routing.shared";
+import { canViewTeamWork, routeTeamWork, type TeamWorkDetail } from "./work-routing.shared";
+import { isOfficerWorkQueueItem, type TeamWorkDashboard } from "./work-dashboard.shared";
 import { SupportError } from "./types.shared";
 import type { SupportTransaction } from "./repository.server";
 
@@ -60,7 +60,6 @@ export async function reconcileTeamWorkTx(tx: SupportTransaction, allianceId: st
     items.push({ id: old?.id ?? workHash([allianceId, sourceKey]), allianceId, sourceKey, sourceVersion, kind, memberId, stint, teamId, assigneeId, requiredPermission, detail: { ...detail, memberName: member.name }, href,
       version: old ? old.version + Number(changed) : 1, open: true, createdAt: old?.createdAt ?? new Date(), updatedAt: changed ? new Date() : old.updatedAt });
   };
-  for (const notice of currentNotices) add("time_off", notice.memberId, notice.id, notice.version, "time_off:write", { memberName: "", date: notice.startDate, endDate: notice.endDate, unexpected: notice.entryKind === "unexpected" }, "/time-off");
   const conflicts = await listCoverageConflictsTx(tx, allianceId, today, end);
   for (const conflict of conflicts) {
     if (!currentNotices.some((notice) => notice.memberId === conflict.memberId && notice.startDate <= conflict.dutyDate && notice.endDate >= conflict.dutyDate)) continue;
@@ -77,8 +76,8 @@ export async function reconcileTeamWorkTx(tx: SupportTransaction, allianceId: st
     if (previous.some((old) => old.id === item.id && old.version === item.version)) continue;
     await tx.insert(schema.teamWorkItems).values(item).onConflictDoUpdate({ target: schema.teamWorkItems.id, set: { sourceVersion: item.sourceVersion, teamId: item.teamId, assigneeId: item.assigneeId, detail: item.detail, href: item.href, version: item.version, open: true, updatedAt: item.updatedAt } });
   }
-  await tx.insert(schema.inboxReminderItems).values({ id: `team-work:${workHash(allianceId)}`, allianceId, kind: "team_work", title: "teamWork.digest", href: "/team-work", requiredPermission: null, active: items.length ? 1 : 0 })
-    .onConflictDoUpdate({ target: schema.inboxReminderItems.id, set: { active: items.length ? 1 : 0, body: null } });
+  await tx.insert(schema.inboxReminderItems).values({ id: `team-work:${workHash(allianceId)}`, allianceId, kind: "team_work", title: "teamWork.digest", href: "/notes?view=workQueue", requiredPermission: null, active: items.length ? 1 : 0 })
+    .onConflictDoUpdate({ target: schema.inboxReminderItems.id, set: { active: items.length ? 1 : 0, body: null, href: "/notes?view=workQueue" } });
   for (const recipientId of new Set(items.flatMap((item) => item.assigneeId ? [item.assigneeId] : []))) {
     await tx.insert(schema.teamWorkDigests).values({ id: workHash([allianceId, recipientId, today]), allianceId, recipientId, day: today }).onConflictDoUpdate({ target: schema.teamWorkDigests.id, set: { status: "pending", leaseToken: null, leaseUntil: null, nextAttemptAt: new Date(), updatedAt: new Date() }, setWhere: eq(schema.teamWorkDigests.status, "cancelled") });
   }
@@ -91,49 +90,17 @@ export async function reconcileTeamWork(allianceId: string) {
   return getDb().transaction((tx) => reconcileTeamWorkTx(tx, allianceId));
 }
 
-export async function loadTeamWorkDashboard(actor: WorkSession, options: { personal?: boolean; teamId?: string; kind?: string } = {}) {
+export async function loadTeamWorkDashboard(actor: WorkSession, options: { personal?: boolean; teamId?: string; kind?: string } = {}): Promise<TeamWorkDashboard> {
   return getDb().transaction(async (tx) => {
     const result = await reconcileTeamWorkTx(tx, actor.allianceId, actor);
     const viewer = result.viewer!;
-    const ownIds = viewer.memberIds;
     const published = result.board.published || viewer.permissions.includes("support_teams:read");
-    const trains = await tx.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, actor.allianceId), gte(schema.trainConductorRecords.date, getServerCalendarDate()), lte(schema.trainConductorRecords.date, addCalendarDays(getServerCalendarDate(), 90))));
-    const duties = [...trains.flatMap((row) => trainCoverageDuties(row, "")), ...await professionCoverageDuties(tx, actor.allianceId, getServerCalendarDate())];
-    const currentWeek = vsWeekEndingDate(getServerCalendarDate());
-    const scores = await tx.select({ id: schema.vsScoreHeads.id, memberId: schema.vsScoreHeads.memberId, recordedDate: schema.vsScoreHeads.recordedDate, period: schema.vsScoreHeads.period, score: schema.vsScoreHeads.score, updatedAt: schema.vsScoreHeads.updatedAt }).from(schema.vsScoreHeads)
-      .where(and(eq(schema.vsScoreHeads.allianceId, actor.allianceId), eq(schema.vsScoreHeads.origin, "hq"), gte(schema.vsScoreHeads.recordedDate, addCalendarDays(currentWeek, -6)), lte(schema.vsScoreHeads.recordedDate, currentWeek)));
     const teams = teamIds(result.board).filter(() => published).map((id) => ({ id, name: readField(result.board, fieldKey("team", id, "name")) as string | null, leadName: result.roster.find((member) => member.id === teamLead(result.board, id))?.name ?? null }));
-    const items = result.items.filter((item) => canViewTeamWork(item, viewer, options.personal !== false) && (!options.teamId || item.teamId === options.teamId) && (!options.kind || item.kind === options.kind)).map((item) => ({ id: item.id, memberId: item.memberId, kind: item.kind, teamId: published ? item.teamId : null, detail: item.detail, href: item.href, assigneeName: result.recipients.find((recipient) => recipient.id === item.assigneeId)?.name ?? null,
+    const items = result.items.filter(isOfficerWorkQueueItem).filter((item) => canViewTeamWork(item, viewer, options.personal !== false) && (!options.teamId || item.teamId === options.teamId) && (!options.kind || item.kind === options.kind)).map((item) => ({ id: item.id, memberId: item.memberId, kind: item.kind, teamId: published ? item.teamId : null, detail: item.detail, href: item.href, assigneeName: result.recipients.find((recipient) => recipient.id === item.assigneeId)?.name ?? null,
       leadName: published ? result.roster.find((member) => member.id === (item.teamId ? teamLead(result.board, item.teamId) : null))?.name ?? null : null,
       leadUnlinked: published && !!item.teamId && !result.recipients.some((recipient) => recipient.memberIds.includes(teamLead(result.board, item.teamId!) ?? "")),
       leadAway: published && !!item.teamId && result.currentNotices.some((notice) => notice.memberId === teamLead(result.board, item.teamId!) && notice.startDate <= getServerCalendarDate() && notice.endDate >= getServerCalendarDate()),
     }));
-    const ledTeams = teamIds(result.board).filter((id) => ownIds.includes(teamLead(result.board, id) ?? ""));
-    const canReadMembers = ["time_off:read", "trains:write", "vs_compliance:read"].some((permission) => eligibleRead(viewer, permission));
-    const visibleMembers = result.roster.filter((member) => ownIds.includes(member.id) || published && canReadMembers && (ledTeams.includes(memberTeam(result.board, member.id) ?? "") || options.personal === false));
-    const members = visibleMembers.map((member) => {
-      const own = ownIds.includes(member.id);
-      const canRead = eligibleRead(viewer, "vs_compliance:read");
-      const start = result.starts.get(member.id);
-      const records = scores.filter((score) => score.memberId === member.id && start && score.updatedAt >= start && score.recordedDate >= getServerCalendarDate(start))
-        .flatMap((score) => score.score !== null && (score.period === "daily" || score.period === "weekly") ? [{ ...score, score: score.score, period: score.period }] : []);
-      const currentEvidence = evaluateVsWeek(records, currentWeek);
-      const days = Array.from({ length: 6 }, (_, index) => {
-        const date = addCalendarDays(currentWeek, index - 6);
-        const score = records.find((record) => record.period === "daily" && record.recordedDate === date)?.score ?? (index === 5 ? currentEvidence.derivedSaturday?.score ?? null : null);
-        return { date, score: currentEvidence.state === "conflict" ? null : score, evidenceState: currentEvidence.state === "conflict" ? "conflict" as const : score === null ? "missing" as const : "ready" as const };
-      });
-      return { id: member.id, name: member.name, own, teamId: published ? memberTeam(result.board, member.id) : null,
-        duties: own || eligibleRead(viewer, "trains:write") ? duties.filter((duty) => duty.memberId === member.id).map((duty) => ({ date: duty.dutyDate, role: duty.dutyRole })) : [],
-        absences: own || eligibleRead(viewer, "time_off:read") ? (own ? result.personalNotices : result.currentNotices).filter((notice) => notice.memberId === member.id).map((notice) => ({ startDate: notice.startDate, endDate: notice.endDate, unexpected: notice.entryKind === "unexpected" })) : [],
-        currentWeek: own || canRead ? { weekEnding: currentWeek, evidenceState: currentEvidence.state, dailyCoverage: currentEvidence.dailyCoverage, score: currentEvidence.score, days } : null,
-        weeks: own || canRead ? result.currentEvaluations.filter((row) => row.memberId === member.id).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding)).slice(0, 4).map((row) => ({ weekEnding: row.weekEnding, outcome: row.evaluation.outcome, dailyCoverage: row.input.evidence.dailyCoverage, evidenceState: row.input.evidence.state })) : [],
-      };
-    });
-    return { teams, members, items, canReview: viewer.permissions.includes("trains:write") && ["owner", "maintainer", "officer"].includes(viewer.role) };
+    return { teams, items, canReview: viewer.permissions.includes("trains:write") && ["owner", "maintainer", "officer"].includes(viewer.role) };
   });
-}
-
-function eligibleRead(viewer: WorkRecipient, permission: string) {
-  return ["owner", "maintainer", "officer"].includes(viewer.role) && viewer.permissions.includes(permission);
 }

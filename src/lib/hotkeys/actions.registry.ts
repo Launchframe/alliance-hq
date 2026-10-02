@@ -37,8 +37,8 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     category: "navigation",
     scope: "global",
     kind: "navigate",
-    href: "/team-work",
-    requiredPermission: "members:read",
+    href: "/notes?view=workQueue",
+    requiredPermission: "notes:create",
   },
   {
     id: "nav.supportTeams",
@@ -46,7 +46,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     category: "navigation",
     scope: "global",
     kind: "navigate",
-    href: "/support-teams",
+    href: "/notes?view=teams",
     requiredPermission: "members:read",
   },
   {
@@ -702,11 +702,12 @@ export function isHotkeyActionAllowed(
     return false;
   }
 
+  const hrefPath = action.href?.split("?")[0];
   if (
     options.operatingMode === "native" &&
-    action.href &&
-    !NATIVE_NAV_HREFS.has(action.href) &&
-    !NATIVE_MODE_EXTRA_HREFS.has(action.href)
+    hrefPath &&
+    !NATIVE_NAV_HREFS.has(hrefPath) &&
+    !NATIVE_MODE_EXTRA_HREFS.has(hrefPath)
   ) {
     return false;
   }

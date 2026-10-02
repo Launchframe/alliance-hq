@@ -10,12 +10,12 @@ vi.mock("server-only", () => ({}));
 vi.mock("./work-context.server", () => ({ loadWorkContext: mocks.context }));
 vi.mock("@/lib/time-off/coverage.server", () => ({ listCoverageConflictsTx: mocks.conflicts, professionCoverageDuties: vi.fn(async () => []), trainCoverageDuties: vi.fn(() => []) }));
 import { loadTeamWorkDashboard, reconcileTeamWorkTx } from "./work-service.server";
-import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
-import { vsWeekEndingDate } from "@/lib/vs-scores/evidence.shared";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { routeCoverageConflicts } from "@/lib/time-off/coverage-routing.server";
 import { canReadTeamWorkInbox } from "./work-inbox.server";
 
 const joinedAt = new Date("2020-01-01T00:00:00Z");
+const coverageConflict = { memberId: "member", memberName: "Member", dutyDate: "2099-01-01", dutyRole: "conductor" as const, assignmentId: "train", assignmentVersion: "1", absenceVersion: "1", lockedAt: null };
 const recipient = (id: string, memberIds: string[]): WorkRecipient => ({ id, memberIds, allianceId: "a", name: id, active: true, role: id === "owner" ? "owner" : "officer", permissions: ["trains:write", "time_off:write", "vs_compliance:manage"] });
 const board = () => ({ ...emptyBoard("a"), published: true, fields: Object.fromEntries([
   [fieldKey("team", "team", "exists"), { value: true, version: 1, actionId: "original-actor-action" }],
@@ -64,6 +64,7 @@ beforeEach(() => {
 describe("durable team work source projection", () => {
   it("keeps stable source ownership, version and one daily digest across retries", async () => {
     const db = database();
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
     const first = await reconcileTeamWorkTx(db.tx, "a");
     const retry = await reconcileTeamWorkTx(db.tx, "a");
     expect(first.items).toHaveLength(1);
@@ -71,10 +72,12 @@ describe("durable team work source projection", () => {
     expect(db.tables.team_work_items).toHaveLength(1);
     expect(db.tables.team_work_digests).toHaveLength(1);
     expect(db.tables.inbox_reminder_items).toHaveLength(1);
+    expect(db.tables.inbox_reminder_items[0].href).toBe("/notes?view=workQueue");
     expect(first.items[0].assigneeId).toBe("lead");
   });
   it("reassigns unresolved ownership without editing original actions or actors", async () => {
     const db = database();
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
     const first = await reconcileTeamWorkTx(db.tx, "a");
     const context = await mocks.context();
     context.recipients[0].active = false;
@@ -91,8 +94,9 @@ describe("durable team work source projection", () => {
   });
   it("closes a cancelled source without deleting the durable task", async () => {
     const db = database();
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
     await reconcileTeamWorkTx(db.tx, "a");
-    db.tables.member_time_off = [];
+    mocks.conflicts.mockResolvedValue([]);
     await reconcileTeamWorkTx(db.tx, "a");
     expect(db.tables.team_work_items).toHaveLength(1);
     expect(db.tables.team_work_items[0].open).toBe(false);
@@ -100,9 +104,26 @@ describe("durable team work source projection", () => {
   });
   it("does not carry a departed member's old absence into a new membership stint", async () => {
     const db = database();
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
     await reconcileTeamWorkTx(db.tx, "a");
     db.tables.member_alliance_tenure = [{ memberId: "member", joinedAt: new Date(Date.now() + 1000) }];
     expect((await reconcileTeamWorkTx(db.tx, "a")).items).toHaveLength(0);
+  });
+  it("keeps absence notices for coverage routing without generating informational items", async () => {
+    const db = database();
+    const result = await reconcileTeamWorkTx(db.tx, "a");
+    expect(result.items).toHaveLength(0);
+    expect(result.currentNotices).toHaveLength(1);
+    expect(db.tables.team_work_items).toHaveLength(0);
+    expect(db.tables.team_work_digests).toHaveLength(0);
+  });
+  it("closes a stale time off row during normal reconciliation", async () => {
+    const db = database();
+    db.tables.team_work_items = [{ id: "legacy", allianceId: "a", sourceKey: "legacy", sourceVersion: "1", kind: "time_off", memberId: "member", stint: "stint", teamId: "team", assigneeId: "lead", requiredPermission: "time_off:write", detail: {}, href: "/time-off", version: 1, open: true, createdAt: joinedAt, updatedAt: joinedAt }];
+    await reconcileTeamWorkTx(db.tx, "a");
+    expect(db.tables.team_work_items).toHaveLength(1);
+    expect(db.tables.team_work_items[0].open).toBe(false);
+    expect(db.tables.inbox_reminder_items[0].active).toBe(0);
   });
   it("routes Engineer coverage to an administrator rather than an unauthorized team lead", async () => {
     const db = database();
@@ -115,10 +136,10 @@ describe("durable team work source projection", () => {
     expect((await routeCoverageConflicts("a", [conflict]))[0].routing?.hqUserId).toBe("owner");
   });
 
-  it("consolidates multiple source kinds into one recipient digest", async () => {
+  it("consolidates multiple sources into one recipient digest", async () => {
     const db = database();
-    mocks.conflicts.mockResolvedValue([{ memberId: "member", dutyDate: "2099-01-01", dutyRole: "conductor", assignmentId: "train", assignmentVersion: "1", absenceVersion: "1" }]);
-    expect((await reconcileTeamWorkTx(db.tx, "a")).items.map((item) => item.kind)).toEqual(["time_off", "coverage"]);
+    mocks.conflicts.mockResolvedValue([coverageConflict, { ...coverageConflict, dutyDate: "2099-01-02", assignmentId: "other-train" }]);
+    expect((await reconcileTeamWorkTx(db.tx, "a")).items.map((item) => item.kind)).toEqual(["coverage", "coverage"]);
     expect(db.tables.team_work_digests).toHaveLength(1);
     expect(db.tables.inbox_reminder_items).toHaveLength(1);
   });
@@ -127,8 +148,9 @@ describe("durable team work source projection", () => {
 describe("durable inbox authorization", () => {
   it("requires current task grants and tenant ownership even with cached caller permissions", async () => {
     const db = database();
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
     const context = await mocks.context();
-    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["time_off:write"]), personal: true };
+    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["trains:write"]), personal: true };
     expect(await canReadTeamWorkInbox(input)).toBe(true);
     expect(await canReadTeamWorkInbox({ ...input, hqUserId: "other" })).toBe(false);
     expect(await canReadTeamWorkInbox({ ...input, allianceId: "foreign" })).toBe(false);
@@ -141,8 +163,9 @@ describe("durable inbox authorization", () => {
   });
   it("reconciles published ownership and current availability before personal inbox eligibility", async () => {
     const db = database();
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
     const context = await mocks.context();
-    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["time_off:write"]), personal: true };
+    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["trains:write"]), personal: true };
     expect(await canReadTeamWorkInbox(input)).toBe(true);
     context.board.fields[fieldKey("team", "team", "lead")].value = "owner-member";
     context.roster.push({ id: "owner-member", name: "Owner", rank: 5 });
@@ -175,7 +198,7 @@ describe("coverage routing integration", () => {
   });
 });
 
-describe("team dashboard private projection", () => {
+describe("team dashboard action projection", () => {
   const actor = { sessionId: "session", hqUserId: "lead", allianceId: "a" };
   async function dashboard(role = "member", published = true) {
     const db = database();
@@ -184,61 +207,48 @@ describe("team dashboard private projection", () => {
     const context = await mocks.context();
     context.board.published = published;
     context.recipients[0].role = role;
-    context.recipients[0].permissions = ["members:read"];
+    context.recipients[0].permissions = role === "member" ? ["members:read"] : ["members:read", "trains:write", "time_off:read", "vs_compliance:read", "vs_compliance:manage"];
     db.tables.member_alliance_tenure.push({ memberId: "lead-member", joinedAt });
     return db;
   }
-  it("does not expose the roster to a member merely because they occupy a lead slot", async () => {
+  it("keeps the action queue and roster hidden from a member in a lead slot", async () => {
     await dashboard();
     const result = await loadTeamWorkDashboard(actor, { personal: false });
-    expect(result.members.map((member) => member.id)).toEqual(["lead-member"]);
     expect(result.items).toEqual([]);
     expect(result.canReview).toBe(false);
     expect(result.teams).toHaveLength(1);
+    expect(Object.keys(result).sort()).toEqual(["canReview", "items", "teams"]);
   });
-  it("keeps private period time off in its owner's view and out of team routing", async () => {
-    const db = await dashboard();
+  it("projects coverage and VS actions without member histories or private notes", async () => {
+    const db = await dashboard("officer");
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
+    const result = await loadTeamWorkDashboard(actor, { personal: false });
+    expect(result.items.map((item) => item.kind)).toEqual(["coverage"]);
+    expect(result.items[0].teamId).toBe("team");
+    expect(result.canReview).toBe(true);
+    expect(JSON.stringify(result)).not.toMatch(/private absence|currentWeek|absences|duties|weeks|days|game_?uid/i);
+    expect(db.tables.vs_score_heads ?? []).toEqual([]);
+  });
+  it("keeps private period time off out of team routing and the payload", async () => {
+    const db = await dashboard("officer");
     db.tables.member_time_off = [{ id: "private-period", memberId: "lead-member", startDate: "2099-01-01", endDate: "2099-01-02", globalAbsence: false, createdAt: new Date(), notes: "private period note" }];
     const result = await loadTeamWorkDashboard(actor, { personal: false });
-    expect(result.members[0].absences).toHaveLength(1);
     expect(result.items).toEqual([]);
     expect(db.tables.team_work_items).toEqual([]);
     expect(db.tables.team_work_digests).toEqual([]);
     expect(JSON.stringify(result)).not.toContain("private period note");
-    const context = await mocks.context();
-    context.recipients[0].memberIds = [];
-    context.recipients[0].role = "officer";
-    context.recipients[0].permissions.push("time_off:read");
-    expect((await loadTeamWorkDashboard(actor, { personal: false })).members.flatMap((member) => member.absences)).toEqual([]);
   });
-  it("does not reveal unpublished contacts to members", async () => {
+  it("does not reveal unpublished team routing to members", async () => {
     await dashboard("member", false);
     const result = await loadTeamWorkDashboard(actor);
     expect(result.teams).toEqual([]);
-    expect(result.members[0].teamId).toBeNull();
+    expect(result.items).toEqual([]);
   });
-  it("distinguishes explicit zero, missing daily data and canonical derived Saturday", async () => {
-    const db = await dashboard();
-    const week = vsWeekEndingDate(getServerCalendarDate());
-    db.tables.vs_score_heads = [{ id: "zero", memberId: "lead-member", recordedDate: addCalendarDays(week, -6), period: "daily", origin: "hq", score: 0, updatedAt: new Date() }];
-    const partial = (await loadTeamWorkDashboard(actor)).members[0].currentWeek!;
-    expect(partial.evidenceState).toBe("partial");
-    expect(partial.score).toBeNull();
-    expect(partial.days[0]).toMatchObject({ evidenceState: "ready", score: 0 });
-    expect(partial.days[1]).toMatchObject({ evidenceState: "missing", score: null });
-    db.tables.vs_score_heads = [
-      ...Array.from({ length: 5 }, (_, index) => ({ id: String(index), memberId: "lead-member", recordedDate: addCalendarDays(week, index - 6), period: "daily", origin: "hq", score: 1, updatedAt: new Date() })),
-      { id: "weekly", memberId: "lead-member", recordedDate: week, period: "weekly", origin: "hq", score: 9, updatedAt: new Date() },
-    ];
-    const ready = (await loadTeamWorkDashboard(actor)).members[0].currentWeek!;
-    expect(ready).toMatchObject({ evidenceState: "ready", score: 9, dailyCoverage: 5 });
-    expect(ready.days[5]).toMatchObject({ evidenceState: "ready", score: 4 });
-  });
-  it("does not inherit earlier-stint score heads after rejoining", async () => {
-    const db = await dashboard();
-    const week = vsWeekEndingDate(getServerCalendarDate());
-    db.tables.member_alliance_tenure = [{ memberId: "lead-member", joinedAt: new Date() }];
-    db.tables.vs_score_heads = [{ id: "old", memberId: "lead-member", recordedDate: week, period: "weekly", origin: "hq", score: 42, updatedAt: joinedAt }];
-    expect((await loadTeamWorkDashboard(actor)).members[0].currentWeek).toMatchObject({ evidenceState: "missing", score: null });
+  it("hides team context on actions while the board is unpublished", async () => {
+    await dashboard("officer", false);
+    mocks.conflicts.mockResolvedValue([coverageConflict]);
+    const result = await loadTeamWorkDashboard(actor, { personal: false });
+    expect(result.teams).toEqual([]);
+    expect(result.items[0]).toMatchObject({ kind: "coverage", teamId: null, leadName: null, leadAway: false });
   });
 });

@@ -7135,7 +7135,19 @@
     "waived": "Week waived."
   },
   "teamWork": {
-    "title": "Team work",
+    "title": "Work queue",
+    "subtitle": "Officer actions from duty coverage and VS compliance.",
+    "myAssignments": "My assignments",
+    "allAssignments": "All assignments",
+    "allTeams": "All teams",
+    "allTypes": "All types",
+    "coverageType": "Duty coverage",
+    "emptyMine": "No work is assigned to you.",
+    "emptyAll": "No outstanding officer work.",
+    "showDetails": "Show evidence details",
+    "hideDetails": "Hide evidence details",
+    "vsReviewTitle": "VS review needed",
+    "coverageReviewTitle": "Duty coverage needs review",
     "empty": "No outstanding team work.",
     "assignedTo": "Assigned to {name}.",
     "coverageConflict": "{member} is away during {duty} on {date}.",
@@ -7450,7 +7462,8 @@
       "inbox": "Inbox",
       "shared": "Shared with me",
       "archived": "Archived",
-      "teams": "Teams"
+      "teams": "Teams",
+      "workQueue": "Work queue"
     },
     "workspace": {
       "navigation": "Notes views",

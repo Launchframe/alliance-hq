@@ -34,5 +34,5 @@ export default async function NoteDetailPage({ params, searchParams }: Props) {
     listPerformanceNotePage(actor, filter, cursor).catch((error) => { if (error instanceof KnowledgeAccessError) notFound(); throw error; }),
     listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
   ]);
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} focusedNote={note} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, canReadWorkQueue: actor.isOfficer, draftCount: drafts }} focusedNote={note} />;
 }

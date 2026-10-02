@@ -30,5 +30,5 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
     listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
     params.get("note") ? getPerformanceNoteDto({ noteId: params.get("note")!, actor }) : null,
   ]);
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} focusedNote={focusedNote} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, canReadWorkQueue: actor.isOfficer, draftCount: drafts }} focusedNote={focusedNote} />;
 }

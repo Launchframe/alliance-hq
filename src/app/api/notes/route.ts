@@ -17,11 +17,11 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     if (params.get("format") === "summary") {
       const [page, drafts] = await Promise.all([listPerformanceNotePage(context.actor, readNoteListFilter(params), parseNoteListCursor(params.get("cursor"))), countCaptureDrafts(context.actor)]);
-      return NextResponse.json({ ...page, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, draftCount: drafts }, { headers });
+      return NextResponse.json({ ...page, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, canReadWorkQueue: context.actor.isOfficer, draftCount: drafts }, { headers });
     }
     if (params.has("format")) throw new KnowledgeAccessError("invalid");
     const [notes, roster, drafts] = await Promise.all([listPerformanceNotes(context.actor), listPerformanceNoteRoster(context.actor.allianceId), countCaptureDrafts(context.actor)]);
-    return NextResponse.json({ notes, roster, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, draftCount: drafts }, { headers });
+    return NextResponse.json({ notes, roster, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, canReadWorkQueue: context.actor.isOfficer, draftCount: drafts }, { headers });
   } catch (error) { return notesErrorResponse(error instanceof ZodError || error instanceof SyntaxError ? new KnowledgeAccessError("invalid") : error); }
 }
 
@@ -35,6 +35,6 @@ export async function POST(request: Request) {
     const noteId = await createPerformanceNote({ ...fields, actor: context.actor, intakeMode: fields.kind === "note" ? "thought" : "batch" });
     if (new URL(request.url).searchParams.get("format") === "summary") return NextResponse.json({ noteId, note: await getPerformanceNoteDto({ actor: context.actor, noteId }) }, { headers });
     const [notes, roster, drafts] = await Promise.all([listPerformanceNotes(context.actor), listPerformanceNoteRoster(context.actor.allianceId), countCaptureDrafts(context.actor)]);
-    return NextResponse.json({ notes, roster, noteId, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, draftCount: drafts }, { headers });
+    return NextResponse.json({ notes, roster, noteId, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards, canReadWorkQueue: context.actor.isOfficer, draftCount: drafts }, { headers });
   } catch (error) { return notesErrorResponse(error); }
 }

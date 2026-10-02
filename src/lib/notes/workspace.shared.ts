@@ -5,7 +5,7 @@ export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
 export const NOTE_DOCUMENT_TYPES = ["note", "journal", "meeting", "reference"] as const;
 export type NoteDocumentType = typeof NOTE_DOCUMENT_TYPES[number];
-export const NOTE_WORKSPACE_VIEWS = ["notebook", "inbox", "shared", "archived", "tasks", "boards", "drafts", "imports", "search", "knowledge", "studio", "publications", "teams"] as const;
+export const NOTE_WORKSPACE_VIEWS = ["notebook", "inbox", "shared", "archived", "tasks", "boards", "drafts", "imports", "search", "knowledge", "studio", "publications", "teams", "workQueue"] as const;
 export type NoteWorkspaceView = typeof NOTE_WORKSPACE_VIEWS[number];
 
 export const NOTE_LIST_PAGE_SIZE = 50;

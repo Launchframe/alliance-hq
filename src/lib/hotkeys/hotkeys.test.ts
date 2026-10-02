@@ -247,6 +247,20 @@ describe("hotkey registry integrity", () => {
     expect(isHotkeyActionAllowed(viralResistance!, memberPerms)).toBe(false);
   });
 
+  it("retargets team work and support teams nav actions into Notes views", () => {
+    const teamWork = getHotkeyAction("nav.teamWork");
+    const supportTeams = getHotkeyAction("nav.supportTeams");
+    expect(teamWork?.href).toBe("/notes?view=workQueue");
+    expect(supportTeams?.href).toBe("/notes?view=teams");
+    expect(isHotkeyActionAllowed(teamWork!, new Set(["members:read"]), { operatingMode: "native" })).toBe(false);
+    expect(isHotkeyActionAllowed(teamWork!, new Set(["notes:create"]), { operatingMode: "native" })).toBe(true);
+    expect(isHotkeyActionAllowed(teamWork!, new Set(["notes:create"]), { operatingMode: "ashed" })).toBe(true);
+    const teamPerms = new Set(["members:read"]);
+    expect(isHotkeyActionAllowed(supportTeams!, teamPerms, { operatingMode: "native" })).toBe(true);
+    expect(isHotkeyActionAllowed(supportTeams!, teamPerms, { operatingMode: "ashed" })).toBe(true);
+    expect(isHotkeyActionAllowed(supportTeams!, new Set(), { operatingMode: "native" })).toBe(false);
+  });
+
   it("hides my-vr, my-thp, and my-kills hotkeys without an alliance member link", () => {
     const myVr = getHotkeyAction("nav.myVr");
     const myThp = getHotkeyAction("nav.myThp");

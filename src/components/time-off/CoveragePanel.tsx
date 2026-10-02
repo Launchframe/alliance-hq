@@ -36,7 +36,7 @@ function ProfessionWindowEditor({ conflict, onSaved }: { conflict: CoverageConfl
   </details>;
 }
 
-export function CoveragePanel({ refreshKey, memberIds, onResolved }: { refreshKey?: string; memberIds?: string[]; onResolved?: () => void }) {
+export function CoveragePanel({ refreshKey, memberIds, onResolved, heading }: { refreshKey?: string; memberIds?: string[]; onResolved?: () => void; heading?: string }) {
   const memberFilter = memberIds ? JSON.stringify([...new Set(memberIds)].sort()) : null;
   const t = useTranslations("teamWork");
   const timeOff = useTranslations("timeOff.workflow");
@@ -68,7 +68,7 @@ export function CoveragePanel({ refreshKey, memberIds, onResolved }: { refreshKe
     finally { setBusy(false); }
   }
   return <section className="space-y-3 rounded-lg border border-hq-border p-4" data-testid="coverage-panel">
-    <h2 className="text-lg font-semibold">{t("title")}</h2>
+    <h2 className="text-lg font-semibold">{heading ?? t("title")}</h2>
     {!conflicts.length && !error ? <p>{t("empty")}</p> : null}
     {conflicts.map((conflict) => <article className="space-y-2 border-b border-hq-border py-3" key={`${conflict.assignmentId}:${conflict.assignmentVersion}:${conflict.dutyRole}:${conflict.dutyDate}:${conflict.dutyStartAt ?? ""}`}>
       <CoverageDescription conflict={conflict} />
