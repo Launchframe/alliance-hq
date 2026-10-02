@@ -38,7 +38,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/notes?view=workQueue",
-    requiredPermission: "members:read",
+    requiredPermission: "notes:create",
   },
   {
     id: "nav.supportTeams",

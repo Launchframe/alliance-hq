@@ -257,20 +257,25 @@ test("Portuguese members see the work queue as forbidden without officer access"
   await expect(page.getByTestId("team-work")).toHaveCount(0);
 });
 
-test("legacy work queue and team routes redirect into localized Notes views", async ({ request, page, context }) => {
+test("legacy Portuguese work queue and team routes redirect into Notes views", async ({ request, page, context }) => {
   const f = await fixture(request);
   await context.addCookies(playwrightAuthCookies(f.officer));
   await page.goto("/pt-BR/team-work");
   await expect(page).toHaveURL(/\/pt-BR\/notes\?.*view=workQueue/);
   await expect(page.getByRole("heading", { name: "Fila de trabalho", exact: true })).toBeVisible();
-  await page.goto("/en-US/notes");
+  await page.goto("/pt-BR/support-teams");
+  await expect(page).toHaveURL(/\/pt-BR\/notes\?.*view=teams/);
+  await expect(page.getByRole("heading", { name: "Equipes da aliança", exact: true })).toBeVisible();
+});
+
+test("legacy English work queue and team routes redirect into Notes views", async ({ request, page, context }) => {
+  const f = await fixture(request);
+  await context.addCookies(playwrightAuthCookies(f.officer));
   await page.goto("/en-US/team-work");
   await expect(page).toHaveURL(/\/notes\?.*view=workQueue/);
+  await expect(page.getByTestId("team-work")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Work queue", exact: true })).toBeVisible();
   await page.goto("/en-US/support-teams");
   await expect(page).toHaveURL(/\/notes\?.*view=teams/);
   await expect(page.getByRole("heading", { name: "Alliance teams", exact: true })).toBeVisible();
-  await page.goto("/pt-BR/support-teams");
-  await expect(page).toHaveURL(/\/pt-BR\/notes\?.*view=teams/);
-  await expect(page.getByRole("heading", { name: "Equipes da aliança", exact: true })).toBeVisible();
 });
