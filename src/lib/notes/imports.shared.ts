@@ -14,17 +14,28 @@ export const HISTORY_MESSAGE_LENGTH = 10_000;
 export type HistoryImportKind = typeof HISTORY_IMPORT_KINDS[number];
 export type HistoryImportState = "uploading" | "queued" | "processing" | "review" | "committed" | "cancelled" | "failed";
 export type HistoryJobState = "pending" | "running" | "completed" | "cancelled" | "failed";
+export type HistoryAudience = "private" | "officers_read";
 export const historyInitSchema = z.object({
   expectedScope: z.string().min(1).max(300), requestId: z.string().min(8).max(120), title: z.string().trim().min(1).max(160), kind: z.enum(HISTORY_IMPORT_KINDS), locale: z.enum(["en-US", "pt-BR"]),
+  audience: z.enum(["private", "officers_read"]).default("private"),
   files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp"]), size: z.number().int().positive().max(HISTORY_IMAGE_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
 }).refine((input) => input.files.reduce((sum, file) => sum + file.size, 0) <= HISTORY_BATCH_BYTES && (input.kind === "screenshots"
   ? input.files.every((file) => file.contentType.startsWith("image/"))
   : input.files.length === 1 && input.files[0].size <= HISTORY_TEXT_BYTES && input.files[0].contentType === ({ text: "text/plain", markdown: "text/markdown", discord_json: "application/json" } as const)[input.kind]));
 export type HistoryInit = z.infer<typeof historyInitSchema>;
-export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; version: number; updatedAt: string; total: number; reviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean }> };
-export type HistoryReviewRow = { id: string; sender: string | null; sentAt: string | null; body: string; included: boolean; reviewed: boolean; position: number };
-export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; offset: number };
-export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">;
+export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; audience: HistoryAudience; owned: boolean; editable: boolean; version: number; updatedAt: string; total: number; reviewed: number; included: number; unreviewedIncluded: number; emptyEnglish: number; mediaReviewed: number; mediaUnreviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean; viewHref: string | null }> };
+export function historyCommitReady(detail: Pick<HistoryImportSummary, "included" | "unreviewedIncluded" | "emptyEnglish" | "mediaReviewed" | "mediaUnreviewed">) {
+  return detail.unreviewedIncluded === 0 && detail.emptyEnglish === 0 && detail.mediaUnreviewed === 0 && (detail.included > 0 || detail.mediaReviewed > 0);
+}
+export const historyCoordinatesSchema = z.object({
+  server: z.number().int().min(0).max(99_999).nullable(), x: z.number().min(-100_000).max(100_000), y: z.number().min(-100_000).max(100_000),
+  label: z.string().trim().max(160).nullable(),
+});
+export type HistoryCoordinates = z.infer<typeof historyCoordinatesSchema>;
+export type HistoryMessageMediaDto = { id: string; kind: "embedded" | "fullscreen"; contentType: string; width: number | null; height: number | null; reviewed: boolean; thumbnailHref: string; fullHref: string };
+export type HistoryReviewRow = { id: string; sender: string | null; sentAt: string | null; body: string; originalText: string; englishText: string; sourceImageIndex: number | null; included: boolean; reviewed: boolean; position: number; isReply: boolean; replyToName: string | null; replyToMessageId: string | null; replyMatchConfidence: number | null; coordinates: HistoryCoordinates | null; extractionConfidence: number | null; reviewReasons: string[]; media: HistoryMessageMediaDto[] };
+export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; sessionMedia: HistoryMessageMediaDto[]; evidence: Array<{ id: string; href: string }>; offset: number };
+export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "audience" | "owned" | "updatedAt">;
 export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null; previousCursor: string | null };
 
 const identity = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
@@ -39,10 +50,16 @@ export const historyMessageSchema = z.object({
   locator: z.string().min(1).max(300), externalId: identity.nullable(),
   sender: z.string().trim().max(160).nullable(), sentAt: timestamp, body,
   sourceImageIndex: z.number().int().min(0).max(MAX_OFFICER_INTEL_IMAGES - 1).nullable(),
+  senderAllianceTag: z.string().trim().max(24).nullish(), senderLevel: z.number().int().min(0).max(99).nullish(), senderVipLevel: z.number().int().min(0).max(99).nullish(),
+  inGameTranslatedText: body.nullish(), isReply: z.boolean().optional(), replyToName: z.string().trim().max(160).nullish(),
 });
 export type HistoryMessage = z.infer<typeof historyMessageSchema>;
-export const historyReviewSchema = historyMessageSchema.pick({ sender: true, sentAt: true, body: true }).extend({
-  included: z.boolean(), expectedVersion: z.number().int().positive(),
+export const historyMediaReviewSchema = z.object({ id: identity, reviewed: z.boolean() });
+export const historyReviewSchema = historyMessageSchema.pick({ sender: true, sentAt: true }).extend({
+  included: z.boolean(), expectedVersion: z.number().int().positive(), body: body.optional(),
+  originalText: body.optional(), englishText: body.optional(),
+  replyToMessageId: identity.nullish(), replyToName: z.string().trim().max(160).nullish(),
+  coordinates: historyCoordinatesSchema.nullish(), mediaReviewed: z.array(historyMediaReviewSchema).max(MAX_OFFICER_INTEL_IMAGES * 2).optional(),
 });
 const exportMessage = z.object({ id: identity, timestamp, author: z.object({ name: z.string().max(160) }).nullable(), content: body });
 const versionedExport = z.object({ schemaVersion: z.literal(HISTORY_IMPORT_VERSION), messages: z.array(exportMessage).min(1).max(HISTORY_MESSAGE_LIMIT) });
@@ -52,9 +69,13 @@ export function redactHistoryMessage(message: HistoryMessage): HistoryMessage {
   return historyMessageSchema.parse({ ...message, sender: message.sender?.trim() ? redactIntakeText(message.sender.trim()) : null, body: redactIntakeText(message.body) });
 }
 
-export function parseHistoryScreenshot(parsed: { messages: ReadonlyArray<{ senderName: string; originalText: string }>; rawLines: readonly string[] }, assetId: string, sourceImageIndex: number): HistoryMessage[] {
+export function parseHistoryScreenshot(parsed: { messages: ReadonlyArray<{ senderName: string; originalText: string; senderAllianceTag?: string | null; senderLevel?: number | null; senderVipLevel?: number | null; inGameTranslatedText?: string | null; isReply?: boolean; replyToName?: string | null }>; rawLines: readonly string[] }, assetId: string, sourceImageIndex: number): HistoryMessage[] {
   identity.parse(assetId);
-  if (parsed.messages.length) return parsed.messages.map((row, index) => redactHistoryMessage({ sender: row.senderName || null, body: row.originalText, sentAt: null, externalId: null, sourceImageIndex, locator: `${assetId}:ocr:${index}` }));
+  if (parsed.messages.length) return parsed.messages.map((row, index) => redactHistoryMessage({
+    sender: row.senderName || null, body: row.originalText, sentAt: null, externalId: null, sourceImageIndex, locator: `${assetId}:ocr:${index}`,
+    senderAllianceTag: row.senderAllianceTag ?? null, senderLevel: row.senderLevel ?? null, senderVipLevel: row.senderVipLevel ?? null,
+    inGameTranslatedText: row.inGameTranslatedText ?? null, isReply: row.isReply ?? false, replyToName: row.replyToName ?? null,
+  }));
   const text = parsed.rawLines.filter((line) => !isOfficerChatNoiseLine(line)).join("\n");
   return text.trim() ? parseHistoryText("text", text, assetId).map((row, index) => historyMessageSchema.parse({ ...row, sourceImageIndex, locator: `${assetId}:ocr:${index}` })) : [];
 }

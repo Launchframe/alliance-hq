@@ -5,7 +5,7 @@ export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
 export const NOTE_DOCUMENT_TYPES = ["note", "journal", "meeting", "reference"] as const;
 export type NoteDocumentType = typeof NOTE_DOCUMENT_TYPES[number];
-export const NOTE_WORKSPACE_VIEWS = ["notebook", "inbox", "shared", "archived", "tasks", "boards", "drafts", "imports", "search", "knowledge", "studio", "publications", "teams", "workQueue"] as const;
+export const NOTE_WORKSPACE_VIEWS = ["notebook", "inbox", "shared", "archived", "tasks", "boards", "drafts", "imports", "chatLogs", "search", "knowledge", "studio", "publications", "teams", "workQueue"] as const;
 export type NoteWorkspaceView = typeof NOTE_WORKSPACE_VIEWS[number];
 
 export const NOTE_LIST_PAGE_SIZE = 50;
@@ -30,8 +30,11 @@ export type NoteWorkspaceState = z.infer<typeof noteWorkspaceStateSchema>;
 export type WorkspacePreferences = { scope: string; version: number; state: NoteWorkspaceState };
 export const workspacePreferenceWriteSchema = z.object({ expectedScope: z.string().min(1).max(300), expectedVersion: z.number().int().nonnegative(), state: noteWorkspaceStateSchema }).strict();
 export function readWorkspaceState(params: URLSearchParams, saved: NoteWorkspaceState, scope: string): NoteWorkspaceState {
-  if (params.has("workspaceScope") && params.get("workspaceScope") !== scope) return { ...saved };
-  return noteWorkspaceStateSchema.parse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) });
+  if (params.has("workspaceScope") && params.get("workspaceScope") !== scope) return normalizeWorkspaceView({ ...saved });
+  return normalizeWorkspaceView(noteWorkspaceStateSchema.parse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) }));
+}
+export function normalizeWorkspaceView(state: NoteWorkspaceState): NoteWorkspaceState {
+  return state.view === "imports" ? { ...state, view: "chatLogs" } : state;
 }
 export function clampWorkspaceBoardsView(state: NoteWorkspaceState, canReadBoards: boolean): NoteWorkspaceState {
   return !canReadBoards && state.view === "boards" ? { ...state, view: "notebook" } : state;
@@ -48,7 +51,9 @@ export function scopedWorkspaceLocation(location: string, saved: NoteWorkspaceSt
   if (!/^\/(?:(?:en-US|pt-BR)\/)?notes(?:\/|$)/.test(url.pathname)) return `${url.pathname}${url.search}${url.hash}`;
   const foreign = url.searchParams.has("workspaceScope") && url.searchParams.get("workspaceScope") !== scope;
   const reset = foreign ? Object.fromEntries(["cursor", "importCursor", "taskCursor", "noteTaskCursor", "draftCursor", "reviewCursor", "studioCursor", "studioOffset", "knowledgeCursor", "knowledgeOffset", "searchOffset", "searchRun", "messageOffset", "publicationCursor", "snapshotCursor"].map((key) => [key, null])) : {};
-  return workspaceStateLocation(url.pathname, url.search, readWorkspaceState(url.searchParams, saved, scope), scope, reset) + url.hash;
+  const canonical: Record<string, string | null> = {};
+  if (url.searchParams.has("import")) { if (!url.searchParams.has("chatLog")) canonical.chatLog = url.searchParams.get("import"); canonical.import = null; }
+  return workspaceStateLocation(url.pathname, url.search, readWorkspaceState(url.searchParams, saved, scope), scope, { ...reset, ...canonical }) + url.hash;
 }
 export function notesFocusKey(pathname: string, params: URLSearchParams): string {
   const draft = params.get("draft");
