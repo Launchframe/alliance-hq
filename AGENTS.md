@@ -164,6 +164,9 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 ## Learned Workspace Facts
 
+- Run validation and commit hooks with Node 22; the machine's bare shell can resolve Node 18, which cannot run this Next.js version.
+- THP self-submission activity captures identity before pending and commander locks. Confirmation consumption, domain history, current stats, and activity commit together; test fixtures need the claimed commander and active alliance roster, not only an HQ member link.
+
 - A Notes editor missing from a refreshed list must reauthorize its saved note through the detail API. List-window absence alone must not discard an authorized draft, but confirmed denial must clear the inaccessible editor.
 - Internal history-worker membership denial must still reach lease-fenced cancellation under the resource/job locks; returning early before locking leaves revoked imports stuck running. Denial never permits source output publication.
 - Professions browser fixtures need a claimed commander (`hq_user_commanders`) with active alliance membership, not just an authenticated officer session. The officer deep link must fetch its initial data without requiring a tab click.

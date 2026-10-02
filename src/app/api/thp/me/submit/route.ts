@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
+import { getActivityPrincipalForSession } from "@/lib/activity/access.server";
 import {
   MAX_SCREENSHOT_UPLOAD_BYTES,
   SCREENSHOT_TOO_LARGE_ERROR,
@@ -29,6 +30,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
   }
 
+  const principal = await getActivityPrincipalForSession(session);
+  if (!principal || principal.currentAllianceId !== allianceId) {
+    const t = await getTranslations("activity");
+    return NextResponse.json({ error: t("accessChanged") }, { status: 403 });
+  }
+
   const locale = await getLocale();
   const contentType = request.headers.get("content-type") ?? "";
 
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
     const result = await handleWebThpCommand({
       allianceId,
       hqUserId: session.hqUserId,
+      principal,
       locale,
       confirm,
       screenshotBuffer,
@@ -76,6 +84,7 @@ export async function POST(request: Request) {
   const result = await handleWebThpCommand({
     allianceId,
     hqUserId: session.hqUserId,
+    principal,
     locale,
     total: body.total,
     breakdown: parseThpBreakdownInput(body.breakdown),
