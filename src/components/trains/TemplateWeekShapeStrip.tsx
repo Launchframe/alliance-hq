@@ -9,10 +9,14 @@ import {
   type DayRulePaletteId,
 } from "@/lib/trains/rules/palette.shared";
 import { WEEKDAY_KEYS } from "@/lib/trains/rules/presets.shared";
-import type { TemplateWeekRules } from "@/lib/trains/rules/template-days.shared";
+import {
+  templateWeekRulesForLeadTimePreview,
+  type TemplateWeekRules,
+} from "@/lib/trains/rules/template-days.shared";
 
 type Props = {
   days: TemplateWeekRules;
+  leadDays?: number;
   /** `trains.rules.*` labels, keyed by rule label key. */
   ruleTextLabels: Record<string, string>;
 };
@@ -20,10 +24,16 @@ type Props = {
 /**
  * Miniature 7-tile week strip + colour legend.
  *
- * Tiles are calendar weekdays (Mon–Sun), so the preview shows the same shape
- * to every alliance — the strip no longer depends on a week start date.
+ * Tiles remain calendar weekdays (Mon–Sun). Lead time rotates only this
+ * preview so officers can see the effective shape without changing the stored
+ * template or the dates it paints.
  */
-export function TemplateWeekShapeStrip({ days: week, ruleTextLabels }: Props) {
+export function TemplateWeekShapeStrip({
+  days: templateDays,
+  leadDays = 0,
+  ruleTextLabels,
+}: Props) {
+  const week = templateWeekRulesForLeadTimePreview(templateDays, leadDays);
   const t = useTranslations("trains");
 
   // Render Mon-first; WEEKDAY_KEYS is indexed by getServerDayOfWeek (Sun = 0).
@@ -58,7 +68,12 @@ export function TemplateWeekShapeStrip({ days: week, ruleTextLabels }: Props) {
           const title = ruleLabel(rule);
           return (
             <div key={day} className="flex flex-col items-center gap-1">
-              <div className={`h-6 w-full rounded-md ${swatch}`} title={title} />
+              <div
+                className={`h-6 w-full rounded-md ${swatch}`}
+                title={title}
+                data-testid={`trains-template-week-shape-${day}`}
+                data-rule={paletteId}
+              />
               <span className="text-[9px] font-medium uppercase tracking-wide text-hq-fg-muted">
                 {t(`weekdays.${day}`)}
               </span>
