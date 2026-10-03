@@ -4,6 +4,7 @@ import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
 import {
   parseTemplateWeekRules,
   templateRulesForDate,
+  templateWeekRulesForLeadTimePreview,
   validateTemplateWeekRules,
 } from "@/lib/trains/rules/template-days.shared";
 
@@ -65,6 +66,45 @@ describe("templateRulesForDate", () => {
       "2026-06-13",
     );
     expect(saturday.conductorRule).toEqual({ kind: "vs_top_n", topN: 10 });
+  });
+});
+
+describe("templateWeekRulesForLeadTimePreview", () => {
+  it("preserves each weekday slot at lead 0", () => {
+    expect(
+      templateWeekRulesForLeadTimePreview(PRESET_WEEK_RULES.vs_push_week, 0),
+    ).toEqual(PRESET_WEEK_RULES.vs_push_week);
+  });
+
+  it("moves the complete Saturday/Sunday slots to Sunday/Monday at lead 1", () => {
+    const sat = {
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+    } as const;
+    const sun = {
+      conductorRule: { kind: "price_is_freight", board: "heavy_hitter" },
+      vipRule: { kind: "donations_second" },
+    } as const;
+    const days = {
+      ...PRESET_WEEK_RULES.custom,
+      sat,
+      sun,
+    };
+
+    const preview = templateWeekRulesForLeadTimePreview(days, 1);
+
+    expect(preview.sun).toEqual(sat);
+    expect(preview.mon).toEqual(sun);
+    expect(preview.sat).toEqual({
+      conductorRule: null,
+      vipRule: { kind: "none" },
+    });
+  });
+
+  it("wraps back to the original shape at lead 7", () => {
+    expect(
+      templateWeekRulesForLeadTimePreview(PRESET_WEEK_RULES.price_is_right, 7),
+    ).toEqual(PRESET_WEEK_RULES.price_is_right);
   });
 });
 

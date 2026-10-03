@@ -6,9 +6,8 @@ import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { AllianceTrainDiscordSettings } from "@/components/settings/AllianceTrainDiscordSettings";
 import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/AllianceTrainEconomyThresholdSettings";
-import { AllianceTrainLeadTimeSettings } from "@/components/settings/AllianceTrainLeadTimeSettings";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
-import { AllianceTrainTemplatesSettings } from "@/components/settings/AllianceTrainTemplatesSettings";
+import { AllianceTrainScheduleSettings } from "@/components/settings/AllianceTrainScheduleSettings";
 import { AllianceTrainTopScoreEligibilitySettings } from "@/components/settings/AllianceTrainTopScoreEligibilitySettings";
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
@@ -74,8 +73,10 @@ export default async function SettingsTrainsPage({
       </div>
 
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
-      <AllianceTrainLeadTimeSettings allianceTag={allianceTag} />
-      <AllianceTrainTemplatesSettings leadDays={leadDays} />
+      <AllianceTrainScheduleSettings
+        allianceTag={allianceTag}
+        initialLeadDays={leadDays}
+      />
       <AllianceTrainTopScoreEligibilitySettings allianceTag={allianceTag} />
       <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
       <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
