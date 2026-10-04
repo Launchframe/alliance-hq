@@ -317,7 +317,7 @@ export function EventRulePicker({
                     onClick={() => setPolicy(option)}
                     className={`rounded-md px-2 py-2 text-center text-xs font-medium disabled:opacity-50 ${
                       policy === option
-                        ? "bg-cyan-500 text-white"
+                        ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-100"
                         : "text-hq-fg-muted hover:text-hq-fg"
                     }`}
                   >
