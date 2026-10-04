@@ -350,4 +350,23 @@ export function vipRuleLabelKey(rule: VipRule | null): string {
   }
 }
 
+/**
+ * Label key that resolves outside `trains.rules`: `event_scores` reuses the
+ * approved `eventEvidence.title` copy instead of a duplicated rules entry.
+ */
+export const EVENT_SCORES_LABEL_KEY = "eventScores";
+
+type RuleLabelTranslate = (key: string) => string;
+
+/** Resolve a rule label key, routing `eventScores` to `eventEvidence.title`. */
+export function ruleLabelText(
+  labelKey: string,
+  tRules: RuleLabelTranslate,
+  tEventEvidence: RuleLabelTranslate,
+): string {
+  return labelKey === EVENT_SCORES_LABEL_KEY
+    ? tEventEvidence("title")
+    : tRules(labelKey);
+}
+
 export { VR_TOP_N_SCOPES, VS_TOP_N_SCOPES };

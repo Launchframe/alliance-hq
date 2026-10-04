@@ -19,6 +19,7 @@ import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
 import {
   conductorRuleLabelKey,
+  ruleLabelText,
   type ConductorRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
@@ -289,6 +290,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const tTrains = useTranslations("trains");
   const tConfirmation = useTranslations("trains.conductorConfirmation");
   const tRules = useTranslations("trains.rules");
+  const tEventEvidence = useTranslations("eventEvidence");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const lockStepRef = useRef<HTMLDivElement>(null);
 
@@ -314,13 +316,19 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
 
   const rulePaletteId = paletteIdForRule(conductorRule);
   const ruleScope = scopeForRule(conductorRule);
-  const conductorPickLabel = `${tRules(
+  const conductorPickLabel = `${ruleLabelText(
     conductorRuleLabelKey(conductorRule),
+    tRules,
+    tEventEvidence,
   )}${ruleScope != null ? ` ${ruleScope}` : ""}`;
   const ruleDetailKey = `ruleDetails.${rulePaletteId}` as const;
   const conductorPickHint =
     templateDetailHint ??
-    (tTrains.has(ruleDetailKey) ? tTrains(ruleDetailKey) : null);
+    (rulePaletteId === "event_scores"
+      ? tEventEvidence("chooseOccurrenceHint")
+      : tTrains.has(ruleDetailKey)
+        ? tTrains(ruleDetailKey)
+        : null);
 
   const conductorAction: PrimaryAction = canSpinConductorWheel
     ? { label: t("steps.conductor.spin"), onClick: onRollConductor }

@@ -113,6 +113,7 @@ import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import {
   conductorRuleIdentity,
   conductorRuleLabelKey,
+  ruleLabelText,
   vipRuleIdentity,
   type ConductorRule,
   type DayRulePatch,
@@ -244,6 +245,7 @@ export function TrainsDashboard({
 }: Props) {
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
+  const tEventEvidence = useTranslations("eventEvidence");
   const locale = useLocale();
   const { coverageFetch, coverageDialog } = useCoverageFetch();
   const router = useRouter();
@@ -786,10 +788,10 @@ export function TrainsDashboard({
       donations_top: t("mechanisms.donationsTop"),
       officer_pick: t("mechanisms.officerPick"),
       event_top_x_lottery: t("mechanisms.eventTopX"),
-      event_scores: t("rules.eventScores"),
+      event_scores: tEventEvidence("title"),
       custom: t("mechanisms.custom"),
     }),
-    [t],
+    [t, tEventEvidence],
   );
 
   const relativeConductLabels = useMemo(
@@ -848,12 +850,13 @@ export function TrainsDashboard({
       priceIsFreightHeavyHitter: tRules("priceIsFreightHeavyHitter"),
       donationsTop: tRules("donationsTop"),
       eventTopX: tRules("eventTopX"),
+      eventScores: tEventEvidence("title"),
       vipConductorPick: tRules("vipConductorPick"),
       vipDonationsSecond: tRules("vipDonationsSecond"),
       vipEventTopX: tRules("vipEventTopX"),
       vipNone: tRules("vipNone"),
     }),
-    [tRules],
+    [tRules, tEventEvidence],
   );
 
   /** Palette-row labels for every paint surface. */
@@ -862,7 +865,7 @@ export function TrainsDashboard({
       Object.fromEntries(
         DAY_RULE_PALETTE.map((entry) => [
           entry.id,
-          tRules(conductorRuleLabelKey(entry.rule ?? ruleForPaletteSelection(entry.id, defaultScopeForPaletteId(entry.id)))),
+          ruleLabelText(conductorRuleLabelKey(entry.rule ?? ruleForPaletteSelection(entry.id, defaultScopeForPaletteId(entry.id))), tRules, tEventEvidence),
         ]),
       ) as Record<DayRulePaletteId, string>,
     [tRules],
@@ -2181,10 +2184,14 @@ export function TrainsDashboard({
   const ruleLabelForRule = useCallback(
     (rule: ConductorRule | null) => {
       const scope = scopeForRule(rule);
-      const label = tRules(conductorRuleLabelKey(rule));
+      const label = ruleLabelText(
+        conductorRuleLabelKey(rule),
+        tRules,
+        tEventEvidence,
+      );
       return scope != null ? `${label} ${scope}` : label;
     },
-    [tRules],
+    [tRules, tEventEvidence],
   );
   const requestConductorSpin = () => {
     if (

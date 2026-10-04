@@ -4835,7 +4835,6 @@
       "priceIsFreightHeavyHitter": "Takedown eligibility",
       "donationsTop": "Top donor",
       "eventTopX": "Event top X",
-      "eventScores": "Event results",
       "eventScoresSummary": "{event} · {scope}",
       "vipConductorPick": "Conductor's pick",
       "vipDonationsSecond": "Second donor",
@@ -4853,8 +4852,7 @@
       "r4_rotation": "Walks R4+ officers in order, one conductor per day.",
       "heavy_hitter_pool": "Spins the heavy-hitter rotation. Winners leave it until it is exhausted and reseeded.",
       "donations_top": "The prior day's top donor becomes conductor automatically.",
-      "event_top_x": "Spins a lottery among the event's top scorers.",
-      "eventScores": "Choose an event and draw from its reviewed results."
+      "event_top_x": "Spins a lottery among the event's top scorers."
     },
     "mechanismsShort": {
       "vsHighScore": "VS D1",
@@ -8364,6 +8362,10 @@
       "legacyVersion": "Earlier weekly-minimum policy",
       "dailyVersion": "Daily-consistency policy"
     }
+  },
+  "eventEvidence": {
+    "title": "Event results",
+    "chooseOccurrenceHint": "Select the event date whose results should count."
   },
   "activity": {
     "title": "Activity",

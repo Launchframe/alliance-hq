@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
 import {
   conductorRuleLabelKey,
+  ruleLabelText,
   vipRuleLabelKey,
   type ConductorRule,
   type VipRule,
@@ -74,6 +75,7 @@ export function TrainRuleTemplateEditor({
 }: Props) {
   const t = useTranslations("settings.trainTemplates");
   const tRules = useTranslations("trains.rules");
+  const tEventEvidence = useTranslations("eventEvidence");
   const tWeekdays = useTranslations("trains.weekdays");
 
   const [name, setName] = useState(initialName);
@@ -99,7 +101,11 @@ export function TrainRuleTemplateEditor({
 
   function conductorLabel(rule: ConductorRule | null): string {
     const scope = scopeForRule(rule);
-    const label = tRules(conductorRuleLabelKey(rule));
+    const label = ruleLabelText(
+      conductorRuleLabelKey(rule),
+      tRules,
+      tEventEvidence,
+    );
     return scope != null ? `${label} ${scope}` : label;
   }
 
@@ -182,7 +188,11 @@ export function TrainRuleTemplateEditor({
                       {conductorLabel(slot.conductorRule)}
                       <span className="text-hq-fg-muted">
                         {" · "}
-                        {tRules(vipRuleLabelKey(slot.vipRule))}
+                        {ruleLabelText(
+                          vipRuleLabelKey(slot.vipRule),
+                          tRules,
+                          tEventEvidence,
+                        )}
                       </span>
                     </span>
                     {warning ? (
@@ -307,7 +317,11 @@ export function TrainRuleTemplateEditor({
                                     : "border-hq-border text-hq-fg-muted hover:bg-hq-surface"
                                 }`}
                               >
-                                {tRules(vipRuleLabelKey(option.rule))}
+                                {ruleLabelText(
+                                  vipRuleLabelKey(option.rule),
+                                  tRules,
+                                  tEventEvidence,
+                                )}
                               </button>
                             );
                           })}

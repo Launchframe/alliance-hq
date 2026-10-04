@@ -54,7 +54,13 @@ function conflictMember(memberId: string): ResolvedEventMember {
 
 function input(partial: Partial<EventEligibilityInput>): EventEligibilityInput {
   return {
-    target: "warzone-duel",
+    sourceIdentity: {
+      target: "warzone-duel",
+      seriesId: "s1",
+      occurrenceId: "ev-1",
+      boardKeys: ["main"],
+      teamScope: null,
+    },
     role: "conductor",
     eligibility: "scored",
     topN: 10,
@@ -63,6 +69,7 @@ function input(partial: Partial<EventEligibilityInput>): EventEligibilityInput {
     activeMemberIds: [],
     bound: true,
     readyRevisionsBound: true,
+    readyRevisions: [{ boardId: "main", readyVersion: 1 }],
     emptyBoardConfirmed: false,
     ...partial,
   };
@@ -133,6 +140,7 @@ describe("scored Top X", () => {
     expect(result.ok && result.cutoff).toEqual({
       applied: true,
       score: "100",
+      stage: null,
       tieExpanded: 1,
     });
   });
@@ -258,7 +266,13 @@ describe("non-Warzone targets", () => {
     ];
     const result = buildEventEligibility(
       input({
-        target: "frontline-breakthrough",
+        sourceIdentity: {
+          target: "frontline-breakthrough",
+          seriesId: "s1",
+          occurrenceId: "ev-1",
+          boardKeys: ["main"],
+          teamScope: null,
+        },
         results,
         activeMemberIds: ["lowStage", "highStage"],
         topN: 1,
@@ -275,7 +289,13 @@ describe("non-Warzone targets", () => {
     ];
     const result = buildEventEligibility(
       input({
-        target: "frontline-breakthrough",
+        sourceIdentity: {
+          target: "frontline-breakthrough",
+          seriesId: "s1",
+          occurrenceId: "ev-1",
+          boardKeys: ["main"],
+          teamScope: null,
+        },
         results,
         activeMemberIds: ["noStage", "zero", "ok"],
         topN: 10,
@@ -290,8 +310,13 @@ describe("non-Warzone targets", () => {
     const b = [realMember("m", "70"), realMember("y", "5")];
     const result = buildEventEligibility(
       input({
-        target: "desert-storm",
-        teamScope: "both",
+        sourceIdentity: {
+          target: "desert-storm",
+          seriesId: "s1",
+          occurrenceId: "ev-1",
+          boardKeys: ["board-a", "board-b"],
+          teamScope: "both",
+        },
         results: a,
         secondaryResults: b,
         activeMemberIds: ["m", "x", "y"],
@@ -303,8 +328,13 @@ describe("non-Warzone targets", () => {
     // B-only ordering: y (5) still qualifies (>0).
     const single = buildEventEligibility(
       input({
-        target: "desert-storm",
-        teamScope: "A",
+        sourceIdentity: {
+          target: "desert-storm",
+          seriesId: "s1",
+          occurrenceId: "ev-1",
+          boardKeys: ["board-a"],
+          teamScope: "A",
+        },
         results: a,
         activeMemberIds: ["m", "x", "y"],
         topN: "all",
@@ -316,6 +346,25 @@ describe("non-Warzone targets", () => {
 });
 
 describe("poll fallback", () => {
+  it("stays unavailable when departed members still hold board scores", () => {
+    // Scorer left the roster: the event was not empty, so poll Yes must not
+    // silently become drawable even with empty-board confirmation set.
+    const results = [realMember("departed", "500"), yesMember("y1")];
+    const result = buildEventEligibility(
+      input({
+        results,
+        activeMemberIds: ["y1"],
+        fallback: "confirmed_poll_yes",
+        emptyBoardConfirmed: true,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.fallback.available).toBe(false);
+      expect(result.groupCounts.real).toBe(0);
+    }
+  });
+
   it("is available only on an empty board with explicit confirmation", () => {
     const roster = ["y1", "y2"];
     const results = roster.map((id) => yesMember(id));
@@ -399,6 +448,94 @@ describe("fingerprint input", () => {
     });
     if (first.ok && changed.ok) {
       expect(first.fingerprintInput).not.toEqual(changed.fingerprintInput);
+    }
+  });
+
+  it("changes when the Yes set changes even if candidates do not", () => {
+    // The poll-fallback acknowledgement binds to the fingerprint, so the
+    // fallback candidate set must be part of it.
+    const base = input({
+      results: [realMember("a", "10"), yesMember("y1")],
+      activeMemberIds: ["a", "y1"],
+      fallback: "confirmed_poll_yes",
+      topN: 1,
+    });
+    const first = buildEventEligibility(base);
+    const second = buildEventEligibility({
+      ...base,
+      results: [realMember("a", "10"), yesMember("y2")],
+      activeMemberIds: ["a", "y2"],
+    });
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.candidates).toEqual(second.candidates);
+      expect(first.fingerprintInput).not.toEqual(second.fingerprintInput);
+      expect(first.fingerprintInput.fallbackCandidates).toEqual(["y1"]);
+      expect(second.fingerprintInput.fallbackCandidates).toEqual(["y2"]);
+    }
+  });
+
+  it("changes with source identity and ready revisions", () => {
+    const base = input({
+      results: [realMember("a", "10")],
+      activeMemberIds: ["a"],
+      readyRevisions: [
+        { boardId: "z", readyVersion: 2 },
+        { boardId: "a", readyVersion: 1 },
+      ],
+    });
+    const first = buildEventEligibility(base);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.fingerprintInput.readyRevisions).toEqual([
+      { boardId: "a", readyVersion: 1 },
+      { boardId: "z", readyVersion: 2 },
+    ]);
+    for (const partial of [
+      {
+        sourceIdentity: {
+          ...base.sourceIdentity,
+          occurrenceId: "ev-2",
+        },
+      },
+      { readyRevisions: [{ boardId: "main", readyVersion: 2 }] },
+      { lockedConductorId: "a", role: "vip" as const },
+    ]) {
+      const changed = buildEventEligibility({ ...base, ...partial });
+      expect(changed.ok).toBe(true);
+      if (changed.ok) {
+        expect(changed.fingerprintInput).not.toEqual(first.fingerprintInput);
+      }
+    }
+  });
+
+  it("carries the Frontline cutoff stage alongside the score", () => {
+    const result = buildEventEligibility(
+      input({
+        sourceIdentity: {
+          target: "frontline-breakthrough",
+          seriesId: "s1",
+          occurrenceId: "ev-1",
+          boardKeys: ["main"],
+          teamScope: null,
+        },
+        results: [
+          realMember("low", "999999", 3),
+          realMember("high", "50", 7),
+        ],
+        activeMemberIds: ["low", "high"],
+        topN: 1,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.cutoff).toEqual({
+        applied: true,
+        score: "50",
+        stage: 7,
+        tieExpanded: 0,
+      });
+      expect(result.fingerprintInput.cutoffStage).toBe(7);
     }
   });
 });

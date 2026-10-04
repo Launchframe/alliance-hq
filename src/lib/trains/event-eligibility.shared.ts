@@ -22,13 +22,23 @@ export type EventEligibilityKind = "scored" | "participants";
 export type EventEligibilityTopN = 1 | 3 | 5 | 10 | "all";
 export type EventEligibilityFallback = "none" | "confirmed_poll_yes";
 
-export type EventEligibilityInput = {
+/** Canonical identity of the occurrence/board scope a rule is bound to. */
+export type EventEligibilitySourceIdentity = {
   target: EventTarget;
+  seriesId: string | null;
+  occurrenceId: string | null;
+  /** Every board whose results feed this rule; order normalized on read. */
+  boardKeys: readonly string[];
+  teamScope: EventTeamScope | null;
+};
+
+export type EventEligibilityInput = {
+  /** Canonical source identity — binds the fingerprint to the occurrence. */
+  sourceIdentity: EventEligibilitySourceIdentity;
   role: EventEligibilityRole;
   eligibility: EventEligibilityKind;
   topN: EventEligibilityTopN;
   fallback: EventEligibilityFallback;
-  teamScope?: EventTeamScope | null;
   /** Resolved members on the primary board (or sole board). */
   results: readonly ResolvedEventMember[];
   /** Storm `both` only: resolved members on the second team board. */
@@ -43,6 +53,8 @@ export type EventEligibilityInput = {
   bound: boolean;
   /** Results reflect the board's current ready revision(s). */
   readyRevisionsBound: boolean;
+  /** Board id → ready revision the resolved results were built from. */
+  readyRevisions: readonly { boardId: string; readyVersion: number }[];
   /** Officer explicitly confirmed the scored board is empty. */
   emptyBoardConfirmed: boolean;
 };
@@ -69,6 +81,8 @@ export type EventEligibility =
         applied: boolean;
         /** Score of the last included member, canonical decimal string. */
         score: string | null;
+        /** Stage of the last included member (Frontline ordering). */
+        stage: number | null;
         /** Extra members admitted because they tie at the cutoff. */
         tieExpanded: number;
       };
@@ -156,11 +170,12 @@ export function buildEventEligibility(
   if (!input.readyRevisionsBound) return { ok: false, reason: "not_ready" };
 
   const active = new Set(input.activeMemberIds);
-  const teamScoped = EVENT_FAMILY_POLICY[input.target].teamScoped;
+  const target = input.sourceIdentity.target;
+  const teamScoped = EVENT_FAMILY_POLICY[target].teamScoped;
 
   // Per-member resolution across the selected board scope.
   const resolvedByMember = new Map<string, ResolvedEventMember>();
-  if (teamScoped && input.teamScope === "both") {
+  if (teamScoped && input.sourceIdentity.teamScope === "both") {
     const primary = new Map(input.results.map((row) => [row.memberId, row]));
     const secondary = new Map(
       (input.secondaryResults ?? []).map((row) => [row.memberId, row]),
@@ -219,7 +234,7 @@ export function buildEventEligibility(
   // Qualifying real members under the family's visible score policy.
   const qualifyingReal = groupMembers.real.filter((memberId) => {
     const resolved = resolvedActive.get(memberId)!;
-    return eventRealScoreQualifies(input.target, {
+    return eventRealScoreQualifies(target, {
       score: resolved.score!,
       stage: resolved.stage,
     });
@@ -227,6 +242,7 @@ export function buildEventEligibility(
 
   let qualifying: string[];
   let cutoffScore: string | null = null;
+  let cutoffStage: number | null = null;
   let tieExpanded = 0;
   let cutoffApplied = false;
   let shortBoard = false;
@@ -241,7 +257,7 @@ export function buildEventEligibility(
       const b = resolvedActive.get(right)!;
       return (
         compareEventResults(
-          input.target,
+          target,
           { score: a.score!, stage: a.stage },
           { score: b.score!, stage: b.stage },
         ) || left.localeCompare(right)
@@ -256,7 +272,7 @@ export function buildEventEligibility(
       while (
         index < sorted.length &&
         compareEventResults(
-          input.target,
+          target,
           {
             score: last.score!,
             stage: last.stage,
@@ -273,9 +289,12 @@ export function buildEventEligibility(
       tieExpanded = qualifying.length - limit;
     }
     cutoffApplied = sorted.length >= limit;
-    cutoffScore = qualifying.length
-      ? resolvedActive.get(qualifying[qualifying.length - 1]!)!.score
-      : null;
+    const cutoffMember =
+      qualifying.length > 0
+        ? resolvedActive.get(qualifying[qualifying.length - 1]!)
+        : undefined;
+    cutoffScore = cutoffMember?.score ?? null;
+    cutoffStage = cutoffMember?.stage ?? null;
     shortBoard = sorted.length < limit;
   }
 
@@ -303,8 +322,13 @@ export function buildEventEligibility(
   const fallbackCandidates = groupMembers.yesOnly
     .filter((memberId) => !exclusionByMember.has(memberId))
     .sort();
-  const scoredBoardEmpty =
-    groupMembers.real.length === 0 && groupMembers.legacy.length === 0;
+  // The scored board is empty only when NO resolved member row — active
+  // roster or not — carries a real or legacy leaderboard score. Scorers who
+  // left the alliance still mean the event was not empty.
+  const scoredBoardEmpty = ![...resolvedByMember.values()].some(
+    (resolved) =>
+      resolved.class === "real" || resolved.class === "legacy_leaderboard",
+  );
   // Fallback requires a genuinely empty scored board AND an explicit
   // empty-board confirmation — exhaustion, unavailability, or an unranked
   // legacy list must never silently broaden to Yes respondents.
@@ -314,12 +338,23 @@ export function buildEventEligibility(
     input.fallback === "confirmed_poll_yes";
 
   const fingerprintInput: Record<string, unknown> = {
-    target: input.target,
+    sourceIdentity: {
+      target: input.sourceIdentity.target,
+      seriesId: input.sourceIdentity.seriesId,
+      occurrenceId: input.sourceIdentity.occurrenceId,
+      boardKeys: [...input.sourceIdentity.boardKeys].sort(),
+      teamScope: input.sourceIdentity.teamScope,
+    },
+    readyRevisions: [...input.readyRevisions]
+      .map((entry) => ({
+        boardId: entry.boardId,
+        readyVersion: entry.readyVersion,
+      }))
+      .sort((a, b) => a.boardId.localeCompare(b.boardId)),
     role: input.role,
     eligibility: input.eligibility,
     topN: input.topN,
     fallback: input.fallback,
-    teamScope: input.teamScope ?? null,
     candidates,
     groupCounts: {
       real: groupMembers.real.length,
@@ -331,9 +366,13 @@ export function buildEventEligibility(
     },
     exclusionReasons,
     cutoffScore,
+    cutoffStage,
     tieExpanded,
     shortBoard,
     emptyBoardConfirmed: input.emptyBoardConfirmed,
+    lockedConductorId: input.lockedConductorId ?? null,
+    fallbackCandidates,
+    fallbackAvailable,
   };
 
   return {
@@ -344,6 +383,7 @@ export function buildEventEligibility(
     cutoff: {
       applied: cutoffApplied,
       score: cutoffScore,
+      stage: cutoffStage,
       tieExpanded,
     },
     shortBoard,
