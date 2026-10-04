@@ -7,6 +7,7 @@ import {
   inArray,
   isNull,
   lt,
+  lte,
   ne,
   or,
   sql,
@@ -327,7 +328,12 @@ export async function getDiscordBotPending(
   if (row.expiresAt.getTime() <= Date.now()) {
     await db
       .delete(schema.discordBotPending)
-      .where(eq(schema.discordBotPending.discordUserId, discordUserId));
+      .where(
+        and(
+          eq(schema.discordBotPending.discordUserId, discordUserId),
+          lte(schema.discordBotPending.expiresAt, new Date()),
+        ),
+      );
     return null;
   }
   const pending = parseDiscordBotPending(row.pendingJson);
@@ -1576,22 +1582,157 @@ export async function getCommanderByAshedMemberId(
   return row ?? null;
 }
 
+export class WeeklyPassPendingChangedError extends Error {
+  constructor() {
+    super("weekly_pass_pending_changed");
+    this.name = "WeeklyPassPendingChangedError";
+  }
+}
+
+export class WeeklyPassTargetChangedError extends Error {
+  constructor() {
+    super("weekly_pass_target_changed");
+    this.name = "WeeklyPassTargetChangedError";
+  }
+}
+
+export type WeeklyPassPending = Extract<
+  VrPendingState,
+  { kind: "weekly_pass_pick_character" }
+>;
+
+export type WeeklyPassActivity = {
+  identity: Exclude<ActivityIdentity, { kind: "automation" }>;
+  pending?: { expected: WeeklyPassPending; required: boolean; linkId: string };
+};
+
 export async function setWeeklyPass(input: {
   commanderId: string;
+  allianceId: string;
+  ashedMemberId: string;
   active: boolean;
   source: "self" | "officer";
-}): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-  await db
-    .update(schema.commanders)
-    .set({
-      weeklyPassActive: input.active,
-      weeklyPassSource: input.source,
-      weeklyPassUpdatedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(schema.commanders.id, input.commanderId));
+  activity: WeeklyPassActivity;
+}): Promise<boolean> {
+  return withActivityTransaction(async (tx) => {
+    const { identity, pending } = input.activity;
+    const eventKey = "member.weekly_pass_updated" as const;
+    if (
+      (identity.kind === "web" &&
+        identity.principal.currentAllianceId !== input.allianceId) ||
+      (input.source === "officer" &&
+        (identity.kind !== "web" ||
+          (!identity.principal.permissions.has("members:write") &&
+            !identity.principal.isPlatformMaintainer)))
+    ) {
+      throw new ActivityWriteError({
+        eventKey,
+        failureCategory: "validation",
+      });
+    }
+    const activity = await captureActivityContext(tx, {
+      eventKey,
+      identity,
+      alliance: { kind: "hq", id: input.allianceId },
+      actingMemberId: input.source === "self" ? input.ashedMemberId : null,
+      method: "manual",
+    });
+    if (
+      input.source === "self" &&
+      activity.actor.commanderId !== input.commanderId
+    ) {
+      throw new ActivityWriteError({
+        eventKey,
+        failureCategory: "validation",
+      });
+    }
+    if (pending) {
+      if (
+        identity.kind !== "discord" ||
+        (pending.required &&
+          (pending.expected.active !== input.active ||
+            !pending.expected.linkIds.includes(pending.linkId)))
+      ) {
+        throw new WeeklyPassPendingChangedError();
+      }
+      const [link] = await tx
+        .select({ id: schema.discordMemberLinks.id })
+        .from(schema.discordMemberLinks)
+        .where(
+          and(
+            eq(schema.discordMemberLinks.id, pending.linkId),
+            eq(schema.discordMemberLinks.discordUserId, identity.discordUserId),
+            eq(schema.discordMemberLinks.allianceId, input.allianceId),
+            eq(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+          ),
+        )
+        .limit(1)
+        .for("share");
+      if (!link) throw new WeeklyPassPendingChangedError();
+      const consumed = await tx
+        .delete(schema.discordBotPending)
+        .where(
+          and(
+            eq(schema.discordBotPending.discordUserId, identity.discordUserId),
+            eq(schema.discordBotPending.allianceId, input.allianceId),
+            gt(schema.discordBotPending.expiresAt, new Date()),
+            sql`${schema.discordBotPending.pendingJson} = ${JSON.stringify(pending.expected)}::jsonb`,
+          ),
+        )
+        .returning({ id: schema.discordBotPending.discordUserId });
+      if (pending.required && consumed.length === 0) {
+        throw new WeeklyPassPendingChangedError();
+      }
+    }
+    const [current] = await tx
+      .select({
+        active: schema.commanders.weeklyPassActive,
+        source: schema.commanders.weeklyPassSource,
+      })
+      .from(schema.commanders)
+      .innerJoin(
+        schema.commanderAllianceMemberships,
+        eq(
+          schema.commanderAllianceMemberships.commanderId,
+          schema.commanders.id,
+        ),
+      )
+      .where(
+        and(
+          eq(schema.commanders.id, input.commanderId),
+          eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+          eq(
+            schema.commanderAllianceMemberships.ashedMemberId,
+            input.ashedMemberId,
+          ),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!current) throw new WeeklyPassTargetChangedError();
+    if (current.active === input.active && current.source === input.source) {
+      return false;
+    }
+    const now = new Date();
+    await tx
+      .update(schema.commanders)
+      .set({
+        weeklyPassActive: input.active,
+        weeklyPassSource: input.source,
+        weeklyPassUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.commanders.id, input.commanderId));
+    await appendActivityEvent(tx, {
+      ...activity,
+      eventKey,
+      occurredAt: now,
+      source: { namespace: "commander-weekly-pass", key: nanoid() },
+      severity: "update",
+      payload: {},
+    });
+    return true;
+  });
 }
 
 export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string) {

@@ -188,6 +188,14 @@ export const activityCatalog = {
     resource: null,
     payload: memberRoleChangedPayloadSchema,
   },
+  "member.weekly_pass_updated": {
+    feature: "members",
+    kind: "change",
+    visibility: "alliance",
+    descriptor: "updated",
+    resource: "memberProfile",
+    payload: emptyPayloadSchema,
+  },
   "scores.discarded": {
     feature: "scores",
     kind: "change",
@@ -274,6 +282,7 @@ export const activityEventInputSchema = z
     eventInput("member.rank_set", memberRankSetPayloadSchema),
     eventInput("member.rank_cleared", memberRankClearedPayloadSchema),
     eventInput("member.role_changed", memberRoleChangedPayloadSchema),
+    eventInput("member.weekly_pass_updated", emptyPayloadSchema),
     eventInput("scores.discarded", scoresDiscardedPayloadSchema),
     eventInput("note.updated", emptyPayloadSchema),
     eventInput("account.email_changed", emptyPayloadSchema),
