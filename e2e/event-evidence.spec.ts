@@ -91,9 +91,9 @@ test("mark not ready invalidates a ready board", async ({ request }) => {
     },
     data: { boardId: board.id, action: "invalidate" },
   });
-  // Route shape is allowed to differ; the contract is that a member-level
-  // session cannot invalidate.
-  expect([200, 204, 400, 404]).toContain(res.status());
+  expect(res.status(), await res.text()).toBe(200);
+  const body = await res.json();
+  expect(body.readyVersion).toBeNull();
 
   const memberRes = await request.post(
     `/api/hq-events/${event.id}/readiness`,
