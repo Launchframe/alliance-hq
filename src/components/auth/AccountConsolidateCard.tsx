@@ -48,6 +48,7 @@ function mergeErrorMessage(
 
 export function AccountConsolidateCard() {
   const t = useTranslations("accountSecurity");
+  const tActivity = useTranslations("activity");
   const [sourceEmail, setSourceEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<Step>("email");
@@ -125,7 +126,11 @@ export function AccountConsolidateCard() {
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(mergeErrorMessage(body.error, t));
+        setError(
+          body.error === "identity_changed"
+            ? tActivity("saveBlocked")
+            : mergeErrorMessage(body.error, t),
+        );
         return;
       }
       setSourceEmail("");
