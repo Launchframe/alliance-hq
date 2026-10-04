@@ -33,15 +33,19 @@ async function gotoEvents(
 // /events catalog — creation, gating, readiness
 // ---------------------------------------------------------------------------
 
-test("officer creates an event via the Add event form", async ({ page }) => {
+test("owner creates an event via the Add event form", async ({ page }) => {
   const sql = getE2eSql();
   const f = await createNativeFrontlineScenario(sql);
-  await gotoEvents(page, f.officer);
+  // The form is gated on hq:events:write — only the owner/maintainer roles
+  // carry it; plain officers do not.
+  await gotoEvents(page, f.owner);
 
   await page.getByTestId("events-add-event-toggle").click();
   const form = page.getByTestId("events-add-event-form");
   await expect(form).toBeVisible();
 
+  await form.locator('button[aria-haspopup="listbox"]').first().click();
+  await page.getByRole("option", { name: /warzone duel/i }).click();
   await form.getByLabel(/event name/i).fill(`E2E Warzone ${nanoid(4)}`);
   await form.getByLabel(/event series/i).fill("E2E Series");
   await form.getByLabel(/event date/i).fill("2026-09-01");

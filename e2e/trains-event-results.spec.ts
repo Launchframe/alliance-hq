@@ -90,6 +90,58 @@ async function gotoTrains(page: Page, fixture: Fixture, path = "/trains") {
   await page.goto(path);
 }
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * The dashboard mounts both the grid and carousel week layouts; only one is
+ * visible at a time. Always scope to the app shell and filter visible.
+ */
+function weekDayLocator(page: Page, date: string) {
+  return page
+    .locator("#hq-app-shell")
+    .getByTestId(`trains-week-day-${date}`)
+    .filter({ visible: true })
+    .first();
+}
+
+async function waitForTrainsReady(page: Page) {
+  await expect(
+    page.locator("#hq-app-shell").getByTestId("trains-schedule-section"),
+  ).toBeVisible({ timeout: 20_000 });
+}
+
+/** Real right-click at viewport coords so the context menu position is valid. */
+async function openDayContextMenu(page: Page, date: string) {
+  const day = weekDayLocator(page, date);
+  await expect(day).toBeVisible({ timeout: 15_000 });
+  await day.scrollIntoViewIfNeeded();
+  const box = await day.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box!.x + 12, box!.y + 12, { button: "right" });
+}
+
+/** Open the DayMechanismPickerDialog via the guided flow's Change link. */
+async function openDayMechanismPicker(page: Page, date: string) {
+  const guided = page.getByTestId("trains-guided-conductor-flow");
+  if (
+    await guided
+      .getByRole("button", { name: /change/i })
+      .first()
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await guided.getByRole("button", { name: /change/i }).first().click();
+  } else {
+    // No guided flow — the context menu's Event results entry opens the same
+    // picker directly on the event role.
+    await openDayContextMenu(page, date);
+    await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
+    await page.getByTestId("trains-day-rule-event_scores").click();
+  }
+}
+
 /** A bound Warzone conductor rule for a seeded occurrence. */
 function warzoneConductorRule(occurrenceId: string, topN: number | "all" = 10) {
   return {
@@ -143,27 +195,11 @@ test("day picker Event results opens the shared picker and incomplete rules cann
 }) => {
   const fixture = await setupAlliance(request);
   await gotoTrains(page, fixture);
+  await waitForTrainsReady(page);
 
-  // Open the day mechanism picker via the change-rule entry point.
-  await page.getByTestId("trains-week-carousel").waitFor({ timeout: 20_000 });
-  const changeRule = page
-    .getByRole("button", { name: /change rule/i })
-    .first();
-  if (await changeRule.count()) {
-    await changeRule.click();
-  } else {
-    // Fallback: open via the context menu on the focused day cell.
-    await page
-      .getByTestId("trains-week-carousel")
-      .locator("button")
-      .first()
-      .click({ button: "right" });
-    await page
-      .getByTestId("trains-day-template-menu")
-      .getByRole("menuitemradio", { name: /event/i })
-      .click();
-  }
-
+  // Open the day mechanism picker via the guided flow's Change link (or the
+  // context menu fallback), then the Event results row.
+  await openDayMechanismPicker(page, todayIso());
   const eventRow = page.getByTestId("trains-day-rule-row-event_scores");
   if (await eventRow.count()) {
     await eventRow.click();
@@ -185,13 +221,9 @@ test("week strip context menu Event results opens configuration", async ({
 }) => {
   const fixture = await setupAlliance(request);
   await gotoTrains(page, fixture);
-  await page.getByTestId("trains-week-carousel").waitFor({ timeout: 20_000 });
+  await waitForTrainsReady(page);
 
-  await page
-    .getByTestId("trains-week-carousel")
-    .locator("button")
-    .first()
-    .click({ button: "right" });
+  await openDayContextMenu(page, todayIso());
 
   const menu = page.getByTestId("trains-day-template-menu");
   await expect(menu).toBeVisible();
@@ -215,20 +247,18 @@ test("month toolbar Event results opens configuration", async ({
 }) => {
   const fixture = await setupAlliance(request);
   await gotoTrains(page, fixture);
-  await page.getByTestId("trains-week-carousel").waitFor({ timeout: 20_000 });
+  await waitForTrainsReady(page);
 
-  await page
-    .getByRole("button", { name: /month/i })
-    .first()
-    .click();
-  const toolbar = page.getByTestId("trains-month-toolbar");
-  if (!(await toolbar.count())) test.skip();
+  await page.getByRole("tab", { name: /^month$/i }).click();
+  await expect(page.getByTestId("trains-month-toolbar")).toBeVisible();
 
-  // Select a day cell first so the palette is enabled.
-  await page
-    .getByTestId("trains-month-toolbar-palette")
-    .click({ trial: true })
-    .catch(() => test.skip());
+  // Select a day cell (pointer down/up commits a single-day selection) so the
+  // palette is enabled.
+  const cell = page
+    .locator(`#hq-app-shell button[data-paint-date="${todayIso()}"]`)
+    .first();
+  await expect(cell).toBeVisible({ timeout: 15_000 });
+  await cell.click();
 
   await page.getByTestId("trains-month-toolbar-palette").click();
   await page.getByTestId("trains-month-paint-event_scores").click();
@@ -250,14 +280,13 @@ test("template editor paints a portable unbound event intent", async ({
   await gotoTrains(page, fixture, "/settings/trains");
 
   // Open the template editor (create flow).
-  const create = page
-    .getByRole("button", { name: /template/i })
-    .first();
-  if (!(await create.count())) test.skip();
-  await create.click();
+  await expect(page.getByTestId("trains-template-settings")).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByTestId("trains-template-create").click();
 
   const slot = page.getByTestId("trains-template-editor-slot-mon");
-  if (!(await slot.count())) test.skip();
+  await expect(slot).toBeVisible({ timeout: 10_000 });
   await slot.click();
   await page.getByTestId("trains-template-editor-rule-event_scores").click();
   await expect(
@@ -278,7 +307,7 @@ test("legacy event_top_x day shows eventNotSelected and Configure recovery", asy
 }) => {
   const fixture = await setupAlliance(request);
   const sql = getE2eSql();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   await paintDayRule(sql, {
     allianceId: fixture.allianceId,
     date: today,
@@ -289,14 +318,22 @@ test("legacy event_top_x day shows eventNotSelected and Configure recovery", asy
     },
   });
   await gotoTrains(page, fixture);
+  await waitForTrainsReady(page);
 
-  // The cell shows the unbound-event state instead of the legacy label.
-  await expect(page.getByText(/choose the event/i).first()).toBeVisible({
-    timeout: 15_000,
+  // The visible day cell shows the unbound-event state, not the legacy label.
+  await expect(
+    weekDayLocator(page, today).getByText(/choose the event/i),
+  ).toBeVisible({ timeout: 15_000 });
+
+  // Opening the day mechanism picker shows the Configure recovery.
+  await openDayMechanismPicker(page, today);
+  await expect(page.getByTestId("trains-day-rule-legacy-event")).toBeVisible();
+  await page
+    .getByTestId("trains-day-rule-legacy-event-configure")
+    .click();
+  await expect(page.getByTestId("trains-event-rule-picker")).toBeVisible({
+    timeout: 10_000,
   });
-
-  // Advanced surface: opening the day picker shows the Configure recovery.
-  await page.getByTestId("trains-week-carousel").waitFor({ timeout: 20_000 });
 });
 
 // ---------------------------------------------------------------------------
@@ -329,6 +366,7 @@ test("guided flow gates an unbound event_scores day with Configure", async ({
   });
   // Simple (guided) mode is the default; visit the day.
   await gotoTrains(page, fixture, `/trains?date=${today}`);
+  await waitForTrainsReady(page);
 
   const configure = page.getByTestId("trains-guided-configure-event");
   if (await configure.count()) {
@@ -339,8 +377,10 @@ test("guided flow gates an unbound event_scores day with Configure", async ({
     });
   } else {
     // Guided flow may be disabled for this alliance — assert the unbound
-    // message still surfaces somewhere.
-    await expect(page.getByText(/choose the event/i).first()).toBeVisible();
+    // message still surfaces on the visible day cell.
+    await expect(
+      weekDayLocator(page, today).getByText(/choose the event/i),
+    ).toBeVisible();
   }
 });
 
@@ -382,12 +422,8 @@ test("member session cannot open event configuration or paint", async ({
 }) => {
   const fixture = await setupAlliance(request, "member");
   await gotoTrains(page, fixture);
-  await page.getByTestId("trains-week-carousel").waitFor({ timeout: 20_000 });
-  await page
-    .getByTestId("trains-week-carousel")
-    .locator("button")
-    .first()
-    .click({ button: "right" });
+  await waitForTrainsReady(page);
+  await openDayContextMenu(page, todayIso());
   await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
 });
 
@@ -421,7 +457,7 @@ test("shared template strips occurrence and local series ids", async ({
       },
     },
   });
-  expect(create.status(), await create.text()).toBe(200);
+  expect(create.ok(), await create.text()).toBe(true);
   const created = await create.json();
 
   // Bound occurrence ids are stripped on write — the stored template is a
