@@ -34,6 +34,7 @@ import type { OcrFeedbackPayload } from "@/lib/ocr/learning/feedback.shared";
 import type { OcrMediaPolicy, OcrMediaTaskState, OcrMediaObjectState, OcrMediaUpload } from "@/lib/ocr/learning/media.shared";
 import type { PipelineDefinition, WorkerJobInput, WorkerJobState, WorkerPolicy } from "@/lib/ocr/learning/control.shared";
 import type { WorkerInferenceResult, WorkerTrainingResult } from "@/lib/ocr/learning/worker.shared";
+import type { ActivityPayload } from "@/lib/activity/catalog.shared";
 
 export const ocrWorkerPolicies = pgTable("ocr_worker_policies", {
   allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
@@ -1438,6 +1439,131 @@ export const scrollProfiles = pgTable("scroll_profiles", {
     .defaultNow()
     .notNull(),
 });
+
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: text("id").primaryKey(),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    eventKey: text("event_key").notNull(),
+    feature: text("feature").notNull(),
+    kind: text("kind").notNull(),
+    occurredAt: timestamp("occurred_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    recordedAt: timestamp("recorded_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .notNull()
+      .defaultNow(),
+    allianceId: text("alliance_id"),
+    actorKind: text("actor_kind").notNull(),
+    originalHqUserId: text("original_hq_user_id"),
+    originalDiscordUserId: text("original_discord_user_id"),
+    personalOwnerHqUserId: text("personal_owner_hq_user_id"),
+    actorCommanderId: text("actor_commander_id"),
+    actorDisplayName: text("actor_display_name"),
+    actorHqRole: text("actor_hq_role"),
+    actorGameRank: text("actor_game_rank"),
+    serverNumber: text("server_number"),
+    allianceTag: text("alliance_tag"),
+    allianceName: text("alliance_name"),
+    channel: text("channel"),
+    method: text("method"),
+    severity: text("severity").notNull(),
+    visibilityClass: text("visibility_class").notNull(),
+    resourceKind: text("resource_kind"),
+    resourceId: text("resource_id"),
+    payload: jsonb("payload").$type<ActivityPayload>().notNull(),
+    sourceNamespace: text("source_namespace").notNull(),
+    sourceKey: text("source_key").notNull(),
+    contentHash: text("content_hash").notNull(),
+    historical: boolean("historical").notNull().default(false),
+    historicalCurrentLabels: boolean("historical_current_labels")
+      .notNull()
+      .default(false),
+  },
+  (table) => [
+    index("activity_global_order_idx").on(
+      table.occurredAt.desc(),
+      table.id.desc(),
+    ),
+    index("activity_alliance_order_idx").on(
+      table.allianceId,
+      table.occurredAt.desc(),
+      table.id.desc(),
+    ),
+    index("activity_personal_order_idx").on(
+      table.personalOwnerHqUserId,
+      table.occurredAt.desc(),
+      table.id.desc(),
+    ),
+    index("activity_discord_owner_idx").on(
+      table.originalDiscordUserId,
+      table.personalOwnerHqUserId,
+    ),
+    unique("activity_source_unique").on(
+      table.sourceNamespace,
+      table.sourceKey,
+    ),
+    check(
+      "activity_events_schema_version_check",
+      sql`${table.schemaVersion} = 1`,
+    ),
+    check("activity_events_kind_check", sql`${table.kind} in ('change', 'usage')`),
+    check(
+      "activity_events_visibility_check",
+      sql`${table.visibilityClass} in ('alliance', 'private', 'platform')`,
+    ),
+    check(
+      "activity_events_actor_kind_check",
+      sql`${table.actorKind} in ('hq', 'discord', 'automation', 'unknown')`,
+    ),
+    check(
+      "activity_events_channel_check",
+      sql`${table.channel} is null or ${table.channel} in ('web', 'discord', 'integration', 'automation')`,
+    ),
+    check(
+      "activity_events_method_check",
+      sql`${table.method} is null or ${table.method} in ('manual', 'screenshot', 'video', 'import', 'sync', 'wheel')`,
+    ),
+    check(
+      "activity_events_severity_check",
+      sql`${table.severity} in ('routine', 'update', 'override')`,
+    ),
+    check(
+      "activity_events_role_check",
+      sql`${table.actorHqRole} is null or ${table.actorHqRole} in ('owner', 'maintainer', 'officer', 'data_entry', 'member', 'viewer')`,
+    ),
+    check(
+      "activity_events_rank_check",
+      sql`${table.actorGameRank} is null or ${table.actorGameRank} in ('R1', 'R2', 'R3', 'R4', 'R5')`,
+    ),
+    check(
+      "activity_events_alliance_required_check",
+      sql`${table.visibilityClass} <> 'alliance' or ${table.allianceId} is not null`,
+    ),
+    check(
+      "activity_events_private_resource_check",
+      sql`${table.visibilityClass} <> 'private' or ${table.resourceId} is null`,
+    ),
+  ],
+);
+
+export type ActivityEventRecord = typeof activityEvents.$inferSelect;
+
+export const activityUsageDedupe = pgTable("activity_usage_dedupe", {
+  key: text("key").primaryKey(),
+  lastEmittedAt: timestamp("last_emitted_at", {
+    withTimezone: true,
+    mode: "string",
+  }).notNull(),
+  eventId: text("event_id").notNull(),
+});
+
+export type ActivityUsageDedupeRecord = typeof activityUsageDedupe.$inferSelect;
 
 export const auditLog = pgTable("audit_log", {
   id: text("id").primaryKey(),
