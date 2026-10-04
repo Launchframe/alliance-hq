@@ -43,6 +43,13 @@ function loggedText() {
     .join("\n");
 }
 
+function blockedActions() {
+  return vi
+    .mocked(console.error)
+    .mock.calls.map((call) => JSON.parse(String(call[0])))
+    .filter((entry) => entry.signal === "activity_write_blocked_action");
+}
+
 describe("dispatchActivityBlockedAlert", () => {
 
   beforeEach(() => {
@@ -101,13 +108,17 @@ describe("dispatchActivityBlockedAlert", () => {
     expect(sendMock).toHaveBeenCalledTimes(2);
 
     const [enRequest, ptRequest] = sendMock.mock.calls.map((call) => call[0]);
+    const [action] = blockedActions();
+    expect(action.incidentId).toBe(error.incidentId);
+    expect(typeof action.incident).toBe("string");
     expect(enRequest.to).toEqual(["maintainer-en@example.com"]);
     expect(enRequest.subject).toBe(
       "[Alliance HQ] Activity recording blocked a user action",
     );
     expect(enRequest.text).toContain("Incident:");
     expect(enRequest.text).toContain("Log reference:");
-    expect(enRequest.text).toContain(error.incidentId);
+    expect(enRequest.text).toContain(action.incident);
+    expect(enRequest.text).not.toContain(error.incidentId);
     expect(enRequest.text).toContain("Action: thp.submitted");
     expect(enRequest.text).toContain("Failure category: constraint");
     expect(enRequest.text).toContain("Alert window: 2026-09-29T12:00:00.000Z");
@@ -118,7 +129,8 @@ describe("dispatchActivityBlockedAlert", () => {
     );
     expect(ptRequest.text).toContain("Incidente:");
     expect(ptRequest.text).toContain("Referência do log:");
-    expect(ptRequest.text).toContain(error.incidentId);
+    expect(ptRequest.text).toContain(action.incident);
+    expect(ptRequest.text).not.toContain(error.incidentId);
     expect(ptRequest.text).toContain("Ação: thp.submitted");
     expect(ptRequest.text).toContain("Categoria da falha: constraint");
   });
@@ -207,6 +219,27 @@ describe("dispatchActivityBlockedAlert", () => {
     sendMock.mockClear();
     await dispatchActivityBlockedAlert(error, WINDOW_START);
     expect(sendMock.mock.calls[0][0].text).toBe(firstBody);
+  });
+
+  it("sends identical recipient requests for distinct incidents in one group", async () => {
+    const first = writeError();
+    const second = writeError();
+    expect(second.incidentId).not.toBe(first.incidentId);
+
+    await dispatchActivityBlockedAlert(first, WINDOW_START);
+    const firstRequests = sendMock.mock.calls.map((call) => call[0]);
+    sendMock.mockClear();
+    await dispatchActivityBlockedAlert(second, WINDOW_START);
+    const secondRequests = sendMock.mock.calls.map((call) => call[0]);
+
+    expect(secondRequests).toEqual(firstRequests);
+
+    const actions = blockedActions();
+    expect(actions.map((entry) => entry.incidentId)).toEqual([
+      first.incidentId,
+      second.incidentId,
+    ]);
+    expect(new Set(actions.map((entry) => entry.incident)).size).toBe(1);
   });
 
   it("logs no recipient emails or incident payloads in alert signals", async () => {
