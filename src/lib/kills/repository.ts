@@ -1,8 +1,18 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { ActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  captureActivityContext,
+  type ActivityIdentity,
+} from "@/lib/activity/identity.server";
+import {
+  appendActivityEvent,
+  withActivityTransaction,
+  type ActivityTransaction,
+} from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 import type { KillsEventSource } from "@/lib/kills/constants";
 import { parseStoredKillsPending } from "@/lib/kills/pending-state";
@@ -12,6 +22,19 @@ export { getCommanderIdForMember } from "@/lib/thp/repository";
 export { getCommanderMembershipInAlliance } from "@/lib/thp/repository";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
+
+export type KillsSubmissionActivity = {
+  identity: Exclude<ActivityIdentity, { kind: "automation" }>;
+  method: "manual" | "screenshot";
+  pending?: { expected: KillsPendingState; required: boolean };
+};
+
+export class KillsPendingChangedError extends Error {
+  constructor() {
+    super("kills_pending_changed");
+    this.name = "KillsPendingChangedError";
+  }
+}
 
 const HQ_SOURCES_PENDING_ASHED_SYNC = new Set<KillsEventSource>([
   "web",
@@ -119,53 +142,149 @@ export async function upsertCommanderKills(input: {
   discordUserId?: string | null;
   /** When true, skip outbound Member.current_kills sync (already written elsewhere). */
   markAshedSynced?: boolean;
+  activity?: KillsSubmissionActivity;
 }): Promise<boolean> {
-  const db = getDb();
-  const now = new Date();
-  const current = await getCommanderKillsState(input.commanderId);
-  const previousTotal = current?.currentKills ?? null;
-
-  if (previousTotal === input.total) {
-    if (input.markAshedSynced) {
-      await markLatestVideoParseKillsAshedSynced(input.commanderId);
+  return withActivityTransaction(async (db) => {
+    const activityInput = input.activity;
+    const activity = activityInput
+      ? await captureActivityContext(db, {
+          eventKey: "kills.submitted",
+          identity: activityInput.identity,
+          alliance: input.allianceId
+            ? { kind: "hq", id: input.allianceId }
+            : null,
+          actingMemberId: input.ashedMemberId,
+          method: activityInput.method,
+        })
+      : null;
+    if (
+      activity &&
+      activityInput &&
+      (!input.allianceId ||
+        !input.ashedMemberId ||
+        activity.actor.commanderId !== input.commanderId ||
+        (activityInput.identity.kind === "web" &&
+          (input.hqUserId !== activity.actor.hqUserId ||
+            activityInput.identity.principal.currentAllianceId !==
+              input.allianceId)) ||
+        (activityInput.identity.kind === "discord" &&
+          input.discordUserId !== activity.actor.discordUserId))
+    ) {
+      throw new ActivityWriteError({
+        eventKey: "kills.submitted",
+        failureCategory: "validation",
+      });
     }
-    return false;
-  }
 
-  await db.insert(schema.commanderKillsEvents).values({
-    id: nanoid(),
-    commanderId: input.commanderId,
-    total: input.total,
-    previousTotal,
-    source: input.source,
-    allianceId: input.allianceId ?? null,
-    reportedByHqUserId: input.hqUserId ?? null,
-    reportedByDiscordUserId: input.discordUserId ?? null,
-    ashedSyncedAt: ashedSyncedAtForSource(
-      input.source,
-      now,
-      input.markAshedSynced,
-    ),
-    createdAt: now,
+    if (activityInput?.pending) {
+      const expectedJson = JSON.stringify(activityInput.pending.expected);
+      const consumed =
+        activityInput.identity.kind === "web"
+          ? await db
+              .delete(schema.hqKillsPending)
+              .where(
+                and(
+                  eq(schema.hqKillsPending.allianceId, input.allianceId!),
+                  eq(schema.hqKillsPending.hqUserId, input.hqUserId!),
+                  gt(schema.hqKillsPending.expiresAt, new Date()),
+                  sql`${schema.hqKillsPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning()
+          : await db
+              .delete(schema.discordBotPending)
+              .where(
+                and(
+                  eq(
+                    schema.discordBotPending.discordUserId,
+                    input.discordUserId!,
+                  ),
+                  eq(schema.discordBotPending.allianceId, input.allianceId!),
+                  gt(schema.discordBotPending.expiresAt, new Date()),
+                  sql`${schema.discordBotPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning();
+      if (consumed.length === 0 && activityInput.pending.required) {
+        throw new KillsPendingChangedError();
+      }
+    }
+
+    const now = new Date();
+    const [current] = await db
+      .select({
+        currentKills: schema.commanders.currentKills,
+        killsUpdatedAt: schema.commanders.killsUpdatedAt,
+        primaryName: schema.commanders.primaryName,
+      })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, input.commanderId))
+      .limit(1)
+      .for("update");
+    if (!current) {
+      throw new Error("commander_not_found");
+    }
+    const previousTotal = current.currentKills;
+
+    if (previousTotal === input.total) {
+      if (input.markAshedSynced) {
+        await markLatestVideoParseKillsAshedSynced(input.commanderId, db);
+      }
+      return false;
+    }
+
+    const historyId = nanoid();
+    await db.insert(schema.commanderKillsEvents).values({
+      id: historyId,
+      commanderId: input.commanderId,
+      total: input.total,
+      previousTotal,
+      source: input.source,
+      allianceId: input.allianceId ?? null,
+      reportedByHqUserId: input.hqUserId ?? null,
+      reportedByDiscordUserId: input.discordUserId ?? null,
+      ashedSyncedAt: ashedSyncedAtForSource(
+        input.source,
+        now,
+        input.markAshedSynced,
+      ),
+      createdAt: now,
+    });
+
+    await db
+      .update(schema.commanders)
+      .set({
+        currentKills: input.total,
+        killsUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.commanders.id, input.commanderId));
+
+    if (activity) {
+      await appendActivityEvent(db, {
+        ...activity,
+        eventKey: "kills.submitted",
+        occurredAt: now,
+        source: { namespace: "commander-kills-events", key: historyId },
+        severity: "update",
+        payload: {
+          value: String(input.total),
+          previousValue:
+            previousTotal === null ? null : String(previousTotal),
+        },
+      });
+    }
+
+    return true;
   });
-
-  await db
-    .update(schema.commanders)
-    .set({
-      currentKills: input.total,
-      killsUpdatedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(schema.commanders.id, input.commanderId));
-
-  return true;
 }
 
 /** Mark the latest non-discarded video_parse kills event as already synced to Ashed. */
 export async function markLatestVideoParseKillsAshedSynced(
   commanderId: string,
+  tx?: ActivityTransaction,
 ): Promise<boolean> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const [latest] = await db
     .select({
       id: schema.commanderKillsEvents.id,

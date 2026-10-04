@@ -13,7 +13,8 @@ export function parseStoredThpPending(value: unknown): ThpPendingState | null {
       typeof row.proposedTotal !== "number" ||
       !Number.isFinite(row.proposedTotal) ||
       typeof row.commanderId !== "string" ||
-      row.commanderId.trim().length === 0
+      row.commanderId.trim().length === 0 ||
+      !("proposedBreakdown" in row)
     ) {
       return null;
     }
@@ -25,7 +26,11 @@ export function parseStoredThpPending(value: unknown): ThpPendingState | null {
     };
   }
 
-  if (row.kind === "pick_character" && Array.isArray(row.linkIds)) {
+  if (
+    row.kind === "pick_character" &&
+    Array.isArray(row.linkIds) &&
+    !("proposedTotal" in row)
+  ) {
     return { kind: "pick_character", linkIds: row.linkIds.map(String) };
   }
 
