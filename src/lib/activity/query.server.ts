@@ -158,6 +158,7 @@ function parseCursor(
 }
 
 function baseConditions(principal: ActivityPrincipal, scope: ActivityFeedScope) {
+  // Global includes private event metadata; projection must strip actor, values, and details.
   return [
     eq(e.schemaVersion, 1),
     or(
@@ -187,7 +188,10 @@ function baseConditions(principal: ActivityPrincipal, scope: ActivityFeedScope) 
   ];
 }
 
-function filterConditions(query: ActivityFeedQueryInput) {
+function filterConditions(
+  query: ActivityFeedQueryInput,
+  scope: ActivityFeedScope,
+) {
   return [
     query.from
       ? sql`${e.occurredAt} >= ${query.from}::text::timestamptz`
@@ -198,7 +202,14 @@ function filterConditions(query: ActivityFeedQueryInput) {
     query.channel ? eq(e.channel, query.channel) : undefined,
     query.category ? eq(e.feature, query.category) : undefined,
     query.kind ? eq(e.kind, query.kind) : undefined,
-    query.actor ? eq(actorKey, query.actor) : undefined,
+    query.actor
+      ? and(
+          eq(actorKey, query.actor),
+          scope === "global"
+            ? eq(e.visibilityClass, "alliance")
+            : undefined,
+        )
+      : undefined,
     query.allianceId ? eq(e.allianceId, query.allianceId) : undefined,
     query.server ? eq(e.serverNumber, query.server) : undefined,
   ];
@@ -245,7 +256,7 @@ export async function queryActivityPage(
     .where(
       and(
         ...baseConditions(principal, scope),
-        ...filterConditions(query),
+        ...filterConditions(query, scope),
         boundary,
       ),
     )
@@ -295,7 +306,12 @@ export async function queryActivityHead(
   const rows = await getDb()
     .select({ id: e.id, occurredAt: cursorTime })
     .from(e)
-    .where(and(...baseConditions(principal, scope), ...filterConditions(query)))
+    .where(
+      and(
+        ...baseConditions(principal, scope),
+        ...filterConditions(query, scope),
+      ),
+    )
     .orderBy(desc(e.occurredAt), desc(e.id))
     .limit(1);
 
@@ -315,7 +331,8 @@ export async function queryActivityFilterOptions(
   assertScopeAllowed(principal, scope);
   const authorizedWhere = and(
     ...baseConditions(principal, scope),
-    ...filterConditions(query),
+    ...filterConditions(query, scope),
+    scope === "global" ? eq(e.visibilityClass, "alliance") : undefined,
   );
   const pattern = query.q ? escapeIlikePattern(query.q) : undefined;
   const db = getDb();

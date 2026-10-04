@@ -27,7 +27,8 @@ export async function POST(request: Request) {
 
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
+    const t = await getTranslations("settings");
+    return NextResponse.json({ error: t("allianceRequired") }, { status: 400 });
   }
 
   const principal = await getActivityPrincipalForSession(session);
@@ -67,8 +68,9 @@ export async function POST(request: Request) {
       screenshotBuffer,
     });
     if ("code" in result && result.code === "member_link_required") {
+      const t = await getTranslations("professions");
       return NextResponse.json(
-        { code: result.code, error: "Link your commander first." },
+        { code: result.code, error: t("linkRequired") },
         { status: 403 },
       );
     }
@@ -92,8 +94,9 @@ export async function POST(request: Request) {
   });
 
   if ("code" in result && result.code === "member_link_required") {
+    const t = await getTranslations("professions");
     return NextResponse.json(
-      { code: result.code, error: "Link your commander first." },
+      { code: result.code, error: t("linkRequired") },
       { status: 403 },
     );
   }
