@@ -158,6 +158,14 @@ function renderedWhere(index = 0) {
   return dialect.sqlToQuery(where);
 }
 
+const catalogEntryCount = Object.keys(activityCatalog).length;
+
+function visibilityEqCount(index = 0) {
+  return (
+    renderedWhere(index).sql.match(/visibility_class" =/g)?.length ?? 0
+  );
+}
+
 describe("queryActivityPage", () => {
   beforeEach(() => {
     state.whereArgs = [];
@@ -209,6 +217,29 @@ describe("queryActivityPage", () => {
     for (const key of Object.keys(activityCatalog)) {
       expect(params).toContain(key);
     }
+  });
+
+  it("keeps private catalog rows on unfiltered global pages", async () => {
+    state.rows = [makeRow()];
+    await queryActivityPage(MAINTAINER, "global", pageQuery());
+    expect(visibilityEqCount()).toBe(catalogEntryCount);
+  });
+
+  it("fences global actor-filtered pages to alliance-visible events", async () => {
+    state.rows = [];
+    await queryActivityPage(
+      MAINTAINER,
+      "global",
+      pageQuery({ actor: "hq:actor-1" }),
+    );
+    const { sql, params } = renderedWhere();
+    expect(params).toContain("hq:actor-1");
+    expect(visibilityEqCount()).toBe(catalogEntryCount + 1);
+    expect(
+      sql.match(
+        /"kind" = \$\d+ and "activity_events"\."visibility_class" = \$\d+/g,
+      ),
+    ).toHaveLength(catalogEntryCount);
   });
 
   it("binds timestamp filters as exact strings without Date conversion", async () => {
@@ -428,6 +459,22 @@ describe("queryActivityHead", () => {
       occurredAt: "2026-09-29T12:00:00.123456Z",
     });
   });
+
+  it("fences global actor-filtered heads to alliance-visible events", async () => {
+    state.rows = [];
+    await queryActivityHead(
+      MAINTAINER,
+      "global",
+      pageQuery({ view: "head", actor: "hq:actor-1" }),
+    );
+    const { sql } = renderedWhere();
+    expect(visibilityEqCount()).toBe(catalogEntryCount + 1);
+    expect(
+      sql.match(
+        /"kind" = \$\d+ and "activity_events"\."visibility_class" = \$\d+/g,
+      ),
+    ).toHaveLength(catalogEntryCount);
+  });
 });
 
 describe("queryActivityFilterOptions", () => {
@@ -513,5 +560,35 @@ describe("queryActivityFilterOptions", () => {
       sql.toLowerCase().indexOf("ilike"),
     );
     expect(params).toContain("%100\\%%");
+  });
+
+  it("fences every global suggestion query to alliance-visible events", async () => {
+    state.rows = [];
+    await queryActivityFilterOptions(
+      MAINTAINER,
+      "global",
+      pageQuery({ view: "filters" }),
+    );
+    expect(state.whereArgs).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      const { sql } = renderedWhere(i);
+      expect(visibilityEqCount(i)).toBe(catalogEntryCount + 1);
+      expect(
+        sql.match(
+          /"kind" = \$\d+ and "activity_events"\."visibility_class" = \$\d+/g,
+        ),
+      ).toHaveLength(catalogEntryCount);
+    }
+  });
+
+  it("does not add the global visibility fence to personal suggestions", async () => {
+    state.rows = [];
+    await queryActivityFilterOptions(
+      MEMBER,
+      "personal",
+      pageQuery({ view: "filters" }),
+    );
+    expect(state.whereArgs).toHaveLength(1);
+    expect(visibilityEqCount()).toBe(catalogEntryCount);
   });
 });
