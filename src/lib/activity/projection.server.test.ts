@@ -317,6 +317,25 @@ describe("projectActivityRecord", () => {
     expect(json).not.toContain(SECRET_UID);
     expect(json).not.toContain(SECRET_EMAIL);
     expect(item.values).toEqual({});
+    expect(item.details).toEqual({});
+    expect(item.actor).toBeNull();
+  });
+
+  it("strips private payload fields on the global maintainer feed", () => {
+    const item = projectActivityRecord(
+      makeRow({
+        eventKey: "tool.opened",
+        feature: "usage",
+        kind: "usage",
+        visibilityClass: "private",
+        payload: { tool: "thp" },
+      }),
+      MAINTAINER,
+      "global",
+    );
+    expect(item.values).toEqual({});
+    expect(item.actor).toBeNull();
+    expect(item.descriptor).toBe("opened");
   });
 
   it("drops email-shaped and UID-shaped labels instead of rendering them", () => {
