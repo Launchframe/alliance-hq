@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
@@ -579,6 +579,7 @@ export type EventEvidencePage = {
   boards: (typeof schema.hqEventBoards.$inferSelect & { ready: boolean })[];
   results: (typeof schema.hqEventMemberResults.$inferSelect)[];
   observations: (typeof schema.hqEventObservations.$inferSelect)[];
+  batches: (typeof schema.hqEventEvidenceBatches.$inferSelect)[];
   nextCursor: string | null;
 };
 
@@ -657,10 +658,22 @@ export async function loadEventEvidence(
         .offset(Number.isFinite(offset) && offset > 0 ? offset : 0)
     : [];
 
+  const batches = await db
+    .select()
+    .from(schema.hqEventEvidenceBatches)
+    .where(
+      and(
+        eq(schema.hqEventEvidenceBatches.allianceId, actor.allianceId),
+        eq(schema.hqEventEvidenceBatches.hqEventId, event.id),
+      ),
+    )
+    .orderBy(desc(schema.hqEventEvidenceBatches.createdAt));
+
   return {
     boards,
     results,
     observations: observations.slice(0, limit),
+    batches,
     nextCursor:
       observations.length > limit ? String(offset + limit) : null,
   };
