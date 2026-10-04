@@ -120,6 +120,17 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(list.status(), await list.text()).toBe(403);
   });
 
+  test("bootstrap session cannot list VS inventory item defs", async ({
+    request,
+  }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const list = await request.get("/api/admin/vs-inventory-item-defs", {
+      headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+  });
+
   test("platform maintainer can list admin users", async ({ request }) => {
     const sql = getE2eSql();
     const maintainer = await createPlatformMaintainerSession(sql);
