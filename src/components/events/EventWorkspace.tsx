@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { EventTarget } from "@/lib/hq-events/event-types.shared";
 import {
+  batchSourceKindLabelKey,
+  batchStatusLabelKey,
   boardTeamScope,
   formatEventScore,
   participationCreditFor,
@@ -445,7 +447,9 @@ export function EventWorkspace({
                           className="ml-1 text-xs text-hq-fg-muted"
                           title={t("keepRealScore")}
                         >
-                          {t("conflictingEvidence")}
+                          {row.participation === "yes"
+                            ? t("pollYes")
+                            : t("pollNo")}
                         </span>
                       ) : null}
                     </td>
@@ -544,7 +548,8 @@ export function EventWorkspace({
             ))}
             {stagedBatches.map((batch) => (
               <li key={batch.id} className="text-xs text-hq-fg-muted">
-                {batch.sourceKind} · {t("pendingEvidence")}
+                {t(batchSourceKindLabelKey(batch.sourceKind))} ·{" "}
+                {t("pendingEvidence")}
               </li>
             ))}
           </ul>
@@ -562,8 +567,10 @@ export function EventWorkspace({
                 key={batch.id}
                 className="flex flex-wrap items-center gap-2 py-1.5"
               >
-                <span className="text-hq-fg">{batch.sourceKind}</span>
-                <span>{batch.status}</span>
+                <span className="text-hq-fg">
+                  {t(batchSourceKindLabelKey(batch.sourceKind))}
+                </span>
+                <span>{t(batchStatusLabelKey(batch.status))}</span>
                 {batch.importStatus === "incomplete" ? (
                   <span className="text-hq-warning">
                     {t("importIncomplete")}

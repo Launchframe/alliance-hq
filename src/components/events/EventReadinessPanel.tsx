@@ -10,7 +10,10 @@ import type {
   EventEvidenceBatchDto,
   EventResultRow,
 } from "@/lib/hq-events/workspace.shared";
-import { resultFilterOf } from "@/lib/hq-events/workspace.shared";
+import {
+  batchSourceKindLabelKey,
+  resultFilterOf,
+} from "@/lib/hq-events/workspace.shared";
 
 type Props = {
   board: EventBoardDto;
@@ -143,9 +146,11 @@ export function EventReadinessPanel({
               <Checkbox
                 checked={selected.has(batch.id)}
                 onCheckedChange={() => toggleSource(batch.id)}
-                aria-label={`${batch.sourceKind}`}
+                aria-label={t(batchSourceKindLabelKey(batch.sourceKind))}
               />
-              <span className="text-xs">{batch.sourceKind}</span>
+              <span className="text-xs">
+                {t(batchSourceKindLabelKey(batch.sourceKind))}
+              </span>
               {!selected.has(batch.id) ? (
                 <span className="text-xs text-hq-fg-muted">
                   {t("sourceOmitted")}

@@ -8414,7 +8414,17 @@
     "pendingEvidence": "A evidência ainda está sendo processada ou revisada.",
     "confirmPollFallback": "Nenhum membro do placar se qualifica. Sortear igualmente entre todos os {count} respondentes Sim disponíveis?",
     "eventNotSelected": "Escolha o evento antes de girar.",
-    "eligibilityChanged": "A elegibilidade mudou. Revise a lista atualizada antes de girar."
+    "eligibilityChanged": "A elegibilidade mudou. Revise a lista atualizada antes de girar.",
+    "batchSourceManual": "Entrada manual",
+    "batchSourceVideo": "Evidência em vídeo",
+    "batchSourceImage": "Evidência em imagem",
+    "batchSourceAshedImport": "Importação do Ashed",
+    "batchSourceLegacyImport": "Importação legada",
+    "batchSourceUnknown": "Outra fonte",
+    "batchStatusStaged": "Em preparo",
+    "batchStatusCommitted": "Confirmado",
+    "batchStatusSuperseded": "Substituído",
+    "batchStatusUnknown": "Status desconhecido"
   },
   "activity": {
     "title": "Atividade",

@@ -8414,7 +8414,17 @@
     "pendingEvidence": "Evidence is still being processed or reviewed.",
     "confirmPollFallback": "No leaderboard members qualify. Draw equally from all {count} available Yes respondents?",
     "eventNotSelected": "Choose the event before spinning.",
-    "eligibilityChanged": "Eligibility changed. Review the updated list before spinning."
+    "eligibilityChanged": "Eligibility changed. Review the updated list before spinning.",
+    "batchSourceManual": "Manual entry",
+    "batchSourceVideo": "Video evidence",
+    "batchSourceImage": "Image evidence",
+    "batchSourceAshedImport": "Ashed import",
+    "batchSourceLegacyImport": "Legacy import",
+    "batchSourceUnknown": "Other source",
+    "batchStatusStaged": "Staged",
+    "batchStatusCommitted": "Committed",
+    "batchStatusSuperseded": "Superseded",
+    "batchStatusUnknown": "Unknown status"
   },
   "activity": {
     "title": "Activity",

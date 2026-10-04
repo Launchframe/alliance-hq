@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  batchSourceKindLabelKey,
+  batchStatusLabelKey,
   boardTeamScope,
   formatEventScore,
   participationCreditFor,
@@ -61,5 +63,14 @@ describe("boardTeamScope", () => {
     expect(boardTeamScope("team-b")).toBe("B");
     expect(boardTeamScope("Team_B")).toBe("B");
     expect(boardTeamScope("main")).toBeNull();
+  });
+});
+
+describe("batch label keys", () => {
+  it("maps known source kinds and statuses to i18n keys", () => {
+    expect(batchSourceKindLabelKey("ashed_import")).toBe("batchSourceAshedImport");
+    expect(batchSourceKindLabelKey("unknown_kind")).toBe("batchSourceUnknown");
+    expect(batchStatusLabelKey("committed")).toBe("batchStatusCommitted");
+    expect(batchStatusLabelKey("pending")).toBe("batchStatusUnknown");
   });
 });

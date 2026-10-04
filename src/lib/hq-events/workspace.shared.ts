@@ -193,3 +193,27 @@ export function boardTeamScope(boardKey: string): "A" | "B" | null {
   if (STORM_TEAM_B_KEYS.has(key)) return "B";
   return null;
 }
+
+const BATCH_SOURCE_KIND_LABEL_KEY: Record<string, string> = {
+  manual: "batchSourceManual",
+  video: "batchSourceVideo",
+  image: "batchSourceImage",
+  ashed_import: "batchSourceAshedImport",
+  legacy_import: "batchSourceLegacyImport",
+};
+
+const BATCH_STATUS_LABEL_KEY: Record<string, string> = {
+  staged: "batchStatusStaged",
+  committed: "batchStatusCommitted",
+  superseded: "batchStatusSuperseded",
+};
+
+/** i18n key under `eventEvidence` for a batch source kind (fallback: unknown). */
+export function batchSourceKindLabelKey(sourceKind: string): string {
+  return BATCH_SOURCE_KIND_LABEL_KEY[sourceKind] ?? "batchSourceUnknown";
+}
+
+/** i18n key under `eventEvidence` for a batch lifecycle status (fallback: unknown). */
+export function batchStatusLabelKey(status: string): string {
+  return BATCH_STATUS_LABEL_KEY[status] ?? "batchStatusUnknown";
+}
