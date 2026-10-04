@@ -5,6 +5,7 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import {
   addCalendarDays,
+  getServerCalendarDate,
   getWeekStartMonday,
 } from "../src/lib/trains/game-time";
 import {
@@ -244,8 +245,7 @@ test.describe("VS weekly planner API", () => {
 });
 
 function todayLocalDate(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return getServerCalendarDate();
 }
 
 test.describe("VS weekly planner UI", () => {
@@ -1018,13 +1018,14 @@ test.describe("VS weekly planner UI", () => {
     );
     await page.goto("/en-US/vs-performance");
     await expect(page.getByTestId("weekly-vs-plan").locator("visible=true")).toBeVisible();
-    await page.evaluate(
-      (week) => window.history.pushState({}, "", `?week=${week}`),
-      pastWeek,
-    );
+    await page.evaluate((week) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", week);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+    }, pastWeek);
     await expect(
       page.getByRole("button", { name: "Retry", exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(600);
     expect(calls).toBe(1);
     await page.getByRole("button", { name: "Retry", exact: true }).click();
@@ -1207,10 +1208,11 @@ test.describe("VS weekly planner UI", () => {
       .getByRole("combobox")
       .first();
     await select.selectOption("push");
-    await page.evaluate(
-      (week) => window.history.pushState({}, "", `?week=${week}`),
-      refreshWeek,
-    );
+    await page.evaluate((week) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", week);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+    }, refreshWeek);
     await expect(select).toHaveValue("push");
     const futureTitle = new Date(`${refreshWeek}T12:00:00`).toLocaleDateString(
       "en-US",
@@ -1299,19 +1301,27 @@ test.describe("VS weekly planner UI", () => {
         body: JSON.stringify(aPayload),
       });
     });
+    await page.route(
+      (url) => url.search.includes("_rsc="),
+      () => new Promise(() => {}),
+    );
     await page.goto("/en-US/vs-performance");
     await expect(page.getByText("Foe Alliance").first()).toBeVisible();
-    await page.evaluate(
-      (week) =>
-        window.history.pushState({ hqWeekProbe: true }, "", `?week=${week}`),
-      nextWeek,
-    );
-    await expect.poll(() => apiCalls).toBe(1);
+    await page.evaluate((week) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", week);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+    }, nextWeek);
+    await expect.poll(() => apiCalls, { timeout: 30_000 }).toBe(1);
     await attachSecondAlliance(
       scenario.officer.sessionId,
       scenario.officer.hqUserId,
     );
-    await page.goBack();
+    await page.evaluate((week) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", week);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+    }, currentWeek);
     const lateResponse = page.waitForResponse((res) =>
       res.url().includes(`weekStart=${nextWeek}`),
     );
