@@ -1289,6 +1289,13 @@
       "when": 1790900000194,
       "tag": "0195_video_vs_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1790900000195,
+      "tag": "0196_vs_calculator",
+      "breakpoints": true
     }
   ]
 }

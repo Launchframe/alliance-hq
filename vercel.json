@@ -81,6 +81,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/internal/vs/daily-announcement",
+      "schedule": "50 1 * * *"
+    },
+    {
       "path": "/api/internal/vs-compliance/weekly",
       "schedule": "*/5 * * * *"
     }
