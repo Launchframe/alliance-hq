@@ -114,10 +114,128 @@ describe("processVrConfirmation", () => {
         kind: "anomaly_confirm",
         proposedVr: 8000,
         ashedMemberId: "member-1",
+        seasonKey: "1",
       },
       translate,
       seasonKey: "1",
     });
     expect(result.action).toMatchObject({ type: "set_vr", vr: 8000 });
+  });
+
+  it("denies confirmation for a different season without writes", () => {
+    const result = processVrConfirmation({
+      answer: "yes",
+      pending: {
+        kind: "anomaly_confirm",
+        proposedVr: 8000,
+        ashedMemberId: "member-1",
+        seasonKey: "2",
+      },
+      translate,
+      seasonKey: "1",
+    });
+    expect(result.action).toEqual({ type: "none" });
+    expect(result.reply).toBe(translate("errors.noConfirm"));
+  });
+
+  it("denies legacy confirmation pending without a season binding", () => {
+    const result = processVrConfirmation({
+      answer: "yes",
+      pending: {
+        kind: "anomaly_confirm",
+        proposedVr: 8000,
+        ashedMemberId: "member-1",
+      },
+      translate,
+      seasonKey: "1",
+    });
+    expect(result.action).toEqual({ type: "none" });
+    expect(result.reply).toBe(translate("errors.noConfirm"));
+  });
+
+  it("denies confirmation when proposed VR is not a season ladder value", () => {
+    const result = processVrConfirmation({
+      answer: "yes",
+      pending: {
+        kind: "anomaly_confirm",
+        proposedVr: 8100,
+        ashedMemberId: "member-1",
+        seasonKey: "1",
+      },
+      translate,
+      seasonKey: "1",
+    });
+    expect(result.action).toEqual({ type: "none" });
+    expect(result.reply).toBe(translate("errors.noConfirm"));
+  });
+});
+
+describe("processVrCommand season-bound pending", () => {
+  const base = {
+    ashedMemberId: "member-1",
+    reporterCount: 10,
+    peerMax: 7000,
+    pending: null,
+    translate,
+    seasonKey: "1",
+  };
+
+  it("keeps stillWaiting only for same-season anomaly pending", () => {
+    const pending = {
+      kind: "anomaly_confirm" as const,
+      proposedVr: 8000,
+      ashedMemberId: "member-1",
+      seasonKey: "1",
+    };
+    const result = processVrCommand({
+      ...base,
+      seasonHigh: 3000,
+      pending,
+    });
+    expect(result.needsConfirmation).toBe(true);
+    expect(result.pending).toBe(pending);
+  });
+
+  it("treats stale-season pending as an ordinary prompt, not stillWaiting", () => {
+    const pending = {
+      kind: "anomaly_confirm" as const,
+      proposedVr: 8000,
+      ashedMemberId: "member-1",
+      seasonKey: "2",
+    };
+    const result = processVrCommand({
+      ...base,
+      seasonHigh: 3000,
+      pending,
+    });
+    expect(result.action).toMatchObject({ type: "set_vr", vr: 3400 });
+  });
+
+  it("treats legacy seasonless pending as an ordinary prompt", () => {
+    const pending = {
+      kind: "anomaly_confirm" as const,
+      proposedVr: 8000,
+      ashedMemberId: "member-1",
+    };
+    const result = processVrCommand({
+      ...base,
+      seasonHigh: 3000,
+      pending,
+    });
+    expect(result.action).toMatchObject({ type: "set_vr", vr: 3400 });
+  });
+
+  it("binds new anomaly prompts to the current season", () => {
+    const result = processVrCommand({
+      ...base,
+      seasonHigh: 3000,
+      explicitLevel: 8000,
+      peerMax: 3000,
+    });
+    expect(result.pending).toMatchObject({
+      kind: "anomaly_confirm",
+      proposedVr: 8000,
+      seasonKey: "1",
+    });
   });
 });

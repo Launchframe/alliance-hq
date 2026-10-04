@@ -4,6 +4,7 @@ import {
   defaultInviteWizardTargets,
   isValidInviteEmail,
   JOIN_CODE_DEFAULT_MAX_USES,
+  resolveOfficerHybridInviteRole,
 } from "@/lib/settings/invite-wizard.shared";
 import { validateInviteWizardStep2 } from "@/lib/settings/invite-wizard-generate.client";
 
@@ -27,5 +28,11 @@ describe("invite wizard shared", () => {
     expect(
       validateInviteWizardStep2({ type: "invite_link", targets }),
     ).toBe("inviteEmailRequired");
+  });
+
+  it("maps hybrid leadership invite role from in-game rank", () => {
+    expect(resolveOfficerHybridInviteRole(4)).toBe("officer");
+    expect(resolveOfficerHybridInviteRole(5)).toBe("owner");
+    expect(resolveOfficerHybridInviteRole(3)).toBeNull();
   });
 });

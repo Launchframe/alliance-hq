@@ -7,6 +7,7 @@ export type VideoProcessorCandidate = {
   email: string;
   displayName: string | null;
   subtitle: string | null;
+  viaCredentialShareId?: string | null;
 };
 
 export type VideoProcessorCandidateList = {

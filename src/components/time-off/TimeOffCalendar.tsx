@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import type { SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
 import {
@@ -36,6 +36,8 @@ export function TimeOffCalendar({
   onSelectEntry,
 }: Props) {
   const t = useTranslations("timeOff");
+  const locale = useLocale();
+  const monthLabel = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${monthKey}-01T12:00:00Z`));
   const [weekdayHeaders] = useState(() =>
     t.raw("calendar.weekdayHeaders") as string[],
   );
@@ -52,7 +54,7 @@ export function TimeOffCalendar({
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="text-sm font-medium text-hq-fg">{monthKey}</div>
+        <div className="text-sm font-medium text-hq-fg">{monthLabel}</div>
         <button
           type="button"
           className="rounded border border-hq-border p-2 hover:bg-hq-surface-muted"
@@ -87,7 +89,7 @@ export function TimeOffCalendar({
             >
               <div className="text-xs font-medium text-hq-fg">
                 {cell.date.slice(-2)}
-                <span className="sr-only">{weekdayHeaders[weekday]}</span>
+                <span className="sr-only">{weekdayHeaders[(weekday + 6) % 7]}</span>
               </div>
               <div className="mt-1 space-y-1">
                 {dayEntries.slice(0, 3).map((entry) => (
@@ -103,7 +105,7 @@ export function TimeOffCalendar({
                           : "bg-sky-500/15 text-sky-800 dark:text-sky-200"
                     }`}
                   >
-                    {entry.memberName}
+                    {entry.memberName}{!entry.globalAbsence && entry.activityScope !== "all" ? ` · ${t(`sync.scope.${entry.activityScope}`)}` : ""}
                   </button>
                 ))}
                 {dayEntries.length > 3 ? (

@@ -64,10 +64,10 @@ describe("invite share payload builders", () => {
       passphrase: "secret",
     });
     expect(payload.welcomeUrl).toBe(
-      `https://hq.example/welcome?invite=${LONG_TOKEN}`,
+      `https://hq.example/welcome?invite=${LONG_TOKEN}&p=secret`,
     );
     expect(payload.shareMessage).toContain(payload.welcomeUrl);
-    expect(payload.shareMessage).toContain("secret");
+    expect(payload.shareMessage).not.toContain("send separately");
   });
 
   it("falls back to legacy invite URL when token cannot be extracted", () => {

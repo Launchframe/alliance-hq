@@ -6,13 +6,14 @@ import { loadDashboardInitialData } from "@/lib/analytics/dashboard-summary.serv
 import { collectDatabaseErrorText } from "@/lib/db/error-message";
 import { resolveCanUseAshedEmbedsForSession } from "@/lib/dashboard/page-context.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("dashboard");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function DashboardPage() {

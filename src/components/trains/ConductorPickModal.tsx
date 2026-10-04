@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+export type ConductorPickMemberHint = {
+  relativeLastConducted: string;
+  mechanismLabel: string | null;
+};
 
 type RosterMember = {
   memberId: string;
@@ -9,31 +14,58 @@ type RosterMember = {
 
 type Props = {
   open: boolean;
+  error?: string | null;
   members: RosterMember[];
+  memberHints?: Record<string, ConductorPickMemberHint>;
+  hintsLoading?: boolean;
   title: string;
   searchPlaceholder: string;
   emptyLabel: string;
   cancelLabel: string;
   confirmLabel: string;
+  hintsLoadingLabel?: string;
+  sameGenerationMemberIds?: ReadonlySet<string>;
+  sameGenerationWarningLabel?: string;
+  eligibilityOverrideMemberIds?: ReadonlySet<string>;
+  eligibilityOverrideWarningLabel?: string;
+  forceEligibilityMemberId?: string | null;
   showGuardianToggle?: boolean;
   guardianIsVipLabel?: string;
   onClose: () => void;
-  onPick: (member: RosterMember, guardianIsVip: boolean) => void;
+  onPick: (
+    member: RosterMember,
+    guardianIsVip: boolean,
+    options?: {
+      allowSameGenerationReuse?: boolean;
+      allowEligibilityOverride?: boolean;
+    },
+  ) => void;
 };
 
 export function ConductorPickModal({
   open,
+  error,
   members,
+  memberHints,
+  hintsLoading = false,
   title,
   searchPlaceholder,
   emptyLabel,
   cancelLabel,
   confirmLabel,
+  hintsLoadingLabel,
+  sameGenerationMemberIds,
+  sameGenerationWarningLabel,
+  eligibilityOverrideMemberIds,
+  eligibilityOverrideWarningLabel,
+  forceEligibilityMemberId = null,
   showGuardianToggle = false,
   guardianIsVipLabel,
   onClose,
   onPick,
 }: Props) {
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guardianIsVip, setGuardianIsVip] = useState(false);
@@ -45,6 +77,20 @@ export function ConductorPickModal({
   }, [members, query]);
 
   const selected = members.find((m) => m.memberId === selectedId) ?? null;
+  const sameGenerationSelected =
+    selected != null &&
+    sameGenerationMemberIds?.has(selected.memberId) === true;
+  const eligibilityOverrideSelected =
+    selected != null &&
+    eligibilityOverrideMemberIds?.has(selected.memberId) === true;
+  const warningLabel = sameGenerationSelected
+    ? sameGenerationWarningLabel
+    : eligibilityOverrideSelected ||
+        (forceEligibilityMemberId != null &&
+          selected?.memberId === forceEligibilityMemberId)
+      ? eligibilityOverrideWarningLabel
+      : undefined;
+  const showEligibilityWarning = Boolean(warningLabel);
 
   if (!open) return null;
 
@@ -88,18 +134,47 @@ export function ConductorPickModal({
           ) : (
             filtered.map((member) => {
               const isSelected = member.memberId === selectedId;
+              const hint = memberHints?.[member.memberId];
               return (
                 <li key={member.memberId}>
                   <button
                     type="button"
                     onClick={() => setSelectedId(member.memberId)}
-                    className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium ${
+                    className={`w-full rounded-lg px-3 py-2.5 text-left ${
                       isSelected
                         ? "bg-hq-accent/15 text-hq-accent"
                         : "text-hq-fg hover:bg-hq-canvas"
                     }`}
                   >
-                    {member.memberName}
+                    <div className="text-sm font-medium">{member.memberName}</div>
+                    {memberHints ? (
+                      hintsLoading && !hint ? (
+                        <div className="mt-0.5 text-xs text-hq-fg-muted">
+                          {hintsLoadingLabel}
+                        </div>
+                      ) : hint ? (
+                        <div className="mt-0.5 space-y-0.5">
+                          <div
+                            className={`text-xs ${
+                              isSelected ? "text-hq-accent/80" : "text-hq-fg-muted"
+                            }`}
+                          >
+                            {hint.relativeLastConducted}
+                          </div>
+                          {hint.mechanismLabel ? (
+                            <div
+                              className={`text-xs ${
+                                isSelected
+                                  ? "text-hq-accent/70"
+                                  : "text-hq-fg-subtle"
+                              }`}
+                            >
+                              {hint.mechanismLabel}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null
+                    ) : null}
                   </button>
                 </li>
               );
@@ -119,6 +194,16 @@ export function ConductorPickModal({
           </label>
         ) : null}
 
+        {showEligibilityWarning ? (
+          <p
+            className="border-t border-hq-border px-4 py-3 text-sm text-hq-warning"
+            data-testid="conductor-pick-eligibility-warning"
+          >
+            {warningLabel}
+          </p>
+        ) : null}
+
+        {error ? <p role="alert" ref={errorRef} className="px-4 py-2 text-sm text-hq-warning">{error}</p> : null}
         <div className="flex flex-col-reverse gap-2 border-t border-hq-border p-3 sm:flex-row sm:justify-end">
           <button
             type="button"
@@ -132,10 +217,16 @@ export function ConductorPickModal({
             disabled={!selected}
             onClick={() => {
               if (!selected) return;
-              onPick(selected, guardianIsVip);
-              setQuery("");
-              setSelectedId(null);
-              setGuardianIsVip(false);
+              onPick(
+                selected,
+                guardianIsVip,
+                showEligibilityWarning
+                  ? {
+                      allowSameGenerationReuse: true,
+                      allowEligibilityOverride: true,
+                    }
+                  : undefined,
+              );
             }}
             className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:cursor-not-allowed disabled:opacity-50"
           >

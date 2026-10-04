@@ -9,7 +9,8 @@ import {
   type PriceIsRightLeaderboardEntry,
 } from "@/lib/trains/price-is-right-leaderboard.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
@@ -30,22 +31,35 @@ export async function loadPriceIsRightVsLeaderboard(input: {
   hqUserId?: string | null;
 }): Promise<PriceIsRightLeaderboardPayload> {
   const { seasonKey } = await getEffectiveSeasonForAlliance(input.allianceId);
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
   const dayConfig = await resolveRollDayConfig(
     input.allianceId,
     input.trainDate,
     seasonKey,
   );
-  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
+  const scoreDateDayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    scoreDate,
+    seasonKey,
+  );
+  const leaderboardKind = resolveScoreLeaderboardKind({
+    rule: dayConfig.conductorRule,
+    trainDate: input.trainDate,
+    leadDays,
+    scoreDayRule: scoreDateDayConfig.conductorRule,
+  });
+  if (leaderboardKind !== "tpif") {
     throw new Error("Selected day is not a Price Is Freight train day.");
   }
 
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
   const [members, rankEvents, vsScores] = await Promise.all([
     loadActiveAlliancePoolMembers({ allianceId: input.allianceId }),
     getAllianceRanksAsOf(input.allianceId, input.trainDate),
     fetchAlliancePriorDayVsScoresForTrainDate(
       input.allianceId,
       input.trainDate,
+      leadDays,
     ),
   ]);
 

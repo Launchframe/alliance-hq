@@ -6,6 +6,7 @@ import {
   SCORE_LEADERBOARD_LIST_MAX,
   type ScoreLeaderboardPayload,
 } from "@/lib/trains/score-leaderboard-podium.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
@@ -14,7 +15,8 @@ export async function loadVsPushLeaderboard(input: {
   trainDate: string;
   hqUserId?: string | null;
 }): Promise<ScoreLeaderboardPayload> {
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
   let viewerMemberId: string | null = null;
   if (input.hqUserId) {
     const link = await getHqMemberLinkForUser(
@@ -28,6 +30,7 @@ export async function loadVsPushLeaderboard(input: {
     input.allianceId,
     input.trainDate,
     SCORE_LEADERBOARD_LIST_MAX,
+    leadDays,
   );
 
   const entries = mapPriorDayVsToScoreEntries(

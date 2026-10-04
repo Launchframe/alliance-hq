@@ -1,19 +1,22 @@
 import "server-only";
+import { lockConductorWithBoarding as lockConductorRecord } from "./boarding.server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   getConductorRecord,
-  lockConductorRecord,
-  markConductorDepartingSoonAnnounced,
+  claimConductorDepartingSoonAnnounced,
+  clearConductorDepartingSoonAnnounced,
 } from "@/lib/trains/repository";
 import { getServerCalendarDate, refreshExhaustedPoolsForDay } from "@/lib/trains/service";
 import {
   formatTrainDepartingSoonMessage,
   formatTrainReadyMessage,
   groupTrainChannelsByAlliance,
+  shouldAnnounceTrainLockForDate,
   TRAIN_DEPARTING_SOON_ELAPSED_HOURS,
   TRAIN_PLATFORM_WINDOW_HOURS,
 } from "@/lib/trains/discord-bot.shared";
@@ -79,6 +82,7 @@ export async function announceTrainReadyToAlliance(input: {
 export async function lockTrainForAlliance(input: {
   allianceId: string;
   date: string;
+  lockedByHqUserId?: string | null;
 }): Promise<(typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect)> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
     .seasonKey;
@@ -94,11 +98,30 @@ export async function lockTrainForAlliance(input: {
     throw new Error("Select a conductor before locking.");
   }
 
-  const locked = await lockConductorRecord(record.id, input.allianceId);
+  const locked = await lockConductorRecord(
+    record.id,
+    input.allianceId,
+    input.lockedByHqUserId,
+  );
   await refreshExhaustedPoolsForDay({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
+  });
+  await writeTrainsOfficerAudit({
+    sessionId: null,
+    allianceId: input.allianceId,
+    hqUserId: input.lockedByHqUserId,
+    action: "trains.conductor_lock",
+    severity: "routine",
+    resourceType: "train_conductor_record",
+    resourceId: locked.id,
+    resourceName: locked.conductorMemberName,
+    metadata: {
+      date: input.date,
+      conductorMemberId: locked.conductorMemberId,
+      source: "discord",
+    },
   });
   return locked;
 }
@@ -111,6 +134,12 @@ export async function maybeAnnounceTrainReady(input: {
   vipName?: string | null;
   locale?: DiscordBotLocale;
 }): Promise<{ posted: number; skipped: number }> {
+  if (
+    !shouldAnnounceTrainLockForDate(input.date, getServerCalendarDate())
+  ) {
+    return { posted: 0, skipped: 0 };
+  }
+
   let conductorName = input.conductorName?.trim();
   let vipName = input.vipName;
   if (!conductorName) {
@@ -143,6 +172,7 @@ export async function lockTrainAndAnnounce(input: {
   date: string;
   guildId?: string | null;
   locale?: DiscordBotLocale;
+  lockedByHqUserId?: string | null;
 }): Promise<{
   record: (typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect);
   announce: { posted: number; skipped: number };
@@ -150,6 +180,7 @@ export async function lockTrainAndAnnounce(input: {
   const locked = await lockTrainForAlliance({
     allianceId: input.allianceId,
     date: input.date,
+    lockedByHqUserId: input.lockedByHqUserId,
   });
   const announce = await maybeAnnounceTrainReady({
     allianceId: input.allianceId,
@@ -167,6 +198,8 @@ export async function draftConductorForAlliance(input: {
   date: string;
   memberId: string;
   memberName: string;
+  allowEligibilityOverride?: boolean;
+  hqUserId?: string | null;
 }): Promise<(typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect)> {
   // Same depleting-pool consume / gates as HQ web manual pick.
   // Dynamic import avoids a cycle: service ↔ discord-bot.server.
@@ -230,6 +263,15 @@ export async function processDepartingSoonReminders(): Promise<{
       trainsUrl: trainsUrlForLocale(),
     });
 
+    const claimed = await claimConductorDepartingSoonAnnounced(
+      record.id,
+      allianceId,
+    );
+    if (!claimed) {
+      skipped += channels.length;
+      continue;
+    }
+
     let alliancePosted = 0;
     for (const channel of channels) {
       const ok = await postDiscordChannelMessage(channel.channelId, message);
@@ -241,8 +283,9 @@ export async function processDepartingSoonReminders(): Promise<{
     }
 
     if (alliancePosted > 0) {
-      await markConductorDepartingSoonAnnounced(record.id, allianceId);
       posted += alliancePosted;
+    } else {
+      await clearConductorDepartingSoonAnnounced(record.id, allianceId);
     }
   }
 

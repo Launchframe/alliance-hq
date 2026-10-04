@@ -47,6 +47,15 @@ Until someone leadership-linked has adopted the game server, downstream invites 
 1. **Settings → Team access** → invite each R4/R5 with role **Officer** (protected link + passphrase is common for bulk handoff in chat).
 2. Each officer: accept invite → sign in → **`/onboard`** → UID confirm.
 
+### R4 privilege nudges
+
+When HQ detects an in-game rank change **into or out of R4** (video OCR, manual/bulk confirm, trains API, or Ashed roster sync), Team access and the reminder inbox open a **rejectable nudge**:
+
+- **Into R4:** invite as officer (no HQ account yet) or elevate an existing membership to officer.
+- **Out of R4:** demote HQ **officer** to **member** (never owner/maintainer). Audience is the alliance owner when they have an HQ account; otherwise the officer pool.
+- **Reject** vouches for the whole alliance until that member’s rank situation changes again.
+- Open nudges and a merged history of rank changes, nudges, and HQ role changes appear on **Settings → Team access**.
+
 ### If a later officer is not on the roster yet
 
 After the first roster row exists, additional officers may still hit **roster miss** or **awaiting owner approval** (invite-gated email/protected-link paths):

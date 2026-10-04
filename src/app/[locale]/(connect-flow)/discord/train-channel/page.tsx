@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { DiscordTrainChannelSetupLinks } from "@/components/settings/DiscordTrainChannelSetupLinks";
 import { Link } from "@/i18n/navigation";
@@ -11,6 +12,10 @@ import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.discordTrainChannel"));
+}
 export default async function DiscordTrainChannelPage({
   searchParams,
 }: {

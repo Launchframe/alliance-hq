@@ -1,10 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
 import { Link } from "@/i18n/navigation";
 import {
   currentGuidedStep,
@@ -13,22 +14,38 @@ import {
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 import type { TrainsRosterDataStatus } from "@/lib/trains/roster-data-status.shared";
-import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
+import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
+import {
+  conductorRuleLabelKey,
+  type ConductorRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  paletteIdForRule,
+  scopeForRule,
+} from "@/lib/trains/rules/palette.shared";
 
 /** Default destination for the "upload score video" prerequisites link. */
-const DEFAULT_VIDEO_UPLOAD_HREF = "/tools/video-upload";
+const DEFAULT_VIDEO_UPLOAD_HREF =
+  "/tools/video-upload?scoreTarget=vs-performance";
 
 export type TrainsGuidedConductorFlowProps = {
-  templateType: WeekTemplateType | null;
-  paintTemplate?: WeekTemplateType | null;
+  /** Rule painted on this day; null is free choice. */
+  conductorRule: ConductorRule | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
+  /** When minimums apply but HQ has no VS rows for the evaluation window. */
+  conductorMinimumsDataStatus?: ConductorMinimumsDataStatus | null;
+  /** VS upload deep link for the minimums evaluation window (when missing). */
+  conductorMinimumsUploadHref?: string;
+  /** Score source stats for the selected/today train day when scores apply. */
+  scoreStats?: TrainDayScoreStats | null;
   rosterDataStatus: TrainsRosterDataStatus | null;
   hasConductor: boolean;
   conductorName?: string | null;
+  eligibilityOverridden?: boolean;
   vipNeeded: boolean;
   hasVip: boolean;
   vipName?: string | null;
@@ -41,16 +58,26 @@ export type TrainsGuidedConductorFlowProps = {
   /** Precomputed via `canSpinVip(...)` in the dashboard — not re-derived here. */
   canSpinVipWheel: boolean;
   /** Used only to choose the "pick top scorer" label vs. the wheel/manual CTAs. */
-  conductorMech: string | null;
+
   vipMech?: string | null;
   busy: boolean;
   onChangeTemplate: () => void;
   onRollConductor: () => void;
   onPickTopScorer: () => void;
   onPickConductorManual: () => void;
+  /** Clear an unlocked pending conductor draft (releases the pool slot). */
+  onClearPendingConductor?: () => void;
   onRollVip: () => void;
   onPickVipManual: () => void;
   onLock: () => void;
+  /** R4 confirmation gate before lock when alliance auto-nomination is enabled. */
+  pendingConfirmation?: boolean;
+  canConfirmNomination?: boolean;
+  confirmationDeadlineLabel?: string;
+  onConfirmNomination?: () => void;
+  confirmNominationBusy?: boolean;
+  /** Inline lock confirmation (e.g. Discord announce) — replaces the lock CTA in the Lock step. */
+  lockConfirm?: ReactNode;
   /** Pool remaining + View pool — same panel as advanced mode, for depleting pools. */
   poolPanel?: ReactNode;
   /** Rendered inside the "Show advanced actions" disclosure (swap / reseed / unlock, etc). */
@@ -149,11 +176,20 @@ function PrimaryCtaButton({
   );
 }
 
-function ChangeLink({ label, onClick }: { label: string; onClick: () => void }) {
+function ChangeLink({
+  label,
+  onClick,
+  testId,
+}: {
+  label: string;
+  onClick: () => void;
+  testId?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      data-testid={testId}
       className="text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
     >
       {label}
@@ -201,13 +237,16 @@ function StepRow({
 
 export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps) {
   const {
-    templateType,
-    paintTemplate,
+    conductorRule,
     templateDetailHint,
     vsDataStatus,
+    conductorMinimumsDataStatus = null,
+    conductorMinimumsUploadHref,
+    scoreStats = null,
     rosterDataStatus,
     hasConductor,
     conductorName,
+    eligibilityOverridden = false,
     vipNeeded,
     hasVip,
     vipName,
@@ -217,15 +256,21 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     canManualPickVip,
     canSpinConductorWheel,
     canSpinVipWheel,
-    conductorMech,
     busy,
     onChangeTemplate,
     onRollConductor,
     onPickTopScorer,
     onPickConductorManual,
+    onClearPendingConductor,
     onRollVip,
     onPickVipManual,
     onLock,
+    pendingConfirmation = false,
+    canConfirmNomination = false,
+    confirmationDeadlineLabel,
+    onConfirmNomination,
+    confirmNominationBusy = false,
+    lockConfirm,
     poolPanel,
     advancedActions,
     videoUploadHref,
@@ -241,9 +286,16 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const connectAshedHref = buildConnectHref("/trains");
 
   const t = useTranslations("trains.guidedFlow");
-  const tTemplates = useTranslations("trains.templates");
-  const tTemplateDetails = useTranslations("trains.templateDetails");
+  const tTrains = useTranslations("trains");
+  const tConfirmation = useTranslations("trains.conductorConfirmation");
+  const tRules = useTranslations("trains.rules");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const lockStepRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!lockConfirm || !lockStepRef.current) return;
+    lockStepRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [lockConfirm]);
 
   const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
   const rosterRequired = Boolean(rosterDataStatus?.required);
@@ -260,31 +312,36 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   };
   const current = currentGuidedStep(guidedInput);
 
-  const dayConductorPick = paintTemplate ?? templateType;
-  const conductorPickLabel = dayConductorPick ? tTemplates(dayConductorPick) : null;
+  const rulePaletteId = paletteIdForRule(conductorRule);
+  const ruleScope = scopeForRule(conductorRule);
+  const conductorPickLabel = `${tRules(
+    conductorRuleLabelKey(conductorRule),
+  )}${ruleScope != null ? ` ${ruleScope}` : ""}`;
+  const ruleDetailKey = `ruleDetails.${rulePaletteId}` as const;
   const conductorPickHint =
     templateDetailHint ??
-    (dayConductorPick && WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(dayConductorPick)
-      ? tTemplateDetails(dayConductorPick)
-      : null);
+    (tTrains.has(ruleDetailKey) ? tTrains(ruleDetailKey) : null);
 
   const conductorAction: PrimaryAction = canSpinConductorWheel
     ? { label: t("steps.conductor.spin"), onClick: onRollConductor }
     : canRoll &&
-        (conductorMech === "vs_high_score" ||
-          conductorMech === "vs_top_n" ||
-          conductorMech === "donations_top") &&
+        (conductorRule?.kind === "vs_top_n" ||
+          conductorRule?.kind === "donations_top") &&
         !canSpinConductorWheel
       ? { label: t("steps.conductor.pickTop"), onClick: onPickTopScorer }
-      : canManualPick
-        ? { label: t("steps.conductor.pickManual"), onClick: onPickConductorManual }
-        : null;
+      : null;
+
+  const showSecondaryPickConductor =
+    canManualPick && conductorAction?.onClick !== onPickConductorManual;
 
   const vipAction: PrimaryAction = canSpinVipWheel
     ? { label: t("steps.vip.spin"), onClick: onRollVip }
     : canManualPickVip
       ? { label: t("steps.vip.pickManual"), onClick: onPickVipManual }
       : null;
+
+  const showSecondaryPickVip =
+    canManualPickVip && vipAction?.onClick !== onPickVipManual;
 
   const prerequisitesStatus = stepStatus(
     "prerequisites",
@@ -470,6 +527,9 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 <p className="text-sm text-hq-fg">
                   {t("steps.prerequisites.bodyMissing")}
                 </p>
+                {scoreStats ? (
+                  <TrainDayScoreStatsSummary stats={scoreStats} />
+                ) : null}
                 <Link
                   href={videoUploadHref ?? DEFAULT_VIDEO_UPLOAD_HREF}
                   data-testid="trains-guided-upload-link"
@@ -479,11 +539,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 </Link>
               </div>
             ) : prerequisitesStatus === "completed" ? (
-              <p className="text-xs text-hq-fg-muted">
-                {t("steps.prerequisites.bodyReady", {
-                  count: vsDataStatus?.scoreCount ?? 0,
-                })}
-              </p>
+              scoreStats ? (
+                <TrainDayScoreStatsSummary stats={scoreStats} />
+              ) : (
+                <p className="text-xs text-hq-fg-muted">
+                  {t("steps.prerequisites.bodyReady", {
+                    count: vsDataStatus?.scoreCount ?? 0,
+                  })}
+                </p>
+              )
             ) : null}
           </StepRow>
         ) : null}
@@ -495,11 +559,47 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 <span className="text-sm text-hq-fg-muted">
                   {t("steps.conductor.assigned", { name: conductorName ?? "—" })}
                 </span>
+                {eligibilityOverridden ? (
+                  <span
+                    className="rounded-full bg-hq-warning/15 px-2 py-0.5 text-xs font-medium text-hq-warning"
+                    data-testid="trains-conductor-eligibility-override"
+                    title={tTrains("conductorEligibilityOverrideHint")}
+                  >
+                    {tTrains("conductorEligibilityOverrideBadge")}
+                  </span>
+                ) : null}
+                {!locked && canSpinConductorWheel ? (
+                  <ChangeLink
+                    label={tWheel("spinAgain")}
+                    onClick={onRollConductor}
+                    testId="trains-guided-spin-again"
+                  />
+                ) : null}
+                {!locked &&
+                canRoll &&
+                conductorRule?.kind === "vs_top_n" &&
+                !canSpinConductorWheel ? (
+                  <ChangeLink
+                    label={t("steps.conductor.pickTop")}
+                    onClick={onPickTopScorer}
+                  />
+                ) : null}
                 {!locked && canManualPick ? (
                   <ChangeLink
                     label={t("steps.conductor.change")}
                     onClick={onPickConductorManual}
                   />
+                ) : null}
+                {!locked && onClearPendingConductor ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    data-testid="trains-clear-pending-conductor"
+                    onClick={onClearPendingConductor}
+                    className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface disabled:opacity-50"
+                  >
+                    {t("steps.conductor.clear")}
+                  </button>
                 ) : null}
               </div>
               {onShareImage ? (
@@ -518,26 +618,109 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             </div>
           ) : conductorStatus === "current" ? (
             <div className="flex flex-col gap-2">
-              {vsDataStatus?.required && vsDataStatus.ready ? (
-                <p className="text-xs text-hq-fg-muted">
-                  {t("steps.prerequisites.bodyReady", {
-                    count: vsDataStatus.scoreCount,
-                  })}
-                </p>
+              {conductorMinimumsDataStatus?.applies &&
+              conductorMinimumsDataStatus.missingVsScores ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                  data-testid="trains-conductor-minimums-warning"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {conductorMinimumsDataStatus.evaluationWindow === "weekly"
+                      ? t("steps.conductor.minimumsMissingScores.bodyWeekly", {
+                          start: conductorMinimumsDataStatus.periodStart,
+                          end: conductorMinimumsDataStatus.periodEnd,
+                        })
+                      : t("steps.conductor.minimumsMissingScores.bodyDaily", {
+                          date: conductorMinimumsDataStatus.periodStart,
+                        })}
+                  </p>
+                  <Link
+                    href={
+                      conductorMinimumsUploadHref ??
+                      videoUploadHref ??
+                      DEFAULT_VIDEO_UPLOAD_HREF
+                    }
+                    data-testid="trains-conductor-minimums-upload-link"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 sm:w-auto"
+                  >
+                    {t("steps.conductor.minimumsMissingScores.uploadLink")}
+                  </Link>
+                </div>
               ) : null}
-              <PrimaryCtaButton action={conductorAction} busy={busy} />
+              {vsDataStatus?.required && vsDataStatus.ready ? (
+                scoreStats ? (
+                  <TrainDayScoreStatsSummary stats={scoreStats} />
+                ) : (
+                  <p className="text-xs text-hq-fg-muted">
+                    {t("steps.prerequisites.bodyReady", {
+                      count: vsDataStatus.scoreCount,
+                    })}
+                  </p>
+                )
+              ) : null}
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {conductorAction ? (
+                  <PrimaryCtaButton action={conductorAction} busy={busy} />
+                ) : canManualPick ? (
+                  <PrimaryCtaButton
+                    action={{
+                      label: t("steps.conductor.pickManual"),
+                      onClick: onPickConductorManual,
+                    }}
+                    busy={busy}
+                  />
+                ) : null}
+                {showSecondaryPickConductor ? (
+                  <button
+                    type="button"
+                    onClick={onPickConductorManual}
+                    data-testid="trains-guided-pick-conductor"
+                    className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                  >
+                    {t("steps.conductor.pickManual")}
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </StepRow>
 
         <StepRow status={lockStatus} title={t("steps.lock.title")}>
           {lockStatus === "current" ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-hq-fg-muted">{t("steps.lock.ready")}</p>
-              <PrimaryCtaButton
-                action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
-                busy={busy}
-              />
+            <div ref={lockStepRef} className="flex flex-col gap-2">
+              {pendingConfirmation && canConfirmNomination ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                  data-testid="trains-conductor-pending-confirmation"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {tConfirmation("pending", {
+                      name: conductorName?.trim() || "—",
+                      time: confirmationDeadlineLabel ?? "—",
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy || confirmNominationBusy}
+                    onClick={() => onConfirmNomination?.()}
+                    className="inline-flex w-full items-center justify-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 disabled:opacity-50 sm:w-auto"
+                  >
+                    {confirmNominationBusy
+                      ? tConfirmation("confirming")
+                      : tConfirmation("confirmButton")}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-hq-fg-muted">{t("steps.lock.ready")}</p>
+                  {lockConfirm ?? (
+                    <PrimaryCtaButton
+                      action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
+                      busy={busy}
+                    />
+                  )}
+                </>
+              )}
             </div>
           ) : null}
         </StepRow>
@@ -555,7 +738,21 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
               ) : null}
             </div>
           ) : vipStatus === "current" ? (
-            <PrimaryCtaButton action={vipAction} busy={busy} />
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {vipAction ? (
+                <PrimaryCtaButton action={vipAction} busy={busy} />
+              ) : null}
+              {showSecondaryPickVip ? (
+                <button
+                  type="button"
+                  onClick={onPickVipManual}
+                  data-testid="trains-guided-pick-vip"
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                >
+                  {t("steps.vip.pickManual")}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </StepRow>
 

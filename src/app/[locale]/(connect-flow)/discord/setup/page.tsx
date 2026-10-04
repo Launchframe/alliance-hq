@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { getTranslations } from "next-intl/server";
 
 import { DiscordSetupWizard } from "@/components/discord/DiscordSetupWizard";
@@ -18,10 +19,8 @@ interface PageProps {
 
 export async function generateMetadata() {
   const t = await getTranslations("discordSetup");
-  return {
-    title: t("title"),
-    description: t("subtitle"),
-  };
+  const meta = standalonePageMetadata(t("title"));
+  return { ...meta, description: t("subtitle") };
 }
 
 export default async function DiscordSetupPage({ searchParams }: PageProps) {

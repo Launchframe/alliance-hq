@@ -1,54 +1,38 @@
 import { config as loadEnv } from "dotenv";
 import { defineConfig } from "@playwright/test";
+import { discordTestFollowupPort, discordTestKeyPair } from "./e2e/fixtures/discord-signing";
+import { createE2eRuntimeEnv } from "./scripts/e2e-runtime.mjs";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local" });
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
-const e2eDatabaseUrl =
-  process.env.E2E_DATABASE_URL?.trim() ||
-  process.env.LOCAL_DATABASE_URL?.trim() ||
-  "";
-const tokenEncryptionKey =
-  process.env.TOKEN_ENCRYPTION_KEY?.trim() || "a".repeat(64);
-const authSecret =
-  process.env.AUTH_SECRET?.trim() ||
-  "e2e-test-auth-secret-min-32-characters";
+const runtimeEnv = createE2eRuntimeEnv(process.env);
+const baseURL = runtimeEnv.PLAYWRIGHT_BASE_URL;
 
 // Test workers import app crypto helpers directly — not only the webServer env.
-process.env.TOKEN_ENCRYPTION_KEY = tokenEncryptionKey;
+process.env.DATABASE_URL = runtimeEnv.DATABASE_URL;
+process.env.LOCAL_DATABASE_URL = runtimeEnv.LOCAL_DATABASE_URL;
+process.env.E2E_DATABASE_URL = runtimeEnv.E2E_DATABASE_URL;
+process.env.TOKEN_ENCRYPTION_KEY = runtimeEnv.TOKEN_ENCRYPTION_KEY;
+process.env.AUTH_SECRET = runtimeEnv.AUTH_SECRET;
+process.env.E2E_TEST = runtimeEnv.E2E_TEST;
+process.env.HQ_E2E_ISOLATED = runtimeEnv.HQ_E2E_ISOLATED;
+process.env.__NEXT_PROCESSED_ENV = runtimeEnv.__NEXT_PROCESSED_ENV;
+process.env.E2E_EMAIL_CODE = runtimeEnv.E2E_EMAIL_CODE;
+process.env.PLAYWRIGHT_BASE_URL = runtimeEnv.PLAYWRIGHT_BASE_URL;
+process.env.NOTES_INTAKE_TEST_PROVIDER = runtimeEnv.NOTES_INTAKE_TEST_PROVIDER;
+process.env.NOTES_HISTORY_TEST_PROVIDER =
+  runtimeEnv.NOTES_HISTORY_TEST_PROVIDER;
+process.env.NOTES_KNOWLEDGE_TEST_PROVIDER =
+  runtimeEnv.NOTES_KNOWLEDGE_TEST_PROVIDER;
 
 /** Minimal env for Next — avoid libpq PG* vars from the developer shell. */
 function e2eServerEnv(): Record<string, string> {
-  const env: Record<string, string> = {
-    PATH: process.env.PATH ?? "",
-    HOME: process.env.HOME ?? "",
-    NODE_ENV: "production",
-    CI: process.env.CI ?? "",
-    NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=8192"]
-      .filter(Boolean)
-      .join(" "),
-    TOKEN_ENCRYPTION_KEY: tokenEncryptionKey,
-    AUTH_SECRET: authSecret,
-    HQ_ASHED_INVITE_REQUIRED: "false",
-    E2E_TEST: "true",
-    E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
-    AUTH_GOOGLE_ID: "e2e-google-client-id",
-    AUTH_GOOGLE_SECRET: "e2e-google-client-secret",
-    AUTH_DISCORD_ID: "e2e-discord-client-id",
-    AUTH_DISCORD_SECRET: "e2e-discord-client-secret",
+  return {
+    ...runtimeEnv,
+    DISCORD_PUBLIC_KEY: Buffer.from(discordTestKeyPair.publicKey).toString("hex"),
+    E2E_DISCORD_FOLLOWUP_ORIGIN: `http://127.0.0.1:${discordTestFollowupPort()}`,
   };
-  if (e2eDatabaseUrl) {
-    env.E2E_DATABASE_URL = e2eDatabaseUrl;
-    env.LOCAL_DATABASE_URL = e2eDatabaseUrl;
-    env.DATABASE_URL = e2eDatabaseUrl;
-  }
-  const ocrProvider = process.env.VIDEO_OCR_PROVIDER?.trim();
-  if (ocrProvider) {
-    env.VIDEO_OCR_PROVIDER = ocrProvider;
-    env.VIDEO_OCR_ALLOW_NONPROD = "true";
-  }
-  return env;
 }
 
 export default defineConfig({
@@ -64,12 +48,12 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "node scripts/e2e-server.mjs",
+    command: "node scripts/e2e-server-isolated.mjs",
     url: `${baseURL}/api/auth/connect`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 300_000,
     env: e2eServerEnv(),
   },
   globalSetup: "./e2e/global-setup.ts",
-  globalTeardown: "./e2e/global-teardown.ts",
+  globalTeardown: "./e2e/global-teardown-isolated.ts",
 });

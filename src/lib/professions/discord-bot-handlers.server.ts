@@ -82,6 +82,42 @@ export async function handleDiscordProfessionSelect(input: {
     return { reply: t("errors.hqLinkRequired") };
   }
 
+  // Stale "first select" components must not overwrite an existing profession
+  // without switchProfession cleanup (would orphan active Eng assignments).
+  if (ctx.profession) {
+    if (ctx.profession === input.profession) {
+      if (input.profession === "Engineer") {
+        return { reply: t("profession.nowEngineer", { appUrl: APP_URL }) };
+      }
+      return { reply: t("profession.nowWarLeader", { appUrl: APP_URL }) };
+    }
+    const fromProfession = ctx.profession as "Engineer" | "War Leader";
+    const { freedEngs } = await switchProfession({
+      allianceId,
+      commanderId: ctx.commanderId,
+      fromProfession,
+      toProfession: input.profession,
+    });
+    if (input.profession === "Engineer") {
+      const lines = [
+        t("profession.switchedToEngineer"),
+        t("profession.findWlPrompt", { appUrl: APP_URL }),
+      ];
+      if (fromProfession === "War Leader" && freedEngs.length > 0) {
+        lines.push(
+          t("profession.freedEngsNotice", { count: String(freedEngs.length) }),
+        );
+      }
+      return { reply: lines.join("\n") };
+    }
+    return {
+      reply: [
+        t("profession.switchedToWarLeader"),
+        t("profession.setupTeamPrompt", { appUrl: APP_URL }),
+      ].join("\n"),
+    };
+  }
+
   await updateCommanderProfession(ctx.commanderId, input.profession, allianceId);
 
   if (input.profession === "Engineer") {
@@ -94,6 +130,7 @@ export async function handleDiscordProfessionSelect(input: {
     reply: t("profession.nowWarLeader", { appUrl: APP_URL }),
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Profession switch confirm button

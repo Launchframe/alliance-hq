@@ -44,7 +44,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName);
+    await assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName, {
+      allianceId: access.allianceId,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Forbidden" },

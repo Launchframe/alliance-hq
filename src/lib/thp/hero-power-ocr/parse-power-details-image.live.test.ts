@@ -12,6 +12,15 @@ import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
 const JUL20_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-20.png");
 const JUL29_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-29.png");
+const SEP26_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-09-26.jpg");
+const SEP26_MIXED_SEPARATOR_FIXTURE = path.join(
+  fixtureDir,
+  "fixtures/power-details-2026-09-26-179979304.jpg",
+);
+const SEP26_GERMAN_FIXTURE = path.join(
+  fixtureDir,
+  "fixtures/power-details-2026-09-26-de-179979260.jpg",
+);
 
 /**
  * Live geometry-first OCR against a real phone screenshot.
@@ -80,6 +89,74 @@ describe("parsePowerDetailsImage live fixture", () => {
       expect(parsed.diagnostics.sampleLines.some((line) =>
         /heroLevel=871659312/.test(line),
       )).toBe(true);
+    },
+    120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "keeps a real 17x million header after comma-slot repair",
+    async () => {
+      const buffer = readFileSync(SEP26_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.heroPowerTotal).toBe(179_982_025);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 91_349_008,
+        decorationsAndBuildings: 41_691_896,
+        gear: 14_644_134,
+        exclusiveWeapons: 11_231_314,
+        heroTier: 7_335_078,
+        heroSkill: 6_940_820,
+        wallOfHonor: 6_789_775,
+      });
+      expect(parsed.diagnostics.sampleLines).toContain("rowN:17979827025");
+      expect(parsed.diagnostics.sampleLines).toContain("rowI:17979827025");
+    },
+    120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "repairs mixed separator artifacts without changing real header digits",
+    async () => {
+      const buffer = readFileSync(SEP26_MIXED_SEPARATOR_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.heroPowerTotal).toBe(179_979_304);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 91_346_688,
+        decorationsAndBuildings: 41_691_945,
+        gear: 14_644_134,
+        exclusiveWeapons: 11_231_314,
+        heroTier: 7_334_628,
+        heroSkill: 6_940_820,
+        wallOfHonor: 6_789_775,
+      });
+      expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979304");
+    },
+    120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "repairs German period separators without locale-specific delimiter rules",
+    async () => {
+      const buffer = readFileSync(SEP26_GERMAN_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.heroPowerTotal).toBe(179_979_260);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 91_346_688,
+        decorationsAndBuildings: 41_691_901,
+        gear: 14_644_134,
+        exclusiveWeapons: 11_231_314,
+        heroTier: 7_334_628,
+        heroSkill: 6_940_820,
+        wallOfHonor: 6_789_775,
+      });
+      expect(parsed.diagnostics.sampleLines).toContain("rowN:1797979260");
+      expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979260");
     },
     120_000,
   );

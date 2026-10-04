@@ -21,13 +21,15 @@ import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shar
 function snapshotToThpSeries(
   series: DashboardSummaryPayload["thpSeries"],
 ): Array<{ date: string; total: number | null; p50: number | null; p90: number | null; p99: number | null }> {
-  return series.map((row) => ({
-    date: row.recordedDate,
-    total: row.thpTotal,
-    p50: row.thpP50,
-    p90: row.thpP90,
-    p99: row.thpP99,
-  }));
+  return series
+    .filter((row) => row.thpTotal != null)
+    .map((row) => ({
+      date: row.recordedDate,
+      total: row.thpTotal,
+      p50: row.thpP50,
+      p90: row.thpP90,
+      p99: row.thpP99,
+    }));
 }
 
 function snapshotToDonationSeries(
@@ -123,14 +125,11 @@ export function AllianceDashboard({
   const squadPowerRows = useMemo(() => {
     if (!data) return [];
     const power = data.squad.squadPower;
-    const viewerSquad =
-      data.viewer.mainSquad ??
-      (data.viewer.mainSquad == null ? "unreported" : null);
+    const viewerSquad = data.viewer.mainSquad;
     return [
       { key: "aircraft", label: t("squad.aircraft"), value: power.aircraft },
       { key: "tank", label: t("squad.tank"), value: power.tank },
       { key: "missile", label: t("squad.missile"), value: power.missile },
-      { key: "unreported", label: t("squad.unreported"), value: power.unreported },
     ].map((row) => ({
       ...row,
       isViewer: viewerSquad === row.key,

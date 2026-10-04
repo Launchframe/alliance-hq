@@ -14,6 +14,7 @@ import {
 } from "@/lib/rbac/context";
 import {
   loadTrainDiscordSettings,
+  revokeGuildTrainChannel,
   saveTrainDiscordSettings,
 } from "@/lib/trains/train-discord-settings.server";
 import { requireApiSession } from "@/lib/session";
@@ -24,11 +25,13 @@ const patchSchema = z
   .object({
     announcementsEnabled: z.boolean().optional(),
     channelSetterMinRank: z.enum(["officer", "owner"]).optional(),
+    clearTrainChannelForGuildId: z.string().min(1).optional(),
   })
   .refine(
     (body) =>
       body.announcementsEnabled !== undefined ||
-      body.channelSetterMinRank !== undefined,
+      body.channelSetterMinRank !== undefined ||
+      body.clearTrainChannelForGuildId !== undefined,
     { message: "At least one field is required." },
   );
 
@@ -109,8 +112,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const touchesAnnouncements = body.data.announcementsEnabled !== undefined;
     const touchesSetterRank = body.data.channelSetterMinRank !== undefined;
+    const touchesClearChannel =
+      body.data.clearTrainChannelForGuildId !== undefined;
 
-    if (touchesAnnouncements) {
+    if (touchesAnnouncements || touchesClearChannel) {
       const denied = await requireAllianceRoutePermission(
         session.id,
         alliance.allianceId,
@@ -144,6 +149,40 @@ export async function PATCH(request: Request, context: RouteContext) {
       canManage,
       canConfigureChannelSetterMinRank,
     );
+
+    if (touchesClearChannel) {
+      const { cleared, settings: saved } = await revokeGuildTrainChannel(
+        alliance.allianceId,
+        body.data.clearTrainChannelForGuildId!,
+        canManage,
+        canConfigureChannelSetterMinRank,
+      );
+      if (!cleared) {
+        return NextResponse.json(
+          { error: "Discord server is not registered for this alliance." },
+          { status: 404 },
+        );
+      }
+
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId: alliance.allianceId,
+        hqUserId: session.hqUserId ?? undefined,
+        action: "trains.discord_train_channel_revoke",
+        resourceType: "discord_guild_alliance",
+        resourceId: body.data.clearTrainChannelForGuildId,
+        resourceName: alliance.name,
+        metadata: {
+          guildId: body.data.clearTrainChannelForGuildId,
+        },
+      });
+
+      return NextResponse.json({
+        allianceTag: alliance.tag,
+        ...saved,
+      });
+    }
+
     const saved = await saveTrainDiscordSettings(
       alliance.allianceId,
       {

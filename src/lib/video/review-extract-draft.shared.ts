@@ -5,6 +5,9 @@ export type VideoReviewDraftRow = {
   ocrName: string;
   score: string | null;
   rank: number | null;
+  frontlineStage?: number | null;
+  frontlineStageRaw?: string;
+  frontlineRankRaw?: string;
   rosterRankRaw?: string | null;
   allianceRank?: number | null;
   allianceRankTitle?: string | null;
@@ -33,6 +36,10 @@ export type VideoReviewDraftForm = {
   bankId?: string;
   vsPeriod?: "daily" | "weekly";
   bankTargetMismatchResolution?: "targeted" | "video";
+  matchOutcome?: "pending" | "win" | "loss";
+  opponentServer?: string;
+  opponentTag?: string;
+  opponentName?: string;
 };
 
 export type VideoReviewDraftV1 = VideoReviewDraftForm & {
@@ -112,6 +119,26 @@ export function parseVideoReviewDraft(raw: string): VideoReviewDraftV1 | null {
       draft.vsPeriod !== "daily" &&
       draft.vsPeriod !== "weekly"
     ) {
+      return null;
+    }
+    if (
+      draft.matchOutcome != null &&
+      draft.matchOutcome !== "pending" &&
+      draft.matchOutcome !== "win" &&
+      draft.matchOutcome !== "loss"
+    ) {
+      return null;
+    }
+    if (
+      draft.opponentServer != null &&
+      typeof draft.opponentServer !== "string"
+    ) {
+      return null;
+    }
+    if (draft.opponentTag != null && typeof draft.opponentTag !== "string") {
+      return null;
+    }
+    if (draft.opponentName != null && typeof draft.opponentName !== "string") {
       return null;
     }
     return draft;
@@ -233,6 +260,10 @@ export function restoreVideoReviewDraftIfPresent<T extends VideoReviewDraftRow>(
       bankId: draft.bankId ?? "",
       vsPeriod: draft.vsPeriod,
       bankTargetMismatchResolution: draft.bankTargetMismatchResolution,
+      matchOutcome: draft.matchOutcome,
+      opponentServer: draft.opponentServer,
+      opponentTag: draft.opponentTag,
+      opponentName: draft.opponentName,
     },
     restored: true,
     savedAt: draft.savedAt ?? null,

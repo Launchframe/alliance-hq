@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   describeGameUidClaimConflict,
+  hasConflictingDiscordAshedMemberOccupancy,
   hasConflictingDiscordGameUidClaim,
   hasConflictingHqGameUidClaim,
 } from "@/lib/member-link/link-claim-guards.shared";
@@ -112,5 +113,37 @@ describe("link-claim-guards.shared", () => {
         ],
       }),
     ).toBe(true);
+  });
+
+  it("blocks HQ claim of a seat already Discord-linked to another account (cross-UID)", () => {
+    // Discord Alice owns seat C; HQ Bob tries claim with a different UID —
+    // UID guards alone would miss this because indexes are per-UID per table.
+    expect(
+      hasConflictingDiscordAshedMemberOccupancy({
+        hqUserId: "hq-bob",
+        discordOccupants: [{ hqUserId: "hq-alice" }],
+      }),
+    ).toBe(true);
+    expect(
+      hasConflictingDiscordAshedMemberOccupancy({
+        hqUserId: "hq-bob",
+        discordOccupants: [{ hqUserId: null }],
+      }),
+    ).toBe(true);
+  });
+
+  it("allows HQ claim when Discord occupancy is the same HQ account", () => {
+    expect(
+      hasConflictingDiscordAshedMemberOccupancy({
+        hqUserId: "hq-alice",
+        discordOccupants: [{ hqUserId: "hq-alice" }],
+      }),
+    ).toBe(false);
+    expect(
+      hasConflictingDiscordAshedMemberOccupancy({
+        hqUserId: "hq-alice",
+        discordOccupants: [],
+      }),
+    ).toBe(false);
   });
 });

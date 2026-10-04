@@ -1,17 +1,22 @@
 import "server-only";
 
 import {
+  bindGuildAllianceForRegistration,
   callerCanRegisterGuildAlliance,
   getAllianceById,
   saveDiscordBotPending,
-  upsertGuildAlliance,
 } from "@/lib/vr/repository";
 
 export type CompleteGuildInstallResult =
   | { ok: true; tag: string; allianceId: string }
   | {
       ok: false;
-      reason: "missing_alliance" | "not_owner" | "no_credentials" | "no_hq_link";
+      reason:
+        | "missing_alliance"
+        | "not_owner"
+        | "no_credentials"
+        | "no_hq_link"
+        | "guild_bound_to_other_alliance";
     };
 
 export async function completeGuildRegistrationForInstall(input: {
@@ -36,7 +41,15 @@ export async function completeGuildRegistrationForInstall(input: {
     return { ok: false, reason: registration.reason };
   }
 
-  await upsertGuildAlliance(guildId, allianceId);
+  const bind = await bindGuildAllianceForRegistration({
+    guildId,
+    allianceId,
+    discordUserId,
+  });
+  if (!bind.ok) {
+    return { ok: false, reason: bind.reason };
+  }
+
   await saveDiscordBotPending(allianceId, discordUserId, null);
 
   const alliance = await getAllianceById(allianceId);

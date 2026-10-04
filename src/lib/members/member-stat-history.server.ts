@@ -12,7 +12,8 @@ export type MemberStatSource =
   | "ashed_sync"
   | "video_parse"
   | "roster_import"
-  | "manual";
+  | "manual"
+  | "lastrank_sync";
 
 export async function appendMemberGameLevelEventIfChanged(input: {
   allianceId: string;

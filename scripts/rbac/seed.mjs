@@ -2,12 +2,17 @@ import { readFileSync } from "node:fs";
 import { config } from "dotenv";
 import postgres from "postgres";
 
+import { assertE2eDatabaseUrl } from "../e2e-database-url-guard.mjs";
 import { getDatabaseUrlFromProcessEnv } from "../lib/database-url.mjs";
 
-config({ path: ".env" });
-config({ path: ".env.local" });
-if (process.env.NODE_ENV !== "production") {
-  config({ path: ".env.development.local" });
+if (process.env.HQ_E2E_ISOLATED !== "1") {
+  config({ path: ".env" });
+  config({ path: ".env.local" });
+  if (process.env.NODE_ENV !== "production") {
+    config({ path: ".env.development.local" });
+  }
+} else {
+  assertE2eDatabaseUrl(getDatabaseUrlFromProcessEnv());
 }
 
 const ROLE_IDS = {
@@ -20,6 +25,14 @@ const ROLE_IDS = {
 };
 
 const HQ_PERMISSIONS = [
+  { id: "notes:read", description: "Notes" },
+  { id: "notes:create", description: "Create notes" },
+  { id: "notes:publish", description: "Publish reviewed note snapshots" },
+  { id: "notes_boards:read", description: "Shared officer boards" },
+  { id: "notes_boards:write", description: "Edit shared officer boards" },
+  { id: "plunder_plan:read", description: "Plunder Plan" },
+  { id: "plunder_plan:self", description: "My Plunder Plans" },
+  { id: "plunder_plan:suggest", description: "Suggest a time" },
   { id: "hq:admin", description: "Platform maintainer — cross-alliance admin portal" },
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
@@ -34,8 +47,15 @@ const HQ_PERMISSIONS = [
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
   { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
+  { id: "support_teams:read", description: "Support teams" },
+  { id: "support_teams:write", description: "Support teams" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
+  { id: "vs_compliance:read", description: "VS compliance" },
+  { id: "vs_compliance:manage", description: "Confirm in-game action" },
+  { id: "vs_compliance:settings", description: "VS membership minimums" },
+  { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
+  { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ];
 
 function getDatabaseUrl() {
@@ -75,12 +95,18 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "support_teams:read",
+      "support_teams:write",
+      "officer_intel:read",
+      "officer_intel:write",
     ]),
   ];
+  roleTemplates.owner.permissions = [...roleTemplates.owner.permissions, "vs_compliance:read", "vs_compliance:manage", "vs_compliance:settings"];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
   roleTemplates.officer.permissions = [
     ...new Set([
       ...roleTemplates.officer.permissions,
+      "hq:audit:read",
       "hq:video:enqueue",
       "trains:write",
       "inbox:read",
@@ -91,8 +117,13 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "support_teams:read",
+      "support_teams:write",
+      "officer_intel:read",
+      "officer_intel:write",
     ]),
   ];
+  roleTemplates.officer.permissions = [...roleTemplates.officer.permissions, "vs_compliance:read", "vs_compliance:manage"];
   roleTemplates.data_entry.permissions = [
     ...new Set([
       ...roleTemplates.data_entry.permissions,
@@ -100,6 +131,7 @@ async function main() {
       "battle_plan:read",
       "bank:read",
       "time_off:read",
+      "officer_intel:read",
     ]),
   ];
   roleTemplates.viewer.permissions = [
@@ -118,7 +150,7 @@ async function main() {
   // Grant ashed:connect to every system role (embeds still require a live credential).
   for (const roleKey of Object.keys(roleTemplates)) {
     roleTemplates[roleKey].permissions = [
-      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect"]),
+      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect", "notes:read", "plunder_plan:read", "plunder_plan:self", ...(["owner", "maintainer", "officer"].includes(roleKey) ? ["notes:create", "notes:publish", "notes_boards:read", "notes_boards:write", "plunder_plan:suggest"] : [])]),
     ];
   }
 

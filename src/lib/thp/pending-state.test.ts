@@ -89,6 +89,40 @@ describe("parseStoredThpPending", () => {
       }),
     ).toBeNull();
   });
+
+  it("rejects kills confirm pending that lacks proposedBreakdown", () => {
+    expect(
+      parseStoredThpPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 2_500,
+        commanderId: "cmd-1",
+      }),
+    ).toBeNull();
+    expect(
+      parseStoredThpPending({
+        kind: "ocr_confirm",
+        proposedTotal: 2_500,
+        commanderId: "cmd-1",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects kills pick_character carrying proposedTotal", () => {
+    expect(
+      parseStoredThpPending({
+        kind: "pick_character",
+        linkIds: ["link-1"],
+        proposedTotal: 1_500,
+      }),
+    ).toBeNull();
+    expect(
+      parseStoredThpPending({
+        kind: "pick_character",
+        linkIds: ["link-1"],
+        proposedTotal: null,
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("discord_bot_pending THP confirm round-trip", () => {

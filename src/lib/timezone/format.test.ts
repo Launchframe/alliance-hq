@@ -10,6 +10,7 @@ import {
   formatAccountDate,
   formatAccountDateTime,
   formatBrowserLocalDateTime,
+  formatRelativeAccountDateTime,
 } from "@/lib/timezone/format";
 import { DEFAULT_ACCOUNT_TIMEZONE_ID } from "@/lib/timezone/constants";
 
@@ -95,6 +96,101 @@ describe("formatBrowserLocalDateTime", () => {
     );
     expect(formatted).toMatch(/11\/06\/2026/);
     expect(formatted).toMatch(/Local \(/);
+  });
+});
+
+describe("formatRelativeAccountDateTime", () => {
+  const labels = {
+    todayAt: (time: string) => `Today at ${time}`,
+    yesterdayAt: (time: string) => `Yesterday at ${time}`,
+    weekdayAt: (weekday: string, time: string) => `${weekday} at ${time}`,
+    lastWeekday: (weekday: string) => `Last ${weekday}`,
+  };
+  const timezoneId = "America/Los_Angeles";
+  const now = new Date("2026-09-23T20:00:00.000Z"); // Wednesday afternoon PDT
+
+  it("uses today / yesterday / weekday / last-week buckets without a zone suffix", () => {
+    const today = formatRelativeAccountDateTime("2026-09-24T03:01:00.000Z", {
+      locale: "en-US",
+      timezoneId,
+      now,
+      labels,
+    });
+    expect(today).toMatch(/^Today at /);
+    expect(today).not.toMatch(/PDT|Local|ST/);
+
+    const yesterday = formatRelativeAccountDateTime(
+      "2026-09-23T03:01:00.000Z",
+      { locale: "en-US", timezoneId, now, labels },
+    );
+    expect(yesterday).toMatch(/^Yesterday at /);
+
+    const earlierThisWeek = formatRelativeAccountDateTime(
+      "2026-09-21T03:01:00.000Z",
+      { locale: "en-US", timezoneId, now, labels },
+    );
+    expect(earlierThisWeek).toMatch(/^Sunday at /);
+
+    const lastWeek = formatRelativeAccountDateTime("2026-09-16T19:00:00.000Z", {
+      locale: "en-US",
+      timezoneId,
+      now,
+      labels,
+    });
+    expect(lastWeek).toBe("Last Wednesday");
+  });
+
+  it("falls back to a short date for older timestamps", () => {
+    expect(
+      formatRelativeAccountDateTime("2026-07-31T03:33:49.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toMatch(/7\/3[01]\/26/);
+  });
+
+  it("uses server-time calendar days without a zone suffix", () => {
+    const serverNow = new Date("2026-09-23T20:00:00.000Z");
+    const today = formatRelativeAccountDateTime("2026-09-23T21:00:00.000Z", {
+      locale: "en-US",
+      timezoneId: DEFAULT_ACCOUNT_TIMEZONE_ID,
+      now: serverNow,
+      labels,
+    });
+    expect(today).toMatch(/^Today at /);
+    expect(today).not.toMatch(/\bST\b|Local/);
+  });
+
+  it("treats dayDiff 6 as weekday-at and 7 as last weekday", () => {
+    expect(
+      formatRelativeAccountDateTime("2026-09-17T20:00:00.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toMatch(/^Thursday at /);
+    expect(
+      formatRelativeAccountDateTime("2026-09-16T20:00:00.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toBe("Last Wednesday");
+  });
+
+  it("falls back to a short date for future timestamps", () => {
+    expect(
+      formatRelativeAccountDateTime("2026-09-25T20:00:00.000Z", {
+        locale: "en-US",
+        timezoneId,
+        now,
+        labels,
+      }),
+    ).toMatch(/9\/25\/26/);
   });
 });
 

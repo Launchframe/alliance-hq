@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AccountDiscordLinkSection } from "@/components/account/AccountDiscordLinkSection";
@@ -20,12 +20,53 @@ import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
 import type { AppearancePreference } from "@/lib/appearance/appearance.shared";
+import type { ScoreboardReviewPreferences } from "@/lib/video/scoreboard-review-preferences.shared";
 import {
   ACCOUNT_TIMEZONE_OPTION_IDS,
   formatTimezoneOptionLabel,
 } from "@/lib/timezone/options";
 
 const REMINDER_OPTIONS = [7, 14, 21, 30];
+
+function AccountPreferenceSwitch({
+  label,
+  pressed,
+  disabled,
+  onPressedChange,
+}: {
+  label: string;
+  pressed: boolean;
+  disabled?: boolean;
+  onPressedChange: (next: boolean) => void;
+}) {
+  const labelId = useId();
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-hq-border py-3 last:border-b-0">
+      <p id={labelId} className="text-sm font-medium text-hq-fg">
+        {label}
+      </p>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={pressed}
+        aria-labelledby={labelId}
+        disabled={disabled}
+        onClick={() => onPressedChange(!pressed)}
+        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          pressed
+            ? "border-hq-accent bg-hq-accent/30"
+            : "border-hq-border bg-hq-canvas"
+        }`}
+      >
+        <span
+          className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-hq-fg shadow transition-transform ${
+            pressed ? "translate-x-[1.375rem]" : "translate-x-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
 
 type SignInMethodsSnapshot = {
   email: string;
@@ -52,6 +93,8 @@ type Props = {
   ssoAvailability?: AuthSsoAvailability;
   /** Native-only members cannot pair Ashed devices. */
   isAshedConnectAllowed?: boolean;
+  canEditScoreboardOffers?: boolean;
+  initialScoreboardOffers?: ScoreboardReviewPreferences;
 };
 
 export function AccountSettingsForm({
@@ -66,6 +109,8 @@ export function AccountSettingsForm({
   signInLinkError = null,
   ssoAvailability = { google: false, discord: false },
   isAshedConnectAllowed = true,
+  canEditScoreboardOffers = false,
+  initialScoreboardOffers,
 }: Props) {
   const t = useTranslations("account");
   const tSettings = useTranslations("settings");
@@ -84,6 +129,10 @@ export function AccountSettingsForm({
     initialAshed?.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS,
   );
   const [timezoneSaving, setTimezoneSaving] = useState(false);
+  const [scoreboardOffers, setScoreboardOffers] = useState(
+    initialScoreboardOffers ?? { offerCreate: false, offerRename: false },
+  );
+  const [scoreboardSaving, setScoreboardSaving] = useState(false);
 
   useEffect(() => {
     if (initialTimezoneId) {
@@ -121,6 +170,32 @@ export function AccountSettingsForm({
       setMessage(t("timezoneSaveFailed"));
     } finally {
       setTimezoneSaving(false);
+    }
+  }
+
+  async function saveScoreboardOffer(
+    patch: Partial<ScoreboardReviewPreferences>,
+  ) {
+    setScoreboardSaving(true);
+    setMessage(null);
+    const previous = scoreboardOffers;
+    setScoreboardOffers((current) => ({ ...current, ...patch }));
+    try {
+      const res = await fetch("/api/settings/scoreboard-review", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        setScoreboardOffers(previous);
+        const data = (await res.json()) as { error?: string };
+        setMessage(data.error ?? t("timezoneSaveFailed"));
+      }
+    } catch {
+      setScoreboardOffers(previous);
+      setMessage(t("timezoneSaveFailed"));
+    } finally {
+      setScoreboardSaving(false);
     }
   }
 
@@ -274,6 +349,27 @@ export function AccountSettingsForm({
           />
         </label>
       </section>
+
+      {canEditScoreboardOffers ? (
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <AccountPreferenceSwitch
+            label={t("offerSaveNewMembers")}
+            pressed={scoreboardOffers.offerCreate}
+            disabled={scoreboardSaving}
+            onPressedChange={(next) => {
+              void saveScoreboardOffer({ offerCreate: next });
+            }}
+          />
+          <AccountPreferenceSwitch
+            label={t("offerUpdateMemberNames")}
+            pressed={scoreboardOffers.offerRename}
+            disabled={scoreboardSaving}
+            onPressedChange={(next) => {
+              void saveScoreboardOffer({ offerRename: next });
+            }}
+          />
+        </section>
+      ) : null}
 
       <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("tokenSection")}</h2>

@@ -68,14 +68,17 @@ export function isVrAnomalyConfirmPending(
     return false;
   }
   const row = pending as Record<string, unknown>;
-  if (row.kind !== "anomaly_confirm") {
+  if (row.kind !== "anomaly_confirm" || "proposedTotal" in row) {
     return false;
   }
+  const commanderId =
+    typeof row.commanderId === "string" ? row.commanderId.trim() : "";
+  const ashedMemberId =
+    typeof row.ashedMemberId === "string" ? row.ashedMemberId.trim() : "";
   return (
     typeof row.proposedVr === "number" &&
     Number.isFinite(row.proposedVr) &&
-    typeof row.ashedMemberId === "string" &&
-    row.ashedMemberId.trim().length > 0
+    (commanderId.length > 0 || ashedMemberId.length > 0)
   );
 }
 

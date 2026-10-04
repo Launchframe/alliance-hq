@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
+import { getActivityPrincipalForSession } from "@/lib/activity/access.server";
 import {
   MAX_SCREENSHOT_UPLOAD_BYTES,
   SCREENSHOT_TOO_LARGE_ERROR,
@@ -26,7 +27,14 @@ export async function POST(request: Request) {
 
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
+    const t = await getTranslations("settings");
+    return NextResponse.json({ error: t("allianceRequired") }, { status: 400 });
+  }
+
+  const principal = await getActivityPrincipalForSession(session);
+  if (!principal || principal.currentAllianceId !== allianceId) {
+    const t = await getTranslations("activity");
+    return NextResponse.json({ error: t("accessChanged") }, { status: 403 });
   }
 
   const locale = await getLocale();
@@ -54,13 +62,15 @@ export async function POST(request: Request) {
     const result = await handleWebThpCommand({
       allianceId,
       hqUserId: session.hqUserId,
+      principal,
       locale,
       confirm,
       screenshotBuffer,
     });
     if ("code" in result && result.code === "member_link_required") {
+      const t = await getTranslations("professions");
       return NextResponse.json(
-        { code: result.code, error: "Link your commander first." },
+        { code: result.code, error: t("linkRequired") },
         { status: 403 },
       );
     }
@@ -76,6 +86,7 @@ export async function POST(request: Request) {
   const result = await handleWebThpCommand({
     allianceId,
     hqUserId: session.hqUserId,
+    principal,
     locale,
     total: body.total,
     breakdown: parseThpBreakdownInput(body.breakdown),
@@ -83,8 +94,9 @@ export async function POST(request: Request) {
   });
 
   if ("code" in result && result.code === "member_link_required") {
+    const t = await getTranslations("professions");
     return NextResponse.json(
-      { code: result.code, error: "Link your commander first." },
+      { code: result.code, error: t("linkRequired") },
       { status: 403 },
     );
   }

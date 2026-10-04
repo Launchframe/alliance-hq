@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import {
@@ -35,7 +35,9 @@ import {
 
 export function CommanderProfileView({ initial, donationLaunchError }: Props) {
   const t = useTranslations("members.profile");
+  const locale = useLocale();
   const tInvites = useTranslations("team.invites");
+  const tNotes = useTranslations("notes");
   const { member, alliance } = initial;
   const membersListHref = useSyncExternalStore(
     () => () => {},
@@ -465,10 +467,13 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
         <ProfileSection title={t("eventScores")}>
           <ul className="space-y-2 text-sm">
             {initial.eventScores.map((row) => (
-              <li key={`${row.eventId}-${row.updatedAt}`} className="text-[#c9d1d9]">
+              <li key={`${row.eventId}-${row.updatedAt}`} className="text-hq-fg">
                 {row.eventName}
-                {row.score != null ? ` · ${row.score.toLocaleString()}` : ""}
-                {row.rank != null ? ` · #${row.rank}` : ""}
+                {row.score != null ? ` · ${row.score.toLocaleString(locale)}` : ""}
+                {row.frontlineStage != null
+                  ? ` · ${t("frontlineStage", { stage: row.frontlineStage.toLocaleString(locale) })}`
+                  : ""}
+                {row.rank != null ? ` · #${row.rank.toLocaleString(locale)}` : ""}
               </li>
             ))}
           </ul>
@@ -487,6 +492,30 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
         </ProfileSection>
       ) : null}
 
+      {initial.hqNotes.length > 0 ? (
+        <ProfileSection title={t("hqNotes")}>
+          <ul className="space-y-3">
+            {initial.hqNotes.map((note) => (
+              <li
+                key={note.id}
+                className="rounded-lg border border-hq-border bg-hq-canvas/60 p-3"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+                  {note.kind === "commendation"
+                    ? tNotes("kindCommendation")
+                    : note.kind === "violation"
+                      ? tNotes("kindViolation")
+                      : tNotes("kindNote")}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-hq-fg">
+                  {note.body}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </ProfileSection>
+      ) : null}
+
       {initial.hqUser === null && initial.member.viewerCanIssueClaimInvite && (
         <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
           <div className="flex flex-wrap items-center gap-2">
@@ -498,12 +527,25 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
             </span>
           </div>
           <p className="mt-2 text-sm text-hq-fg-muted">{tInvites("wizard.typeClaimBody")}</p>
-          <Link
-            href={`/settings/team?inviteWizard=claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
-            className="mt-3 inline-flex rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20"
-          >
-            {tInvites("wizard.openClaimWizard")}
-          </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`/settings/team?inviteWizard=claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
+              className="inline-flex items-center justify-center rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:opacity-90"
+            >
+              {tInvites("wizard.openClaimWizard")}
+            </Link>
+            {member.viewerCanIssueOfficerInvite &&
+            (member.allianceRank === 4 || member.allianceRank === 5) ? (
+              <Link
+                href={`/settings/team?inviteWizard=officer_claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
+                className="inline-flex items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
+              >
+                {member.allianceRank === 5
+                  ? tInvites("wizard.openOwnerClaimWizard")
+                  : tInvites("wizard.openOfficerClaimWizard")}
+              </Link>
+            ) : null}
+          </div>
         </section>
       )}
 

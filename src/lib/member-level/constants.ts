@@ -7,4 +7,5 @@ export type LevelEventSource =
   | "officer_override"
   | "video_parse"
   | "roster_import"
+  | "lastrank_sync"
   | "manual";

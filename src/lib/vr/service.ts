@@ -1,3 +1,4 @@
+import { ActivityWriteError } from "@/lib/activity/errors.server";
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
 import {
   createDiscordTranslator,
@@ -8,7 +9,7 @@ import {
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { isVrAnomalyConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
@@ -29,7 +30,7 @@ import {
   findUniqueSubstringRosterCandidate,
 } from "@/lib/vr/link-helpers";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
-import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
+import { tryPreApprovedMemberLink, honorLookupFromDiscordClaimInvite } from "@/lib/member-link/preapproved-link.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
 import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
@@ -65,8 +66,14 @@ import {
   saveDiscordBotPending,
   setWeeklyPass,
   upsertMemberSeasonVr,
+  VrPendingChangedError,
+  VrSubmissionChangedError,
+  WeeklyPassPendingChangedError,
+  WeeklyPassTargetChangedError,
   writeDiscordBotAudit,
+  type WeeklyPassActivity,
 } from "@/lib/vr/repository";
+import { getCommanderMembershipInAlliance } from "@/lib/thp/repository";
 import type {
   LinkCommandResult,
   LinkPendingState,
@@ -122,6 +129,34 @@ function botContext(locale: DiscordBotLocale) {
   const translate = createDiscordTranslator(locale);
   const walkthroughSteps = tStringArray(locale, "link.steps");
   return { translate, walkthroughSteps };
+}
+
+async function runWithActivityErrors(
+  translate: DiscordTranslate,
+  work: () => Promise<VrCommandResult>,
+): Promise<VrCommandResult> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof VrPendingChangedError) {
+      return {
+        reply: translate("errors.noConfirm"),
+        pending: null,
+        action: { type: "none" },
+      };
+    }
+    if (
+      error instanceof VrSubmissionChangedError ||
+      error instanceof ActivityWriteError
+    ) {
+      return {
+        reply: translate("activity.saveBlocked"),
+        pending: null,
+        action: { type: "none" },
+      };
+    }
+    throw error;
+  }
 }
 
 function applyVrSandboxReply(
@@ -242,7 +277,11 @@ async function persistLinkTarget(input: {
 function linkConfirmIdentityReply(
   translate: ReturnType<typeof createDiscordTranslator>,
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>,
+  options?: { honorSystem?: boolean },
 ): string {
+  if (options?.honorSystem) {
+    return translate("link.confirmIdentityHonor", { name: lookup.gameUserName });
+  }
   const body = translate("link.confirmIdentity", { name: lookup.gameUserName });
   if (lookup.gameServerNumber != null) {
     return `${body}\n\n${translate("link.confirmIdentityServer", {
@@ -250,6 +289,129 @@ function linkConfirmIdentityReply(
     })}`;
   }
   return body;
+}
+
+/**
+ * Pending confirm rows that already stored a live Last War server must keep that
+ * verified identity when a later lookup attempt fails — never synthesize honor.
+ */
+function verifiedLookupFromPending(
+  pending:
+    | Extract<LinkPendingState, { kind: "link_confirm_identity" }>
+    | Extract<LinkPendingState, { kind: "link_confirm_home_server" }>,
+): Extract<LastWarPlayerLookupResult, { ok: true }> | null {
+  if (pending.kind === "link_confirm_home_server") {
+    return {
+      ok: true,
+      gameUserName: pending.gameUserName,
+      gameServerNumber: pending.lookupServer,
+      ...(pending.gameUserLevel != null
+        ? { gameUserLevel: pending.gameUserLevel }
+        : {}),
+    };
+  }
+  if (typeof pending.gameServerNumber === "number") {
+    return {
+      ok: true,
+      gameUserName: pending.gameUserName,
+      gameServerNumber: pending.gameServerNumber,
+      ...(pending.gameUserLevel != null
+        ? { gameUserLevel: pending.gameUserLevel }
+        : {}),
+    };
+  }
+  return null;
+}
+
+async function finalizeDiscordHonorClaimLink(input: {
+  allianceId: string;
+  guildId?: string | null;
+  discordUserId: string;
+  discordUsername?: string;
+  gameUid: string;
+  lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  replaceAll?: boolean;
+  locale: DiscordBotLocale;
+  auditAction?: string;
+}): Promise<LinkCommandResult> {
+  const { translate } = botContext(input.locale);
+  const uid = input.gameUid.trim();
+  const hqLink = await getDiscordHqLink(input.discordUserId);
+  if (!hqLink?.hqUserId) {
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const result: LinkCommandResult = {
+      reply: translate("link.lookupUnavailableAskClaimInvite"),
+      pending: null,
+    };
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      input.auditAction ?? "link",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  const preapproved = await tryPreApprovedMemberLink({
+    allianceId: input.allianceId,
+    hqUserId: hqLink.hqUserId,
+    gameUid: uid,
+    lookup: input.lookup,
+    requesterHandle: input.discordUsername ?? input.discordUserId,
+    honorSystem: true,
+  });
+
+  if (preapproved.ok) {
+    const persisted = await persistLinkTarget({
+      allianceId: input.allianceId,
+      discordUserId: input.discordUserId,
+      discordUsername: input.discordUsername,
+      linkTarget: {
+        ashedMemberId: preapproved.target.ashedMemberId,
+        memberDisplayName: preapproved.target.memberDisplayName,
+        gameUid: preapproved.target.gameUid,
+      },
+      replaceAll: input.replaceAll,
+      translate,
+    });
+    const result: LinkCommandResult = persisted.linked
+      ? {
+          ...persisted,
+          reply: translate("link.claimLookupHonorLinked", {
+            name: preapproved.target.memberDisplayName,
+          }),
+        }
+      : persisted;
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      input.auditAction ?? "link",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+  const result: LinkCommandResult =
+    preapproved.reason === "commander_taken"
+      ? { reply: translate("link.memberTaken"), pending: null, memberTaken: true }
+      : preapproved.reason === "claim_conflict"
+        ? { reply: translate("link.awaitingOfficerResolve"), pending: null }
+        : {
+            reply: translate("link.lookupUnavailableAskClaimInvite"),
+            pending: null,
+          };
+  await audit(
+    input.allianceId,
+    input.discordUserId,
+    input.auditAction ?? "link",
+    input,
+    result,
+  );
+  return result;
 }
 
 async function finalizeDiscordMemberLink(input: {
@@ -265,7 +427,14 @@ async function finalizeDiscordMemberLink(input: {
   auditAction?: string;
   allianceHomeConfirmed?: boolean;
   userClaimedLookupAsHome?: boolean;
+  honorSystem?: boolean;
 }): Promise<LinkCommandResult> {
+  // Claim-invite honor path must not go through exact roster match + server
+  // eligibility (honor lookups have no gameServerNumber).
+  if (input.honorSystem) {
+    return finalizeDiscordHonorClaimLink(input);
+  }
+
   const { translate, walkthroughSteps } = botContext(input.locale);
   const gameUserName = input.lookup.gameUserName;
   const uid = input.gameUid.trim();
@@ -344,6 +513,7 @@ async function finalizeDiscordMemberLink(input: {
         gameUid: uid,
         lookup: input.lookup,
         requesterHandle: input.discordUsername ?? input.discordUserId,
+        honorSystem: input.honorSystem,
       });
       if (preapproved.ok) {
         resolvedResult = {
@@ -916,6 +1086,44 @@ export async function handleDiscordLinkCommanderSlash(input: {
 
   const lookup = await lookupPlayerByUid(uid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed") {
+      const honor = await honorLookupFromDiscordClaimInvite({
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      });
+      if (honor) {
+        const confirmPending: LinkPendingState = {
+          kind: "link_confirm_identity",
+          gameUid: uid,
+          gameUserName: honor.gameUserName,
+          ...(input.replaceAll ? { replaceAll: true } : {}),
+        };
+        const result: LinkCommandResult = {
+          reply: linkConfirmIdentityReply(translate, honor, { honorSystem: true }),
+          pending: confirmPending,
+          needsIdentityConfirmation: true,
+        };
+        await saveDiscordBotPending(
+          input.allianceId,
+          input.discordUserId,
+          confirmPending,
+        );
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          "link_preview",
+          input,
+          result,
+        );
+        return result;
+      }
+      const result: LinkCommandResult = {
+        reply: translate("link.lookupUnavailableAskClaimInvite"),
+        pending: null,
+      };
+      await audit(input.allianceId, input.discordUserId, "link", input, result);
+      return result;
+    }
     const result: LinkCommandResult = {
       reply: lookup.message,
       pending: null,
@@ -990,6 +1198,51 @@ export async function handleDiscordLinkIdentityConfirm(input: {
 
   const lookup = await lookupPlayerByUid(pending.gameUid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed") {
+      // Keep a previously verified pending identity; only honor via claim invite
+      // when this attempt never got a live lookup (no stored server).
+      const verified = verifiedLookupFromPending(pending);
+      if (verified) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: verified,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm",
+        });
+      }
+      const honor = await honorLookupFromDiscordClaimInvite({
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      });
+      if (honor) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: honor,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm",
+          honorSystem: true,
+        });
+      }
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      const result: LinkCommandResult = {
+        reply: translate("link.lookupUnavailableAskClaimInvite"),
+        pending: null,
+      };
+      await audit(input.allianceId, input.discordUserId, "link_confirm", input, result);
+      return result;
+    }
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
     const result: LinkCommandResult = {
       reply: lookup.message,
@@ -1054,6 +1307,60 @@ export async function handleDiscordLinkHomeServerConfirm(input: {
 
   const lookup = await lookupPlayerByUid(pending.gameUid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed") {
+      // Home-server pending always carries lookupServer from a prior live lookup.
+      const verified = verifiedLookupFromPending(pending);
+      if (verified) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: verified,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm_home",
+          allianceHomeConfirmed: input.choice === "alliance",
+          userClaimedLookupAsHome: input.choice === "lookup",
+        });
+      }
+      const honor = await honorLookupFromDiscordClaimInvite({
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      });
+      if (honor) {
+        return finalizeDiscordMemberLink({
+          allianceId: input.allianceId,
+          guildId: input.guildId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          gameUid: pending.gameUid,
+          lookup: honor,
+          replaceAll: pending.replaceAll,
+          locale: input.locale,
+          identityConfirmed: true,
+          auditAction: "link_confirm_home",
+          allianceHomeConfirmed: input.choice === "alliance",
+          userClaimedLookupAsHome: input.choice === "lookup",
+          honorSystem: true,
+        });
+      }
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      const result: LinkCommandResult = {
+        reply: translate("link.lookupUnavailableAskClaimInvite"),
+        pending: null,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        "link_confirm_home",
+        input,
+        result,
+      );
+      return result;
+    }
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
     const result: LinkCommandResult = {
       reply: lookup.message,
@@ -1150,7 +1457,9 @@ async function resolveTargetLink(input: {
     if (link.discordUserId !== input.discordUserId) return null;
     return link;
   }
-  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     // Users who linked a commander on the web, then `/link`ed Discord, should
     // not need a second name+UID pass on Discord.
@@ -1158,7 +1467,9 @@ async function resolveTargetLink(input: {
       discordUserId: input.discordUserId,
       allianceId: input.allianceId,
     });
-    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
   }
   if (links.length === 0) return null;
   if (links.length === 1) return links[0]!;
@@ -1194,7 +1505,9 @@ export async function handleDiscordVrSlash(input: {
       await audit(input.allianceId, input.discordUserId, "vr", input, result);
       return result;
     }
-    const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+    const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    });
     const result: VrCommandResult = {
       reply: translate("vr.pickCharacter"),
       pending: { kind: "pick_character" as const, linkIds: links.map((l) => l.id) },
@@ -1222,7 +1535,10 @@ export async function handleDiscordVrSlash(input: {
 
   const seasonKey = season.seasonKey;
   const pendingRow = await getDiscordBotPending(input.discordUserId);
-  const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+  const pending =
+    pendingRow && pendingRow.allianceId === input.allianceId
+      ? ((pendingRow.pending ?? null) as VrPendingState | null)
+      : null;
   const [seasonHigh, reporterCount, seasonRows, commander] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, target.ashedMemberId, seasonKey),
     countSeasonReporters(input.allianceId, seasonKey),
@@ -1249,43 +1565,57 @@ export async function handleDiscordVrSlash(input: {
     explicitBaseVr = validated.baseVr;
   }
 
-  const result = processVrCommand({
-    explicitLevel: explicitBaseVr,
-    seasonHigh,
-    ashedMemberId: target.ashedMemberId,
-    commanderId: commander?.commanderId ?? null,
-    pending,
-    reporterCount,
-    peerMax,
-    translate,
-    seasonKey,
-  });
-
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
-
-  if (result.action.type === "set_vr") {
-    await upsertMemberSeasonVr({
-      allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId || target.ashedMemberId,
-      commanderId: result.action.commanderId ?? commander?.commanderId,
+  const result = await runWithActivityErrors(translate, async () => {
+    const processed = processVrCommand({
+      explicitLevel: explicitBaseVr,
+      seasonHigh,
+      ashedMemberId: target.ashedMemberId,
+      commanderId: commander?.commanderId ?? null,
+      pending,
+      reporterCount,
+      peerMax,
+      translate,
       seasonKey,
-      baseVr: result.action.vr,
-      discordUserId: input.discordUserId,
-      flagReason: result.action.flagReason ?? null,
-      eventSource: "discord",
     });
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    const instituteLevel =
-      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
-    const effectiveVr = effectiveBaseVr(
-      result.action.vr,
-      commander?.weeklyPassActive ?? false,
+
+    if (processed.action.type === "set_vr") {
+      await upsertMemberSeasonVr({
+        allianceId: input.allianceId,
+        ashedMemberId: processed.action.ashedMemberId || target.ashedMemberId,
+        commanderId: processed.action.commanderId ?? commander?.commanderId,
+        seasonKey,
+        baseVr: processed.action.vr,
+        discordUserId: input.discordUserId,
+        flagReason: processed.action.flagReason ?? null,
+        eventSource: "discord",
+        activity: {
+          identity: { kind: "discord", discordUserId: input.discordUserId },
+          expectedPreviousBaseVr: seasonHigh,
+          ...(pending
+            ? { pending: { expected: pending, required: false } }
+            : {}),
+        },
+      });
+      const instituteLevel =
+        instituteLevelForBaseVr(seasonKey, processed.action.vr) ?? "?";
+      const effectiveVr = effectiveBaseVr(
+        processed.action.vr,
+        commander?.weeklyPassActive ?? false,
+      );
+      processed.reply = translate("vr.success", {
+        level: instituteLevel,
+        effectiveVr,
+      });
+      return processed;
+    }
+
+    await saveDiscordBotPending(
+      input.allianceId,
+      input.discordUserId,
+      processed.pending,
     );
-    result.reply = translate("vr.success", {
-      level: instituteLevel,
-      effectiveVr,
-    });
-  }
+    return processed;
+  });
 
   await audit(input.allianceId, input.discordUserId, "vr", input, result);
   return applyVrSandboxReply(result, season, translate);
@@ -1332,6 +1662,7 @@ export async function handleDiscordWeeklyPass(input: {
     const links = await listDiscordLinksForUser(
       input.allianceId,
       input.discordUserId,
+      { rematerializeFormer: true },
     );
     const pending: VrPendingState = {
       kind: "weekly_pass_pick_character",
@@ -1351,14 +1682,25 @@ export async function handleDiscordWeeklyPass(input: {
     return { reply, characterPicker };
   }
 
+  const pendingRow = await getDiscordBotPending(input.discordUserId);
+  const optionalPending: WeeklyPassActivity["pending"] =
+    pendingRow?.allianceId === input.allianceId &&
+    pendingRow.pending?.kind === "weekly_pass_pick_character"
+      ? {
+          expected: pendingRow.pending,
+          required: false,
+          linkId: target.id,
+        }
+      : undefined;
+
   const result = await applyWeeklyPassForLink({
     allianceId: input.allianceId,
     discordUserId: input.discordUserId,
     ashedMemberId: target.ashedMemberId,
     active: input.active,
+    pending: optionalPending,
     translate,
   });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   await audit(input.allianceId, input.discordUserId, "weekly-pass", input, result);
   return result;
 }
@@ -1371,9 +1713,12 @@ export async function handleDiscordWeeklyPassCharacterPick(input: {
 }): Promise<WeeklyPassCommandResult> {
   const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
-  const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+  const pending =
+    pendingRow?.pending?.kind === "weekly_pass_pick_character"
+      ? pendingRow.pending
+      : null;
 
-  if (!pending || pending.kind !== "weekly_pass_pick_character") {
+  if (pendingRow?.allianceId !== input.allianceId || !pending) {
     const reply = translate("weeklyPass.pickExpired");
     await audit(
       input.allianceId,
@@ -1408,9 +1753,9 @@ export async function handleDiscordWeeklyPassCharacterPick(input: {
     discordUserId: input.discordUserId,
     ashedMemberId: link.ashedMemberId,
     active: pending.active,
+    pending: { expected: pending, required: true, linkId: link.id },
     translate,
   });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   await audit(
     input.allianceId,
     input.discordUserId,
@@ -1426,6 +1771,7 @@ async function applyWeeklyPassForLink(input: {
   discordUserId: string;
   ashedMemberId: string;
   active: boolean;
+  pending?: WeeklyPassActivity["pending"];
   translate: DiscordTranslate;
 }): Promise<WeeklyPassCommandResult> {
   const commander = await getCommanderByAshedMemberId(
@@ -1439,10 +1785,25 @@ async function applyWeeklyPassForLink(input: {
   try {
     await setWeeklyPass({
       commanderId: commander.commanderId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
       active: input.active,
       source: "self",
+      activity: {
+        identity: { kind: "discord", discordUserId: input.discordUserId },
+        ...(input.pending ? { pending: input.pending } : {}),
+      },
     });
   } catch (error) {
+    if (error instanceof WeeklyPassPendingChangedError) {
+      return { reply: input.translate("weeklyPass.pickExpired") };
+    }
+    if (error instanceof WeeklyPassTargetChangedError) {
+      return { reply: input.translate("weeklyPass.commanderNotFound") };
+    }
+    if (error instanceof ActivityWriteError) {
+      return { reply: input.translate("activity.saveBlocked") };
+    }
     console.error("[discord-bot] weekly-pass update failed", error);
     return { reply: input.translate("weeklyPass.updateFailed") };
   }
@@ -1473,56 +1834,119 @@ export async function handleDiscordVrButtonConfirm(input: {
 
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
-  if (!isVrAnomalyConfirmPending(pending)) {
-    const result: VrCommandResult = {
-      reply: translate("errors.noConfirm"),
-      pending: null,
-      action: { type: "none" as const },
-    };
-    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);
-    return result;
+  const noConfirm: VrCommandResult = {
+    reply: translate("errors.noConfirm"),
+    pending: null,
+    action: { type: "none" as const },
+  };
+  if (
+    pendingRow?.allianceId !== input.allianceId ||
+    !isVrAnomalyConfirmPending(pending) ||
+    pending.seasonKey !== season.seasonKey
+  ) {
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, noConfirm);
+    return noConfirm;
   }
 
-  const result = processVrConfirmation({
-    answer: input.answer,
-    pending,
-    translate,
-    seasonKey: season.seasonKey,
-  });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
-
-  if (result.action.type === "set_vr") {
-    const seasonKey = season.seasonKey;
-    const ashedMemberId =
-      result.action.ashedMemberId ||
-      (pending.kind === "anomaly_confirm" ? pending.ashedMemberId : null) ||
-      "";
-    await upsertMemberSeasonVr({
-      allianceId: input.allianceId,
-      ashedMemberId,
-      commanderId: result.action.commanderId,
-      seasonKey,
-      baseVr: result.action.vr,
-      discordUserId: input.discordUserId,
-      flagReason: result.action.flagReason ?? null,
-      eventSource: "discord",
-    });
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    const commander = await getCommanderByAshedMemberId(
-      ashedMemberId,
+  let ashedMemberId = pending.ashedMemberId ?? null;
+  let commanderId = pending.commanderId ?? null;
+  let identityOk = true;
+  if (pending.commanderId) {
+    const membership = await getCommanderMembershipInAlliance(
+      pending.commanderId,
       input.allianceId,
     );
-    const instituteLevel =
-      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
-    const effectiveVr = effectiveBaseVr(
-      result.action.vr,
-      commander?.weeklyPassActive ?? false,
-    );
-    result.reply = translate("vr.success", {
-      level: instituteLevel,
-      effectiveVr,
-    });
+    if (
+      !membership?.ashedMemberId ||
+      (pending.ashedMemberId &&
+        membership.ashedMemberId !== pending.ashedMemberId)
+    ) {
+      identityOk = false;
+    } else {
+      ashedMemberId = membership.ashedMemberId;
+    }
   }
+  if (identityOk && pending.ashedMemberId) {
+    const commander = await getCommanderByAshedMemberId(
+      pending.ashedMemberId,
+      input.allianceId,
+    );
+    if (
+      !commander ||
+      (pending.commanderId && commander.commanderId !== pending.commanderId)
+    ) {
+      identityOk = false;
+    } else {
+      commanderId = commander.commanderId;
+    }
+  }
+  if (!identityOk || !ashedMemberId || !commanderId) {
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, noConfirm);
+    return noConfirm;
+  }
+  const memberLinks = await listDiscordLinksForUser(
+    input.allianceId,
+    input.discordUserId,
+    { followLiveRoster: false },
+  );
+  if (!memberLinks.some((link) => link.ashedMemberId === ashedMemberId)) {
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, noConfirm);
+    return noConfirm;
+  }
+
+  const result = await runWithActivityErrors(translate, async () => {
+    const processed = processVrConfirmation({
+      answer: input.answer,
+      pending,
+      translate,
+      seasonKey: season.seasonKey,
+    });
+
+    if (processed.action.type === "set_vr") {
+      const seasonHigh = await getMemberSeasonHigh(
+        input.allianceId,
+        ashedMemberId,
+        season.seasonKey,
+      );
+      await upsertMemberSeasonVr({
+        allianceId: input.allianceId,
+        ashedMemberId,
+        commanderId,
+        seasonKey: season.seasonKey,
+        baseVr: processed.action.vr,
+        discordUserId: input.discordUserId,
+        flagReason: processed.action.flagReason ?? null,
+        eventSource: "discord",
+        activity: {
+          identity: { kind: "discord", discordUserId: input.discordUserId },
+          expectedPreviousBaseVr: seasonHigh,
+          pending: { expected: pending, required: true },
+        },
+      });
+      const commander = await getCommanderByAshedMemberId(
+        ashedMemberId,
+        input.allianceId,
+      );
+      const instituteLevel =
+        instituteLevelForBaseVr(season.seasonKey, processed.action.vr) ?? "?";
+      const effectiveVr = effectiveBaseVr(
+        processed.action.vr,
+        commander?.weeklyPassActive ?? false,
+      );
+      processed.reply = translate("vr.success", {
+        level: instituteLevel,
+        effectiveVr,
+      });
+      return processed;
+    }
+
+    await saveDiscordBotPending(
+      input.allianceId,
+      input.discordUserId,
+      processed.pending,
+    );
+    return processed;
+  });
 
   await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);
   return applyVrSandboxReply(result, season, translate);

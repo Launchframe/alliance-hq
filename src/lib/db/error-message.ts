@@ -61,6 +61,10 @@ export function publicPairingCompleteFailureMessage(error: unknown): string {
   return "Pairing failed.";
 }
 
+export function isPostgresAuthError(error: unknown): boolean {
+  return postgresErrorCode(error) === "28P01";
+}
+
 export function isConnectionPoolExhausted(error: unknown): boolean {
   const text = collectDatabaseErrorText(error);
   return text.includes("53300") || /too many clients already/i.test(text);

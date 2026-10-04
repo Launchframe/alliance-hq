@@ -1,20 +1,29 @@
 import { eq } from "drizzle-orm";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
 import { AllianceTrainDiscordSettings } from "@/components/settings/AllianceTrainDiscordSettings";
 import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/AllianceTrainEconomyThresholdSettings";
+import { AllianceTrainLeadTimeSettings } from "@/components/settings/AllianceTrainLeadTimeSettings";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
+import { AllianceTrainTemplatesSettings } from "@/components/settings/AllianceTrainTemplatesSettings";
+import { AllianceTrainTopScoreEligibilitySettings } from "@/components/settings/AllianceTrainTopScoreEligibilitySettings";
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
 import { getDb, schema } from "@/lib/db";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("settings.trains");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function SettingsTrainsPage({
   params,
 }: {
@@ -45,6 +54,7 @@ export default async function SettingsTrainsPage({
     .where(eq(schema.alliances.id, access.allianceId))
     .limit(1);
 
+  const leadDays = await loadAllianceTrainLeadTimeDays(access.allianceId);
   const allianceTag = alliance?.tag ?? access.session.allianceTag;
   if (!allianceTag) {
     redirect({ href: "/settings", locale });
@@ -52,7 +62,7 @@ export default async function SettingsTrainsPage({
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-lg space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
       <div>
         <Link href="/settings" className="text-sm text-hq-accent hover:underline">
           ← {tSettings("backToAllianceSettings")}
@@ -64,6 +74,9 @@ export default async function SettingsTrainsPage({
       </div>
 
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
+      <AllianceTrainLeadTimeSettings allianceTag={allianceTag} />
+      <AllianceTrainTemplatesSettings leadDays={leadDays} />
+      <AllianceTrainTopScoreEligibilitySettings allianceTag={allianceTag} />
       <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
       <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceTrainDiscordSettings

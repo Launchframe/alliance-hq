@@ -1,0 +1,46 @@
+---
+description: GitHub Actions credit freeze — local Pre-PR gate and Playwright; do not rely on CI to catch lint/build/test failures
+alwaysApply: true
+---
+
+# GitHub Actions credit freeze (through 1 Sep 2026)
+
+Launchframe’s Actions budget is **$0 with prevent-further-usage**. Included minutes are exhausted. **CI** (`.github/workflows/ci.yml`: check, function-trace, e2e) and **Cleanup Neon preview branch** are **disabled** on `alliance-hq`. **Do not wait for GitHub checks.** They will not run. A red or missing check is not a reason to skip local gates.
+
+Vercel preview/production deploys are not a substitute for the local gate. **Do not use a preview deploy as the first lint / unit / build / e2e signal.**
+
+## Before `gh pr create` (including drafts)
+
+`npm test` must have passed on current `HEAD` in this session. Husky already runs it on commit; still re-run if you have uncommitted work or skipped hooks.
+
+## Before marking ready, merging to `main`, or pushing a non-draft PR
+
+In order, all must pass locally:
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm test
+npm run i18n:validate
+npm run db:validate-journal
+npm run build
+```
+
+Then Playwright (**not** deferred to GitHub or Vercel):
+
+- **Docs-only / AGENTS / rules / comments:** skip Playwright.
+- **Default product PR:**
+
+  ```bash
+  npm run test:e2e
+  ```
+
+- **Auth, invite, connect, session, admin/RBAC, or `e2e/**` changes:** same command; add or update specs first (`.cursor/rules/e2e-plan-completion.mdc`).
+
+Record the commands in the PR body (see `.github/pull_request_template.md`). Do not write “CI will catch it.”
+
+## Do not
+
+- Re-enable **CI** or bump the org Actions cap except for a **single** emergency re-run, then set the cap back to **$0**. After 1 Sep: restore `on: pull_request` + `push: main` in `ci.yml` if needed, then `gh workflow enable "CI"` and `gh workflow enable "Cleanup Neon preview branch"`.
+- Treat a successful Vercel preview as a substitute for the local gate.
+- Skip Husky on commit (`--no-verify`) unless the maintainer asks.

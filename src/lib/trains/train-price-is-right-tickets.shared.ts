@@ -8,6 +8,9 @@ import {
 /** Default decay cliff when ticket weighting is on and officer has not set a value. */
 export const PRICE_IS_RIGHT_DEFAULT_CLIFF_POINTS = 9_000_000;
 
+/** Chart X-axis cap when no officer cliff is configured (avoids outlier skew). */
+export const PRICE_IS_RIGHT_CHART_DEFAULT_MAX_SCORE = 10_000_000;
+
 /** Fixed max tickets per member in the weighted raffle. */
 export const PRICE_IS_RIGHT_MAX_TICKETS = 1024;
 
@@ -41,6 +44,8 @@ export type PriceIsRightMissedFloorEntry = {
 export type PriceIsRightTicketBoardResult = {
   board: PriceIsRightTicketBoardEntry[];
   missedFloor: PriceIsRightMissedFloorEntry[];
+  /** Hard-cutoff exclusions — above cliff, not eligible for the draw. */
+  aboveCliff: PriceIsRightMissedFloorEntry[];
 };
 
 export type PriceIsRightChartPoint = {
@@ -69,6 +74,37 @@ export function resolveCliffPoints(settings: PriceIsRightTicketSettings): number
     return settings.cliffPoints;
   }
   return PRICE_IS_RIGHT_DEFAULT_CLIFF_POINTS;
+}
+
+/** X-axis maximum for the raffle ticket chart. Hard cutoff stops at cliff; soft cutoff shows a short tail. */
+export function resolveChartMaxScore(settings: PriceIsRightTicketSettings): number {
+  const cliff = resolveCliffPoints(settings);
+  if (settings.hardCutoffEnabled) {
+    return cliff;
+  }
+  if (settings.cliffPoints != null && settings.cliffPoints > 0) {
+    const min = PRICE_IS_RIGHT_MIN_VS_SCORE;
+    return Math.floor(cliff + (cliff - min) * 0.15);
+  }
+  return PRICE_IS_RIGHT_CHART_DEFAULT_MAX_SCORE;
+}
+
+export function isScoreAboveCliff(
+  priorDayVsScore: number,
+  settings: PriceIsRightTicketSettings,
+): boolean {
+  return priorDayVsScore > resolveCliffPoints(settings);
+}
+
+/** True when hard cutoff excludes this member (takedown overrides stay eligible). */
+export function isHardCutoffExcluded(
+  priorDayVsScore: number,
+  memberId: string,
+  settings: PriceIsRightTicketSettings,
+): boolean {
+  if (!settings.hardCutoffEnabled) return false;
+  if (settings.maxTicketMemberIds.includes(memberId)) return false;
+  return isScoreAboveCliff(priorDayVsScore, settings);
 }
 
 export function normalizeMaxTicketMemberIds(value: unknown): string[] {
@@ -120,7 +156,7 @@ export function computeMemberTicketCount(
   }
 
   const cliff = resolveCliffPoints(settings);
-  if (settings.hardCutoffEnabled && priorDayVsScore > cliff) {
+  if (isHardCutoffExcluded(priorDayVsScore, memberId, settings)) {
     return 0;
   }
 
@@ -128,6 +164,26 @@ export function computeMemberTicketCount(
   const t = (priorDayVsScore - PRICE_IS_RIGHT_MIN_VS_SCORE) / span;
   const raw = PRICE_IS_RIGHT_MAX_TICKETS * Math.exp(-PRICE_IS_RIGHT_DECAY_K * t);
   return Math.max(1, Math.floor(raw));
+}
+
+/** Eligibility list: most tickets first, then ascending VS within each ticket band. */
+export function comparePriceIsRightBoardEntries(
+  a: Pick<
+    PriceIsRightTicketBoardEntry,
+    "ticketCount" | "priorDayVsScore" | "memberName"
+  >,
+  b: Pick<
+    PriceIsRightTicketBoardEntry,
+    "ticketCount" | "priorDayVsScore" | "memberName"
+  >,
+): number {
+  if (b.ticketCount !== a.ticketCount) {
+    return b.ticketCount - a.ticketCount;
+  }
+  if (a.priorDayVsScore !== b.priorDayVsScore) {
+    return a.priorDayVsScore - b.priorDayVsScore;
+  }
+  return a.memberName.localeCompare(b.memberName);
 }
 
 export function buildPriceIsRightTicketBoard(
@@ -179,12 +235,26 @@ export function buildPriceIsRightTicketBoard(
   const atOrAboveFloor = entries.filter(
     (entry) => entry.priorDayVsScore >= PRICE_IS_RIGHT_MIN_VS_SCORE,
   );
+  const aboveCliff = atOrAboveFloor
+    .filter((entry) => isHardCutoffExcluded(entry.priorDayVsScore, entry.memberId, settings))
+    .map(({ memberId, memberName, priorDayVsScore, isViewer }) => ({
+      memberId,
+      memberName,
+      priorDayVsScore,
+      isViewer,
+    }))
+    .sort((a, b) => {
+      if (a.priorDayVsScore !== b.priorDayVsScore) {
+        return a.priorDayVsScore - b.priorDayVsScore;
+      }
+      return a.memberName.localeCompare(b.memberName);
+    });
   const ticketPool = atOrAboveFloor.filter((entry) => entry.ticketCount > 0);
   const totalTickets = ticketPool.reduce(
     (sum, entry) => sum + entry.ticketCount,
     0,
   );
-  const board = atOrAboveFloor
+  const board = ticketPool
     .map((entry) => ({
       ...entry,
       winProbability:
@@ -192,14 +262,9 @@ export function buildPriceIsRightTicketBoard(
           ? entry.ticketCount / totalTickets
           : 0,
     }))
-    .sort((a, b) => {
-      if (b.ticketCount !== a.ticketCount) {
-        return b.ticketCount - a.ticketCount;
-      }
-      return a.memberName.localeCompare(b.memberName);
-    });
+    .sort(comparePriceIsRightBoardEntries);
 
-  return { board, missedFloor };
+  return { board, missedFloor, aboveCliff };
 }
 
 export function computeWinProbabilities(
@@ -284,8 +349,21 @@ export function samplePriceIsRightUniformCurve(
 
 export function boardToChartPoints(
   board: PriceIsRightTicketBoardEntry[],
+  settings?: PriceIsRightTicketSettings,
 ): PriceIsRightChartPoint[] {
-  return board.map((entry) => ({
+  return board
+    .filter((entry) => {
+      if (entry.ticketCount <= 0) return false;
+      if (
+        settings?.hardCutoffEnabled &&
+        isScoreAboveCliff(entry.priorDayVsScore, settings) &&
+        !entry.isTakedownOverride
+      ) {
+        return false;
+      }
+      return true;
+    })
+    .map((entry) => ({
     score: entry.priorDayVsScore,
     tickets: entry.ticketCount,
     winProbability: entry.winProbability,

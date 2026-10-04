@@ -47,7 +47,9 @@ export async function GET() {
       jobs,
       canProcess,
       ashedConnected: Boolean(connection),
-      ashedRequired: videoOcrRequiresAshedConnection(ocrContext),
+      ashedRequired: jobs.length > 0
+        ? jobs.some((job) => job.requiresAshedConnection ?? videoOcrRequiresAshedConnection(ocrContext))
+        : videoOcrRequiresAshedConnection(ocrContext),
       hqOcrOnly,
       hqOcrOnlyLocked: isAllianceHqOcrOnlyLockedOnDeploy(),
       connectUrl: `/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`,

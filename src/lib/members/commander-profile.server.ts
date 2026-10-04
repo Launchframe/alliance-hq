@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -19,8 +19,10 @@ import {
 } from "@/lib/members/alliance-rank";
 import { sessionHasMembershipForAlliance } from "@/lib/alliance/session-memberships";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
+import { viewerCanIssueLeadershipHybridInvite } from "@/lib/native-alliance/team-invites.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
+import { parseEventScoreMetadata } from "@/lib/members/commander-profile.shared";
 import {
   syncMemberCommendationsFromAshed,
   syncMemberViolationsFromAshed,
@@ -28,24 +30,10 @@ import {
 import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 import { sessionCanGiftStoreBricks } from "@/lib/members/commander-donation.server";
+import { listPerformanceNotesForAshedMember } from "@/lib/performance-notes/repository.server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
-
-function parseEventMetadata(metadata: unknown): {
-  score: number | null;
-  rank: number | null;
-} {
-  if (!metadata || typeof metadata !== "object") {
-    return { score: null, rank: null };
-  }
-  const row = metadata as Record<string, unknown>;
-  const scoreRaw = row.score ?? row.total_score ?? row.points;
-  const rankRaw = row.rank ?? row.placement;
-  return {
-    score: typeof scoreRaw === "number" ? scoreRaw : null,
-    rank: typeof rankRaw === "number" ? rankRaw : null,
-  };
-}
 
 /** HQ user who linked this commander via name+UID — not alliance R5/officer RBAC. */
 async function viewerOwnsCommander(input: {
@@ -264,6 +252,7 @@ export async function loadCommanderProfile(
     .select({
       eventId: schema.hqEvents.id,
       eventName: schema.hqEvents.name,
+      scoreTarget: schema.hqEvents.scoreTarget,
       metadata: schema.hqEventMembers.metadata,
       updatedAt: schema.hqEventMembers.updatedAt,
     })
@@ -345,10 +334,17 @@ export async function loadCommanderProfile(
         and(
           eq(schema.memberViolations.allianceId, allianceId),
           eq(schema.memberViolations.ashedMemberId, ashedMemberId),
+          isNull(schema.memberViolations.complianceEventId),
         ),
       )
       .orderBy(desc(schema.memberViolations.recordedDate)),
   ]);
+
+  const canProjectNotes = await sessionHasPermission(sessionId, "members:write");
+  const noteActor = canProjectNotes ? await getKnowledgeActorForSession(sessionId) : null;
+  const hqNotes = noteActor?.allianceId === allianceId
+    ? await listPerformanceNotesForAshedMember({ actor: noteActor, ashedMemberId })
+    : [];
 
   const ashedMember = allianceMemberRowToAshedMember(memberRow);
   const rankForDisplay =
@@ -372,13 +368,16 @@ export async function loadCommanderProfile(
     sessionId,
     "members:write",
   );
+  const viewerCanIssueOfficerInvite =
+    rbac != null &&
+    viewerCanIssueLeadershipHybridInvite(rbac, rankForDisplay.rank);
   const canEditMainSquad = await viewerCanEditMainSquad({
     sessionId,
     allianceId,
     ashedMemberId,
   });
   const canGift = await sessionCanGiftStoreBricks(sessionId, allianceId);
-  const canGiftStoreBricks = canGift && !viewerIsOwner;
+  const canGiftStoreBricks = canGift && !viewerIsOwner && Boolean(gameUid);
   const canManageTipJar = canGift && viewerIsOwner && Boolean(gameUid);
 
   return {
@@ -387,6 +386,7 @@ export async function loadCommanderProfile(
       currentName: commanderIdentity?.primaryName ?? memberRow.currentName,
       previousNames: memberRow.previousNamesJson ?? [],
       status: commanderIdentity?.membershipStatus ?? memberRow.status,
+      allianceRank: rankForDisplay.rank,
       rankLabel,
       titleLabel,
       powerLevel: commanderIdentity?.powerLevel ?? null,
@@ -398,6 +398,7 @@ export async function loadCommanderProfile(
       viewerIsOwner,
       canOfficerOverrideMainSquad,
       viewerCanIssueClaimInvite: canOfficerOverrideMainSquad,
+      viewerCanIssueOfficerInvite,
       viewerCanBreakGlassUnlink,
       canGiftStoreBricks,
       canManageTipJar,
@@ -432,13 +433,14 @@ export async function loadCommanderProfile(
       updatedAt: row.updatedAt.toISOString(),
     })),
     eventScores: eventScoreRows.map((row) => {
-      const parsed = parseEventMetadata(row.metadata);
+      const parsed = parseEventScoreMetadata(row.metadata, row.scoreTarget);
       return {
         eventId: row.eventId,
         eventName: row.eventName,
         boardKey: null,
         score: parsed.score,
         rank: parsed.rank,
+        frontlineStage: parsed.frontlineStage,
         updatedAt: row.updatedAt.toISOString(),
       };
     }),
@@ -480,6 +482,12 @@ export async function loadCommanderProfile(
       }
       return highlights;
     }),
+    hqNotes: hqNotes.map((note) => ({
+      id: note.id,
+      kind: note.kind,
+      body: note.body,
+      createdAt: note.createdAt,
+    })),
     operatingMode,
   };
 }

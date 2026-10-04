@@ -1,17 +1,30 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
+import { memberIdsEligibleForPoolType } from "@/lib/trains/rank-history";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { listPoolEntries, getPoolSummary } from "@/lib/trains/pool";
+import {
+  listPoolEntries,
+  getPoolSummary,
+  listPriorPoolGenerationSnapshots,
+} from "@/lib/trains/pool";
+import {
+  assessRestorePreviousPoolGeneration,
+  PoolGenerationMergeError,
+  restorePreviousPoolGeneration,
+} from "@/lib/trains/pool-generation-merge.server";
 import { reseedPool } from "@/lib/trains/service";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType } from "@/lib/trains/types";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import {
   vsScoreContextForTrainDate,
   type VsScoreContext,
 } from "@/lib/trains/vs-week-days.shared";
 import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { requireApiSession } from "@/lib/session";
 import {
   requireSessionPermission,
@@ -44,14 +57,46 @@ export async function GET(request: Request) {
   }
 
   const summary = await getPoolSummary(ctx.allianceId, poolType);
-  const entries = await listPoolEntries(ctx.allianceId, poolType);
+  const canManageTrains = await sessionHasPermission(session.id, "trains:write");
+  const [rawEntries, priorGenerations, restorePreviousGeneration] =
+    await Promise.all([
+      listPoolEntries(ctx.allianceId, poolType),
+      listPriorPoolGenerationSnapshots(ctx.allianceId, poolType),
+      canManageTrains
+        ? assessRestorePreviousPoolGeneration({
+            allianceId: ctx.allianceId,
+            poolType,
+          })
+        : Promise.resolve(null),
+    ]);
+
+  let entries = rawEntries;
+  if (
+    (poolType === "r3" || poolType === "r4_plus") &&
+    trainDate &&
+    rawEntries.length > 0
+  ) {
+    const eligibleIds = await memberIdsEligibleForPoolType(
+      ctx.allianceId,
+      poolType,
+      trainDate,
+      rawEntries.map((entry) => entry.memberId),
+    );
+    entries = rawEntries.filter(
+      (entry) =>
+        entry.selectedAt != null || eligibleIds.has(entry.memberId),
+    );
+  }
 
   if (poolType === "event_top_x" && trainDate) {
-    const eventContext = vsScoreContextForTrainDate(trainDate);
+    const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
+    const eventContext = vsScoreContextForTrainDate(trainDate, leadDays);
     const scoresByMember = await fetchHqSeasonVsScoresByMember(ctx.allianceId);
 
     return NextResponse.json({
       summary,
+      priorGenerations,
+      restorePreviousGeneration,
       eventContext,
       entries: entries.map((entry) => ({
         ...entry,
@@ -60,7 +105,12 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ summary, entries });
+  return NextResponse.json({
+    summary,
+    priorGenerations,
+    restorePreviousGeneration,
+    entries,
+  });
 }
 
 export async function POST(request: Request) {
@@ -78,6 +128,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     poolType?: PoolType;
     date?: string;
+    action?: "reseed" | "restorePreviousGeneration";
   };
 
   if (!body.poolType) {
@@ -85,6 +136,24 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (body.action === "restorePreviousGeneration") {
+      const result = await restorePreviousPoolGeneration({
+        allianceId: ctx.allianceId,
+        poolType: body.poolType,
+      });
+      await writeTrainsOfficerAudit({
+        sessionId: session.id,
+        allianceId: ctx.allianceId,
+        hqUserId: session.hqUserId,
+        action: "trains.pool_restore_previous_generation",
+        severity: "override",
+        resourceType: "train_pool",
+        resourceId: `${ctx.allianceId}:${body.poolType}`,
+        metadata: { poolType: body.poolType },
+      });
+      return NextResponse.json(result);
+    }
+
     const date = body.date?.trim() || getServerCalendarDate();
     const { seasonKey } = await getEffectiveSeasonForAlliance(ctx.allianceId);
     const dayConfig = await resolveRollDayConfig(
@@ -96,11 +165,34 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       poolType: body.poolType,
       date,
-      paintTemplate: dayConfig.paintTemplate,
-      conductorMechanism: dayConfig.conductorMechanism,
+      rule: dayConfig.conductorRule,
+    });
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.pool_reseed",
+      severity: "update",
+      resourceType: "train_pool",
+      resourceId: `${ctx.allianceId}:${body.poolType}`,
+      metadata: {
+        poolType: body.poolType,
+        date,
+        conductorRule: dayConfig.conductorRule,
+      },
     });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof PoolGenerationMergeError) {
+      const status =
+        error.code === "LOCKED_DRAFT" || error.code === "SELECTED_OVERLAP"
+          ? (409 as const)
+          : (400 as const);
+      return NextResponse.json(
+        { error: error.message, mergeError: { code: error.code } },
+        { status },
+      );
+    }
     const { status, body } = trainRollErrorResponse(error);
     return NextResponse.json(body, { status });
   }

@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { notFound } from "next/navigation";
 
 import { MemberLinkHelpRequestReviewClient } from "@/components/members/MemberLinkHelpRequestReviewClient";
@@ -9,9 +10,21 @@ import { redirect } from "@/i18n/navigation";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata() {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; id: string }>;
+}) {
+  const { id } = await params;
   const t = await getTranslations("memberLinkHelpReview");
-  return { title: t("title") };
+  let pageTitle = t("title");
+  const review = await loadMemberLinkHelpRequestReview({ requestId: id });
+  if (review?.request?.gameUserName?.trim()) {
+    pageTitle = `${pageTitle} — ${review.request.gameUserName.trim()}`;
+  } else if (review?.request?.reportedName?.trim()) {
+    pageTitle = `${pageTitle} — ${review.request.reportedName.trim()}`;
+  }
+  return await allianceScopedMetadata(pageTitle);
 }
 
 export default async function MemberLinkHelpDetailPage({

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { isTagEligible } from "@/lib/vr/bot-setup";
+import { allianceTagsEqual, isTagEligible } from "@/lib/vr/bot-setup";
 
 describe("isTagEligible", () => {
   const original = process.env.ELIGIBLE_BOT_ALLIANCE_LINK_TAGS;
@@ -25,5 +25,14 @@ describe("isTagEligible", () => {
     expect(isTagEligible("lfgo")).toBe(true);
     expect(isTagEligible("Other")).toBe(true);
     expect(isTagEligible("blocked")).toBe(false);
+  });
+});
+
+
+describe("allianceTagsEqual", () => {
+  it("compares tags case-insensitively with trim", () => {
+    expect(allianceTagsEqual("LFgo", "lfgo")).toBe(true);
+    expect(allianceTagsEqual(" LFgo ", "lfgo")).toBe(true);
+    expect(allianceTagsEqual("LFgo", "Other")).toBe(false);
   });
 });

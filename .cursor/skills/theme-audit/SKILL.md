@@ -15,7 +15,7 @@ Unless the user narrows the audit, include **both** trains and bank/stronghold s
 
 | Area | Paths |
 | --- | --- |
-| Trains dashboard | `src/components/trains/**`, `src/lib/trains/mechanism-styles.ts`, `src/lib/trains/calendar-cell-styles.shared.ts` |
+| Trains dashboard | `src/components/trains/**`, `src/lib/trains/rules/palette.shared.ts` |
 | Bank stronghold / deposit | `src/components/banks/**`, `src/components/video/DepositSlipVideoReviewTable.tsx`, `src/components/video/ReviewExtractedData.tsx` (deposit-slip columns only) |
 
 Do not limit ripgrep to `src/components/trains/` — bank deposit UI shares the same failure modes (bare light text, translucent tints on white, hardcoded warning/danger hex).
@@ -32,6 +32,9 @@ rg 'bg-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate
 
 # Light text that vanishes on white
 rg 'text-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-(100|200|300)' --glob '*.tsx' --glob '*.ts' -l src/
+
+# GitHub Primer dark-only body hex (unreadable on light canvas)
+rg 'text-\[#(c9d1d9|8b949e|e6edf3|f0f6fc)\]' --glob '*.tsx' -l src/
 
 # Border tints
 rg 'border-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-\d00(/\d+)?' --glob '*.tsx' --glob '*.ts' -l src/
@@ -58,7 +61,7 @@ For each match, check whether the same element has **both** a readable light-mod
 - Decorative elements that intentionally do not flip with theme (document the exception)
 - Charts / data viz with a fixed palette documented next to the series config
 
-**Canonical maps (fix here first, do not skip):** Legacy dark-biased entries in [`src/lib/trains/mechanism-styles.ts`](../../src/lib/trains/mechanism-styles.ts) (`MECHANISM_STYLES`) and [`src/lib/trains/calendar-cell-styles.shared.ts`](../../src/lib/trains/calendar-cell-styles.shared.ts) (`TEMPLATE_CELL_STYLES`, not exported). Repair the map — every consumer benefits. Do not patch individual components when the class string comes from these maps.
+**Canonical maps (fix here first, do not skip):** Legacy dark-biased entries in [`src/lib/trains/rules/palette.shared.ts`](../../src/lib/trains/rules/palette.shared.ts) (`RULE_CELL_STYLES`, `RULE_PALETTE_SWATCHES`). Repair the map — every consumer benefits. Do not patch individual components when the class string comes from these maps.
 
 ### Bank stronghold / deposit surfaces
 

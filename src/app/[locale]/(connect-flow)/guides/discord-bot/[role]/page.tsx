@@ -7,6 +7,7 @@ import {
   isDiscordBotGuideRoleSlug,
 } from "@/lib/guides/discord-bot-guide.shared";
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 type Props = {
   params: Promise<{ locale: string; role: string }>;
@@ -19,13 +20,11 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props) {
   const { locale, role } = await params;
   if (!isDiscordBotGuideRoleSlug(role)) {
-    return { title: "Guide" };
+    return standalonePageMetadata("Guide");
   }
   const t = await getTranslations({ locale, namespace: "guides.discordBot" });
-  return {
-    title: t(`roles.${role}.title`),
-    description: t(`roles.${role}.description`),
-  };
+  const meta = standalonePageMetadata(t(`roles.${role}.title`));
+  return { ...meta, description: t(`roles.${role}.description`) };
 }
 
 export default async function DiscordBotGuideRolePage({ params }: Props) {

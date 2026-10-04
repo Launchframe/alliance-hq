@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { writeAuditLog } from "@/lib/bff/audit";
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
@@ -50,11 +50,12 @@ export async function PATCH(request: Request) {
   }
 
   if (before.weightingEnabled !== saved.weightingEnabled) {
-    await writeAuditLog({
+    await writeTrainsOfficerAudit({
       sessionId: session.id,
       allianceId: ctx.allianceId,
-      hqUserId: session.hqUserId ?? undefined,
+      hqUserId: session.hqUserId,
       action: "trains.price_is_right.weighting_updated",
+      severity: "update",
       resourceType: "alliance",
       resourceId: ctx.allianceId,
       metadata: {

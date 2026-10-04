@@ -22,6 +22,10 @@ import {
   type AdminReprocessFpsAdjustment,
 } from "@/lib/video/admin-reprocess-extraction.shared";
 import {
+  assertJobVideoStorageAvailable,
+  VideoJobStorageUnavailableError,
+} from "@/lib/video/assert-job-video-storage.server";
+import {
   resetVideoJobForReprocess,
   VideoJobReprocessConflictError,
 } from "@/lib/video/reset-video-job-for-reprocess";
@@ -371,6 +375,20 @@ export async function adminReprocessVideoJob(params: {
     throw new AdminReprocessError("Job not found", 404);
   }
   assertJobCanReprocess(freshStatus.status);
+
+  try {
+    await assertJobVideoStorageAvailable({
+      storageKey: job.storageKey,
+      archiveStorageKey: job.archiveStorageKey,
+      groupId: job.groupId,
+      fileName: job.fileName,
+    });
+  } catch (err) {
+    if (err instanceof VideoJobStorageUnavailableError) {
+      throw new AdminReprocessError(err.message, 404);
+    }
+    throw err;
+  }
 
   if (pendingStamp) {
     const groupId = await ensureJobHasGroup(job);

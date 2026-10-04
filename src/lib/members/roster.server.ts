@@ -74,7 +74,22 @@ export async function syncAllianceMembersFromAshed(input: {
 
     const ashedStats = ashedMemberRecordToCommanderStats(record);
 
-    await db
+    const [existingBefore] = await db
+      .select({
+        allianceRank: schema.allianceMembers.allianceRank,
+        currentName: schema.allianceMembers.currentName,
+      })
+      .from(schema.allianceMembers)
+      .where(
+        and(
+          eq(schema.allianceMembers.allianceId, input.hqAllianceId),
+          eq(schema.allianceMembers.ashedMemberId, ashedMemberId),
+        ),
+      )
+      .limit(1);
+    const previousRank = existingBefore?.allianceRank ?? null;
+
+    const [savedRoster] = await db
       .insert(schema.allianceMembers)
       .values({
         id: nanoid(),
@@ -107,10 +122,10 @@ export async function syncAllianceMembersFromAshed(input: {
           ashedAllianceId: input.ashedAllianceId,
           currentName: member.current_name,
           previousNamesJson: member.previous_names ?? [],
-          status,
-          allianceRank: normalized.allianceRank,
-          allianceRankTitle: normalized.allianceRankTitle,
-          ashedRankRaw: normalized.ashedRankRaw,
+          status: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.status} else excluded.status end`,
+          allianceRank: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.allianceRank} else excluded.alliance_rank end`,
+          allianceRankTitle: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.allianceRankTitle} else excluded.alliance_rank_title end`,
+          ashedRankRaw: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.ashedRankRaw} else excluded.ashed_rank_raw end`,
           joinDate: record.join_date ?? null,
           notes: record.notes ?? null,
           timezone: record.timezone ?? null,
@@ -122,7 +137,44 @@ export async function syncAllianceMembersFromAshed(input: {
           syncedAt: now,
           updatedAt: now,
         },
+      }).returning({
+        status: schema.allianceMembers.status,
+        allianceRank: schema.allianceMembers.allianceRank,
       });
+
+    const nextRank = savedRoster?.allianceRank ?? null;
+    if (previousRank !== nextRank) {
+      let eventId: string | null = null;
+      try {
+        if (nextRank != null) {
+          eventId = nanoid();
+          const { getServerCalendarDate } = await import("@/lib/trains/game-time");
+          await db.insert(schema.memberAllianceRankEvents).values({
+            id: eventId,
+            allianceId: input.hqAllianceId,
+            ashedMemberId,
+            memberName: member.current_name,
+            allianceRank: nextRank,
+            allianceRankTitle: normalized.allianceRankTitle,
+            effectiveDate: getServerCalendarDate(),
+            source: "ashed_sync",
+            ashedSyncedAt: now,
+          });
+        }
+        const { evaluateMemberRoleNudgesOnRankChange } = await import(
+          "@/lib/member-role-nudges/evaluate-rank-change.server"
+        );
+        await evaluateMemberRoleNudgesOnRankChange({
+          allianceId: input.hqAllianceId,
+          ashedMemberId,
+          previousRank,
+          nextRank,
+          rankEventId: eventId,
+        });
+      } catch (error) {
+        console.error("[member-role-nudges] ashed sync evaluate failed", error);
+      }
+    }
 
     await seedMemberStatHistoriesFromAshed({
       allianceId: input.hqAllianceId,
@@ -135,7 +187,7 @@ export async function syncAllianceMembersFromAshed(input: {
     await syncTenureFromMemberStatus({
       allianceId: input.hqAllianceId,
       ashedMemberId,
-      status,
+      status: savedRoster?.status ?? status,
     });
 
     const syncResult = await syncCommanderFromAllianceMember({
@@ -155,7 +207,27 @@ export async function syncAllianceMembersFromAshed(input: {
     synced += 1;
   }
 
+  try {
+    const { rematerializeFormerSeatLinksForAlliance } = await import(
+      "@/lib/members/uid-seat-handoff.server"
+    );
+    await rematerializeFormerSeatLinksForAlliance(input.hqAllianceId);
+  } catch {
+    console.error("[roster-sync] former-seat rematerialize failed", {
+      allianceId: input.hqAllianceId,
+    });
+  }
+
+  await syncCurrentRankPoolGenerations(input.hqAllianceId);
+
   return { synced, commanderConflicts };
+}
+
+async function syncCurrentRankPoolGenerations(hqAllianceId: string): Promise<void> {
+  const { syncRankEligibilityForCurrentGenerations } = await import(
+    "@/lib/trains/pool-rank-eligibility.server"
+  );
+  await syncRankEligibilityForCurrentGenerations(hqAllianceId);
 }
 
 function parseAshedTimestamp(value: string | null | undefined): Date | null {
@@ -222,9 +294,10 @@ export async function listAllianceMembersWithAshedSyncIfNeeded(input: {
 
 export async function listActiveAllianceMembersForPool(
   hqAllianceId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
+  options?: { lock?: boolean },
 ): Promise<AllianceMember[]> {
-  const db = getDb();
-  return db
+  const query = db
     .select()
     .from(schema.allianceMembers)
     .where(
@@ -232,7 +305,9 @@ export async function listActiveAllianceMembersForPool(
         eq(schema.allianceMembers.allianceId, hqAllianceId),
         ne(schema.allianceMembers.status, "former"),
       ),
-    );
+    )
+    .orderBy(schema.allianceMembers.id);
+  return options?.lock ? query.for("update") : query;
 }
 
 export async function listActiveAllianceMembersForPoolWithSync(input: {
@@ -300,6 +375,7 @@ export async function setAllianceMemberRank(input: {
     allianceId: input.hqAllianceId,
     ashedMemberId: input.ashedMemberId,
   });
+  await syncCurrentRankPoolGenerations(input.hqAllianceId);
 }
 
 export async function clearAllianceMemberRank(input: {
@@ -307,7 +383,19 @@ export async function clearAllianceMemberRank(input: {
   ashedMemberId: string;
 }): Promise<void> {
   const db = getDb();
-  await db
+  const [existing] = await db
+    .select({ allianceRank: schema.allianceMembers.allianceRank })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.hqAllianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  const previousRank = existing?.allianceRank ?? null;
+
+  const updated = await db
     .update(schema.allianceMembers)
     .set({
       allianceRank: null,
@@ -320,10 +408,29 @@ export async function clearAllianceMemberRank(input: {
         eq(schema.allianceMembers.allianceId, input.hqAllianceId),
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
-    );
+    )
+    .returning({ id: schema.allianceMembers.id });
+
+  if (updated.length > 0) {
+    try {
+      const { evaluateMemberRoleNudgesOnRankChange } = await import(
+        "@/lib/member-role-nudges/evaluate-rank-change.server"
+      );
+      await evaluateMemberRoleNudgesOnRankChange({
+        allianceId: input.hqAllianceId,
+        ashedMemberId: input.ashedMemberId,
+        previousRank,
+        nextRank: null,
+        rankEventId: null,
+      });
+    } catch (error) {
+      console.error("[member-role-nudges] rank clear evaluate failed", error);
+    }
+  }
 
   await syncCommanderFromAllianceMember({
     allianceId: input.hqAllianceId,
     ashedMemberId: input.ashedMemberId,
   });
+  await syncCurrentRankPoolGenerations(input.hqAllianceId);
 }

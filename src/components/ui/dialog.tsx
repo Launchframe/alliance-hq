@@ -10,10 +10,12 @@ type DialogProps = {
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
   title?: string;
+  zIndex?: number;
   className?: string;
   ignoreOutsideDismiss?: boolean;
   /** Keep children mounted but hide the dialog chrome (e.g. bug-report screenshot mode). */
   presentationHidden?: boolean;
+  "data-testid"?: string;
 };
 
 /** Nested open dialogs share one body scroll lock. */
@@ -42,9 +44,11 @@ export function Dialog({
   onOpenChange,
   children,
   title,
+  zIndex,
   className = "",
   ignoreOutsideDismiss = false,
   presentationHidden = false,
+  "data-testid": dataTestId,
 }: DialogProps) {
   const [mounted] = React.useState(() => typeof document !== "undefined");
 
@@ -72,9 +76,10 @@ export function Dialog({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] flex items-end justify-center overscroll-none p-4 sm:items-center${
+      className={`fixed inset-0 z-[100] flex min-h-0 items-end justify-center overscroll-none p-4 sm:items-center${
         presentationHidden ? " invisible pointer-events-none" : ""
       }`}
+      style={zIndex === undefined ? undefined : { zIndex }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -87,7 +92,10 @@ export function Dialog({
           if (!ignoreOutsideDismiss) onOpenChange(false);
         }}
       />
-      <div className={`${dialogPanelClassName(className)} overscroll-contain`}>
+      <div
+        className={`${dialogPanelClassName(className)} overscroll-contain`}
+        data-testid={dataTestId}
+      >
         {children}
       </div>
     </div>,

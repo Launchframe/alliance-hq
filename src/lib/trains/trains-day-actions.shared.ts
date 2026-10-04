@@ -27,3 +27,11 @@ export function canRollForDate(date: string, today: string): boolean {
 export function canManualPickForDate(): boolean {
   return true;
 }
+
+/** Unlocked draft with a conductor — officers may clear it (releases the pool slot). */
+export function canClearPendingConductor(record: {
+  conductorMemberId?: string | null;
+  lockedAt?: string | Date | null;
+} | null | undefined): boolean {
+  return Boolean(record?.conductorMemberId && record.lockedAt == null);
+}

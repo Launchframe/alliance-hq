@@ -1,10 +1,15 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { AdminVideoAnalyticsView } from "@/app/[locale]/(app)/admin/video-jobs/analytics/AdminVideoAnalyticsView";
 import { TOOLS_VIDEO_JOBS_CONSOLE } from "@/lib/video/video-jobs-console.shared";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("toolsVideoJobs");
+  return await allianceScopedMetadata(t("analyticsTitle"));
+}
 export default async function ToolsVideoJobsAnalyticsPage() {
   const t = await getTranslations("toolsVideoJobs");
 

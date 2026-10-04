@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   importConductorHistory,
@@ -7,6 +8,7 @@ import {
 } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
+import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +43,10 @@ export async function GET(request: Request) {
   return NextResponse.json({ records });
 }
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -75,6 +80,23 @@ export async function POST(request: Request) {
   const result = await importConductorHistory({
     allianceId: ctx.allianceId,
     rows,
+    lockedByHqUserId: await resolveTrainActorHqUserId(session.id),
+  });
+
+  await writeTrainsOfficerAudit({
+    sessionId: session.id,
+    allianceId: ctx.allianceId,
+    hqUserId: session.hqUserId,
+    action: "trains.conductor_history_import",
+    severity: "routine",
+    resourceType: "train_conductor_record",
+    resourceId: ctx.allianceId,
+    metadata: {
+      rowCount: rows.length,
+      imported: result.imported,
+      skipped: result.skipped,
+      conflicts: result.conflicts,
+    },
   });
 
   return NextResponse.json(result);

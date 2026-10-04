@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   compareParsedRowsForReview,
   mergeParsedRowInReviewOrder,
+  reviewLeaderboardRankByScoreDesc,
   reviewRowPrimarySortKey,
   sortParsedRowsForInitialReview,
+  sortReviewRowsByScoreDesc,
   sortsInitialReviewByScoreDesc,
 } from "@/lib/video/parsed-row-review-order";
 
@@ -18,16 +20,34 @@ describe("reviewRowPrimarySortKey", () => {
     expect(reviewRowPrimarySortKey("alliance-star")).toBe("rank");
   });
 
+  it("uses the actual leaderboard rank for Frontline Breakthrough", () => {
+    expect(reviewRowPrimarySortKey("frontline-breakthrough")).toBe("rank");
+    const rows = [
+      { rank: 18, frameIndex: 3 },
+      { rank: 1, frameIndex: 0 },
+      { rank: 14, frameIndex: 2 },
+      { rank: 2, frameIndex: 1 },
+      { rank: 3, frameIndex: 4 },
+    ];
+    rows.sort((a, b) => compareParsedRowsForReview(a, b, "frontline-breakthrough"));
+    expect(rows.map((row) => row.rank)).toEqual([1, 2, 3, 14, 18]);
+  });
+
   it("returns null for linear score targets ordered by frameIndex", () => {
     expect(reviewRowPrimarySortKey("desert-storm")).toBeNull();
   });
 });
 
 describe("sortsInitialReviewByScoreDesc", () => {
-  it("is true only for desert-storm", () => {
+  it("is true for scoreboard targets that show a computed rank column", () => {
     expect(sortsInitialReviewByScoreDesc("desert-storm")).toBe(true);
-    expect(sortsInitialReviewByScoreDesc("canyon-storm")).toBe(false);
-    expect(sortsInitialReviewByScoreDesc("vs-performance")).toBe(false);
+    expect(sortsInitialReviewByScoreDesc("canyon-storm")).toBe(true);
+    expect(sortsInitialReviewByScoreDesc("vs-performance")).toBe(true);
+  });
+
+  it("is false for roster and podium targets", () => {
+    expect(sortsInitialReviewByScoreDesc("member-roster-video")).toBe(false);
+    expect(sortsInitialReviewByScoreDesc("alliance-star")).toBe(false);
   });
 });
 
@@ -67,7 +87,7 @@ describe("sortParsedRowsForInitialReview", () => {
     expect(sorted.map((row) => row.id)).toEqual(["b", "c", "a", "d"]);
   });
 
-  it("does not use score order for canyon-storm load", () => {
+  it("sorts canyon-storm by score descending on load", () => {
     const sorted = sortParsedRowsForInitialReview(
       [
         { id: "a", score: "100", rank: null, frameIndex: 2 },
@@ -76,6 +96,17 @@ describe("sortParsedRowsForInitialReview", () => {
       "canyon-storm",
     );
     expect(sorted.map((row) => row.id)).toEqual(["b", "a"]);
+  });
+
+  it("sorts vs-performance by score descending on load", () => {
+    const sorted = sortParsedRowsForInitialReview(
+      [
+        { id: "low", score: "9328000", frameIndex: 40 },
+        { id: "high", score: "18755850", frameIndex: 0 },
+      ],
+      "vs-performance",
+    );
+    expect(sorted.map((row) => row.id)).toEqual(["high", "low"]);
   });
 });
 
@@ -103,5 +134,85 @@ describe("mergeParsedRowInReviewOrder", () => {
     );
     // Manual rows use frameIndex -1; merge keeps rank/frameIndex rules, not score.
     expect(merged.map((row) => row.id)).toEqual(["new", "a", "b"]);
+  });
+});
+
+describe("sortReviewRowsByScoreDesc", () => {
+  it("sorts active rows by score descending and keeps deleted rows last", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "low", score: "10", frameIndex: 0 },
+      { id: "high", score: "100", frameIndex: 2 },
+      { id: "deleted", score: "999", frameIndex: 1, deleted: 1 },
+      { id: "mid", score: "50", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "high",
+      "mid",
+      "low",
+      "deleted",
+    ]);
+  });
+
+  it("breaks tied scores by frameIndex ascending", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "later", score: "100", frameIndex: 5 },
+      { id: "earlier", score: "100", frameIndex: 1 },
+      { id: "middle", score: "100", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "earlier",
+      "middle",
+      "later",
+    ]);
+  });
+
+  it("sorts locale-formatted scores and sinks empty scores last", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "empty", score: "", frameIndex: 0 },
+      { id: "comma", score: "1,250", frameIndex: 2 },
+      { id: "plain", score: "500", frameIndex: 1 },
+      { id: "invalid", score: "n/a", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "comma",
+      "plain",
+      "empty",
+      "invalid",
+    ]);
+  });
+});
+
+describe("reviewLeaderboardRankByScoreDesc", () => {
+  it("ranks by score descending regardless of input order", () => {
+    const ranks = reviewLeaderboardRankByScoreDesc([
+      { id: "boggle", score: "8,669,329" },
+      { id: "eagle", score: "13,904,210" },
+      { id: "orbs", score: "13,245,266" },
+    ]);
+    expect(ranks.get("eagle")).toBe(1);
+    expect(ranks.get("orbs")).toBe(2);
+    expect(ranks.get("boggle")).toBe(3);
+  });
+
+  it("uses competition ranking for tied scores", () => {
+    const ranks = reviewLeaderboardRankByScoreDesc([
+      { id: "a", score: "100" },
+      { id: "b", score: "100" },
+      { id: "c", score: "50" },
+    ]);
+    expect(ranks.get("a")).toBe(1);
+    expect(ranks.get("b")).toBe(1);
+    expect(ranks.get("c")).toBe(3);
+  });
+
+  it("returns null for rows without a parseable score", () => {
+    const ranks = reviewLeaderboardRankByScoreDesc([
+      { id: "a", score: "100" },
+      { id: "b", score: "" },
+      { id: "c", score: "n/a" },
+    ]);
+    expect(ranks.get("a")).toBe(1);
+    expect(ranks.get("b")).toBeNull();
+    expect(ranks.get("c")).toBeNull();
   });
 });

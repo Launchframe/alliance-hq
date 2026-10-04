@@ -131,6 +131,7 @@ function SpinSourceRow({
       {isPool ? (
         <button
           type="button"
+          data-testid="trains-spin-source-view-pool"
           onClick={() => onViewPool(source.poolType)}
           className="shrink-0 rounded-md border border-hq-border px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface w-full sm:w-auto"
         >

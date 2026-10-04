@@ -23,9 +23,15 @@ import {
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
+import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
-import { getLinkedMemberIds } from "@/lib/vr/repository";
+import {
+  getDiscordHqLink,
+  getDiscordLinkByAllianceAndMember,
+  getLinkedMemberIds,
+} from "@/lib/vr/repository";
 
+import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
 
 const INVITE_TTL_DAYS = 14;
@@ -86,6 +92,49 @@ export async function assertCommanderClaimTargetClaimable(
   }
 
   return { commanderName: member.currentName };
+}
+
+/**
+ * Who currently occupies an invite claim seat (HQ or Discord link).
+ * - `free` — nobody linked; acceptor may still claim on /onboard
+ * - `held_by_acceptor` — acceptor already linked (promote-linked-R5 soft-clear)
+ * - `held_by_other` — another HQ/Discord identity holds the seat (fail closed)
+ */
+export type InviteClaimOccupancy =
+  | "free"
+  | "held_by_acceptor"
+  | "held_by_other";
+
+export async function resolveInviteClaimOccupancy(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  acceptorHqUserId: string;
+}): Promise<InviteClaimOccupancy> {
+  const hqLink = await getHqMemberLinkByAllianceAndMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (hqLink) {
+    return hqLink.hqUserId === input.acceptorHqUserId
+      ? "held_by_acceptor"
+      : "held_by_other";
+  }
+
+  const discordLink = await getDiscordLinkByAllianceAndMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (!discordLink) {
+    return "free";
+  }
+
+  const discordHqLink = await getDiscordHqLink(discordLink.discordUserId);
+  if (discordHqLink?.hqUserId === input.acceptorHqUserId) {
+    return "held_by_acceptor";
+  }
+
+  // Discord-only occupant, or Discord linked to a different HQ user.
+  return "held_by_other";
 }
 
 async function ensureSystemRoleSeeded(
@@ -236,9 +285,9 @@ export async function createHqInvite(
   const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
   let targetCommanderName: string | null = null;
   if (targetAshedMemberId) {
-    if (input.roleName !== "member") {
-      throw new Error("Invalid invite role.");
-    }
+    // Privileged roles (officer, etc.) may bind an optional commander claim
+    // target — hybrid invite. Member-only claim invites stay the default for
+    // join-code claim codes; hq_invites allow any assignable role + target.
     const target = await assertCommanderClaimTargetClaimable(
       input.allianceId,
       targetAshedMemberId,
@@ -700,8 +749,40 @@ export async function acceptHqInvite(
     throw new Error("Discord officer invites require Auth Phase 2.");
   }
 
+  // Hybrid rank is gated at create only unless we re-check here — otherwise a
+  // demoted R5/R4 claim target still grants owner/officer RBAC on accept.
+  await assertHybridClaimInviteRankAtAccept({
+    allianceId: invite.allianceId,
+    roleId: invite.roleId,
+    targetAshedMemberId: invite.targetAshedMemberId,
+    invitedByHqUserId: invite.invitedByHqUserId,
+  });
+
   const hqUserId = input.hqUserId;
   const now = new Date();
+
+  // Claim-seat occupancy must be resolved BEFORE marking accepted / provisioning
+  // RBAC. Soft-failing after provision let a different user keep owner/officer
+  // privileges when the bound R5 seat was already linked to someone else.
+  let claimTargetId = invite.targetAshedMemberId ?? null;
+  if (claimTargetId) {
+    const occupancy = await resolveInviteClaimOccupancy({
+      allianceId: invite.allianceId,
+      ashedMemberId: claimTargetId,
+      acceptorHqUserId: hqUserId,
+    });
+    if (occupancy === "held_by_other") {
+      throw new CommanderClaimInviteError(
+        "commander_already_claimed",
+        "This commander is already linked to an account.",
+      );
+    }
+    if (occupancy === "held_by_acceptor") {
+      // Promote-linked-R5: acceptor already holds the seat — clear claim target
+      // so /onboard is not stuck, but still grant the invite role.
+      claimTargetId = null;
+    }
+  }
 
   const acceptedRows = await db
     .update(schema.hqInvites)
@@ -709,6 +790,9 @@ export async function acceptHqInvite(
       acceptedAt: now,
       acceptedByHqUserId: hqUserId,
       ...(kind === "protected_link" ? { passphraseConsumedAt: now } : {}),
+      ...(invite.targetAshedMemberId && !claimTargetId
+        ? { targetAshedMemberId: null }
+        : {}),
     })
     .where(
       and(
@@ -749,7 +833,7 @@ export async function acceptHqInvite(
   return {
     ...result,
     redirectPath: invite.redirectPath,
-    targetAshedMemberId: invite.targetAshedMemberId ?? null,
+    targetAshedMemberId: claimTargetId,
   };
 }
 

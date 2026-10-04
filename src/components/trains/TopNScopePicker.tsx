@@ -4,27 +4,32 @@ import { useTranslations } from "next-intl";
 
 import {
   isVrTopScopeUnlocked,
-  scopesForPaintTemplate,
   vrReportersRequiredForTopN,
   type ConductorTopN,
 } from "@/lib/trains/conductor-top-n.shared";
+import {
+  VR_TOP_N_SCOPES,
+  VS_TOP_N_SCOPES,
+} from "@/lib/trains/rules/catalog.shared";
 
 type Props = {
-  paintTemplate: "top_vs" | "top_vr";
+  /** Which board the scope belongs to. */
+  board: "vs_top_n" | "vr_top_n";
   vrReporterCount: number;
   onSelect: (topN: ConductorTopN) => void;
   onBack?: () => void;
 };
 
 export function TopNScopePicker({
-  paintTemplate,
+  board,
   vrReporterCount,
   onSelect,
   onBack,
 }: Props) {
   const t = useTranslations("trains.topNScope");
-  const scopes = scopesForPaintTemplate(paintTemplate);
-  const kind = paintTemplate === "top_vr" ? "vr" : "vs";
+  const kind = board === "vr_top_n" ? "vr" : "vs";
+  const scopes: readonly ConductorTopN[] =
+    kind === "vr" ? VR_TOP_N_SCOPES : VS_TOP_N_SCOPES;
 
   return (
     <div className="flex flex-col" data-testid="trains-topn-scope-picker">

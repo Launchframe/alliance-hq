@@ -5,12 +5,28 @@ import { POST } from "./route";
 const requireApiSession = vi.fn();
 const getAshedConnection = vi.fn();
 const sessionCanProcessVideo = vi.fn();
-const loadEffectiveAllianceHqOcrOnly = vi.fn();
+const loadAllianceVideoOcrContext = vi.fn();
 const resetVideoJobForReprocess = vi.fn();
 const dispatchVideoProcessing = vi.fn();
 const writeAuditLog = vi.fn();
 const updateWhere = vi.fn().mockResolvedValue(undefined);
 const selectLimit = vi.fn();
+
+const assertJobVideoStorageAvailable = vi.fn();
+
+vi.mock("@/lib/video/assert-job-video-storage.server", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/lib/video/assert-job-video-storage.server")
+    >();
+  return {
+    ...actual,
+    assertJobVideoStorageAvailable: (...args: unknown[]) =>
+      assertJobVideoStorageAvailable(...args),
+  };
+});
+
+import { VideoJobStorageUnavailableError } from "@/lib/video/assert-job-video-storage.server";
 
 vi.mock("@/lib/session", () => ({
   requireApiSession: (...args: unknown[]) => requireApiSession(...args),
@@ -46,8 +62,8 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/video/alliance-ocr-settings.server", () => ({
-  loadEffectiveAllianceHqOcrOnly: (...args: unknown[]) =>
-    loadEffectiveAllianceHqOcrOnly(...args),
+  loadAllianceVideoOcrContext: (...args: unknown[]) =>
+    loadAllianceVideoOcrContext(...args),
 }));
 
 vi.mock("@/lib/video/reset-video-job-for-reprocess", () => ({
@@ -82,10 +98,11 @@ const SESSION = {
 describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    loadEffectiveAllianceHqOcrOnly.mockResolvedValue(false);
+    loadAllianceVideoOcrContext.mockResolvedValue({ allianceHqOcrOnly: false, allianceOperatingMode: "ashed" });
     resetVideoJobForReprocess.mockResolvedValue(undefined);
     writeAuditLog.mockResolvedValue(undefined);
     updateWhere.mockResolvedValue(undefined);
+    assertJobVideoStorageAvailable.mockResolvedValue("videos/job-1/source.mp4");
   });
 
   it("skips Ashed for native-only deposit-slip targets and queues async", async () => {
@@ -152,6 +169,24 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
     );
   });
 
+  it.each(["native", "ashed"])("reprocesses VS without credentials only for %s mode", async (allianceOperatingMode) => {
+    requireApiSession.mockResolvedValue(SESSION);
+    sessionCanProcessVideo.mockResolvedValue(true);
+    getAshedConnection.mockResolvedValue(null);
+    loadAllianceVideoOcrContext.mockResolvedValue({ allianceOperatingMode });
+    selectLimit.mockResolvedValue([{ id: "job-vs", allianceId: "ally-1", scoreTarget: "vs-performance", status: "review" }]);
+    const res = await POST(new Request("http://localhost/reprocess"), {
+      params: Promise.resolve({ jobId: "job-vs" }),
+    });
+    expect(res.status).toBe(allianceOperatingMode === "native" ? 200 : 409);
+    if (allianceOperatingMode === "native") {
+      expect(getAshedConnection).not.toHaveBeenCalled();
+      expect(dispatchVideoProcessing).toHaveBeenCalledWith("job-vs", { source: "reprocess" });
+    } else {
+      expect(resetVideoJobForReprocess).not.toHaveBeenCalled();
+    }
+  });
+
   it("forwards processor-slot denial", async () => {
     requireApiSession.mockResolvedValue(SESSION);
     sessionCanProcessVideo.mockResolvedValue(false);
@@ -160,6 +195,48 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
       params: Promise.resolve({ jobId: "job-x" }),
     });
     expect(res.status).toBe(403);
+  });
+
+  it("returns 404 and skips reset when source video is missing", async () => {
+    requireApiSession.mockResolvedValue(SESSION);
+    sessionCanProcessVideo.mockResolvedValue(true);
+    selectLimit.mockResolvedValue([
+      {
+        id: "job-4",
+        allianceId: "ally-1",
+        scoreTarget: "bank-deposit-slip-history",
+        category: "bank-deposit-slip-history",
+        fileName: "slip.mp4",
+        enqueuedByHqUserId: "hq-uploader",
+        status: "review",
+        storageKey: "videos/shadow/source.mp4",
+        archiveStorageKey: null,
+        groupId: "group-1",
+      },
+    ]);
+    assertJobVideoStorageAvailable.mockRejectedValue(
+      new VideoJobStorageUnavailableError(
+        "The source video is no longer in storage. Reprocess the primary pass or re-upload the clip.",
+      ),
+    );
+
+    const res = await POST(new Request("http://localhost/reprocess"), {
+      params: Promise.resolve({ jobId: "job-4" }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error:
+        "The source video is no longer in storage. Reprocess the primary pass or re-upload the clip.",
+    });
+    expect(assertJobVideoStorageAvailable).toHaveBeenCalledWith({
+      storageKey: "videos/shadow/source.mp4",
+      archiveStorageKey: null,
+      groupId: "group-1",
+      fileName: "slip.mp4",
+    });
+    expect(resetVideoJobForReprocess).not.toHaveBeenCalled();
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 
   it("returns 409 when job is submitting", async () => {

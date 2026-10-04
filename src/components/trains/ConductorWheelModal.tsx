@@ -14,15 +14,16 @@ import {
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
+  winProbabilityFromTicketPool,
 } from "@/lib/trains/conductor-wheel-share.shared";
 import {
   formatTrainPointCount,
   type MemberQualificationPayload,
 } from "@/lib/trains/train-conductor-minimums.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -33,6 +34,8 @@ export type WheelCandidate = {
   memberName: string;
   priorDayVsScore?: number;
   allianceRank?: number | null;
+  ticketCount?: number;
+  winProbability?: number;
 };
 
 type Props = {
@@ -45,9 +48,8 @@ type Props = {
   } | null;
   qualification?: MemberQualificationPayload | null;
   dayLabel?: string | null;
-  /** The selection mechanism used for this roll (e.g. "vs_top_10", "vs_high_score"). */
-  mechanism?: string | null;
-  paintTemplate?: WeekTemplateType | null;
+  /** Rule this roll was drawn under. */
+  rule?: ConductorRule | null;
   speedMultiplier?: number;
   automated?: boolean;
   onAutomatedRevealComplete?: () => void;
@@ -69,16 +71,10 @@ const SLOW_SECS = 1.8;
 type ReelSessionView = ReelSession;
 
 function scoreBoardKind(
-  mechanism: string | null | undefined,
+  rule: ConductorRule | null | undefined,
 ): "vs" | "vr" | null {
-  if (
-    mechanism === "vs_top_10" ||
-    mechanism === "vs_high_score" ||
-    mechanism === "vs_top_n"
-  ) {
-    return "vs";
-  }
-  if (mechanism === "vr_top_n") return "vr";
+  if (rule?.kind === "vs_top_n") return "vs";
+  if (rule?.kind === "vr_top_n") return "vr";
   return null;
 }
 
@@ -102,8 +98,7 @@ export function ConductorWheelModal({
   stats,
   qualification,
   dayLabel,
-  mechanism,
-  paintTemplate,
+  rule = null,
   speedMultiplier = 1,
   automated = false,
   onAutomatedRevealComplete,
@@ -128,7 +123,7 @@ export function ConductorWheelModal({
   const disqualified =
     qualification != null && qualification.qualified === false;
 
-  const boardKind = scoreBoardKind(mechanism);
+  const boardKind = scoreBoardKind(rule);
   const showScoreValidation = boardKind != null;
   const scoreSuffix = boardKind === "vr" ? "VR" : "VS";
   const winnerScore = winner
@@ -169,20 +164,29 @@ export function ConductorWheelModal({
             (candidate) => candidate.memberId === winner.memberId,
           ) + 1 || null
         : null;
+    const winnerWithScore =
+      winnerScore != null && winnerScore > 0
+        ? { ...winner, priorDayVsScore: winnerScore }
+        : winner;
     return formatWheelShareEligibilityLine(
       resolveWheelShareEligibility({
-        mechanism,
-        paintTemplate,
-        winner,
+        rule,
+        winner: winnerWithScore,
         qualification,
         leaderboardRank:
           leaderboardRank && leaderboardRank > 0 ? leaderboardRank : null,
+        winProbability: winProbabilityFromTicketPool(
+          candidates,
+          winner.memberId,
+        ),
       }),
       {
         vsMinimum: (score, minimum) =>
           t("share.eligibilityVsMinimum", { score, minimum }),
         tpif: (score, sweetSpot) =>
           t("share.eligibilityTpif", { score, sweetSpot }),
+        tpifWithChance: (score, chance) =>
+          t("share.eligibilityTpifWithChance", { score, chance }),
         vsLeaderboardRank: (rank, score, suffix) =>
           t("share.eligibilityVsLeaderboardRank", { rank, score, suffix }),
         vsLeaderboardScore: (score, suffix) =>
@@ -192,8 +196,9 @@ export function ConductorWheelModal({
     );
   }, [
     winner,
-    mechanism,
-    paintTemplate,
+    winnerScore,
+    candidates,
+    rule,
     qualification,
     showScoreValidation,
     rankedCandidates,
@@ -532,7 +537,11 @@ export function ConductorWheelModal({
 
         {phase === "revealed" && disqualified && qualification ? (
           <div className="mt-4 space-y-2 text-center text-sm text-hq-fg">
-            <p className="text-hq-danger">{t("disqualifiedBody")}</p>
+            <p className="text-hq-danger">
+              {qualification.donation.minimum > 0
+                ? t("disqualifiedBody")
+                : t("disqualifiedBodyVsOnly")}
+            </p>
             <p className="text-xs text-hq-fg-muted">
               {t("evaluationPeriod", { period: periodLabel ?? "" })}
             </p>

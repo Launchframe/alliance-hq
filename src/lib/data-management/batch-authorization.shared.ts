@@ -6,6 +6,9 @@ export type DataBatchContext = {
   boardKey?: string;
   hqEventId?: string;
   commendationId?: string;
+  storage?: "hq";
+  vsPeriod?: "daily" | "weekly";
+  vsRevision?: number;
 };
 
 export type DataBatchRow = {

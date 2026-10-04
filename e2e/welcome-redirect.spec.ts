@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { expect, test, type Page } from "@playwright/test";
 
+import { extractHqInviteToken } from "@/lib/native-alliance/invite-token-from-input.shared";
 import {
   authCookieHeader,
   createAllianceMembership,
@@ -174,5 +175,67 @@ test.describe("Welcome claim share links (anti-404)", () => {
 
     await expect(page).toHaveURL(new RegExp(`/invite/${token}`));
     await assertNotApp404(page);
+  });
+
+  test("forwards /welcome?invite=&p= to invite page with passphrase query", async ({
+    page,
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `WP${nanoid(3)}`,
+      name: "Welcome Passphrase Alliance",
+    });
+    const officer = await createAuthenticatedHqSession(
+      sql,
+      `welcome-pass-officer-${nanoid(6)}@e2e.test`,
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const createRes = await request.post("/api/settings/team/invites", {
+      headers: { Cookie: authCookieHeader(officer) },
+      data: {
+        kind: "protected_link",
+        roleName: "viewer",
+      },
+    });
+    expect(createRes.ok(), await createRes.text()).toBeTruthy();
+    const created = (await createRes.json()) as {
+      invite?: { inviteUrl?: string; passphrase?: string };
+    };
+    const token = extractHqInviteToken(created.invite?.inviteUrl ?? "");
+    const passphrase = created.invite?.passphrase ?? "";
+    expect(token).toBeTruthy();
+    expect(passphrase.length).toBeGreaterThan(0);
+
+    const recipient = await createAuthenticatedHqSession(
+      sql,
+      `welcome-pass-${nanoid(6)}@e2e.test`,
+    );
+    await page.context().addCookies(playwrightAuthCookies(recipient));
+
+    await page.goto(
+      `/welcome?invite=${encodeURIComponent(token!)}&p=${encodeURIComponent(passphrase)}`,
+    );
+
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/invite/${token!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?p=`,
+      ),
+    );
+    await assertNotApp404(page);
+    await expect(page.getByLabel(/passphrase/i)).toHaveValue(passphrase, {
+      timeout: 15_000,
+    });
   });
 });

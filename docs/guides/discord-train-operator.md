@@ -130,13 +130,13 @@ Posts include a link to the HQ Trains page when `NEXT_PUBLIC_APP_URL` is configu
 | Enable HQ announcement toggle | Alliance **owner** or **maintainer** (`trains:write` on web) |
 | `/set-conductor`, `/train-is-ready` | **Officer** — alliance owner or linked **R4+** commander (same gate as `/vr-report`) |
 | `/who-is-conductor` | Anyone in a **registered** Discord server for the alliance |
-| Change conductor after lock | **Not via Discord** — use Alliance HQ; platform maintainers can unlock in HQ only |
+| Change conductor after lock | **Alliance HQ.** The officer who locked it can unlock until **midnight Server Time** of that train day (past-day locks stay unlockable by that officer). After midnight, alliance **owner** or **platform maintainer**. |
 | Cross-alliance commands | **Not supported** — tenant is resolved from **guild registration**, never from a tag you type on train commands |
 
 **Other limits:**
 
 - Announcements require bot token + channel + HQ toggle; missing any piece fails silently (no post).
-- `/set-conductor` cannot override a **locked** day; unlock is HQ-only.
+- `/set-conductor` cannot override a **locked** day; unlock is HQ-only (train ownership until midnight Server Time of that train day, then alliance owner or platform maintainer).
 - Departing-soon fires **once per day per guild** after the train has been locked ~3 hours (within the 4-hour on-platform window).
 - Native alliances (no Ashed) still work for **manual** conductor picks; auto VS/donation rolls may need Ashed or manual paths in HQ.
 

@@ -368,3 +368,68 @@ export async function preprocessPowerDetailsHeaderValue(
     scrubSeparators: true,
   });
 }
+
+export async function preprocessPowerDetailsComponentValueRow(
+  input: Buffer,
+  yNorm: number,
+  yOffset = 0,
+  heightFraction = 0.04,
+): Promise<PowerDetailsPreprocessResult> {
+  const sharp = (await import("sharp")).default;
+  const meta = await sharp(input).metadata();
+  const srcWidth = meta.width ?? 1080;
+  const srcHeight = meta.height ?? 1920;
+  const modal = modalCropBox(srcWidth, srcHeight);
+  const height = Math.min(
+    modal.height,
+    Math.max(12, Math.round(modal.height * heightFraction)),
+  );
+  const centerNorm = Math.min(1, Math.max(0, yNorm + yOffset));
+  const top = Math.max(
+    modal.top,
+    Math.min(
+      modal.top + modal.height - height,
+      Math.round(modal.top + modal.height * centerNorm - height / 2),
+    ),
+  );
+  const left = modal.left + Math.round(modal.width * 0.45);
+  const crop = {
+    left,
+    top,
+    width: Math.min(
+      Math.round(modal.width * 0.55),
+      modal.left + modal.width - left,
+    ),
+    height,
+  };
+  return extractScaledGreyscale({
+    buffer: input,
+    crop,
+    scale: 4,
+    invert: false,
+    normalizeLower: 2,
+    normalizeUpper: 98,
+    sharpenSigma: 0.6,
+    scrubSeparators: false,
+  });
+}
+
+export async function cropPowerDetailsValueRow(
+  input: PowerDetailsPreprocessResult,
+  yNorm: number,
+): Promise<PowerDetailsPreprocessResult> {
+  const sharp = (await import("sharp")).default;
+  const height = Math.min(
+    input.height,
+    Math.max(12, Math.round(input.height * 0.07)),
+  );
+  const top = Math.max(
+    0,
+    Math.min(input.height - height, Math.round(input.height * yNorm - height / 2)),
+  );
+  const buffer = await sharp(input.buffer)
+    .extract({ left: 0, top, width: input.width, height })
+    .png()
+    .toBuffer();
+  return { buffer, width: input.width, height };
+}

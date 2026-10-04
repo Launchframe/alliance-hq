@@ -97,8 +97,9 @@ async function appendRankEventIfChanged(input: {
   }
 
   const db = getDb();
+  const rankEventId = nanoid();
   await db.insert(schema.memberAllianceRankEvents).values({
-    id: nanoid(),
+    id: rankEventId,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberName: input.memberName,
@@ -108,6 +109,22 @@ async function appendRankEventIfChanged(input: {
     source: input.source,
     recordedByHqUserId: input.recordedByHqUserId,
   });
+
+  try {
+    const { evaluateMemberRoleNudgesOnRankChange } = await import(
+      "@/lib/member-role-nudges/evaluate-rank-change.server"
+    );
+    await evaluateMemberRoleNudgesOnRankChange({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      previousRank: input.previousRank,
+      nextRank: input.allianceRank,
+      rankEventId,
+    });
+  } catch (error) {
+    console.error("[member-role-nudges] evaluate failed", error);
+  }
+
   return true;
 }
 
@@ -315,8 +332,9 @@ export async function commitRosterImport(
       updatedAt: now,
     });
 
+    const rankEventId = nanoid();
     await db.insert(schema.memberAllianceRankEvents).values({
-      id: nanoid(),
+      id: rankEventId,
       allianceId: input.allianceId,
       ashedMemberId,
       memberName: name,
@@ -327,6 +345,21 @@ export async function commitRosterImport(
       recordedByHqUserId: input.hqUserId,
     });
     rankEvents += 1;
+
+    try {
+      const { evaluateMemberRoleNudgesOnRankChange } = await import(
+        "@/lib/member-role-nudges/evaluate-rank-change.server"
+      );
+      await evaluateMemberRoleNudgesOnRankChange({
+        allianceId: input.allianceId,
+        ashedMemberId,
+        previousRank: null,
+        nextRank: row.allianceRank,
+        rankEventId,
+      });
+    } catch (error) {
+      console.error("[member-role-nudges] evaluate failed", error);
+    }
 
     await appendStatEventsForRow({
       allianceId: input.allianceId,
@@ -391,6 +424,11 @@ export async function commitRosterImport(
     }
   }
 
+  const { syncRankEligibilityForCurrentGenerations } = await import(
+    "@/lib/trains/pool-rank-eligibility.server"
+  );
+  await syncRankEligibilityForCurrentGenerations(input.allianceId);
+
   await writeAuditLog({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -405,6 +443,17 @@ export async function commitRosterImport(
       rowCount: input.rows.length,
     },
   });
+
+  try {
+    const { rematerializeFormerSeatLinksForAlliance } = await import(
+      "@/lib/members/uid-seat-handoff.server"
+    );
+    await rematerializeFormerSeatLinksForAlliance(input.allianceId);
+  } catch {
+    console.error("[roster-commit] former-seat rematerialize failed", {
+      allianceId: input.allianceId,
+    });
+  }
 
   return { created, updated, inactivated, rankEvents };
 }

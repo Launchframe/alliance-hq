@@ -6,6 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import {
   effectiveAllianceHqOcrOnly,
   isAshedOcrAvailableOnDeploy,
+  type VideoOcrResolutionContext,
 } from "@/lib/video/ocr-provider.shared";
 
 /** Stored alliance preference for in-house OCR (ignores deploy override). */
@@ -26,6 +27,24 @@ export async function loadEffectiveAllianceHqOcrOnly(
   allianceId: string,
 ): Promise<boolean> {
   return effectiveAllianceHqOcrOnly(await loadAllianceHqOcrOnly(allianceId));
+}
+
+export async function loadAllianceVideoOcrContext(
+  allianceId: string | null | undefined,
+): Promise<VideoOcrResolutionContext> {
+  if (!allianceId) return {};
+  const [row] = await getDb()
+    .select({
+      videoHqOcrOnly: schema.alliances.videoHqOcrOnly,
+      operatingMode: schema.alliances.operatingMode,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return {
+    allianceHqOcrOnly: effectiveAllianceHqOcrOnly(row?.videoHqOcrOnly === 1),
+    allianceOperatingMode: row?.operatingMode === "native" ? "native" : "ashed",
+  };
 }
 
 export function isAllianceHqOcrOnlyLockedOnDeploy(): boolean {

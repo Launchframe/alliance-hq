@@ -1,4 +1,5 @@
 import { Link } from "@/i18n/navigation";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
 import { loadGuideMarkdown } from "@/lib/guides/load-guide.server";
 import { getTranslations } from "next-intl/server";
@@ -12,10 +13,8 @@ type Props = {
 export async function generateMetadata({ params }: Props) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "guides.gettingStarted" });
-  return {
-    title: t("title"),
-    description: t("description"),
-  };
+  const meta = standalonePageMetadata(t("title"));
+  return { ...meta, description: t("description") };
 }
 
 export default async function GettingStartedGuidePage() {

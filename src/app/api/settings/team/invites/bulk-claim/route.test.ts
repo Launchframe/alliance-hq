@@ -11,7 +11,7 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/native-alliance/team-invites.server", () => ({
   resolveTeamInviteAccess: (sessionId: string) =>
     resolveTeamInviteAccessMock(sessionId),
-  assertInviteRoleAllowed: vi.fn(),
+  assertInviteRoleAllowed: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/native-alliance/join-codes", () => ({

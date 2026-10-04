@@ -11,7 +11,9 @@ import {
   GitMerge,
   GraduationCap,
   Handshake,
+  History,
   LayoutDashboard,
+  Network,
   LifeBuoy,
   ListChecks,
   ListVideo,
@@ -35,8 +37,10 @@ import {
 /** Unique lucide icon per sidebar nav page id */
 export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
+  activity: History,
   alliances: Handshake,
   members: Users,
+  "support-teams": Network,
   "waiting-list": ClipboardList,
   "alliance-tasks": ListChecks,
   "merge-manager": GitMerge,

@@ -8,7 +8,6 @@ import {
 
 import { sessionHasConflictingAshedCredentialForHqUser } from "./ashed-session-membership";
 import { ALLIANCE_ADMIN_PERMISSION } from "./constants";
-import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
 
 export type RbacContext = {
   sessionId: string;
@@ -123,17 +122,16 @@ export async function getRbacContext(
     permissions.add("hq:admin");
   }
 
-  const avatarUrl = await ensureHqUserAvatarFresh(
-    user,
-    session.currentAllianceId,
-  );
-
+  // Use the cached hq_users.avatar_url only. Do NOT call ensureHqUserAvatarFresh
+  // here — getRbacContext runs on high-frequency polls (e.g. inbox reminder
+  // summary every 60s) and Last War lookup must not ride those requests.
+  // Page/session bootstrap refreshes avatars via getSessionStateFor instead.
   return {
     sessionId,
     hqUserId: user.id,
     email: user.email,
     displayName: user.displayName,
-    avatarUrl,
+    avatarUrl: user.avatarUrl,
     isPlatformMaintainer,
     currentAllianceId: session.currentAllianceId,
     roleName,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import type { WeekConductorRecordSummary } from "@/lib/trains/load-dashboard";
 
 type Props = {
   open: boolean;
+  error?: string | null;
   sourceDate: string;
   /** Server calendar today — swap targets must be after this date. */
   today: string;
@@ -27,6 +28,7 @@ type Props = {
 
 export function ConductorSwapDialog({
   open,
+  error,
   sourceDate,
   today,
   sourceRecord,
@@ -36,6 +38,8 @@ export function ConductorSwapDialog({
   onClose,
 }: Props) {
   const t = useTranslations("trains.swap");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
   const [targetDate, setTargetDate] = useState<string | null>(null);
   const [pickedDate, setPickedDate] = useState("");
 
@@ -187,6 +191,7 @@ export function ConductorSwapDialog({
           </p>
         ) : null}
 
+        {error ? <p role="alert" ref={errorRef} className="text-sm text-hq-warning">{error}</p> : null}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"

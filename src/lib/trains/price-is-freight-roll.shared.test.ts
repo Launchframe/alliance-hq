@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildEqualChanceOddsBoard,
   buildUniformEconomyDrawSet,
+  classifyPriceIsFreightEmptyReason,
   pickUniformRollCandidate,
   pickWeightedRollCandidate,
 } from "@/lib/trains/price-is-freight-roll.shared";
@@ -43,6 +44,56 @@ describe("buildEqualChanceOddsBoard", () => {
     const sum = board.reduce((n, row) => n + row.winProbability, 0);
     expect(sum).toBeCloseTo(1, 8);
     expect(board.every((row) => row.winProbability === 1 / 3)).toBe(true);
+  });
+});
+
+describe("classifyPriceIsFreightEmptyReason", () => {
+  it("returns null when eligible candidates exist", () => {
+    expect(
+      classifyPriceIsFreightEmptyReason({
+        rosterCandidateCount: 5,
+        scoreDate: "2026-08-25",
+        leadDays: 1,
+        vsScoreMemberCount: 10,
+        eligibleCount: 3,
+      }),
+    ).toBeNull();
+  });
+
+  it("distinguishes missing roster from missing VS scores", () => {
+    expect(
+      classifyPriceIsFreightEmptyReason({
+        rosterCandidateCount: 0,
+        scoreDate: "2026-08-25",
+        leadDays: 1,
+        vsScoreMemberCount: 0,
+        eligibleCount: 0,
+      }),
+    ).toEqual({ kind: "no_roster_candidates" });
+
+    expect(
+      classifyPriceIsFreightEmptyReason({
+        rosterCandidateCount: 4,
+        scoreDate: "2026-08-25",
+        leadDays: 1,
+        vsScoreMemberCount: 0,
+        eligibleCount: 0,
+      }),
+    ).toEqual({
+      kind: "missing_vs_scores",
+      scoreDate: "2026-08-25",
+      leadDays: 1,
+    });
+
+    expect(
+      classifyPriceIsFreightEmptyReason({
+        rosterCandidateCount: 4,
+        scoreDate: "2026-08-25",
+        leadDays: 0,
+        vsScoreMemberCount: 8,
+        eligibleCount: 0,
+      }),
+    ).toEqual({ kind: "none_qualify" });
   });
 });
 

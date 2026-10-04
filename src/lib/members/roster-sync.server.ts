@@ -7,6 +7,10 @@ import {
   syncAllianceMembersFromAshed,
 } from "@/lib/members/roster.server";
 import {
+  requireActiveShareCapability,
+  resolveAshedConnectionForAlliance,
+} from "@/lib/ashed/credential-share.server";
+import {
   assertOfficerAshedSessionForSync,
   resolveOfficerAshedAllianceId,
   resolveRosterSyncCapability,
@@ -78,7 +82,23 @@ export async function syncAllianceRosterForSession(input: {
   let synced = 0;
 
   if (capability.kind === "officer_ashed") {
-    const connection = await assertOfficerAshedSessionForSync(input.sessionId);
+    const resolved = await resolveAshedConnectionForAlliance(
+      input.sessionId,
+      input.allianceId,
+    );
+    if (resolved?.isDelegated) {
+      await requireActiveShareCapability({
+        sessionId: input.sessionId,
+        allianceId: input.allianceId,
+        capability: "roster:sync",
+        delegatedAction: "roster.sync",
+      });
+    }
+
+    const connection = await assertOfficerAshedSessionForSync(
+      input.sessionId,
+      input.allianceId,
+    );
     const ashedAllianceId = await resolveAshedAllianceIdForOfficerSync({
       sessionId: input.sessionId,
       hqAllianceId: input.allianceId,

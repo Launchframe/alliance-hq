@@ -1,6 +1,6 @@
-import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
-import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/rules/derive.shared";
+import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
 
 /** Discriminator for score-based rule podiums on the trains dashboard. */
 export type ScoreLeaderboardKind = "tpif" | "vs_push" | "donations";
@@ -26,38 +26,38 @@ export type ScoreLeaderboardPayload = {
 
 export const SCORE_LEADERBOARD_LIST_MAX = 10;
 
-export function resolveScoreLeaderboardKind(input: {
-  paintTemplate: WeekTemplateType | string | null | undefined;
-  conductorMechanism: ConductorMechanismType | string | null | undefined;
-}): ScoreLeaderboardKind | null {
-  if (usesPriceIsFreightConductorRoll(input.paintTemplate)) {
-    return "tpif";
-  }
-
-  const topBoard = resolveConductorTopNBoard(
-    input.conductorMechanism,
-    undefined,
-  );
-  if (topBoard?.kind === "vs") {
-    return "vs_push";
-  }
-
-  if (
-    input.paintTemplate === "vs_push_week" ||
-    input.paintTemplate === "vs_push_weekdays" ||
-    input.paintTemplate === "top_vs"
-  ) {
-    return "vs_push";
-  }
-
-  if (
-    input.paintTemplate === "donations_week" ||
-    input.conductorMechanism === "donations_top"
-  ) {
-    return "donations";
-  }
-
+function nativeKindForRule(
+  rule: ConductorRule | null | undefined,
+): ScoreLeaderboardKind | null {
+  if (!rule) return null;
+  if (conductorRuleUsesPriceIsFreightRoll(rule)) return "tpif";
+  if (rule.kind === "vs_top_n") return "vs_push";
+  if (rule.kind === "donations_top") return "donations";
   return null;
+}
+
+/**
+ * Which score podium a day shows. Under lead time a non-score day can still
+ * show the score day's podium, because that is the board its conductor came
+ * from.
+ */
+export function resolveScoreLeaderboardKind(input: {
+  rule: ConductorRule | null | undefined;
+  trainDate?: string | null;
+  leadDays?: number;
+  scoreDayRule?: ConductorRule | null;
+}): ScoreLeaderboardKind | null {
+  const native = nativeKindForRule(input.rule);
+  if (native) return native;
+
+  const leadDays = input.leadDays ?? 0;
+  if (leadDays <= 0 || !input.trainDate || !input.scoreDayRule) {
+    return null;
+  }
+  if (!priorDayVsAppliesForTrainDate(input.trainDate, leadDays)) {
+    return null;
+  }
+  return nativeKindForRule(input.scoreDayRule);
 }
 
 export function mapPriorDayVsToScoreEntries(

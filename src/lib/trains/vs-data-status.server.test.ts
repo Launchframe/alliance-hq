@@ -27,13 +27,12 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "economy_week",
+      rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
     });
 
     expect(fetchPrior).toHaveBeenCalledWith("a1", "2026-06-12");
     expect(status).toEqual({
-      required: true,
+      required: false,
       ready: true,
       scoreCount: 1,
       kind: "prior_day_vs",
@@ -47,7 +46,7 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
-      conductorMechanism: "vs_high_score",
+      rule: { kind: "vs_top_n", topN: 1 },
     });
     expect(status).toEqual({
       required: true,
@@ -65,7 +64,7 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
-      conductorMechanism: "vs_top_10",
+      rule: { kind: "vs_top_n", topN: 10 },
     });
     expect(status.kind).toBe("prior_day_vs");
     expect(status.scoreDate).toBe("2026-06-12");
@@ -79,7 +78,7 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
-      conductorMechanism: "vr_top_n",
+      rule: { kind: "vr_top_n", topN: 3 },
     });
     expect(status).toEqual({
       required: true,
@@ -96,8 +95,7 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
     });
     expect(status).toEqual({
       required: true,
@@ -115,11 +113,26 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
-      conductorMechanism: "heavy_hitter_lottery",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
     });
     expect(status.ready).toBe(false);
     expect(status.scoreCount).toBe(0);
+  });
+
+  it("keeps Economy Week ready when prior-day VS is empty", async () => {
+    fetchPrior.mockResolvedValue(new Map());
+    const status = await loadTrainsVsDataStatus({
+      allianceId: "a1",
+      trainDate: "2026-06-13",
+      rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+    });
+    expect(status).toEqual({
+      required: false,
+      ready: true,
+      scoreCount: 0,
+      kind: "prior_day_vs",
+      scoreDate: "2026-06-12",
+    });
   });
 
   it("loads Saturday VS for Sunday r3 lottery (Buster Day prior)", async () => {
@@ -128,13 +141,12 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-14",
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "economy_week",
+      rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
     });
 
     expect(fetchPrior).toHaveBeenCalledWith("a1", "2026-06-13");
     expect(status).toEqual({
-      required: true,
+      required: false,
       ready: true,
       scoreCount: 1,
       kind: "prior_day_vs",
@@ -146,7 +158,7 @@ describe("loadTrainsVsDataStatus", () => {
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-15",
-      conductorMechanism: "vs_high_score",
+      rule: { kind: "vs_top_n", topN: 1 },
     });
     expect(status).toEqual({
       required: false,

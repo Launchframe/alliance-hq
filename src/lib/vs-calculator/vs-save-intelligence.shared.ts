@@ -54,6 +54,17 @@ export function getShinySaveHintKeys(
     hints.push("shinyRolloverTuesday");
   }
 
+  // Symmetric with the Tuesday rollover above — previously only declared on the
+  // ShinySaveHintKey type but never produced, so Saturday (Buster Day) rollover
+  // never surfaced.
+  if (tomorrowDow === 6 && isShinySpawnWeekday(shinyWeekdays, tomorrowDow)) {
+    hints.push("shinyRolloverSaturday");
+  }
+
+  if (dow === 6 && isShinySpawnWeekday(shinyWeekdays, dow)) {
+    hints.push("shinyRolloverSaturday");
+  }
+
   const daysUntilSaturday = (6 - dow + 7) % 7;
   if (
     daysUntilSaturday > 0 &&
@@ -73,6 +84,17 @@ export function getShinySaveHintKeys(
   }
 
   return [...new Set(hints)];
+}
+
+/** Shiny hints relevant when the announcement date itself is Buster Day (Saturday). */
+export function getBusterDayReminderHintKeys(
+  shinyWeekdays: [number, number],
+  targetDate: string,
+): Array<Extract<ShinySaveHintKey, "shinySpawnToday" | "shinyRolloverSaturday">> {
+  return getShinySaveHintKeys(shinyWeekdays, targetDate).filter(
+    (key): key is "shinySpawnToday" | "shinyRolloverSaturday" =>
+      key === "shinySpawnToday" || key === "shinyRolloverSaturday",
+  );
 }
 
 export function getWeeklySaveHintKeysForDow(

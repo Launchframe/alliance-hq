@@ -223,6 +223,50 @@ function tryNamedMonthRange(
   return null;
 }
 
+const WEEKDAY_PATTERN = Object.keys(WEEKDAY_NAMES).join("|");
+
+function resolveWeekday(
+  qualifier: string | undefined,
+  weekdayToken: string,
+  from: string,
+): string | null {
+  const dow = WEEKDAY_NAMES[weekdayToken.toLowerCase()];
+  if (dow === undefined) return null;
+  const includeFrom = !qualifier || qualifier.toLowerCase() === "this";
+  return nextWeekdayDate(from, dow, includeFrom);
+}
+
+function tryWeekdayRange(
+  text: string,
+  today: string,
+): { start: string; end: string } | null {
+  const range = text.match(
+    new RegExp(
+      `\\b(?:(this|next|upcoming)\\s+)?(${WEEKDAY_PATTERN})\\s*(?:to|through|thru|-|–)\\s*(?:(this|next|upcoming)\\s+)?(${WEEKDAY_PATTERN})\\b`,
+      "i",
+    ),
+  );
+  if (!range) return null;
+  const start = resolveWeekday(range[1], range[2], today);
+  if (!start) return null;
+  const end = resolveWeekday(range[3], range[4], start);
+  if (!end || end < start) return null;
+  return { start, end };
+}
+
+function tryStandaloneWeekday(
+  text: string,
+  today: string,
+): { start: string; end: string } | null {
+  const single = text.match(
+    new RegExp(`^\\s*(?:(this|next|upcoming)\\s+)?(${WEEKDAY_PATTERN})\\s*$`, "i"),
+  );
+  if (!single) return null;
+  const day = resolveWeekday(single[1], single[2], today);
+  if (!day) return null;
+  return { start: day, end: day };
+}
+
 function tryRelativePhrases(
   text: string,
   today: string,
@@ -310,6 +354,22 @@ function wordToNumber(token: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function tryPortuguesePhrases(text: string, today: string): { start: string; end: string } | null {
+  const lower = text.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  if (/\bproxima semana\b/.test(lower)) return weekRangeFromMonday(addCalendarDays(getWeekStartMonday(today), 7));
+  if (/\b(?:esta|essa) semana\b/.test(lower)) return weekRangeFromMonday(getWeekStartMonday(today));
+  if (/\bfim de semana\b/.test(lower)) {
+    const saturday = nextWeekdayDate(today, 6, !/\bproximo\b/.test(lower));
+    return { start: saturday, end: addCalendarDays(saturday, 1) };
+  }
+  if (/\bamanha\b/.test(lower)) {
+    const tomorrow = addCalendarDays(today, 1);
+    return { start: tomorrow, end: tomorrow };
+  }
+  if (/\bhoje\b/.test(lower)) return { start: today, end: today };
+  return null;
+}
+
 function stripDatePhrases(text: string): string {
   return text
     .replace(
@@ -342,17 +402,21 @@ export function parseTimeOffMessage(
 
   const availability = detectAvailability(trimmed);
   const working = stripAvailabilityPhrases(trimmed);
+  const portugueseRange = tryPortuguesePhrases(working, referenceDate);
 
   const range =
     tryExplicitIsoRange(working) ??
     tryNamedMonthRange(working, referenceDate) ??
-    tryRelativePhrases(working, referenceDate);
+    portugueseRange ??
+    tryWeekdayRange(working, referenceDate) ??
+    tryRelativePhrases(working, referenceDate) ??
+    tryStandaloneWeekday(working, referenceDate);
 
   if (!range) {
     return { ok: false, error: "unrecognized" };
   }
 
-  const notes = stripDatePhrases(working);
+  const notes = portugueseRange ? trimmed : stripDatePhrases(working);
   return {
     ok: true,
     parsed: {

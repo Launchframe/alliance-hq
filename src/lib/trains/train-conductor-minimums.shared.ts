@@ -1,15 +1,30 @@
 import { addCalendarDays } from "@/lib/trains/game-time";
+import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import {
   DEFAULT_ALLIANCE_TRAIN_WEEK,
   getTrainWeekStart,
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRuleAppliesMinimums } from "@/lib/trains/rules/derive.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 /** R3 and heavy-hitter pools honor alliance conductor minimums; R4+ sequence does not. */
 export function poolTypeRespectsConductorMinimums(poolType: PoolType): boolean {
   return poolType === "r3" || poolType === "heavy_hitter";
+}
+
+/**
+ * Alliance VS/donation floors apply only on Price Is Freight paints
+ * (“spin for today”). Economy Week and other depleting-pool paints skip them.
+ *
+ * Future: per-spin UI toggle (“eligible scores” vs “overall pool”).
+ */
+export function conductorMinimumsApplyForRule(
+  rule: ConductorRule | null | undefined,
+): boolean {
+  return conductorRuleAppliesMinimums(rule ?? null);
 }
 
 export const TRAIN_MINIMUMS_WINDOWS = ["daily", "weekly"] as const;
@@ -36,6 +51,19 @@ export type MemberQualificationPayload = {
   periodEnd: string;
   vs: QualificationCriterionSummary;
   donation: QualificationCriterionSummary;
+};
+
+/** Dashboard / guided-flow warning when minimums apply but HQ has no VS rows for the window. */
+export type ConductorMinimumsDataStatus = {
+  applies: boolean;
+  /** No VS scores in HQ for the evaluation window — post-roll minimums checks are skipped. */
+  missingVsScores: boolean;
+  evaluationWindow: TrainMinimumsWindow;
+  periodStart: string;
+  periodEnd: string;
+  /** VS Performance upload deep-link date for the missing window. */
+  uploadScoreDate: string;
+  minVsPoints: number;
 };
 
 export function normalizeTrainMinimumsSettings(input: {
@@ -72,6 +100,55 @@ export function minimumsEnforcementEnabled(
   );
 }
 
+/** True when HQ has at least one member VS total for the evaluation window. */
+export function evaluationPeriodHasUploadedVsScores(
+  vsTotals: ReadonlyMap<string, number>,
+): boolean {
+  return vsTotals.size > 0;
+}
+
+export function buildConductorMinimumsDataStatus(input: {
+  settings: TrainConductorMinimumsSettings;
+  trainDate: string;
+  rule?: ConductorRule | null;
+  leadDays?: number;
+  vsScoreCount: number;
+  trainWeekConfig?: AllianceTrainWeekConfig;
+}): ConductorMinimumsDataStatus | null {
+  const evalSettings = minimumsSettingsForHqLocalEval(input.settings);
+  if (!minimumsEnforcementEnabled(evalSettings)) {
+    return null;
+  }
+  if (
+    !conductorQualificationGateApplies({
+      poolType: null,
+      minimumsEnabled: true,
+      rule: input.rule,
+    })
+  ) {
+    return null;
+  }
+
+  const { start, end } = evaluationPeriodForTrainDate(
+    input.trainDate,
+    evalSettings.window,
+    input.trainWeekConfig ?? DEFAULT_ALLIANCE_TRAIN_WEEK,
+    { leadDays: input.leadDays, rule: input.rule },
+  );
+  const uploadScoreDate =
+    evalSettings.window === "weekly" ? end : start;
+
+  return {
+    applies: true,
+    missingVsScores: input.vsScoreCount === 0,
+    evaluationWindow: evalSettings.window,
+    periodStart: start,
+    periodEnd: end,
+    uploadScoreDate,
+    minVsPoints: evalSettings.minVsPoints ?? 0,
+  };
+}
+
 /** Donation minimums are not enforceable until HQ stores donation scores. */
 export function minimumsSettingsForHqLocalEval(
   settings: TrainConductorMinimumsSettings,
@@ -89,13 +166,21 @@ export function effectiveMinimum(minimum: number, leewayPct: number): number {
   return Math.floor(minimum * (1 - pct / 100));
 }
 
+export type EvaluationPeriodOptions = {
+  leadDays?: number;
+  rule?: ConductorRule | null;
+};
+
 export function evaluationPeriodForTrainDate(
   trainDate: string,
   window: TrainMinimumsWindow,
   trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
+  options?: EvaluationPeriodOptions,
 ): { start: string; end: string } {
   if (window === "daily") {
-    const day = addCalendarDays(trainDate, -1);
+    const day = conductorMinimumsApplyForRule(options?.rule)
+      ? vsScoreReferenceDate(trainDate, options?.leadDays ?? 0)
+      : addCalendarDays(trainDate, -1);
     return { start: day, end: day };
   }
 
@@ -170,15 +255,18 @@ export function formatTrainPointCount(value: number, locale: string): string {
  * Whether a wheel spin should run the post-roll conductor minimums gate.
  * Skips R4+ pools and alliances with no minimums configured.
  *
- * Minimums evaluate season HQ VR (`fetchHqSeasonVsScoresByMember`), not
- * prior-day Ashed VS — so VS upload readiness / `classifyVsDataNeed` must
- * not gate enforcement. Otherwise Monday (Sunday break → `required: false`)
- * and non-VS `r3_lottery` days silently admit below-threshold winners.
+ * Minimums evaluate Ashed daily VS over the configured window (prior calendar
+ * day or prior train week). Donation thresholds are not enforced until HQ
+ * stores donation scores. VS upload gaps yield zero scores for missing days.
  */
 export function conductorQualificationGateApplies(input: {
   poolType: PoolType | null | undefined;
   minimumsEnabled: boolean;
+  rule?: ConductorRule | null;
 }): boolean {
+  if (input.rule !== undefined && !conductorMinimumsApplyForRule(input.rule)) {
+    return false;
+  }
   if (input.poolType != null && !poolTypeRespectsConductorMinimums(input.poolType)) {
     return false;
   }

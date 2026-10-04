@@ -2,11 +2,12 @@ import type { ReactNode } from "react";
 
 import { Link } from "@/i18n/navigation";
 import { resolveDiscordInviteUrl } from "@/lib/discord/community-invite.shared";
+import { commanderClaimInvitesSettingsPath } from "@/lib/settings/team-invites-path.shared";
 
 export function commanderClaimInvitesLink(chunks: ReactNode) {
   return (
     <Link
-      href="/settings/team#commander-claim-invites"
+      href={commanderClaimInvitesSettingsPath()}
       className="text-[#58a6ff] hover:underline"
     >
       {chunks}

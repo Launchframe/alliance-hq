@@ -170,39 +170,44 @@ export function SidebarNav({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-hq-border px-4 py-4">
-        <Link
-          href="/dashboard"
-          className="flex min-w-0 items-center gap-3"
-          onClick={() => {
-            beginNavigation();
-            onNavigate?.();
-          }}
-        >
-          <img
-            src="/brand/hq-icon-mark.svg"
-            alt=""
-            className="h-9 w-9 shrink-0 rounded-lg"
-          />
-          <span className="min-w-0">
-            <span className="block text-lg font-semibold tracking-tight">
-              {t("brand")}
-            </span>
-            <span className="mt-0.5 block truncate text-xs text-hq-fg-muted">
-              {t("domain")}
-            </span>
-          </span>
-        </Link>
-        {onClose ? (
-          <button
-            type="button"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg md:hidden"
-            onClick={onClose}
-            aria-label={t("closeMenu")}
+      <div className="shrink-0 border-b border-hq-border px-4 py-4">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href="/dashboard"
+            className="flex min-w-0 items-center gap-3"
+            onClick={() => {
+              beginNavigation();
+              onNavigate?.();
+            }}
           >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
-        ) : null}
+            <img
+              src="/brand/hq-icon-mark.svg"
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-lg"
+            />
+            <span className="min-w-0">
+              <span className="block text-lg font-semibold tracking-tight">
+                {t("brand")}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-hq-fg-muted">
+                {t("domain")}
+              </span>
+            </span>
+          </Link>
+          {onClose ? (
+            <button
+              type="button"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg md:hidden"
+              onClick={onClose}
+              aria-label={t("closeMenu")}
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-3 w-full text-xs leading-snug text-hq-fg-muted">
+          {t("slogan")}
+        </p>
       </div>
 
       <SidebarAlliancePicker

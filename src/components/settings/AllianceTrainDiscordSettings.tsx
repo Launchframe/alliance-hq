@@ -31,6 +31,7 @@ export function AllianceTrainDiscordSettings({
   const t = useTranslations("settings.trainDiscord");
   const [settings, setSettings] = useState<Payload | null>(null);
   const [busy, setBusy] = useState(false);
+  const [revokingGuildId, setRevokingGuildId] = useState<string | null>(null);
   const [loadedTag, setLoadedTag] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const loading = loadedTag !== allianceTag;
@@ -91,6 +92,31 @@ export function AllianceTrainDiscordSettings({
     }
   };
 
+  const revokeChannel = async (guildId: string) => {
+    if (!display?.canManage) return;
+    setRevokingGuildId(guildId);
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(allianceTrainDiscordApiPath(allianceTag), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearTrainChannelForGuildId: guildId }),
+      });
+      const body = (await res.json()) as Payload;
+      if (!res.ok) {
+        setError(body.error ?? t("revokeChannelFailed"));
+        return;
+      }
+      setSettings(body);
+    } catch {
+      setError(t("revokeChannelFailed"));
+    } finally {
+      setBusy(false);
+      setRevokingGuildId(null);
+    }
+  };
+
   const toggle = async (next: boolean) => {
     if (!display?.canManage) return;
     await patch({ announcementsEnabled: next });
@@ -138,6 +164,9 @@ export function AllianceTrainDiscordSettings({
             registeredGuildCount={display.guilds.length}
             installConfigured={installConfigured}
             canManage={display.canManage}
+            busy={busy}
+            revokingGuildId={revokingGuildId}
+            onRevokeChannel={(guildId) => void revokeChannel(guildId)}
           />
           {display.canConfigureChannelSetterMinRank ? (
             <fieldset

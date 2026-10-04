@@ -11,6 +11,7 @@ export type PairingStrategyContext = {
   metadata: PairingMetadata;
   pairingCodeId: string;
   clientInfo?: PairingClientInfo;
+  completeOptions?: import("@/lib/credential-pairing/types").PairingCompleteOptions;
 };
 
 export type PairingStrategy = {

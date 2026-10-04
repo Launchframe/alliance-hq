@@ -60,4 +60,14 @@ describe("parseTrainRollError", () => {
       }),
     ).toEqual({ code: "POOL_UNAVAILABLE", poolType: "r3" });
   });
+
+  it("parses POOL_BUSY and does not treat it as wheel-blocked", () => {
+    const details = parseTrainRollError({
+      error:
+        "Another officer is spinning this pool right now. Try again in a moment.",
+      rollError: { code: "POOL_BUSY", poolType: "r3" },
+    });
+    expect(details).toEqual({ code: "POOL_BUSY", poolType: "r3" });
+    expect(isWheelBlockedError(details)).toBe(false);
+  });
 });

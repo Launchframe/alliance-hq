@@ -30,13 +30,11 @@ export type DashboardTrainStatus =
       state: "awaiting_conductor";
       weekStart: string;
       today: string;
-      templateType: string;
     }
   | {
       state: "in_progress";
       weekStart: string;
       today: string;
-      templateType: string;
       conductorMemberName: string | null;
       vipMemberName: string | null;
       lockedAt: string | null;

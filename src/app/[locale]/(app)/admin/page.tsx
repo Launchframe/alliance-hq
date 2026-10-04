@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { adminScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { Link } from "@/i18n/navigation";
 import {
@@ -6,6 +7,10 @@ import {
   AdminOverviewCardIcon,
 } from "@/lib/admin/overview-cards";
 
+export async function generateMetadata() {
+  const t = await getTranslations("admin");
+  return adminScopedMetadata(t("title"));
+}
 export default async function AdminOverviewPage() {
   const t = await getTranslations("admin");
 

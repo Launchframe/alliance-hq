@@ -13,7 +13,8 @@ import { countAllianceSeasonVrReporters } from "@/lib/vr/repository";
  */
 export async function countAllianceVrReporters(
   allianceId: string,
+  db?: Parameters<typeof countAllianceSeasonVrReporters>[2],
 ): Promise<number> {
-  const { seasonKey } = await getEffectiveSeasonForAlliance(allianceId);
-  return countAllianceSeasonVrReporters(allianceId, seasonKey);
+  const { seasonKey } = await getEffectiveSeasonForAlliance(allianceId, db);
+  return countAllianceSeasonVrReporters(allianceId, seasonKey, db);
 }

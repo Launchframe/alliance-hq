@@ -7,7 +7,10 @@ import {
   listAllianceMembers,
 } from "@/lib/members/roster.server";
 import { requireApiSession } from "@/lib/session";
-import { sessionHasPermission } from "@/lib/rbac/context";
+import {
+  sessionHasPermission,
+  sessionHasPermissionForAlliance,
+} from "@/lib/rbac/context";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import {
@@ -15,6 +18,7 @@ import {
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import { loadVsJobContext } from "@/lib/vs-scores/repository.server";
 import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 import {
   resolveHqAllianceIdFromStoredAllianceId,
@@ -30,12 +34,15 @@ import { sortParsedRowsForInitialReview } from "@/lib/video/parsed-row-review-or
 import {
   getScoreTarget,
   isBankDepositSlipHistoryTarget,
+  isFrontlineBreakthroughVideoTarget,
   isMemberRosterVideoTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import { readDesertStormMatchFromRawExtract } from "@/lib/video/desert-storm-match-header.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
@@ -46,6 +53,15 @@ import {
   isVideoDevShadowWithholdUxEnabled,
   resolveShadowWithholdEscapeMs,
 } from "@/lib/video/early-shadow-dev.shared";
+import {
+  canOfferScoreboardMemberActionsForAlliance,
+  loadScoreboardReviewPreferences,
+} from "@/lib/video/scoreboard-review-preferences.server";
+import { DEFAULT_SCOREBOARD_REVIEW_PREFERENCES } from "@/lib/video/scoreboard-review-preferences.shared";
+import {
+  loadVsVideoEvidence,
+  vsVideoScopeKey,
+} from "@/lib/vs-performance/video-evidence.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -83,6 +99,7 @@ export async function GET(_request: Request, { params }: Props) {
       ocrName: string;
       score: string | null;
       rank: number | null;
+      frontlineStage: number | null;
       rosterRankRaw: string | null;
       allianceRank: number | null;
       allianceRankTitle: string | null;
@@ -116,6 +133,9 @@ export async function GET(_request: Request, { params }: Props) {
             allianceId: ps.allianceId,
             status: ps.status,
             dedupeReport: ps.dedupeReportJson ?? null,
+            desertStormMatch: readDesertStormMatchFromRawExtract(
+              ps.rawExtractJson,
+            ),
           }
         : null;
       parseSessionIdForRows = ps?.id ?? null;
@@ -163,6 +183,7 @@ export async function GET(_request: Request, { params }: Props) {
           ocrName: r.ocrName,
           score: r.score,
           rank: r.rank,
+          frontlineStage: r.frontlineStage,
           rosterRankRaw: r.rosterRankRaw,
           allianceRank: r.allianceRank,
           allianceRankTitle: r.allianceRankTitle,
@@ -247,6 +268,53 @@ export async function GET(_request: Request, { params }: Props) {
 
     const canProcessVideo = await sessionCanProcessVideo(session.id);
     const canReprocessAdvanced = await sessionHasPermission(session.id, "hq:admin");
+    const scoreboardOfferAccess = await canOfferScoreboardMemberActionsForAlliance(
+      session.id,
+      allianceIdForJob,
+    );
+    const canOfferScoreboardMembers = scoreboardOfferAccess.canOffer;
+    const scoreboardPrefs = canOfferScoreboardMembers
+      ? await loadScoreboardReviewPreferences(scoreboardOfferAccess.hqUserId)
+      : DEFAULT_SCOREBOARD_REVIEW_PREFERENCES;
+    const scoreboardMemberOffers = {
+      canOffer: canOfferScoreboardMembers,
+      offerCreate: canOfferScoreboardMembers && scoreboardPrefs.offerCreate,
+      offerRename: canOfferScoreboardMembers && scoreboardPrefs.offerRename,
+    };
+
+    let vsEvidence = null;
+    if (
+      scoreTargetId === "vs-performance" &&
+      allianceIdForJob &&
+      session.hqUserId &&
+      allianceIdForJob ===
+        (session.currentAllianceId ?? session.allianceId) &&
+      (await sessionHasPermissionForAlliance(
+        session.id,
+        allianceIdForJob,
+        "scores:read",
+      ))
+    ) {
+      vsEvidence = await loadVsVideoEvidence({
+        actor: {
+          sessionId: session.id,
+          hqUserId: session.hqUserId,
+          allianceId: allianceIdForJob,
+        },
+        job,
+        scopeKey: vsVideoScopeKey(job),
+      });
+    }
+
+    const vsJobContext =
+      scoreTargetId === "vs-performance" && allianceIdForJob
+        ? await loadVsJobContext(allianceIdForJob, jobId)
+        : null;
+    const useEvidenceContext =
+      vsEvidence != null &&
+      vsEvidence.evidence.version > 0 &&
+      vsJobContext != null &&
+      (vsJobContext.vsRevision === 0 || vsEvidence.evidence.draft != null);
 
     let expectedRowCount: number | null = null;
     let shadowPassInFlight = false;
@@ -293,6 +361,18 @@ export async function GET(_request: Request, { params }: Props) {
         status: job.status,
         fileName: job.fileName,
         scoreTarget: scoreTargetId,
+        ...(vsJobContext
+          ? {
+              recordedDate: job.recordedDate,
+              ...vsJobContext,
+              ...(useEvidenceContext && vsEvidence
+                ? {
+                    recordedDate: vsEvidence.evidence.recordedDate,
+                    vsPeriod: vsEvidence.evidence.period,
+                  }
+                : {}),
+            }
+          : {}),
         boardKey: job.boardKey,
         commendationId: job.commendationId,
         hqEventId: job.hqEventId,
@@ -310,6 +390,12 @@ export async function GET(_request: Request, { params }: Props) {
       hasSourceVideo: storageKey != null,
       frameTimestamps,
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
+      ...(isFrontlineBreakthroughVideoTarget(scoreTargetId) && allianceIdForJob
+        ? {
+            nativeFrontlineSubmit:
+              (await getAllianceOperatingMode(allianceIdForJob)) === "native",
+          }
+        : {}),
       alliance: {
         jobId: allianceIdForJob ?? job.allianceId,
         currentId: session.currentAllianceId,
@@ -328,9 +414,11 @@ export async function GET(_request: Request, { params }: Props) {
       detectedBankContext,
       rows,
       members,
+      scoreboardMemberOffers,
       expectedRowCount,
       surveyRowCountEstimate,
       shadowPassInFlight,
+      vsEvidence,
       devShadowUx:
         scoreTargetId === "vs-performance"
           ? {

@@ -213,7 +213,9 @@ test.describe("Commander profile and admin commanders", () => {
 
     await page.goto(`/members/${memberId}`);
     await expect(page.getByRole("heading", { name: "E2E Owner Commander" })).toBeVisible();
-    await expect(page.getByText(gameUid)).toBeVisible();
+    const ownerUid = page.locator("#hq-app-shell p").filter({ hasText: /^Game UID / });
+    await expect(ownerUid).toBeVisible();
+    expect(await ownerUid.evaluate((element, value) => element.textContent?.includes(value) ?? false, gameUid)).toBe(true);
 
     const profileRes = await request.get(
       `${e2eBaseUrl()}/api/members/${memberId}`,
@@ -223,7 +225,7 @@ test.describe("Commander profile and admin commanders", () => {
     const profileBody = (await profileRes.json()) as {
       member: { gameUid: string | null };
     };
-    expect(profileBody.member.gameUid).toBe(gameUid);
+    expect(profileBody.member.gameUid === gameUid).toBe(true);
   });
 
   test("cross-alliance commander API returns not found", async ({ request }) => {

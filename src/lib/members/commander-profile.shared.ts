@@ -2,13 +2,20 @@ import type {
   MainSquadSource,
   MainSquadType,
 } from "@/lib/commanders/main-squad.shared";
+import {
+  FRONTLINE_BREAKTHROUGH_TARGET,
+  frontlinePositiveInteger,
+  normalizeFrontlineScore,
+} from "@/lib/video/frontline-breakthrough.shared";
 
 export type CommanderProfilePayload = {
-    member: {
+  member: {
     ashedMemberId: string;
     currentName: string;
     previousNames: string[];
     status: string;
+    /** Numeric alliance rank 1–5 when known; used for officer invite gating. */
+    allianceRank: number | null;
     rankLabel: string;
     titleLabel: string;
     powerLevel: string | null;
@@ -23,9 +30,11 @@ export type CommanderProfilePayload = {
     canOfficerOverrideMainSquad: boolean;
     /** Viewer may generate a commander claim invite for this roster member. */
     viewerCanIssueClaimInvite: boolean;
+    /** Viewer may issue R4 officer / R5 owner hybrid claim invites (rank exceptions apply for HQ officers). */
+    viewerCanIssueOfficerInvite: boolean;
     /** Viewer (alliance owner or platform maintainer) may break-glass unlink. */
     viewerCanBreakGlassUnlink: boolean;
-    /** Viewer may open Last War store to gift bricks to this peer Commander. */
+    /** Viewer may open Last War store to gift bricks to this peer Commander (requires known game UID). */
     canGiftStoreBricks: boolean;
     /** Viewer may create/manage tip-jar badge for this Commander (own linked). */
     canManageTipJar: boolean;
@@ -75,6 +84,7 @@ export type CommanderProfilePayload = {
     boardKey: string | null;
     score: number | null;
     rank: number | null;
+    frontlineStage?: number | null;
     updatedAt: string;
   }>;
   commendations: Array<{
@@ -95,5 +105,39 @@ export type CommanderProfilePayload = {
     role: "conductor" | "vip" | "substitute";
     lockedAt: string | null;
   }>;
+  hqNotes: Array<{
+    id: string;
+    kind: "commendation" | "violation" | "note";
+    body: string;
+    createdAt: string;
+  }>;
   operatingMode: "ashed" | "native";
 };
+
+export function parseEventScoreMetadata(
+  metadata: unknown,
+  scoreTarget?: string | null,
+): {
+  score: number | null;
+  rank: number | null;
+  frontlineStage: number | null;
+} {
+  if (!metadata || typeof metadata !== "object") {
+    return { score: null, rank: null, frontlineStage: null };
+  }
+  const row = metadata as Record<string, unknown>;
+  const scoreRaw = row.score ?? row.total_score ?? row.points;
+  const rankRaw = row.rank ?? row.placement;
+  const isFrontline = scoreTarget === FRONTLINE_BREAKTHROUGH_TARGET;
+  let score = typeof scoreRaw === "number" ? scoreRaw : null;
+  if (isFrontline) {
+    const normalized = normalizeFrontlineScore(scoreRaw);
+    score = normalized != null ? Number(normalized) : null;
+  }
+  const stageRaw = row.frontlineStage;
+  return {
+    score,
+    rank: typeof rankRaw === "number" ? rankRaw : null,
+    frontlineStage: isFrontline ? frontlinePositiveInteger(stageRaw) : null,
+  };
+}

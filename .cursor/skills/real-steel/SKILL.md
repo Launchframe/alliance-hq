@@ -1,28 +1,26 @@
 ---
 name: real-steel
-description: Alliance HQ overlay for Real Steel — applies the global multi-model PR review workflow plus repo-specific completion steps (real-steel-ready label, worktree isolation). Use when the user says /real-steel in this repo.
+description: Alliance HQ overlay for Real Steel — applies the global multi-model PR review workflow plus repo-specific completion steps (real-steel-ready label, maintainer-approved checkout policy). Use when the user says /real-steel in this repo.
 disable-model-invocation: true
 ---
 
 # Real Steel — Alliance HQ overlay
 
-This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow the global skill for the full workflow (Task chain, run log, PR comments, per-pass commits, worktree isolation per [`.cursor/rules/agent-git-hygiene.mdc`](../rules/agent-git-hygiene.mdc)).
+This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow its review workflow (Task chain, run log, PR comments, per-pass commits), but follow this repo's [checkout policy](../../rules/agent-git-hygiene.mdc) instead of automatic worktree instructions: **primary clone by default**; worktrees only on an explicit maintainer request **or** clear colliding-session contention.
 
 **This file adds Alliance HQ completion requirements and orchestrator isolation rules.**
 
-## Worktree isolation — move once into the PR worktree
+## Primary clone by default — worktrees are opt-in
 
-Maintainer preference (updated 2026-07-12): **do** call `move_agent_to_root` **once** into the Real Steel worktree at the start of the run.
+A request for Real Steel is not by itself a request for a worktree. Use the PR's topic branch in the primary clone and run writing passes sequentially. Check that the checkout is clean and no other writer owns it before switching branches; otherwise ask the maintainer (wait/serialize vs worktree).
 
 | Do | Don't |
 | --- | --- |
-| `./scripts/new-worktree.sh` (or refresh) for the PR branch | Leave the chat rooted in primary / another worktree while editing the PR tree |
-| `move_agent_to_root` **once** → PR worktree (accept one Smart Mode approval if needed) | Skip the move and `Edit`/`Write` absolute paths under a sibling worktree (causes **per-file** approval spam) |
-| Launch each pass `Task` with that worktree as cwd | Parent `git checkout` of the PR branch in the primary clone |
+| Use the primary clone on the PR branch by default | Create or reuse a linked worktree merely because a review is multi-pass |
+| Serialize writing passes and builds in that checkout | Run concurrent writers against the same working directory |
+| Use a worktree only for an explicit maintainer request or clear colliding-session contention | Treat global skill defaults, disk availability, or convenience as permission |
 
-**Why:** Cursor auto-approves edits **inside** the current workspace. Edits **outside** it (sibling `../alliance-hq-*` paths) require approval on every file. Skipping the move avoided one MCP prompt but made ordinary coding unusable.
-
-Parallel agents stay isolated via **separate worktree dirs + branches**. The move is so *this* chat’s write surface matches the PR worktree.
+When a worktree is warranted, the orchestrator may create or use it and call `move_agent_to_root` once into that path. Keep the task's passes in that same checkout, preserve its local environment, and ask before removing the directory when uncertain.
 
 ## PR completion label (`real-steel-ready`)
 
@@ -93,4 +91,4 @@ Follow the global skill. Additionally for this repo:
 
 To triage suggestions/nits, land copy-approved fixes, and merge, use [close-the-loop](../close-the-loop/SKILL.md).
 
-If the maintainer will close the loop in the same session, **keep** the Real Steel worktree (do not remove it yet). Close-the-loop prefers that worktree for fixes; otherwise it refreshes via `./scripts/new-worktree.sh`.
+Continue close-the-loop on the PR branch in the same primary checkout by default. Reuse a worktree only when the maintainer asked for one or primary was contended for this task; do not create another automatically. Preserve WIP and local data, and ask before removing any worktree when uncertain.

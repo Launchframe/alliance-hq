@@ -1,13 +1,15 @@
 import "server-only";
 
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   buildVsDataStatus,
   classifyVsDataNeed,
   type TrainsVsDataStatus,
 } from "@/lib/trains/vs-data-status.shared";
+import { resolveScoreDayRuleForTrainDate } from "@/lib/trains/train-day-context.server";
+import { scoreDateForTrainDay } from "@/lib/trains/train-day-context.shared";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
-import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
 /** Cap for VR readiness probe — enough to show a useful score count. */
 const VR_STATUS_LIMIT = 50;
@@ -16,18 +18,31 @@ export type { TrainsVsDataStatus };
 
 /**
  * Non-blocking VS / Price Is Freight score readiness for the guided flow.
- * Only fetches when today's mechanism/paint requires scores.
+ * Fetches when today's mechanism/paint needs scores, including Economy Week
+ * optional probes (`required: false`).
  */
 export async function loadTrainsVsDataStatus(input: {
   allianceId: string;
   trainDate: string;
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
+  rule: ConductorRule | null;
+  leadDays?: number;
+  seasonKey?: string;
 }): Promise<TrainsVsDataStatus> {
+  const leadDays = input.leadDays ?? 0;
+  const scoreDayRule =
+    input.seasonKey != null
+      ? await resolveScoreDayRuleForTrainDate({
+          allianceId: input.allianceId,
+          trainDate: input.trainDate,
+          leadDays,
+          seasonKey: input.seasonKey,
+        })
+      : null;
   const need = classifyVsDataNeed({
-    conductorMechanism: input.conductorMechanism,
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
     trainDate: input.trainDate,
+    leadDays,
+    scoreDayRule,
   });
 
   if (need.kind === "none") {
@@ -58,7 +73,7 @@ export async function loadTrainsVsDataStatus(input: {
     }
   }
 
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const scoreDate = scoreDateForTrainDay(input.trainDate, leadDays);
   try {
     const scores = await fetchAlliancePriorDayVsScoresByMember(
       input.allianceId,
@@ -66,14 +81,14 @@ export async function loadTrainsVsDataStatus(input: {
     );
     return buildVsDataStatus({
       kind: "prior_day_vs",
-      required: true,
+      required: need.required,
       scoreCount: scores.size,
       scoreDate,
     });
   } catch {
     return buildVsDataStatus({
       kind: "prior_day_vs",
-      required: true,
+      required: need.required,
       scoreCount: 0,
       scoreDate,
     });

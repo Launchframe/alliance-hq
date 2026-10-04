@@ -141,7 +141,10 @@ export function CommanderConflictResolutionSheet({
           conflicts?: CommanderIdentityConflict[];
         };
         if (res.status === 422 && body.code === "commander_identity_conflicts") {
-          throw new Error(t("stillConflict"));
+          const owner = body.conflicts?.[0]?.existingMemberName;
+          throw new Error(
+            owner ? t("takenBy", { name: owner }) : t("stillConflict"),
+          );
         }
         if (!res.ok) {
           throw new Error(body.error ?? t("saveFailed"));

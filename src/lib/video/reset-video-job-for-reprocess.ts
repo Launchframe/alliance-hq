@@ -58,6 +58,7 @@ export async function resetVideoJobForReprocess(
   const claimFields: Partial<typeof schema.videoJobs.$inferInsert> = {
     status: "queued",
     parseSessionId: null,
+    ocrFeedbackReceiptId: null,
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,

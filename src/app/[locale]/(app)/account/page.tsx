@@ -1,9 +1,15 @@
 import { getLocale } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
+import { CredentialSharesCard } from "@/components/account/CredentialSharesCard";
+import { LinkedCommandersCard } from "@/components/account/LinkedCommandersCard";
 import { AccountSettingsForm } from "@/components/AccountSettingsForm";
+import { Link } from "@/i18n/navigation";
 import { hqUserHasOAuthProvider, loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
 import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
+import { listLinkedCommandersForHqUser } from "@/lib/members/linked-commanders.server";
 import {
   getAshedConnectionMeta,
   getSessionStateFor,
@@ -11,10 +17,15 @@ import {
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
 import { getAccountTimezoneIdForSession } from "@/lib/timezone/server";
+import { canEditScoreboardReviewPreferences, loadScoreboardReviewPreferences } from "@/lib/video/scoreboard-review-preferences.server";
 import { getDiscordHqLinkByHqUserId } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("account");
+  return standalonePageMetadata(t("title"));
+}
 type Props = {
   searchParams: Promise<{
     discordLinked?: string;
@@ -27,6 +38,7 @@ type Props = {
 
 export default async function AccountPage({ searchParams }: Props) {
   const locale = await getLocale();
+  const calendar = await getTranslations("calendarConnections");
   const params = await searchParams;
   const session = await requirePageSession("/account");
   const sessionState = await getSessionStateFor(session, locale);
@@ -47,7 +59,18 @@ export default async function AccountPage({ searchParams }: Props) {
     ? await loadSignInMethodSnapshot(hqUserId)
     : null;
 
+  const linkedCommanders = hqUserId
+    ? await listLinkedCommandersForHqUser(hqUserId)
+    : [];
+
   const discordLinked = Boolean(discordBotLink || hasDiscordOAuth);
+  const canEditScoreboardOffers = canEditScoreboardReviewPreferences({
+    roleName: sessionState.rbac?.roleName,
+    isPlatformMaintainer: sessionState.rbac?.isPlatformMaintainer ?? false,
+  });
+  const initialScoreboardOffers = canEditScoreboardOffers
+    ? await loadScoreboardReviewPreferences(hqUserId)
+    : null;
   const linkNotice =
     params.discordLinked === "1"
       ? ("linked" as const)
@@ -75,7 +98,11 @@ export default async function AccountPage({ searchParams }: Props) {
     : null;
 
   return (
-    <AccountSettingsForm
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+      {hqUserId ? <Link href="/account/calendars" className="block rounded-xl border border-hq-border bg-hq-surface p-4 text-hq-accent underline">{calendar("title")}</Link> : null}
+      {hqUserId ? <LinkedCommandersCard commanders={linkedCommanders} /> : null}
+      {hqUserId ? <CredentialSharesCard currentHqUserId={hqUserId} /> : null}
+      <AccountSettingsForm
       initialAshed={ashed}
       initialTimezoneId={timezone}
       discordLinked={discordLinked}
@@ -87,6 +114,9 @@ export default async function AccountPage({ searchParams }: Props) {
       signInLinkError={params.linkError?.trim() || null}
       ssoAvailability={ssoAvailability}
       isAshedConnectAllowed={sessionState.rbac?.isAshedConnectAllowed ?? false}
+      canEditScoreboardOffers={canEditScoreboardOffers}
+      initialScoreboardOffers={initialScoreboardOffers ?? undefined}
     />
+    </div>
   );
 }

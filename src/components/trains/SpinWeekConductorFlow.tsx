@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState, useImperativeHandle, forwardRef
 import { useTranslations } from "next-intl";
 
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { EconomyWeekScoresOptionalDialog } from "@/components/trains/EconomyWeekScoresOptionalDialog";
 import { SpinWeekConfirmDialog } from "@/components/trains/SpinWeekConfirmDialog";
 import {
   applyOptimisticConductorRoll,
@@ -14,6 +15,7 @@ import {
   parseTrainRollError,
   type TrainRollErrorDetails,
 } from "@/lib/trains/roll-errors.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type { PoolRefreshedInfo, RollResult } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import {
@@ -23,6 +25,10 @@ import {
   type SpinWeekDayRecord,
   type SpinWeekResultRow,
 } from "@/lib/trains/spin-week.shared";
+import {
+  shouldConfirmEconomyWeekWithoutScores,
+  type TrainsVsDataStatus,
+} from "@/lib/trains/vs-data-status.shared";
 
 const MAX_DISQUALIFIED_RETRIES = 10;
 
@@ -55,8 +61,12 @@ type Props = {
   /** Surface structured wheel/pool blocks with recovery CTAs on the dashboard. */
   onWheelBlocked?: (details: TrainRollErrorDetails) => void;
   onRefresh: () => void;
+  /** Fires when every wheel animation in a batch finishes and the confirm dialog opens. */
+  onSpinBatchComplete?: () => void;
   /** Hide the week spin trigger button (month toolbar uses imperative spin). */
   showTrigger?: boolean;
+  vsDataStatus?: TrainsVsDataStatus | null;
+  videoUploadHref?: string;
 };
 
 type FlowPhase = "idle" | "spinning" | "confirm";
@@ -80,7 +90,10 @@ export const SpinWeekConductorFlow = forwardRef<
     onError,
     onWheelBlocked,
     onRefresh,
+    onSpinBatchComplete,
     showTrigger = true,
+    vsDataStatus = null,
+    videoUploadHref = "/tools/video-upload?scoreTarget=vs-performance",
   },
   ref,
 ) {
@@ -96,13 +109,16 @@ export const SpinWeekConductorFlow = forwardRef<
     memberName: string;
     priorDayVsScore?: number;
   } | null>(null);
-  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
+  const [wheelRule, setWheelRule] = useState<ConductorRule | null>(null);
   const [wheelStats, setWheelStats] = useState<RollResponse["stats"] | null>(
     null,
   );
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
+  const [pendingEconomyConfirmDates, setPendingEconomyConfirmDates] = useState<
+    string[] | null
+  >(null);
 
   const pendingRollRef = useRef<{
     date: string;
@@ -220,7 +236,9 @@ export const SpinWeekConductorFlow = forwardRef<
               : [{ memberId: result.memberId, memberName: result.memberName }],
           );
           setWheelWinner(result);
-          setWheelMechanism(result.mechanism);
+          setWheelRule(
+            dayConfigs.find((row) => row.date === date)?.conductorRule ?? null,
+          );
           setWheelStats(body.stats ?? null);
           setWheelQualification(result.qualification ?? null);
           setWheelDayLabel(spinWeekDayLabel(date));
@@ -243,6 +261,7 @@ export const SpinWeekConductorFlow = forwardRef<
 
         setConfirmResults(accumulated);
         setPhase("confirm");
+        onSpinBatchComplete?.();
       } catch (error) {
         setWheelOpen(false);
         setWheelQualification(null);
@@ -261,7 +280,9 @@ export const SpinWeekConductorFlow = forwardRef<
       }
     },
     [
+      dayConfigs,
       onError,
+      onSpinBatchComplete,
       onWheelBlocked,
       phase,
       rollUntilQualified,
@@ -270,18 +291,40 @@ export const SpinWeekConductorFlow = forwardRef<
     ],
   );
 
+  const startSpinDates = useCallback(
+    (dates: string[]) => {
+      const firstDate = dates[0];
+      const firstRule = firstDate
+        ? (dayConfigs.find((row) => row.date === firstDate)?.conductorRule ??
+          null)
+        : null;
+      if (
+        firstDate === today &&
+        shouldConfirmEconomyWeekWithoutScores({
+          rule: firstRule,
+          vsDataStatus,
+        })
+      ) {
+        setPendingEconomyConfirmDates(dates);
+        return;
+      }
+      void runSpinDates(dates);
+    },
+    [dayConfigs, runSpinDates, today, vsDataStatus],
+  );
+
   const startSpinWeek = useCallback(() => {
-    void runSpinDates(defaultEligibleDates);
-  }, [defaultEligibleDates, runSpinDates]);
+    startSpinDates(defaultEligibleDates);
+  }, [defaultEligibleDates, startSpinDates]);
 
   useImperativeHandle(
     ref,
     () => ({
       spinDates: (dates: string[]) => {
-        void runSpinDates(dates);
+        startSpinDates(dates);
       },
     }),
-    [runSpinDates],
+    [startSpinDates],
   );
 
   const dismissConfirm = useCallback(() => {
@@ -318,11 +361,22 @@ export const SpinWeekConductorFlow = forwardRef<
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        mechanism={wheelMechanism}
+        rule={wheelRule}
         speedMultiplier={wheelSpeedMultiplier}
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}
         onClose={handleAutomatedRevealComplete}
+      />
+
+      <EconomyWeekScoresOptionalDialog
+        open={pendingEconomyConfirmDates != null}
+        uploadHref={videoUploadHref}
+        onCancel={() => setPendingEconomyConfirmDates(null)}
+        onContinue={() => {
+          const dates = pendingEconomyConfirmDates;
+          setPendingEconomyConfirmDates(null);
+          if (dates) void runSpinDates(dates);
+        }}
       />
 
       <SpinWeekConfirmDialog

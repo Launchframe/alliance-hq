@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 
@@ -11,6 +13,10 @@ const THP_SVG = "/api/dev/discord-chart-preview?kind=thp&format=svg";
  * Standalone developer preview of the PNGs Discord slash commands would post.
  * Uses fixture series via `/api/dev/discord-chart-preview` (dev/preview only).
  */
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.discordChartPreview"));
+}
 export default function DiscordChartPreviewPage() {
   if (!isDevOrPreviewEnvironment()) {
     notFound();

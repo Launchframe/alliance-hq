@@ -13,6 +13,7 @@ import {
   resolveIframePage,
   trainwreckCase,
 } from "@/lib/nav/routes";
+import { navPageIcon } from "@/lib/nav/icons";
 
 describe("trainwreckCase", () => {
   it("removes hyphens from HQ paths", () => {
@@ -254,6 +255,26 @@ describe("NAV_GROUPS alliance-management", () => {
     const video = NAV_GROUPS.find((g) => g.id === "video");
     expect(video?.pages.some((p) => p.id === "account")).toBe(false);
     expect(video?.pages.some((p) => p.id === "video-queue")).toBe(true);
+  });
+
+  it("places activity right after dashboard as an ungated native page", () => {
+    const group = NAV_GROUPS.find((g) => g.id === "alliance-management");
+    const index = group?.pages.findIndex((page) => page.id === "activity");
+    expect(index).toBe(1);
+    const page = group!.pages[index!];
+    expect(page).toMatchObject({
+      labelKey: "activity",
+      href: "/activity",
+      kind: "native",
+    });
+    expect(page.requiredPermission).toBeUndefined();
+    expect(navPageIcon("activity")).toBeDefined();
+  });
+
+  it("keeps activity visible for every permission set", () => {
+    const filtered = filterNavGroupsForPermissions(NAV_GROUPS, new Set());
+    const group = filtered.find((g) => g.id === "alliance-management");
+    expect(group?.pages.some((page) => page.id === "activity")).toBe(true);
   });
 });
 

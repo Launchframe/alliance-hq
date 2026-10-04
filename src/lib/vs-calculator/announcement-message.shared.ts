@@ -14,6 +14,8 @@ export type VsAnnouncementMessageInput = {
   radarSaveHint: RadarSaveHintKey | null;
   shinySaveHints: ShinySaveHintKey[];
   earnPointLines?: string[];
+  /** Pre-translated reminder lines shown instead of the catalog on non-calculator days (Sat/Sun). */
+  reminderLines?: string[];
   calculatorUrl: string;
 };
 
@@ -49,6 +51,12 @@ export function formatVsDailyAnnouncementMessage(
     lines.push("");
     lines.push(tVsAnnouncement(locale, "earnPointsHeading"));
     for (const line of input.earnPointLines) {
+      lines.push(`• ${line}`);
+    }
+  } else if (input.reminderLines && input.reminderLines.length > 0) {
+    lines.push("");
+    lines.push(tVsAnnouncement(locale, "reminderHeading"));
+    for (const line of input.reminderLines) {
       lines.push(`• ${line}`);
     }
   }
