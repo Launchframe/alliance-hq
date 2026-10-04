@@ -21,6 +21,9 @@ export function parseStoredVrPending(value: unknown): VrPendingState | null {
       proposedVr,
       ...(commanderId.length > 0 ? { commanderId } : {}),
       ...(ashedMemberId.length > 0 ? { ashedMemberId } : {}),
+      ...(typeof r.seasonKey === "string" && r.seasonKey.trim()
+        ? { seasonKey: r.seasonKey.trim() }
+        : {}),
     };
   }
   if (r.kind === "pick_character" && Array.isArray(r.linkIds)) {

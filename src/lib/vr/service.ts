@@ -1,3 +1,4 @@
+import { ActivityWriteError } from "@/lib/activity/errors.server";
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
 import {
   createDiscordTranslator,
@@ -65,8 +66,11 @@ import {
   saveDiscordBotPending,
   setWeeklyPass,
   upsertMemberSeasonVr,
+  VrPendingChangedError,
+  VrSubmissionChangedError,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
+import { getCommanderMembershipInAlliance } from "@/lib/thp/repository";
 import type {
   LinkCommandResult,
   LinkPendingState,
@@ -122,6 +126,34 @@ function botContext(locale: DiscordBotLocale) {
   const translate = createDiscordTranslator(locale);
   const walkthroughSteps = tStringArray(locale, "link.steps");
   return { translate, walkthroughSteps };
+}
+
+async function runWithActivityErrors(
+  translate: DiscordTranslate,
+  work: () => Promise<VrCommandResult>,
+): Promise<VrCommandResult> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof VrPendingChangedError) {
+      return {
+        reply: translate("errors.noConfirm"),
+        pending: null,
+        action: { type: "none" },
+      };
+    }
+    if (
+      error instanceof VrSubmissionChangedError ||
+      error instanceof ActivityWriteError
+    ) {
+      return {
+        reply: translate("activity.saveBlocked"),
+        pending: null,
+        action: { type: "none" },
+      };
+    }
+    throw error;
+  }
 }
 
 function applyVrSandboxReply(
@@ -1500,7 +1532,10 @@ export async function handleDiscordVrSlash(input: {
 
   const seasonKey = season.seasonKey;
   const pendingRow = await getDiscordBotPending(input.discordUserId);
-  const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+  const pending =
+    pendingRow && pendingRow.allianceId === input.allianceId
+      ? ((pendingRow.pending ?? null) as VrPendingState | null)
+      : null;
   const [seasonHigh, reporterCount, seasonRows, commander] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, target.ashedMemberId, seasonKey),
     countSeasonReporters(input.allianceId, seasonKey),
@@ -1527,43 +1562,57 @@ export async function handleDiscordVrSlash(input: {
     explicitBaseVr = validated.baseVr;
   }
 
-  const result = processVrCommand({
-    explicitLevel: explicitBaseVr,
-    seasonHigh,
-    ashedMemberId: target.ashedMemberId,
-    commanderId: commander?.commanderId ?? null,
-    pending,
-    reporterCount,
-    peerMax,
-    translate,
-    seasonKey,
-  });
-
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
-
-  if (result.action.type === "set_vr") {
-    await upsertMemberSeasonVr({
-      allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId || target.ashedMemberId,
-      commanderId: result.action.commanderId ?? commander?.commanderId,
+  const result = await runWithActivityErrors(translate, async () => {
+    const processed = processVrCommand({
+      explicitLevel: explicitBaseVr,
+      seasonHigh,
+      ashedMemberId: target.ashedMemberId,
+      commanderId: commander?.commanderId ?? null,
+      pending,
+      reporterCount,
+      peerMax,
+      translate,
       seasonKey,
-      baseVr: result.action.vr,
-      discordUserId: input.discordUserId,
-      flagReason: result.action.flagReason ?? null,
-      eventSource: "discord",
     });
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    const instituteLevel =
-      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
-    const effectiveVr = effectiveBaseVr(
-      result.action.vr,
-      commander?.weeklyPassActive ?? false,
+
+    if (processed.action.type === "set_vr") {
+      await upsertMemberSeasonVr({
+        allianceId: input.allianceId,
+        ashedMemberId: processed.action.ashedMemberId || target.ashedMemberId,
+        commanderId: processed.action.commanderId ?? commander?.commanderId,
+        seasonKey,
+        baseVr: processed.action.vr,
+        discordUserId: input.discordUserId,
+        flagReason: processed.action.flagReason ?? null,
+        eventSource: "discord",
+        activity: {
+          identity: { kind: "discord", discordUserId: input.discordUserId },
+          expectedPreviousBaseVr: seasonHigh,
+          ...(pending
+            ? { pending: { expected: pending, required: false } }
+            : {}),
+        },
+      });
+      const instituteLevel =
+        instituteLevelForBaseVr(seasonKey, processed.action.vr) ?? "?";
+      const effectiveVr = effectiveBaseVr(
+        processed.action.vr,
+        commander?.weeklyPassActive ?? false,
+      );
+      processed.reply = translate("vr.success", {
+        level: instituteLevel,
+        effectiveVr,
+      });
+      return processed;
+    }
+
+    await saveDiscordBotPending(
+      input.allianceId,
+      input.discordUserId,
+      processed.pending,
     );
-    result.reply = translate("vr.success", {
-      level: instituteLevel,
-      effectiveVr,
-    });
-  }
+    return processed;
+  });
 
   await audit(input.allianceId, input.discordUserId, "vr", input, result);
   return applyVrSandboxReply(result, season, translate);
@@ -1752,56 +1801,119 @@ export async function handleDiscordVrButtonConfirm(input: {
 
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
-  if (!isVrAnomalyConfirmPending(pending)) {
-    const result: VrCommandResult = {
-      reply: translate("errors.noConfirm"),
-      pending: null,
-      action: { type: "none" as const },
-    };
-    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);
-    return result;
+  const noConfirm: VrCommandResult = {
+    reply: translate("errors.noConfirm"),
+    pending: null,
+    action: { type: "none" as const },
+  };
+  if (
+    pendingRow?.allianceId !== input.allianceId ||
+    !isVrAnomalyConfirmPending(pending) ||
+    pending.seasonKey !== season.seasonKey
+  ) {
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, noConfirm);
+    return noConfirm;
   }
 
-  const result = processVrConfirmation({
-    answer: input.answer,
-    pending,
-    translate,
-    seasonKey: season.seasonKey,
-  });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
-
-  if (result.action.type === "set_vr") {
-    const seasonKey = season.seasonKey;
-    const ashedMemberId =
-      result.action.ashedMemberId ||
-      (pending.kind === "anomaly_confirm" ? pending.ashedMemberId : null) ||
-      "";
-    await upsertMemberSeasonVr({
-      allianceId: input.allianceId,
-      ashedMemberId,
-      commanderId: result.action.commanderId,
-      seasonKey,
-      baseVr: result.action.vr,
-      discordUserId: input.discordUserId,
-      flagReason: result.action.flagReason ?? null,
-      eventSource: "discord",
-    });
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    const commander = await getCommanderByAshedMemberId(
-      ashedMemberId,
+  let ashedMemberId = pending.ashedMemberId ?? null;
+  let commanderId = pending.commanderId ?? null;
+  let identityOk = true;
+  if (pending.commanderId) {
+    const membership = await getCommanderMembershipInAlliance(
+      pending.commanderId,
       input.allianceId,
     );
-    const instituteLevel =
-      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
-    const effectiveVr = effectiveBaseVr(
-      result.action.vr,
-      commander?.weeklyPassActive ?? false,
-    );
-    result.reply = translate("vr.success", {
-      level: instituteLevel,
-      effectiveVr,
-    });
+    if (
+      !membership?.ashedMemberId ||
+      (pending.ashedMemberId &&
+        membership.ashedMemberId !== pending.ashedMemberId)
+    ) {
+      identityOk = false;
+    } else {
+      ashedMemberId = membership.ashedMemberId;
+    }
   }
+  if (identityOk && pending.ashedMemberId) {
+    const commander = await getCommanderByAshedMemberId(
+      pending.ashedMemberId,
+      input.allianceId,
+    );
+    if (
+      !commander ||
+      (pending.commanderId && commander.commanderId !== pending.commanderId)
+    ) {
+      identityOk = false;
+    } else {
+      commanderId = commander.commanderId;
+    }
+  }
+  if (!identityOk || !ashedMemberId || !commanderId) {
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, noConfirm);
+    return noConfirm;
+  }
+  const memberLinks = await listDiscordLinksForUser(
+    input.allianceId,
+    input.discordUserId,
+    { followLiveRoster: false },
+  );
+  if (!memberLinks.some((link) => link.ashedMemberId === ashedMemberId)) {
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, noConfirm);
+    return noConfirm;
+  }
+
+  const result = await runWithActivityErrors(translate, async () => {
+    const processed = processVrConfirmation({
+      answer: input.answer,
+      pending,
+      translate,
+      seasonKey: season.seasonKey,
+    });
+
+    if (processed.action.type === "set_vr") {
+      const seasonHigh = await getMemberSeasonHigh(
+        input.allianceId,
+        ashedMemberId,
+        season.seasonKey,
+      );
+      await upsertMemberSeasonVr({
+        allianceId: input.allianceId,
+        ashedMemberId,
+        commanderId,
+        seasonKey: season.seasonKey,
+        baseVr: processed.action.vr,
+        discordUserId: input.discordUserId,
+        flagReason: processed.action.flagReason ?? null,
+        eventSource: "discord",
+        activity: {
+          identity: { kind: "discord", discordUserId: input.discordUserId },
+          expectedPreviousBaseVr: seasonHigh,
+          pending: { expected: pending, required: true },
+        },
+      });
+      const commander = await getCommanderByAshedMemberId(
+        ashedMemberId,
+        input.allianceId,
+      );
+      const instituteLevel =
+        instituteLevelForBaseVr(season.seasonKey, processed.action.vr) ?? "?";
+      const effectiveVr = effectiveBaseVr(
+        processed.action.vr,
+        commander?.weeklyPassActive ?? false,
+      );
+      processed.reply = translate("vr.success", {
+        level: instituteLevel,
+        effectiveVr,
+      });
+      return processed;
+    }
+
+    await saveDiscordBotPending(
+      input.allianceId,
+      input.discordUserId,
+      processed.pending,
+    );
+    return processed;
+  });
 
   await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);
   return applyVrSandboxReply(result, season, translate);
