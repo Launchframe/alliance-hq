@@ -359,35 +359,49 @@ test.describe("Account merge", () => {
       const prefix = locale === "pt-BR" ? "/pt-BR" : "";
       await page.goto(`${prefix}/settings/account`);
 
-      await page
-        .getByLabel(messages.accountSecurity.consolidateSourceEmailLabel)
+      const card = page
+        .getByRole("heading", {
+          name: messages.accountSecurity.consolidateTitle,
+          exact: true,
+        })
+        .locator("..");
+
+      await card
+        .getByLabel(messages.accountSecurity.consolidateSourceEmailLabel, {
+          exact: true,
+        })
         .fill(sourceEmail);
-      await page
+      await card
         .getByRole("button", {
           name: messages.accountSecurity.consolidateSendCode,
+          exact: true,
         })
         .click();
-      await page
-        .getByLabel(messages.accountSecurity.consolidateCodeLabel)
+      await card
+        .getByLabel(messages.accountSecurity.consolidateCodeLabel, {
+          exact: true,
+        })
         .fill(code);
-      await page
+      await card
         .getByRole("button", {
           name: messages.accountSecurity.consolidateReview,
+          exact: true,
         })
         .click();
 
-      const confirmButton = page.getByRole("button", {
+      const confirmButton = card.getByRole("button", {
         name: messages.accountSecurity.consolidateConfirm,
+        exact: true,
       });
       await confirmButton.click();
       await expect(
-        page.getByText(messages.activity.saveBlocked, { exact: true }),
+        card.getByText(messages.activity.saveBlocked, { exact: true }),
       ).toBeVisible();
       await expect(confirmButton).toBeEnabled();
 
       await confirmButton.click();
       await expect(
-        page.getByText(messages.accountSecurity.consolidateSuccess, {
+        card.getByText(messages.accountSecurity.consolidateSuccess, {
           exact: true,
         }),
       ).toBeVisible();
