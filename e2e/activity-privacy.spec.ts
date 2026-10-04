@@ -358,6 +358,7 @@ test.describe("Activity feed scoped reads", () => {
     const maintainer = await createPlatformMaintainerSession(sql);
     const privateId = `e2e-act-gpriv-${randomUUID()}`;
     const publicId = `e2e-act-gpub-${randomUUID()}`;
+    const windowQuery = `from=${encodeURIComponent("2030-01-15T00:00:00.000000Z")}&to=${encodeURIComponent("2030-01-16T00:00:00.000000Z")}`;
     await seedActivityEvent({
       id: privateId,
       eventKey: "account.email_changed",
@@ -365,8 +366,10 @@ test.describe("Activity feed scoped reads", () => {
       kind: "change",
       visibilityClass: "private",
       allianceId: `e2e-act-all-${randomUUID()}`,
+      occurredAt: "2030-01-15T10:01:00.000000Z",
       originalHqUserId: maintainer.hqUserId,
       personalOwnerHqUserId: maintainer.hqUserId,
+      actorDisplayName: "Private Maintainer",
       resourceKind: null,
       payload: {},
     });
@@ -377,32 +380,164 @@ test.describe("Activity feed scoped reads", () => {
       kind: "change",
       visibilityClass: "alliance",
       allianceId: `e2e-act-all-${randomUUID()}`,
+      occurredAt: "2030-01-15T10:00:00.000000Z",
       originalHqUserId: maintainer.hqUserId,
       personalOwnerHqUserId: maintainer.hqUserId,
-      occurredAt: "2026-09-29T11:00:00.000000Z",
+      actorDisplayName: "Public Maintainer",
       payload: { value: "42" },
     });
 
-    const res = await request.get(
-      `${ENDPOINTS.global}?actor=${encodeURIComponent(`hq:${maintainer.hqUserId}`)}`,
-      { headers: cookie(maintainer) },
-    );
+    const res = await request.get(`${ENDPOINTS.global}?${windowQuery}`, {
+      headers: cookie(maintainer),
+    });
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.scope).toBe("global");
     expect(body.allowedScopes).toContain("global");
+    expect(
+      body.items.map((item: { id: string }) => item.id).sort(),
+    ).toEqual([privateId, publicId].sort());
 
     const privateItem = body.items.find(
       (item: { id: string }) => item.id === privateId,
     );
     expect(privateItem).toBeTruthy();
     expect(privateItem.values).toEqual({});
+    expect(privateItem.actor).toBeNull();
+    expect(privateItem.details).toEqual({});
     expect(privateItem).not.toHaveProperty("resourceId");
 
     const publicItem = body.items.find(
       (item: { id: string }) => item.id === publicId,
     );
     expect(publicItem.values.value).toBe("42");
+    expect(publicItem.actor).toMatchObject({
+      key: `hq:${maintainer.hqUserId}`,
+    });
+
+    const actorFiltered = await request.get(
+      `${ENDPOINTS.global}?${windowQuery}&actor=${encodeURIComponent(`hq:${maintainer.hqUserId}`)}`,
+      { headers: cookie(maintainer) },
+    );
+    expect(actorFiltered.status()).toBe(200);
+    const actorBody = await actorFiltered.json();
+    expect(actorBody.items.map((item: { id: string }) => item.id)).toEqual([
+      publicId,
+    ]);
+
+    const head = await request.get(
+      `${ENDPOINTS.global}?view=head&${windowQuery}&actor=${encodeURIComponent(`hq:${maintainer.hqUserId}`)}`,
+      { headers: cookie(maintainer) },
+    );
+    expect(head.status()).toBe(200);
+    expect((await head.json()).head.id).toBe(publicId);
+  });
+
+  test("global filter suggestions never expose private-only actors or tenants", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+    const privateOwner = await createAuthenticatedHqSession(
+      sql,
+      `private-owner-${randomUUID()}@e2e.test`,
+    );
+    const windowQuery = `from=${encodeURIComponent("2030-02-10T00:00:00.000000Z")}&to=${encodeURIComponent("2030-02-11T00:00:00.000000Z")}`;
+    const suffix = randomUUID().slice(0, 8);
+    const privateEventId = `e2e-act-privopt-${randomUUID()}`;
+    const privateAllianceId = `e2e-act-privall-${randomUUID()}`;
+    const privateActorId = `e2e-priv-actor-${randomUUID()}`;
+    const privateActorName = `PvtActor-${suffix}`;
+    const privateAllianceName = `PvtAlliance-${suffix}`;
+    const privateAllianceTag = `PV${suffix.slice(0, 4).toUpperCase()}`;
+    const privateServer = "98761";
+    const publicEventId = `e2e-act-pubopt-${randomUUID()}`;
+    const publicAllianceId = `e2e-act-puball-${randomUUID()}`;
+    const publicActorId = `e2e-pub-actor-${randomUUID()}`;
+    const publicActorName = `PubActor-${suffix}`;
+    const publicAllianceTag = `PU${suffix.slice(0, 4).toUpperCase()}`;
+    const publicServer = "98762";
+
+    await seedActivityEvent({
+      id: privateEventId,
+      eventKey: "account.email_changed",
+      feature: "account",
+      kind: "change",
+      visibilityClass: "private",
+      allianceId: privateAllianceId,
+      occurredAt: "2030-02-10T10:00:00.000000Z",
+      originalHqUserId: privateActorId,
+      personalOwnerHqUserId: privateOwner.hqUserId,
+      actorDisplayName: privateActorName,
+      allianceTag: privateAllianceTag,
+      allianceName: privateAllianceName,
+      serverNumber: privateServer,
+      payload: {},
+    });
+    await seedActivityEvent({
+      id: publicEventId,
+      eventKey: "thp.submitted",
+      feature: "thp",
+      kind: "change",
+      visibilityClass: "alliance",
+      allianceId: publicAllianceId,
+      occurredAt: "2030-02-10T10:05:00.000000Z",
+      originalHqUserId: publicActorId,
+      personalOwnerHqUserId: publicActorId,
+      actorDisplayName: publicActorName,
+      allianceTag: publicAllianceTag,
+      allianceName: `PubAlliance-${suffix}`,
+      serverNumber: publicServer,
+      payload: { value: "7" },
+    });
+
+    const options = async (extra = "") => {
+      const res = await request.get(
+        `${ENDPOINTS.global}?view=filters&${windowQuery}${extra}`,
+        { headers: cookie(maintainer) },
+      );
+      expect(res.status()).toBe(200);
+      return (await res.json()).options;
+    };
+
+    const qPrivateActor = await options(`&q=${encodeURIComponent(privateActorName)}`);
+    expect(
+      qPrivateActor.actors.map((actor: { value: string }) => actor.value),
+    ).not.toContain(`hq:${privateActorId}`);
+    expect(JSON.stringify(qPrivateActor)).not.toContain(privateActorName);
+
+    const qPrivateAlliance = await options(
+      `&q=${encodeURIComponent(privateAllianceTag)}`,
+    );
+    expect(JSON.stringify(qPrivateAlliance)).not.toContain(privateAllianceId);
+    expect(JSON.stringify(qPrivateAlliance)).not.toContain(privateAllianceTag);
+
+    const unfiltered = await options();
+    expect(
+      unfiltered.actors.map((actor: { value: string }) => actor.value),
+    ).not.toContain(`hq:${privateActorId}`);
+    expect(
+      unfiltered.alliances.map((alliance: { id: string }) => alliance.id),
+    ).not.toContain(privateAllianceId);
+    expect(
+      unfiltered.servers.map((server: string) => server),
+    ).not.toContain(privateServer);
+    expect(
+      unfiltered.actors.map((actor: { value: string }) => actor.value),
+    ).toContain(`hq:${publicActorId}`);
+    expect(
+      unfiltered.alliances.map((alliance: { id: string }) => alliance.id),
+    ).toContain(publicAllianceId);
+    expect(unfiltered.servers).toContain(publicServer);
+
+    const personal = await request.get(
+      `${ENDPOINTS.personal}?${windowQuery}`,
+      { headers: cookie(privateOwner) },
+    );
+    expect(personal.status()).toBe(200);
+    expect(
+      (await personal.json()).items.map((item: { id: string }) => item.id),
+    ).toEqual([privateEventId]);
   });
 
   test("scope-forged filters are rejected or stay fenced", async ({
