@@ -32,6 +32,7 @@ OMFG_export*
 
 # next.js
 /.next/
+/.next-e2e/
 /out/
 
 # production
@@ -40,6 +41,7 @@ OMFG_export*
 # misc
 .DS_Store
 *.pem
+.identity
 
 # debug
 npm-debug.log*
@@ -69,3 +71,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 eng.traineddata
+/workers/ocr/.venv/
+/workers/ocr/.runtime/
+/workers/ocr/.cache/
+__pycache__/
+*.pyc

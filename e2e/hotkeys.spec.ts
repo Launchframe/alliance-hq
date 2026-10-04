@@ -8,6 +8,7 @@ import {
   createAuthenticatedHqSession,
   createHqMemberLink,
   createNativeAlliance,
+  createPlatformMaintainerSession,
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
@@ -122,5 +123,105 @@ test.describe("App hotkeys", () => {
     await page.goto("/settings/hotkeys");
     await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toBeVisible();
     await expect(page.getByText("Go to Members")).toBeVisible();
+  });
+
+  test("nav Activity link and g . open the activity feed", async ({ page }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `HK${nanoid(3)}`,
+      name: "Hotkeys Activity Alliance",
+    });
+    const auth = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("hotkeys-activity"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: auth.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: auth.hqUserId,
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${auth.sessionId}
+    `;
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: auth.sessionId,
+        nextAuthToken: auth.nextAuthToken,
+      }),
+    );
+
+    await page.goto("/members");
+    const activityLink = page.getByRole("link", {
+      name: "Activity",
+      exact: true,
+    });
+    await expect(activityLink).toBeVisible();
+    await activityLink.click();
+    await expect(page).toHaveURL(/\/activity$/);
+    await expect(
+      page.getByRole("heading", { name: "Activity" }),
+    ).toBeVisible();
+
+    await page.goto("/members");
+    await page
+      .getByRole("link", { name: "Activity", exact: true })
+      .focus();
+    await page.keyboard.press("g");
+    await page.keyboard.press(".");
+    await expect(page).toHaveURL(/\/activity$/);
+  });
+
+  test("admin sequence j opens global activity for maintainers only", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `HK${nanoid(3)}`,
+      name: "Hotkeys Admin Activity Alliance",
+    });
+    const maintainer = await createPlatformMaintainerSession(sql);
+    await createAllianceMembership(sql, {
+      hqUserId: maintainer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "maintainer",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: maintainer.hqUserId,
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${maintainer.sessionId}
+    `;
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: maintainer.sessionId,
+        nextAuthToken: maintainer.nextAuthToken,
+      }),
+    );
+
+    await page.goto("/members");
+    await page
+      .getByRole("link", { name: "Activity", exact: true })
+      .focus();
+    await page.keyboard.press("g");
+    await page.keyboard.press("p");
+    await expect(page).toHaveURL(/\/admin$/);
+    await page.keyboard.press("j");
+    await expect(page).toHaveURL(/\/activity\?scope=global/);
+    await expect(
+      page.getByRole("link", { name: "Global", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
   });
 });

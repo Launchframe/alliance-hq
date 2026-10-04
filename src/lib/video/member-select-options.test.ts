@@ -47,7 +47,7 @@ describe("buildMemberMatchSelectOptions", () => {
     ]);
   });
 
-  it("omits members assigned to other rows but keeps this row's match", () => {
+  it("keeps members assigned to other rows searchable", () => {
     const options = buildMemberMatchSelectOptions(
       [
         { id: "m1", current_name: "Alice" },
@@ -58,22 +58,26 @@ describe("buildMemberMatchSelectOptions", () => {
       {
         emptyLabel: "Unmatched",
         highlightMemberId: "m2",
-        excludeMemberIds: ["m1", "m2", "m3"],
       },
     );
-    expect(options.map((option) => option.value)).toEqual(["", "m2", "m4"]);
+    expect(options.map((option) => option.value)).toEqual([
+      "",
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+    ]);
   });
 
-  it("does not re-inject excluded selected members from other rows", () => {
+  it("still injects selected members missing from the roster", () => {
     const options = buildMemberMatchSelectOptions(
       [{ id: "m4", current_name: "Dave" }],
       {
         emptyLabel: "Unmatched",
         highlightMemberId: null,
-        excludeMemberIds: ["m1"],
         selectedMembers: [{ memberId: "m1", memberName: "Alice" }],
       },
     );
-    expect(options.map((option) => option.value)).toEqual(["", "m4"]);
+    expect(options.map((option) => option.value)).toEqual(["", "m1", "m4"]);
   });
 });

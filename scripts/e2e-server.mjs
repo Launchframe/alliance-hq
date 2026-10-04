@@ -65,6 +65,13 @@ function e2eOAuthEnvLines() {
   return Object.entries(oauth).map(([key, value]) => `${key}=${value}`);
 }
 
+function e2eOcrWorkerEnv() {
+  return {
+    OCR_WORKER_SECRET: "e2e-ocr-worker-secret-not-for-production",
+    OCR_WORKER_BASE_URL: `http://127.0.0.1:${port}`,
+  };
+}
+
 function prepareEnvFile(dbUrl) {
   // Park the developer's real .env.local (self-healing + idempotent) before
   // writing the generated one. The marker on line 1 lets restoreEnvFile() —
@@ -81,8 +88,10 @@ function prepareEnvFile(dbUrl) {
       `AUTH_SECRET=${authSecret()}`,
       "HQ_ASHED_INVITE_REQUIRED=false",
       "E2E_TEST=true",
+      `ASHED_API_BASE_ORIGIN=${process.env.ASHED_API_BASE_ORIGIN?.trim() || "http://127.0.0.1:14789"}`,
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
       ...e2eOAuthEnvLines(),
+      ...Object.entries(e2eOcrWorkerEnv()).map(([key, value]) => `${key}=${value}`),
       ...ocrProviderEnvLines(),
       "",
     ].join("\n"),
@@ -94,6 +103,7 @@ function run(command, env = process.env) {
 }
 
 function buildEnv(dbUrl) {
+  const appOrigin = `http://localhost:${port}`;
   const env = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
@@ -111,9 +121,19 @@ function buildEnv(dbUrl) {
     AUTH_SECRET: authSecret(),
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
+    ASHED_API_BASE_ORIGIN:
+      process.env.ASHED_API_BASE_ORIGIN?.trim() || "http://127.0.0.1:14789",
+    NEXT_PUBLIC_APP_URL: appOrigin,
+    CALENDAR_APP_ORIGIN: appOrigin,
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
     ...e2eOAuthEnv(),
+    ...e2eOcrWorkerEnv(),
   };
+  if (process.env.NOTES_INTAKE_TEST_PROVIDER === "true") env.NOTES_INTAKE_TEST_PROVIDER = "true";
+  if (process.env.NOTES_HISTORY_TEST_PROVIDER === "true") env.NOTES_HISTORY_TEST_PROVIDER = "true";
+  if (process.env.NOTES_KNOWLEDGE_TEST_PROVIDER === "1") env.NOTES_KNOWLEDGE_TEST_PROVIDER = "1";
+  if (process.env.DISCORD_PUBLIC_KEY) env.DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
+  if (process.env.E2E_DISCORD_FOLLOWUP_ORIGIN) env.E2E_DISCORD_FOLLOWUP_ORIGIN = process.env.E2E_DISCORD_FOLLOWUP_ORIGIN;
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (provider) {
     env.VIDEO_OCR_PROVIDER = provider;
@@ -138,10 +158,8 @@ process.on("exit", () => {
 });
 
 const serverEnv = buildEnv(dbUrl);
-run("npm run db:migrate", serverEnv);
-run("npm run db:seed-rbac", serverEnv);
 run("rm -rf .next");
-run("npx next build", serverEnv);
+run("npm run build", serverEnv);
 
 const child = spawn(
   process.execPath,

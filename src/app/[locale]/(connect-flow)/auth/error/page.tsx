@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { Link } from "@/i18n/navigation";
 import {
@@ -13,6 +14,10 @@ import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.sha
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.authError"));
+}
 type Props = {
   searchParams: Promise<{
     error?: string;

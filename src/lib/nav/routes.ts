@@ -110,6 +110,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
       },
       {
+        id: "activity",
+        labelKey: "activity",
+        href: "/activity",
+        kind: "native",
+      },
+      {
         id: "alliances",
         labelKey: "alliances",
         href: "/alliances",
@@ -141,6 +147,27 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "iframe",
       },
       {
+        id: "team-work",
+        labelKey: "teamWork",
+        href: "/team-work",
+        kind: "native",
+        requiredPermission: "members:read",
+      },
+      {
+        id: "plunder-plan",
+        labelKey: "plunderPlan",
+        href: "/plunder-plan",
+        kind: "native",
+        requiredPermission: "plunder_plan:read",
+      },
+      {
+        id: "support-teams",
+        labelKey: "supportTeams",
+        href: "/support-teams",
+        kind: "native",
+        requiredPermission: "members:read",
+      },
+      {
         id: "professions",
         labelKey: "myProfession",
         href: "/professions",
@@ -160,10 +187,18 @@ export const NAV_GROUPS: NavGroupDef[] = [
     labelKey: "performanceReporting",
     pages: [
       {
+        id: "vs-compliance",
+        labelKey: "vsCompliance",
+        href: "/vs-compliance",
+        kind: "native",
+        requiredPermission: "vs_compliance:read",
+      },
+      {
         id: "vs-performance",
         labelKey: "vsPerformance",
         href: "/vs-performance",
-        kind: "iframe",
+        kind: "native",
+        requiredPermission: "scores:read",
       },
       {
         id: "donations",
@@ -265,6 +300,22 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         requiredPermission: "bank:read",
         descriptionKey: "bankManagementDescription",
+      },
+      {
+        id: "officer-intel",
+        labelKey: "officerIntel",
+        href: "/officer-intel",
+        kind: "native",
+        requiredPermission: "officer_intel:read",
+        descriptionKey: "officerIntelDescription",
+      },
+      {
+        id: "notes",
+        labelKey: "notes",
+        href: "/notes",
+        kind: "native",
+        requiredPermission: "notes:read",
+        descriptionKey: "notesDescription",
       },
     ],
   },
@@ -448,6 +499,7 @@ const ALLIANCE_SETTINGS_HUB_CHILDREN = [
   "/settings/trains",
   "/settings/game-seasons",
   "/settings/upload-reminders",
+  "/settings/regular-events",
   "/settings/team",
   "/settings/alliance",
 ] as const;
@@ -545,6 +597,7 @@ export function findActiveNavGroupId(
           "/settings/trains",
           "/settings/game-seasons",
           "/settings/upload-reminders",
+          "/settings/regular-events",
         );
       }
       if (extraHrefs.some((href) => navLinkActive(pathname, href))) {

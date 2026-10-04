@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { localVsScores, isLocalVsBatch } from "@/lib/vs-scores/data-management.server";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { base44Json } from "@/lib/base44/fetch";
@@ -27,6 +28,8 @@ export async function GET(_request: Request, { params }: Props) {
     if (!batch || batch.status !== "active") {
       return NextResponse.json({ error: "Batch not found." }, { status: 404 });
     }
+
+    if (isLocalVsBatch(batch)) return NextResponse.json({ scores: await localVsScores(ctx.allianceId, { batchId: batch.id }), storage: "hq" });
 
     const connection = await getAshedConnection(ctx.sessionId);
     if (!connection) {

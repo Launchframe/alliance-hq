@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 import {
+  PRICE_IS_RIGHT_CHART_DEFAULT_MAX_SCORE,
   PRICE_IS_RIGHT_DEFAULT_CLIFF_POINTS,
   PRICE_IS_RIGHT_MAX_TICKETS,
   buildPriceIsRightTicketBoard,
   computeMemberTicketCount,
   computeWinProbabilities,
+  resolveChartMaxScore,
   resolveCliffPoints,
   samplePriceIsRightTicketCurve,
   samplePriceIsRightUniformCurve,
@@ -24,6 +26,28 @@ describe("train-price-is-right-tickets.shared", () => {
     expect(resolveCliffPoints(baseSettings)).toBe(
       PRICE_IS_RIGHT_DEFAULT_CLIFF_POINTS,
     );
+  });
+
+  it("caps chart X axis at cliff when hard cutoff is on", () => {
+    expect(
+      resolveChartMaxScore({ ...baseSettings, hardCutoffEnabled: true }),
+    ).toBe(PRICE_IS_RIGHT_DEFAULT_CLIFF_POINTS);
+    expect(
+      resolveChartMaxScore({
+        ...baseSettings,
+        cliffPoints: 12_000_000,
+        hardCutoffEnabled: true,
+      }),
+    ).toBe(12_000_000);
+  });
+
+  it("caps chart X axis at 10M when cliff is unset and hard cutoff is off", () => {
+    expect(resolveChartMaxScore(baseSettings)).toBe(
+      PRICE_IS_RIGHT_CHART_DEFAULT_MAX_SCORE,
+    );
+    expect(
+      resolveChartMaxScore({ ...baseSettings, cliffPoints: 12_000_000 }),
+    ).toBeGreaterThan(12_000_000);
   });
 
   it("grants zero tickets below 7.2M floor", () => {
@@ -82,17 +106,46 @@ describe("train-price-is-right-tickets.shared", () => {
     );
   });
 
-  it("includes >=7.2M members with zero tickets on the main board", () => {
+  it("hard cutoff zeroes tickets above cliff and moves them to aboveCliff", () => {
     const cliff = resolveCliffPoints(baseSettings);
     const vsScores = new Map([["a", cliff + 1]]);
-    const { board, missedFloor } = buildPriceIsRightTicketBoard(
+    const { board, missedFloor, aboveCliff } = buildPriceIsRightTicketBoard(
       [{ memberId: "a", memberName: "Alpha" }],
       vsScores,
       { ...baseSettings, hardCutoffEnabled: true },
     );
-    expect(board).toHaveLength(1);
-    expect(board[0]?.ticketCount).toBe(0);
+    expect(board).toHaveLength(0);
     expect(missedFloor).toEqual([]);
+    expect(aboveCliff).toEqual([
+      {
+        memberId: "a",
+        memberName: "Alpha",
+        priorDayVsScore: cliff + 1,
+        isViewer: false,
+      },
+    ]);
+  });
+
+  it("sorts by tickets desc then VS score asc within each ticket band", () => {
+    const vsScores = new Map([
+      ["high", 15_000_000],
+      ["mid", 10_000_000],
+      ["low", 8_000_000],
+    ]);
+    const { board } = buildPriceIsRightTicketBoard(
+      [
+        { memberId: "high", memberName: "High" },
+        { memberId: "mid", memberName: "Mid" },
+        { memberId: "low", memberName: "Low" },
+      ],
+      vsScores,
+      baseSettings,
+    );
+    const oneTicket = board.filter((row) => row.ticketCount === 1);
+    expect(oneTicket.length).toBeGreaterThan(1);
+    expect(oneTicket.map((row) => row.priorDayVsScore)).toEqual(
+      [...oneTicket.map((row) => row.priorDayVsScore)].sort((a, b) => a - b),
+    );
   });
 
   it("never lists the same member on the board and missed floor", () => {

@@ -143,10 +143,103 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(Array.isArray(body.users)).toBe(true);
   });
 
+  test("bootstrap session cannot search admin alliances", async ({ request }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const list = await request.get("/api/admin/alliances?q=LFgo&limit=5", {
+      headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+    const body = (await list.json()) as { error?: string };
+    expect(body.error).toMatch(/forbidden/i);
+  });
+
+  test("authenticated non-maintainer cannot search admin alliances", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const member = await createAuthenticatedHqSession(
+      sql,
+      `rbac-alliances-${nanoid(6)}@e2e.test`,
+    );
+
+    const list = await request.get("/api/admin/alliances?q=test&limit=5", {
+      headers: { Cookie: authCookieHeader(member) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+  });
+
+  test("platform maintainer can search admin alliances", async ({ request }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+
+    const list = await request.get("/api/admin/alliances?limit=5&sort=name", {
+      headers: { Cookie: authCookieHeader(maintainer) },
+    });
+    expect(list.status(), await list.text()).toBe(200);
+    const body = (await list.json()) as { alliances?: unknown[]; total?: number };
+    expect(Array.isArray(body.alliances)).toBe(true);
+    expect(typeof body.total).toBe("number");
+  });
+
   test("protected API routes return 401 without a session cookie", async ({
     request,
   }) => {
     const summary = await request.get("/api/dashboard/summary");
     expect(summary.status(), await summary.text()).toBe(401);
+  });
+
+  test("bootstrap session cannot read the admin activity feed", async ({
+    request,
+  }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const feed = await request.get("/api/admin/activity", {
+      headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+    });
+    expect(feed.status(), await feed.text()).toBe(403);
+    const body = (await feed.json()) as {
+      error?: string;
+      errorKey?: string;
+      code?: string;
+    };
+    expect(body.errorKey).toBe("activity.accessChanged");
+    expect(body.error).toBe("Your access has changed. Refresh to continue.");
+    expect(body.code).toBe("forbidden");
+  });
+
+  test("authenticated non-maintainer cannot read the admin activity feed", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const member = await createAuthenticatedHqSession(
+      sql,
+      `rbac-activity-${nanoid(6)}@e2e.test`,
+    );
+
+    const feed = await request.get("/api/admin/activity", {
+      headers: { Cookie: authCookieHeader(member) },
+    });
+    expect(feed.status(), await feed.text()).toBe(403);
+  });
+
+  test("platform maintainer can read the admin activity feed", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+
+    const feed = await request.get("/api/admin/activity", {
+      headers: { Cookie: authCookieHeader(maintainer) },
+    });
+    expect(feed.status(), await feed.text()).toBe(200);
+    const body = (await feed.json()) as {
+      scope?: string;
+      allowedScopes?: string[];
+      items?: unknown[];
+    };
+    expect(body.scope).toBe("global");
+    expect(body.allowedScopes).toContain("global");
+    expect(Array.isArray(body.items)).toBe(true);
   });
 });

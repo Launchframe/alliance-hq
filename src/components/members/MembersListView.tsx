@@ -359,53 +359,53 @@ export function MembersListView({
     );
   }, [rosterRows]);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (query) params.set("q", query);
-      if (showFormer) params.set("includeFormer", "1");
-      params.set("refresh", "1");
-      const qs = params.toString();
-      const [membersRes, commandersRes] = await Promise.all([
-        fetch(`/api/members?${qs}`),
-        fetch("/api/commanders/index"),
-      ]);
-      const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
-        error?: string;
-      };
-      const commandersBody =
-        (await commandersRes.json()) as CommanderIndexPayload & {
+  const loadRoster = useCallback(
+    async (refreshFromAshed: boolean) => {
+      setRefreshing(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+        if (showFormer) params.set("includeFormer", "1");
+        if (refreshFromAshed) params.set("refresh", "1");
+        const qs = params.toString();
+        const [membersRes, commandersRes] = await Promise.all([
+          fetch(`/api/members?${qs}`),
+          fetch("/api/commanders/index"),
+        ]);
+        const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
           error?: string;
         };
-      if (!membersRes.ok) {
-        setError(membersBody.error ?? t("loadFailed"));
-        return;
+        const commandersBody =
+          (await commandersRes.json()) as CommanderIndexPayload & {
+            error?: string;
+          };
+        if (!membersRes.ok) {
+          setError(membersBody.error ?? t("loadFailed"));
+          return;
+        }
+        if (!commandersRes.ok) {
+          setError(commandersBody.error ?? tCommanders("loadFailed"));
+          return;
+        }
+        setData(membersBody);
+        setCommanderData(commandersBody);
+        setPendingSquad({});
+        setSaveError({});
+        void loadAttentionSummary();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("loadFailed"));
+      } finally {
+        setRefreshing(false);
       }
-      if (!commandersRes.ok) {
-        setError(commandersBody.error ?? tCommanders("loadFailed"));
-        return;
-      }
-      setData(membersBody);
-      setCommanderData(commandersBody);
-      setPendingSquad({});
-      setSaveError({});
-      const conflictCount =
-        membersBody.commanderConflicts?.length ??
-        membersBody.members.filter(
-          (m) => m.commander_sync_status === "name_conflict",
-        ).length;
-      if (conflictCount > 0) {
-        setConflictSheetOpen(true);
-      }
-      void loadAttentionSummary();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("loadFailed"));
-    } finally {
-      setRefreshing(false);
-    }
-  }, [query, showFormer, t, tCommanders, loadAttentionSummary]);
+    },
+    [query, showFormer, t, tCommanders, loadAttentionSummary],
+  );
+
+  const refresh = useCallback(
+    () => loadRoster(true),
+    [loadRoster],
+  );
 
   const saveSquad = useCallback(
     async (ashedMemberId: string) => {
@@ -573,7 +573,7 @@ export function MembersListView({
   const bulkDisabled = selectedCount === 0 || applying;
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-full space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
@@ -764,7 +764,7 @@ export function MembersListView({
         conflicts={data.commanderConflicts ?? []}
         members={data.members}
         gameServerNumber={data.gameServerNumber}
-        onResolved={() => void refresh()}
+        onResolved={() => void loadRoster(false)}
       />
 
       <RosterSquadSummaryStrip summary={commanderData.summaryBySquad} />
@@ -874,7 +874,7 @@ export function MembersListView({
           </div>
         ) : null}
         <table
-          className={`w-full min-w-0 text-left text-sm ${
+          className={`w-full min-w-max text-left text-sm ${
             refreshing ? "pointer-events-none opacity-50" : ""
           }`}
         >

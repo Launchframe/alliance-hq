@@ -153,4 +153,23 @@ describe("buildMemberIndex", () => {
     const match = matchMemberName("[LFgo]", index, { allianceTag: "LFgo" });
     expect(match.memberId).toBe("m1");
   });
+
+  it("folds Latin OCR letters so PÜRPŁE matches Purple", () => {
+    const index = buildMemberIndex([
+      { id: "purple", current_name: "Purple", status: "active" },
+    ]);
+    expect(matchMemberName("PÜRPŁE", index).matchMethod).toBe("exact");
+    const noisy = matchMemberName("PÜRPŁE PwDx", index);
+    expect(noisy.memberId).toBe("purple");
+    expect(noisy.matchMethod).toBe("fuzzy");
+  });
+
+  it("strips a trailing 1-edit alliance tag before matching Redd", () => {
+    const index = buildMemberIndex([
+      { id: "redd", current_name: "Redd", status: "active" },
+    ]);
+    const match = matchMemberName("Redd TFLgo", index, { allianceTag: "LFgo" });
+    expect(match.memberId).toBe("redd");
+    expect(match.matchMethod).toBe("exact");
+  });
 });

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
@@ -13,10 +14,8 @@ interface PageProps {
 
 export async function generateMetadata() {
   const t = await getTranslations("discordSetup.installComplete");
-  return {
-    title: t("title"),
-    description: t("subtitle"),
-  };
+  const meta = standalonePageMetadata(t("title"));
+  return { ...meta, description: t("subtitle") };
 }
 
 export default async function DiscordInstallCompletePage({
@@ -77,7 +76,9 @@ export default async function DiscordInstallCompletePage({
                 ? "noCredentials"
                 : result.reason === "no_hq_link"
                   ? "noHqLink"
-                  : "genericError";
+                  : result.reason === "guild_bound_to_other_alliance"
+                    ? "guildBoundToOtherAlliance"
+                    : "genericError";
 
     return (
       <main className="flex min-h-[60vh] items-center justify-center p-6">

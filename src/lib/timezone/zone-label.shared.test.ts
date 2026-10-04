@@ -4,6 +4,7 @@ import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 import {
   formatOptionsIncludeClockTime,
   formatTimeZoneLabel,
+  formatTimeZoneColumnLabel,
   getShortTimeZoneName,
   withTimeZoneLabel,
 } from "@/lib/timezone/zone-label.shared";
@@ -27,6 +28,25 @@ describe("formatTimeZoneLabel", () => {
     );
     expect(label).toMatch(/^Local \([A-Z]{2,5}\)$/);
     expect(label).not.toBe("ST");
+  });
+});
+
+describe("formatTimeZoneColumnLabel", () => {
+  it("uses ST for server time", () => {
+    expect(formatTimeZoneColumnLabel("server")).toBe("ST");
+    expect(
+      formatTimeZoneColumnLabel("local", new Date(), SERVER_TIME_IANA),
+    ).toBe("ST");
+  });
+
+  it("uses the short zone name without a Local wrapper", () => {
+    expect(
+      formatTimeZoneColumnLabel(
+        "local",
+        "2026-07-11T12:00:00.000Z",
+        "America/Los_Angeles",
+      ),
+    ).toBe("PDT");
   });
 });
 

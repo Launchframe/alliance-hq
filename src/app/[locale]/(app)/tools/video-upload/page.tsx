@@ -1,4 +1,6 @@
 import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { VideoUploadForm } from "@/components/VideoUploadForm";
 import { verifyBase44Connection } from "@/lib/base44/server";
@@ -11,6 +13,7 @@ import {
   parseVideoUploadBankIdParam,
   parseVideoUploadBoardKeyParam,
   parseVideoUploadRecordedDateParam,
+  parseVideoUploadReturnToParam,
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
@@ -23,12 +26,17 @@ import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-own
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("nav");
+  return await allianceScopedMetadata(t("videoUpload"));
+}
 type Props = {
   searchParams: Promise<{
     scoreTarget?: string;
     bankId?: string;
     boardKey?: string;
     recordedDate?: string;
+    returnTo?: string;
   }>;
 };
 
@@ -62,8 +70,13 @@ async function resolveSurveyMemberName(
 }
 
 export default async function VideoUploadPage({ searchParams }: Props) {
-  const { scoreTarget: scoreTargetParam, bankId: bankIdParam, boardKey: boardKeyParam, recordedDate: recordedDateParam } =
-    await searchParams;
+  const {
+    scoreTarget: scoreTargetParam,
+    bankId: bankIdParam,
+    boardKey: boardKeyParam,
+    recordedDate: recordedDateParam,
+    returnTo: returnToParam,
+  } = await searchParams;
   const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
   const contextBankId = parseVideoUploadBankIdParam(bankIdParam);
   const contextBoardKey = parseVideoUploadBoardKeyParam(
@@ -71,6 +84,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
     contextScoreTarget,
   );
   const contextRecordedDate = parseVideoUploadRecordedDateParam(recordedDateParam);
+  const contextReturnTo = parseVideoUploadReturnToParam(returnToParam);
   const session = await requirePageSession();
   const db = getDb();
   const [rows, memberName, canProcess, ashedConnection] = await Promise.all([
@@ -184,6 +198,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       contextBankId={contextBankId}
       contextBoardKey={contextBoardKey}
       contextRecordedDate={contextRecordedDate}
+      contextReturnTo={contextReturnTo}
       allianceTag={allianceTag}
       allianceName={allianceName}
       canProcess={canProcess}

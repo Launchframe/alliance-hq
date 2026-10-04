@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { adminScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { AllianceSetupRequestsClient } from "@/components/admin/AllianceSetupRequestsClient";
 import { listAllianceSetupRequestsForAdmin } from "@/lib/alliance/alliance-setup-request.server";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("admin.allianceSetupRequests");
-  return { title: t("title") };
+  return adminScopedMetadata(t("title"));
 }
 
 export default async function AdminAllianceSetupRequestsPage() {

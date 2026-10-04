@@ -1,7 +1,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { getTranslations } from "next-intl/server";
 
 import { getDb, schema } from "@/lib/db";
+import type { KnowledgeActor } from "@/lib/notes/policy.shared";
+import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
+import { canReadTeamWorkInbox } from "@/lib/support-teams/work-inbox.server";
 import { resolveOnboardingReviewInboxHref } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { resolveRosterLinkInboxHref } from "@/lib/member-link/roster-link-inbox.shared";
 
@@ -99,9 +103,12 @@ export async function refreshVideoJobsPendingItems(
 
 export async function loadReminderInboxForUser(options: {
   hqUserId: string;
+  principalHqUserId?: string;
+  notesActor?: KnowledgeActor | null;
   allianceId: string;
   permissions: Set<string>;
   includeDismissed?: boolean;
+  personalWorkOnly?: boolean;
 }): Promise<
   Array<{
     id: string;
@@ -124,6 +131,8 @@ export async function loadReminderInboxForUser(options: {
 
   const dismissedIds = new Set(dismissedRows.map((row) => row.itemId));
 
+  const actor = options.notesActor?.allianceId === options.allianceId && options.notesActor.hqUserId === (options.principalHqUserId ?? options.hqUserId) ? options.notesActor : null;
+  const taskAccess = actor ? sql`exists(select 1 from officer_action_items where id = ${schema.inboxReminderItems.resourceId} and alliance_id = ${options.allianceId} and status in ('open', 'in_progress') and ${knowledgeAccessCondition(actor, schema.officerActionItems.resourceId)})` : sql`false`;
   const items = await db
     .select()
     .from(schema.inboxReminderItems)
@@ -131,15 +140,29 @@ export async function loadReminderInboxForUser(options: {
       and(
         eq(schema.inboxReminderItems.allianceId, options.allianceId),
         eq(schema.inboxReminderItems.active, 1),
+        sql`(${schema.inboxReminderItems.kind} <> 'officer_action_item_due' or ${taskAccess})`,
       ),
     )
     .orderBy(sql`${schema.inboxReminderItems.createdAt} DESC`);
 
+  const teamWorkAllowed = items.some((item) => item.kind === "team_work") && await canReadTeamWorkInbox({ allianceId: options.allianceId, hqUserId: options.principalHqUserId ?? options.hqUserId, permissions: options.permissions, personal: options.personalWorkOnly });
+  const teamWorkTranslation = teamWorkAllowed ? await getTranslations("teamWork") : null;
+  let complianceAllowed = false;
+  const complianceTranslation = items.some((item) => item.kind === "vs_compliance") ? await getTranslations("vsCompliance") : null;
+  if (complianceTranslation && (options.permissions.has("vs_compliance:read") || options.permissions.has("hq:admin"))) {
+    const principalHqUserId = options.principalHqUserId ?? options.hqUserId;
+    const [user] = await db.select({ maintainer: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, principalHqUserId)).limit(1);
+    const memberships = await db.select({ roleName: schema.roles.name }).from(schema.allianceMemberships).innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId)).where(and(eq(schema.allianceMemberships.allianceId, options.allianceId), eq(schema.allianceMemberships.hqUserId, principalHqUserId), eq(schema.allianceMemberships.status, "active")));
+    complianceAllowed = user?.maintainer === 1 || memberships.some((membership) => ["owner", "maintainer", "officer"].includes(membership.roleName));
+  }
   const now = new Date();
   return items
     .filter((item) => {
+      if (item.kind === "team_work" && !teamWorkAllowed) return false;
+      if (item.kind === "vs_compliance" && (!complianceAllowed || teamWorkAllowed && options.permissions.has("vs_compliance:manage"))) return false;
       if (
         item.requiredPermission &&
+        !(item.kind === "vs_compliance" && complianceAllowed) &&
         !options.permissions.has(item.requiredPermission)
       ) {
         return false;
@@ -155,8 +178,8 @@ export async function loadReminderInboxForUser(options: {
     .map((item) => ({
       id: item.id,
       kind: item.kind,
-      title: item.title,
-      body: item.body,
+      title: item.kind === "team_work" && teamWorkTranslation ? teamWorkTranslation("digest") : item.kind === "vs_compliance" && complianceTranslation ? complianceTranslation("title") : item.title,
+      body: item.kind === "vs_compliance" || item.kind === "team_work" ? null : item.body,
       href:
         resolveOnboardingReviewInboxHref({
           kind: item.kind,
@@ -177,6 +200,8 @@ export async function loadReminderInboxForUser(options: {
 
 export async function countActiveRemindersForUser(options: {
   hqUserId: string;
+  principalHqUserId?: string;
+  notesActor?: KnowledgeActor | null;
   allianceId: string;
   permissions: Set<string>;
 }): Promise<number> {
@@ -207,10 +232,11 @@ export async function dismissReminderItemForAlliance(
   hqUserId: string,
   itemId: string,
   allianceId: string,
+  notesActor?: KnowledgeActor | null,
 ): Promise<boolean> {
   const db = getDb();
   const [item] = await db
-    .select({ id: schema.inboxReminderItems.id })
+    .select({ id: schema.inboxReminderItems.id, kind: schema.inboxReminderItems.kind, resourceId: schema.inboxReminderItems.resourceId })
     .from(schema.inboxReminderItems)
     .where(
       and(
@@ -221,6 +247,11 @@ export async function dismissReminderItemForAlliance(
     .limit(1);
 
   if (!item) return false;
+  if (item.kind === "officer_action_item_due") {
+    if (!notesActor || notesActor.hqUserId !== hqUserId || notesActor.allianceId !== allianceId || !item.resourceId) return false;
+    const { getNoteTask } = await import("@/lib/notes/tasks.server");
+    if (!await getNoteTask(notesActor, item.resourceId)) return false;
+  }
 
   await dismissReminderItem(hqUserId, itemId);
   return true;
@@ -230,9 +261,13 @@ export async function dismissAllReminderItems(
   hqUserId: string,
   allianceId: string,
   permissions: Set<string>,
+  principalHqUserId?: string,
+  notesActor?: KnowledgeActor | null,
 ): Promise<number> {
   const items = await loadReminderInboxForUser({
     hqUserId,
+    principalHqUserId,
+    notesActor,
     allianceId,
     permissions,
     includeDismissed: false,

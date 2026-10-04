@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
-import {
-  countActiveRemindersForUser,
-  loadReminderInboxForUser,
-} from "@/lib/eur/satisfaction";
+import { countActiveRemindersForUser } from "@/lib/eur/satisfaction";
 import { getRbacContext } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
@@ -16,7 +14,7 @@ export async function GET() {
 
   const session = sessionOrError;
   const ctx = await getRbacContext(session.id);
-  if (!ctx?.permissions.has("inbox:read")) {
+  if (!ctx || (!ctx.permissions.has("inbox:read") && !ctx.isPlatformMaintainer)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -27,6 +25,8 @@ export async function GET() {
 
   const count = await countActiveRemindersForUser({
     hqUserId: session.hqUserId,
+    principalHqUserId: ctx.hqUserId,
+    notesActor: await getKnowledgeActorForSession(session.id),
     allianceId,
     permissions: ctx.permissions,
   });

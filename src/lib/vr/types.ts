@@ -6,6 +6,7 @@ export type VrPendingState =
       commanderId?: string;
       /** Legacy roster slot; kept for pending JSON written before cutover. */
       ashedMemberId?: string;
+      seasonKey?: string;
     }
   | { kind: "pick_character"; linkIds: string[] }
   | { kind: "weekly_pass_pick_character"; linkIds: string[]; active: boolean };

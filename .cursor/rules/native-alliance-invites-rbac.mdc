@@ -40,9 +40,9 @@ Invite accept **never** creates `alliance_members` or `hq_member_links`. Every n
 
 | Invite | `roleName` | `targetAshedMemberId` | Typical use |
 | --- | --- | --- | --- |
-| **Officer / viewer / data_entry invite** | non-`member` | null | Grant HQ permissions; invitee still member-links separately |
+| **Officer / viewer / data_entry invite** | non-`member` | null or set | Grant HQ permissions; optional bound commander for hybrid claim |
 | **Generic member invite** | `member` | null | RBAC = member; invitee proves identity via UID on `/onboard` |
-| **Commander claim invite** | `member` | set | Same as member invite + **bound roster commander**; confirm step + blocks stray self-service while pending |
+| **Commander claim invite / code** | `member` | set | Member RBAC + **bound roster commander**; confirm step + blocks stray self-service while pending |
 
 Commander claim invites are **not** a separate product — `createHqInvite` with `targetAshedMemberId` (`src/lib/native-alliance/invites.ts`). Bulk claim uses `createHqClaimInvitesBulk` (same shape, batch).
 
@@ -64,8 +64,9 @@ Both paths share: invite → accept → `/onboard` → member link or claim conf
 - Expect **~100 roster rows** mirrored from Ashed; in-game names may **not** match `current_name` until refresh (renames, stale sync).
 - Primary officer job: **link HQ accounts to existing roster slots**, not “add members to the alliance.”
 - Prefer **commander claim invites** from Team settings → claim section (or commander profile) for each **unlinked** roster member.
+- For R4/R5 who also need **officer** HQ permissions, use an **invite link** with optional commander binding (or “Invite as officer + claim” on the commander profile) — one share URL embeds the passphrase.
 - Generic **member** invite / join code still works but is weaker (no pre-bound commander); use when the officer does not know which roster row yet.
-- **Officer / viewer / data_entry** invites remain required for RBAC — claim invites are always `member` role.
+- **Officer / viewer / data_entry** invites may omit a commander (permissions only) or include `targetAshedMemberId` for hybrid claim.
 
 ### Fresh native (leadership cold start — e.g. BigD, owner-less shell)
 
@@ -100,8 +101,9 @@ Product guidance: at near-full roster, steer officers toward **commander claim i
 
 From `src/lib/native-alliance/team-invites.server.ts`:
 
-- **Owner / maintainer / alliance admin:** officer, data_entry, viewer, member (+ owner via PA only).
-- **Officer:** data_entry, viewer, member — **not** officer or owner.
+- **Owner / maintainer / alliance admin:** officer, data_entry, viewer, member. **Owner** invites only with an **R5** commander claim target (or platform maintainer without a target).
+- **Officer (base):** data_entry, viewer, member — **not** officer or owner.
+- **Officer rank exceptions (hybrid claim + UID):** may invite **officer** when the bound commander is in-game **R4**; may invite **owner** when the bound commander is in-game **R5**. Other officer grants still require the alliance owner.
 
 Invite and join-code creation does **not** require a linked game server. Server matching still happens at **member-link** time (name+UID / claim confirm).
 

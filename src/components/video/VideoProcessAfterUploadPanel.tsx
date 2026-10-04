@@ -1,11 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Dialog } from "@/components/ui/dialog";
+import { requestOpenAshedConnection } from "@/lib/connect/open-ashed-connection.shared";
 import type { VideoProcessPreview } from "@/lib/video/video-process-preview.shared";
 
 function formatBytes(bytes: number | null): string {
@@ -174,6 +182,14 @@ export function VideoProcessAfterUploadPanel({
     }
   }
 
+  function goConnectWithoutLeavingIfPossible() {
+    if (requestOpenAshedConnection()) {
+      return;
+    }
+    beginNavigation();
+    push(connectUrl);
+  }
+
   async function processNow() {
     setActing(true);
     setError(null);
@@ -185,8 +201,7 @@ export function VideoProcessAfterUploadPanel({
       const data = (await res.json()) as { error?: string; code?: string };
       if (!res.ok) {
         if (data.code === "ashed_not_connected") {
-          beginNavigation();
-          push(connectUrl);
+          goConnectWithoutLeavingIfPossible();
           handedOff = true;
           return;
         }
@@ -216,19 +231,31 @@ export function VideoProcessAfterUploadPanel({
     return t("shadowTesseract");
   }
 
-  if (loading && !preview) {
+  function wrapDialog(children: ReactNode) {
     return (
-      <section className="rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5">
-        <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
-      </section>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) onDismiss();
+        }}
+        title={t("title")}
+        className="max-w-[min(96vw,56rem)] max-h-[min(96dvh,56rem)]"
+        data-testid="video-process-after-upload-panel"
+      >
+        {children}
+      </Dialog>
+    );
+  }
+
+  if (loading && !preview) {
+    return wrapDialog(
+      <p className="text-sm text-hq-fg-muted">{t("loading")}</p>,
     );
   }
 
   if (!preview) {
-    return (
-      <section className="rounded-xl border border-hq-danger bg-hq-surface p-4 sm:p-5">
-        <p className="text-sm text-hq-danger">{error ?? t("loadFailed")}</p>
-      </section>
+    return wrapDialog(
+      <p className="text-sm text-hq-danger">{error ?? t("loadFailed")}</p>,
     );
   }
 
@@ -239,11 +266,8 @@ export function VideoProcessAfterUploadPanel({
       ? tVideo(`boardTypes.${preview.boardKey as "kills"}`)
       : preview.boardKey;
 
-  return (
-    <section
-      className="rounded-xl border border-hq-green bg-hq-surface p-4 sm:p-5"
-      data-testid="video-process-after-upload-panel"
-    >
+  return wrapDialog(
+    <div>
       <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
       <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
 
@@ -350,7 +374,7 @@ export function VideoProcessAfterUploadPanel({
       ) : null}
 
       {needsConnect ? (
-        <p className="mt-4 text-sm text-[#d29922]">{tQueue("connectBanner")}</p>
+        <p className="mt-4 text-sm text-[#d29922]">{t("connectViaHeaderHint")}</p>
       ) : null}
 
       {error ? <p className="mt-4 text-sm text-hq-danger">{error}</p> : null}
@@ -359,10 +383,7 @@ export function VideoProcessAfterUploadPanel({
         {needsConnect ? (
           <button
             type="button"
-            onClick={() => {
-              beginNavigation();
-              push(connectUrl);
-            }}
+            onClick={goConnectWithoutLeavingIfPossible}
             className="rounded-lg border border-[#d29922] px-4 py-2 text-sm font-medium text-[#d29922] hover:bg-[#d2992220]"
           >
             {tQueue("connectCta")}
@@ -392,6 +413,6 @@ export function VideoProcessAfterUploadPanel({
           {tNav("videoQueue")} →
         </Link>
       </div>
-    </section>
+    </div>,
   );
 }

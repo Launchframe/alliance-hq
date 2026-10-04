@@ -102,3 +102,24 @@ export function evaluateGuildRegistrationAuth(input: {
   }
   return { allowed: false, reason: "not_owner" };
 }
+
+/**
+ * Whether the caller may re-point a Discord guild that is already bound to a
+ * *different* HQ alliance.
+ *
+ * Officers / credential registrants of the *target* alliance must not silently
+ * steal another tenant's guild via `/link-alliance` or web bot install.
+ * Only a platform maintainer or the owner of the *currently bound* alliance
+ * may move the binding.
+ */
+export function canRebindGuildToDifferentAlliance(
+  existingAllianceAuth: GuildRegistrationAuth,
+): boolean {
+  if (!existingAllianceAuth.allowed) {
+    return false;
+  }
+  return (
+    existingAllianceAuth.registeredBy === "platform_maintainer" ||
+    existingAllianceAuth.registeredBy === "alliance_owner"
+  );
+}

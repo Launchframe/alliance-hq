@@ -5,7 +5,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, requireApiSession } from "@/lib/session";
-import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
 import {
   engineRequiresAshed,
   resolveVideoOcrEngineForJob,
@@ -15,6 +15,10 @@ import {
   canReprocessVideoJob,
   videoJobReprocessInFlightMessage,
 } from "@/lib/video/admin-job-actions";
+import {
+  assertJobVideoStorageAvailable,
+  VideoJobStorageUnavailableError,
+} from "@/lib/video/assert-job-video-storage.server";
 import {
   resetVideoJobForReprocess,
   VideoJobReprocessConflictError,
@@ -76,13 +80,11 @@ export async function POST(_request: Request, { params }: Props) {
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const reviewPath = `/tools/video-upload/${jobId}/review`;
     const allianceId = job.allianceId ?? session.currentAllianceId;
-    const hqOcrOnly = allianceId
-      ? await loadEffectiveAllianceHqOcrOnly(allianceId)
-      : false;
+    const ocrContext = await loadAllianceVideoOcrContext(allianceId);
     const ocrEngine = resolveVideoOcrEngineForJob(
       scoreTargetId,
       isMemberRosterVideoTarget(scoreTargetId),
-      { allianceHqOcrOnly: hqOcrOnly },
+      ocrContext,
       { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
     );
 
@@ -99,6 +101,13 @@ export async function POST(_request: Request, { params }: Props) {
         );
       }
     }
+
+    await assertJobVideoStorageAvailable({
+      storageKey: job.storageKey,
+      archiveStorageKey: job.archiveStorageKey,
+      groupId: job.groupId,
+      fileName: job.fileName,
+    });
 
     // Claim queued and bind processor session atomically so dispatch cannot
     // observe stale processingSessionId between reset and approval fields.
@@ -125,6 +134,9 @@ export async function POST(_request: Request, { params }: Props) {
 
     return NextResponse.json({ ok: true, jobId, status: "queued" });
   } catch (error) {
+    if (error instanceof VideoJobStorageUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
     if (error instanceof VideoJobReprocessConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

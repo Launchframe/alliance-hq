@@ -23,6 +23,7 @@ export function extractHqInviteToken(raw: string): string | null {
 
   // Invite tokens are base64url from 32 random bytes (~43 chars). Join codes are
   // short (typically 6–12). Avoid treating join codes as invite tokens.
+  if (/^[A-Za-z0-9]+-[A-Fa-f0-9]{16}$/.test(trimmed)) return null;
   if (/^[A-Za-z0-9_-]{20,}$/.test(trimmed)) {
     return trimmed;
   }

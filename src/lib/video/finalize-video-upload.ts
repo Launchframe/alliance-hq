@@ -6,6 +6,9 @@ import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
 import { resolveAdaptedPrimaryExtraction } from "@/lib/video/video-hygiene-adapt.server";
+import { scheduleVideoPendingApprovalAnnouncement } from "@/lib/video/pending-approval-discord.server";
+import { defaultVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
+import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
 
 export type FinalizeVideoUploadInput = {
   sessionId: string;
@@ -20,6 +23,7 @@ export type FinalizeVideoUploadInput = {
   allianceId: string | null;
   enqueuedByHqUserId: string | null;
   bankId?: string | null;
+  vsContext?: VsVideoContext;
 };
 
 /**
@@ -90,6 +94,13 @@ export async function finalizeVideoUploadEnqueue(
     bankId: input.bankId ?? null,
     enqueuedByHqUserId: input.enqueuedByHqUserId,
     ingestMethod: "video",
+    ...(input.scoreTarget === "vs-performance"
+      ? {
+          recordedDate:
+            input.vsContext?.recordedDate ??
+            defaultVsPerformanceRecordedDate("daily"),
+        }
+      : {}),
     frameCount: null,
     uploadedFrameCount: 0,
     groupId: input.groupId,
@@ -102,6 +113,17 @@ export async function finalizeVideoUploadEnqueue(
     createdAt: now,
     updatedAt: now,
   });
+
+  if (input.scoreTarget === "vs-performance") {
+    const { initializeVsVideoEvidence } = await import(
+      "@/lib/vs-performance/video-evidence.server"
+    );
+    await initializeVsVideoEvidence(
+      input.jobId,
+      input.sessionId,
+      input.vsContext,
+    );
+  }
 
   await writeAuditLog({
     sessionId: input.sessionId,
@@ -126,6 +148,13 @@ export async function finalizeVideoUploadEnqueue(
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,
+  });
+
+  scheduleVideoPendingApprovalAnnouncement({
+    allianceId: input.allianceId,
+    fileName: input.fileName,
+    scoreTarget: input.scoreTarget,
+    enqueuedByHqUserId: input.enqueuedByHqUserId,
   });
 }
 

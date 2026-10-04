@@ -5,15 +5,15 @@ import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
-  isPriceIsRightHeavyHitterSaturday,
-  usesPriceIsFreightConductorRoll,
+  conductorRuleUsesPriceIsFreightRoll,
+  isHeavyHitterBoardRule,
 } from "@/lib/trains/heavy-hitter-pool.shared";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
   buildEqualChanceOddsBoard,
   buildUniformEconomyDrawSet,
 } from "@/lib/trains/price-is-freight-roll.shared";
-import { loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
+import { applyConductorMinimumsFilter, loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
 import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
@@ -23,6 +23,7 @@ import {
   priceIsRightWeightingActive,
   resolveCliffPoints,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import { requireApiSession } from "@/lib/session";
@@ -56,7 +57,8 @@ export async function GET(request: Request) {
     trainDate,
     seasonKey,
   );
-  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
+  const rule = dayConfig.conductorRule;
+  if (!conductorRuleUsesPriceIsFreightRoll(rule)) {
     return NextResponse.json(
       { error: "Selected day is not a Price Is Freight train day." },
       { status: 400 },
@@ -64,6 +66,7 @@ export async function GET(request: Request) {
   }
 
   const settings = await loadPriceIsRightTicketSettings(ctx.allianceId);
+  const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
 
   let viewerMemberId: string | null = null;
   if (session.hqUserId) {
@@ -74,16 +77,11 @@ export async function GET(request: Request) {
     viewerMemberId = link?.ashedMemberId ?? null;
   }
 
-  const isSaturday = isPriceIsRightHeavyHitterSaturday(
-    dayConfig.paintTemplate,
-    trainDate,
-  );
-
-  if (isSaturday) {
-    const heavyHitters = await buildHeavyHitterPoolCandidates(
+  if (isHeavyHitterBoardRule(rule)) {
+    const heavyHitters = await applyConductorMinimumsFilter(ctx.allianceId, trainDate, await buildHeavyHitterPoolCandidates(
       ctx.allianceId,
       trainDate,
-    );
+    ), { rule, leadDays });
     const board = buildEqualChanceOddsBoard(
       heavyHitters.map((c) => ({
         memberId: c.memberId,
@@ -98,7 +96,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       mode: "heavy_hitter" as const,
       trainDate,
-      scoreDate: vsScoreReferenceDate(trainDate),
+      scoreDate: vsScoreReferenceDate(trainDate, leadDays),
       settings: {
         weightingEnabled: settings.weightingEnabled,
         cliffPoints: settings.cliffPoints,
@@ -122,6 +120,8 @@ export async function GET(request: Request) {
   const candidates = await loadPriceIsFreightR3Candidates({
     allianceId: ctx.allianceId,
     date: trainDate,
+    rule,
+    leadDays,
   });
 
   if (priceIsRightWeightingActive(settings)) {
@@ -131,12 +131,16 @@ export async function GET(request: Request) {
       candidates,
       settings,
       viewerMemberId,
+      leadDays,
     });
 
     const viewerEntry =
       weighted.board.find((entry) => entry.memberId === viewerMemberId) ?? null;
     const viewerMissedEntry =
       weighted.missedFloor.find((entry) => entry.memberId === viewerMemberId) ??
+      null;
+    const viewerAboveCliffEntry =
+      weighted.aboveCliff.find((entry) => entry.memberId === viewerMemberId) ??
       null;
 
     return NextResponse.json({
@@ -156,18 +160,21 @@ export async function GET(request: Request) {
             priorDayVsScore:
               viewerEntry?.priorDayVsScore ??
               viewerMissedEntry?.priorDayVsScore ??
+              viewerAboveCliffEntry?.priorDayVsScore ??
               null,
             winProbability: viewerEntry?.winProbability ?? 0,
             missedFloor: viewerMissedEntry != null,
+            aboveCliff: viewerAboveCliffEntry != null,
           }
         : null,
       board: weighted.board,
       missedFloor: weighted.missedFloor,
+      aboveCliff: weighted.aboveCliff,
     });
   }
 
   const economy = await loadTrainEconomyThreshold(ctx.allianceId, false);
-  const scoreDate = vsScoreReferenceDate(trainDate);
+  const scoreDate = vsScoreReferenceDate(trainDate, leadDays);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     ctx.allianceId,
     scoreDate,

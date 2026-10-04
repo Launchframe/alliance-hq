@@ -16,6 +16,7 @@ const HQ_SOURCES_PENDING_ASHED_SYNC = new Set<LevelEventSource>([
   "video_parse",
   "screenshot_ocr",
   "roster_import",
+  "lastrank_sync",
   "manual",
 ]);
 

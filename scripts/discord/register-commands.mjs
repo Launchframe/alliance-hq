@@ -5,6 +5,8 @@
  *   DISCORD_BOT_TOKEN=... DISCORD_APPLICATION_ID=... npm run discord:register-commands
  */
 import "dotenv/config";
+import { TIME_OFF_COMMANDS } from "./time-off-commands.mjs";
+import { PLUNDER_PLAN_COMMAND } from "./plunder-plan-commands.mjs";
 
 const token = process.env.DISCORD_BOT_TOKEN?.trim();
 const applicationId = process.env.DISCORD_APPLICATION_ID?.trim();
@@ -94,7 +96,80 @@ const commanderLinkOptions = [
   },
 ];
 
+/** Discord slash-command choices allow at most 25 entries. */
+const translationLanguageChoices = [
+  { name: "English", value: "en" },
+  { name: "Português", value: "pt" },
+  { name: "Español", value: "es" },
+  { name: "Français", value: "fr" },
+  { name: "Deutsch", value: "de" },
+  { name: "Italiano", value: "it" },
+  { name: "Nederlands", value: "nl" },
+  { name: "Polski", value: "pl" },
+  { name: "Русский", value: "ru" },
+  { name: "Українська", value: "uk" },
+  { name: "Türkçe", value: "tr" },
+  { name: "العربية", value: "ar" },
+  { name: "한국어", value: "ko" },
+  { name: "日本語", value: "ja" },
+  { name: "中文（简体）", value: "zh-CN" },
+  { name: "中文（繁體）", value: "zh-TW" },
+  { name: "Tiếng Việt", value: "vi" },
+  { name: "ไทย", value: "th" },
+  { name: "Bahasa Indonesia", value: "id" },
+  { name: "Bahasa Melayu", value: "ms" },
+  { name: "Filipino", value: "tl" },
+  { name: "हिन्दी", value: "hi" },
+  { name: "Ελληνικά", value: "el" },
+  { name: "Magyar", value: "hu" },
+];
+
 const commandBody = [
+  {
+    // Message context menu (Apps → Translate); context menus take no description.
+    name: "Translate",
+    type: 3,
+    name_localizations: {
+      "pt-BR": "Traduzir",
+    },
+  },
+  {
+    name: "translation-language",
+    description: "Choose the language Apps → Translate uses for you.",
+    description_localizations: {
+      "pt-BR": "Escolha o idioma usado em Apps → Traduzir para você.",
+    },
+    options: [
+      {
+        name: "language",
+        description: "Your translation language",
+        description_localizations: {
+          "pt-BR": "Seu idioma de tradução",
+        },
+        type: 3,
+        required: true,
+        choices: translationLanguageChoices,
+      },
+    ],
+  },
+  {
+    name: "set-translation",
+    description: "Turn Apps → Translate on or off for this alliance (owner only).",
+    description_localizations: {
+      "pt-BR": "Ativa ou desativa Apps → Traduzir para esta aliança (somente dono).",
+    },
+    options: [
+      {
+        name: "enabled",
+        description: "Turn message translation on or off.",
+        description_localizations: {
+          "pt-BR": "Ativa ou desativa a tradução de mensagens.",
+        },
+        type: 5,
+        required: true,
+      },
+    ],
+  },
   {
     name: "link",
     description: "Link your Discord account to Alliance HQ",
@@ -119,6 +194,66 @@ const commandBody = [
       "pt-BR": "Atalho para /link-commander — vincule seu perfil do Last War",
     },
     options: [...commanderLinkOptions],
+  },
+  {
+    name: "commend",
+    description:
+      "Commend one or more members by name. (R4+ by default; owners can restrict.)",
+    description_localizations: {
+      "pt-BR":
+        "Elogie um ou mais membros pelo nome. (R4+ por padrão; o dono pode restringir.)",
+    },
+    options: [
+      {
+        name: "names",
+        description: "Commander names, separated by commas or periods.",
+        description_localizations: {
+          "pt-BR": "Nomes de comandantes, separados por vírgulas ou pontos.",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "violation",
+    description:
+      "Record violations for one or more members. (R4+ by default; owners can restrict.)",
+    description_localizations: {
+      "pt-BR":
+        "Registre violações de um ou mais membros. (R4+ por padrão; o dono pode restringir.)",
+    },
+    options: [
+      {
+        name: "names",
+        description: "Commander names, separated by commas or periods.",
+        description_localizations: {
+          "pt-BR": "Nomes de comandantes, separados por vírgulas ou pontos.",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "note",
+    description:
+      "Record your thoughts for later. (R4+ by default; owners can restrict.)",
+    description_localizations: {
+      "pt-BR":
+        "Registre suas anotações para depois. (R4+ por padrão; o dono pode restringir.)",
+    },
+    options: [
+      {
+        name: "text",
+        description: "Freeform note. What's on your mind?",
+        description_localizations: {
+          "pt-BR": "Anotação livre. O que você quer registrar?",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
   },
   {
     name: "help",
@@ -393,12 +528,12 @@ const commandBody = [
     },
   },
   {
-    name: "set-vs-announcements-channel",
+    name: "set-r4-channel",
     description:
-      "Set this channel for nightly VS match-day announcements (R4+ by default; owners can restrict).",
+      "Set this channel for R4 officer reminders (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para anúncios noturnos de VS (R4+ por padrão; o dono pode restringir).",
+        "Define este canal para lembretes de oficiais R4 (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
@@ -543,44 +678,8 @@ const commandBody = [
         "Registre este canal para anúncios da tabela de profissões (R4+ por padrão; o dono pode restringir).",
     },
   },
-  {
-    name: "my-time-off",
-    description: "Announce or view your upcoming time off in natural language.",
-    description_localizations: {
-      "pt-BR": "Anuncie ou veja suas próximas ausências em linguagem natural.",
-    },
-    options: [
-      {
-        name: "upcoming",
-        description:
-          'Describe your time off (e.g. "away next week visiting family").',
-        description_localizations: {
-          "pt-BR":
-            'Descreva sua ausência (ex.: "fora na próxima semana visitando família").',
-        },
-        type: 3,
-        required: false,
-      },
-      {
-        name: "start",
-        description: "Optional start date (YYYY-MM-DD) when not using upcoming.",
-        description_localizations: {
-          "pt-BR": "Data de início opcional (AAAA-MM-DD) sem usar upcoming.",
-        },
-        type: 3,
-        required: false,
-      },
-      {
-        name: "end",
-        description: "Optional end date (YYYY-MM-DD). Defaults to start.",
-        description_localizations: {
-          "pt-BR": "Data de fim opcional (AAAA-MM-DD). Padrão: início.",
-        },
-        type: 3,
-        required: false,
-      },
-    ],
-  },
+  ...TIME_OFF_COMMANDS,
+  PLUNDER_PLAN_COMMAND,
   {
     name: "who-is",
     description: "Look up which commander a Discord user owns, or who owns a commander.",
@@ -603,33 +702,6 @@ const commandBody = [
         description: "In-game commander name to look up.",
         description_localizations: {
           "pt-BR": "Nome do comandante no jogo para consultar.",
-        },
-        type: 3,
-        required: false,
-      },
-    ],
-  },
-  {
-    name: "is-ally-offline",
-    description: "Check whether an alliance commander is on scheduled time off.",
-    description_localizations: {
-      "pt-BR": "Verifique se um comandante da aliança está em ausência programada.",
-    },
-    options: [
-      {
-        name: "commander",
-        description: "Alliance commander name to look up.",
-        description_localizations: {
-          "pt-BR": "Nome do comandante da aliança para consultar.",
-        },
-        type: 3,
-        required: true,
-      },
-      {
-        name: "date",
-        description: "Server calendar date (YYYY-MM-DD). Defaults to today.",
-        description_localizations: {
-          "pt-BR": "Data do calendário do servidor (AAAA-MM-DD). Padrão: hoje.",
         },
         type: 3,
         required: false,

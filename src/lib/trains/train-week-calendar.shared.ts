@@ -1,6 +1,7 @@
 import {
   addCalendarDays,
   getServerDayOfWeek,
+  getWeekStartMonday,
 } from "@/lib/trains/game-time";
 
 export type AllianceTrainWeekConfig = {
@@ -51,4 +52,14 @@ export function allianceTrainWeekFromRow(
         ? dow
         : DEFAULT_ALLIANCE_TRAIN_WEEK.trainWeekStartDow,
   };
+}
+
+/**
+ * Week a `train_week_schedules` row is keyed by — always the Monday calendar
+ * week, never the alliance's display preference. `trainWeekStartDow` decides
+ * where the calendar starts rendering; it must not decide which schedule row
+ * a date belongs to, or changing the preference would orphan the week.
+ */
+export function scheduleWeekStart(dateStr: string): string {
+  return getWeekStartMonday(dateStr);
 }

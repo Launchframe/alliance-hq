@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canRebindGuildToDifferentAlliance,
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
   nativeOwnerClaimMemberId,
@@ -234,5 +235,46 @@ describe("nativeOwnerClaimMemberId", () => {
         activeR5MemberIds: ["member-1"],
       }),
     ).toBeNull();
+  });
+});
+
+describe("canRebindGuildToDifferentAlliance", () => {
+  it("allows platform maintainers and owners of the currently bound alliance", () => {
+    expect(
+      canRebindGuildToDifferentAlliance({
+        allowed: true,
+        registeredBy: "platform_maintainer",
+      }),
+    ).toBe(true);
+    expect(
+      canRebindGuildToDifferentAlliance({
+        allowed: true,
+        registeredBy: "alliance_owner",
+      }),
+    ).toBe(true);
+  });
+
+  it("denies officers and credential registrants (cross-tenant steal path)", () => {
+    expect(
+      canRebindGuildToDifferentAlliance({
+        allowed: true,
+        registeredBy: "alliance_officer",
+      }),
+    ).toBe(false);
+    expect(
+      canRebindGuildToDifferentAlliance({
+        allowed: true,
+        registeredBy: "credential_registrant",
+      }),
+    ).toBe(false);
+  });
+
+  it("denies when the caller cannot register the currently bound alliance", () => {
+    expect(
+      canRebindGuildToDifferentAlliance({
+        allowed: false,
+        reason: "not_owner",
+      }),
+    ).toBe(false);
   });
 });

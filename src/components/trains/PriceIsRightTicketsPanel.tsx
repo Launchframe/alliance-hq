@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { PriceIsRightTicketDistributionChart } from "@/components/trains/PriceIsRightTicketDistributionChart";
+import { SearchablePaginatedMemberScoreList } from "@/components/trains/SearchablePaginatedMemberScoreList";
 import { Link } from "@/i18n/navigation";
 import {
   boardToChartPoints,
   formatPriceIsRightVsScore,
+  normalizePriceIsRightTicketSettings,
   type PriceIsRightTicketBoardEntry,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
 
@@ -19,6 +21,7 @@ type TicketBoardPayload = {
   scoreDate: string;
   settings: {
     cliffPoints: number | null;
+    effectiveCliffPoints?: number;
     hardCutoffEnabled: boolean;
   };
   viewer: {
@@ -27,9 +30,16 @@ type TicketBoardPayload = {
     priorDayVsScore: number | null;
     winProbability: number;
     missedFloor?: boolean;
+    aboveCliff?: boolean;
   } | null;
   board: PriceIsRightTicketBoardEntry[];
   missedFloor: Array<{
+    memberId: string;
+    memberName: string;
+    priorDayVsScore: number;
+    isViewer?: boolean;
+  }>;
+  aboveCliff?: Array<{
     memberId: string;
     memberName: string;
     priorDayVsScore: number;
@@ -39,14 +49,11 @@ type TicketBoardPayload = {
 
 type Props = {
   trainDate: string;
+  /** VS score upload deep-link when the odds board is empty. */
+  uploadHref?: string;
 };
 
 const COLLAPSED_VISIBLE = 7;
-
-function formatDayOfWeek(scoreDate: string): string {
-  const date = new Date(`${scoreDate}T12:00:00`);
-  return date.toLocaleDateString(undefined, { weekday: "long" });
-}
 
 function formatProbability(value: number): string {
   if (value >= 0.01) return `${(value * 100).toFixed(1)}%`;
@@ -54,7 +61,10 @@ function formatProbability(value: number): string {
   return "0%";
 }
 
-export function PriceIsRightTicketsPanel({ trainDate }: Props) {
+export function PriceIsRightTicketsPanel({
+  trainDate,
+  uploadHref = "/tools/video-upload?scoreTarget=vs-performance",
+}: Props) {
   const t = useTranslations("trains.priceIsRight");
   const [payload, setPayload] = useState<TicketBoardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,7 +173,7 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
         </p>
         <div className="mt-3">
           <Link
-            href={isHeavyHitter ? "/settings/trains" : "/tools/video-upload"}
+            href={isHeavyHitter ? "/settings/trains" : uploadHref}
             className="inline-flex rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-400"
           >
             {isHeavyHitter
@@ -175,9 +185,18 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
     );
   }
 
-  const viewerTickets = payload.viewer?.ticketCount ?? 0;
-  const viewerScore = payload.viewer?.priorDayVsScore;
-  const chartPoints = boardToChartPoints(payload.board);
+  const ticketSettings = normalizePriceIsRightTicketSettings({
+    weightingEnabled: true,
+    cliffPoints:
+      payload.settings.cliffPoints ??
+      payload.settings.effectiveCliffPoints ??
+      null,
+    hardCutoffEnabled: payload.settings.hardCutoffEnabled,
+    maxTicketMemberIds: payload.board
+      .filter((row) => row.isTakedownOverride)
+      .map((row) => row.memberId),
+  });
+  const chartPoints = boardToChartPoints(payload.board, ticketSettings);
 
   return (
     <section
@@ -202,45 +221,9 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
       </div>
 
       {isWeighted ? (
-        <div
-          className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
-          data-testid="price-is-right-tickets-hero"
-        >
-          <p className="text-lg font-semibold text-hq-fg">
-            {t("hero", {
-              count: viewerTickets,
-              dayOfWeek: formatDayOfWeek(payload.scoreDate),
-              score:
-                viewerScore != null
-                  ? formatPriceIsRightVsScore(viewerScore)
-                  : t("noScore"),
-            })}
-          </p>
-        </div>
-      ) : payload.viewer && !payload.viewer.missedFloor ? (
-        <div
-          className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
-          data-testid="price-is-right-tickets-hero"
-        >
-          <p className="text-lg font-semibold text-hq-fg">
-            {t("oddsHeroEqual", {
-              probability: formatProbability(payload.viewer.winProbability),
-            })}
-          </p>
-        </div>
-      ) : null}
-
-      {isWeighted ? (
         <PriceIsRightTicketDistributionChart
           className="mt-5"
-          settings={{
-            weightingEnabled: true,
-            cliffPoints: payload.settings.cliffPoints,
-            hardCutoffEnabled: payload.settings.hardCutoffEnabled,
-            maxTicketMemberIds: payload.board
-              .filter((row) => row.isTakedownOverride)
-              .map((row) => row.memberId),
-          }}
+          settings={ticketSettings}
           memberPoints={chartPoints}
           data-testid="price-is-right-tickets-chart"
         />
@@ -272,6 +255,11 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
                   >
                     <td className="px-3 py-2 font-medium text-hq-fg">
                       {row.memberName}
+                      {row.isViewer ? (
+                        <span className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-300">
+                          ({t("board.you")})
+                        </span>
+                      ) : null}
                       {row.isTakedownOverride ? (
                         <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
                           {t("board.takedownBadge")}
@@ -307,6 +295,11 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
                   <div className="min-w-0">
                     <p className="truncate font-medium text-hq-fg">
                       {row.memberName}
+                      {row.isViewer ? (
+                        <span className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-300">
+                          ({t("board.you")})
+                        </span>
+                      ) : null}
                       {row.isTakedownOverride ? (
                         <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
                           {t("board.takedownBadge")}
@@ -324,7 +317,7 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
                           })}
                     </p>
                   </div>
-                  <p className="shrink-0 text-sm font-semibold text-cyan-200">
+                  <p className="shrink-0 text-sm font-semibold text-cyan-800 dark:text-cyan-200">
                     {isWeighted
                       ? row.ticketCount
                       : formatProbability(row.winProbability)}
@@ -332,24 +325,6 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
                 </li>
               ))}
             </ul>
-            {payload.board.length > COLLAPSED_VISIBLE ? (
-              <>
-                <div
-                  className="pointer-events-none absolute inset-x-0 top-0 h-20"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, #0d1117 0%, rgba(13,17,23,0.94) 20%, rgba(13,17,23,0.6) 48%, transparent 100%)",
-                  }}
-                />
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-20"
-                  style={{
-                    background:
-                      "linear-gradient(to top, #0d1117 0%, rgba(13,17,23,0.94) 20%, rgba(13,17,23,0.6) 48%, transparent 100%)",
-                  }}
-                />
-              </>
-            ) : null}
           </div>
         )}
 
@@ -365,52 +340,32 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
         ) : null}
       </div>
 
-      {payload.missedFloor.length > 0 ? (
-        <div className="mt-6 border-t border-cyan-500/20 pt-5">
-          <div className="flex flex-col gap-1">
-            <h4 className="text-sm font-semibold text-hq-fg">
-              {mode === "uniform"
-                ? t("missedFloor.titleUniform")
-                : t("missedFloor.title")}
-            </h4>
-            <p className="text-xs text-hq-fg-muted">
-              {mode === "uniform"
-                ? t("missedFloor.subtitleUniform")
-                : t("missedFloor.subtitle")}
-            </p>
-          </div>
-          <div
-            className="mt-3 overflow-x-auto rounded-lg border border-hq-border"
-            data-testid="price-is-right-missed-floor"
-          >
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-hq-canvas/80 text-xs uppercase tracking-wide text-hq-fg-muted">
-                <tr>
-                  <th className="px-3 py-2 font-medium">
-                    {t("missedFloor.member")}
-                  </th>
-                  <th className="px-3 py-2 font-medium">{t("missedFloor.vs")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payload.missedFloor.map((row) => (
-                  <tr
-                    key={row.memberId}
-                    className={`border-t border-hq-border/60 ${
-                      row.isViewer ? "bg-amber-500/10" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-2 font-medium text-hq-fg">
-                      {row.memberName}
-                    </td>
-                    <td className="px-3 py-2 text-hq-fg-muted">
-                      {formatPriceIsRightVsScore(row.priorDayVsScore)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {(payload.missedFloor.length > 0 || (payload.aboveCliff?.length ?? 0) > 0) ? (
+        <div className="mt-6 space-y-6 border-t border-cyan-500/20 pt-5">
+          {payload.missedFloor.length > 0 ? (
+            <SearchablePaginatedMemberScoreList
+              rows={payload.missedFloor}
+              title={
+                mode === "uniform"
+                  ? t("missedFloor.titleUniform")
+                  : t("missedFloor.title")
+              }
+              subtitle={
+                mode === "uniform"
+                  ? t("missedFloor.subtitleUniform")
+                  : t("missedFloor.subtitle")
+              }
+              testId="price-is-right-missed-floor"
+            />
+          ) : null}
+          {(payload.aboveCliff?.length ?? 0) > 0 ? (
+            <SearchablePaginatedMemberScoreList
+              rows={payload.aboveCliff!}
+              title={t("aboveCliff.title")}
+              subtitle={t("aboveCliff.subtitle")}
+              testId="price-is-right-above-cliff"
+            />
+          ) : null}
         </div>
       ) : null}
     </section>

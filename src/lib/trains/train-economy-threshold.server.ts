@@ -24,6 +24,7 @@ import {
   tpirEligiblePoolEntries,
   type TrainEconomyThresholdSettings,
 } from "@/lib/trains/train-economy-threshold.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
 export type TrainEconomyThresholdRow = TrainEconomyThresholdSettings &
@@ -155,12 +156,12 @@ export async function loadPriceIsRightTicketSettings(
   allianceId: string,
 ): Promise<PriceIsRightTicketSettings> {
   const row = await loadTrainEconomyThreshold(allianceId, false);
-  return {
+  return normalizePriceIsRightTicketSettings({
     weightingEnabled: row.weightingEnabled,
     cliffPoints: row.thresholdPoints,
     hardCutoffEnabled: row.hardCutoffEnabled,
     maxTicketMemberIds: row.maxTicketMemberIds,
-  };
+  });
 }
 
 /** Pick from the alliance R3 pool at roll time — preserves generation across pivot days. */
@@ -182,7 +183,8 @@ export async function pickTpirPoolEntry(input: {
   let pickFrom = unselected;
 
   if (economyThresholdEnforcementEnabled(settings)) {
-    const scoreDate = vsScoreReferenceDate(input.trainDate);
+    const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+    const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
     const vsScores = await fetchAlliancePriorDayVsScoresByMember(
       input.allianceId,
       scoreDate,
@@ -216,22 +218,26 @@ export async function buildPriceIsRightWeightedCandidates(input: {
   candidates: RollCandidate[];
   settings?: PriceIsRightTicketSettings;
   viewerMemberId?: string | null;
+  leadDays?: number;
 }): Promise<{
   candidates: RollCandidate[];
   board: PriceIsRightTicketBoardEntry[];
   missedFloor: PriceIsRightMissedFloorEntry[];
+  aboveCliff: PriceIsRightMissedFloorEntry[];
   scoreDate: string;
 }> {
   const settings =
     input.settings ??
     (await loadPriceIsRightTicketSettings(input.allianceId));
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const leadDays =
+    input.leadDays ?? (await loadAllianceTrainLeadTimeDays(input.allianceId));
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     input.allianceId,
     scoreDate,
   );
 
-  const { board, missedFloor } = buildPriceIsRightTicketBoard(
+  const { board, missedFloor, aboveCliff } = buildPriceIsRightTicketBoard(
     input.candidates,
     vsScores,
     settings,
@@ -251,5 +257,5 @@ export async function buildPriceIsRightWeightedCandidates(input: {
     ];
   });
 
-  return { candidates, board, missedFloor, scoreDate };
+  return { candidates, board, missedFloor, aboveCliff, scoreDate };
 }

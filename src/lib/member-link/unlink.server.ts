@@ -35,10 +35,11 @@ async function resolveCommanderId(
 }
 
 /**
- * Break-glass: remove the HQ account binding for a roster commander so the
- * commander can be claimed again. Caller authorization (alliance owner or
- * platform maintainer) is enforced at the API boundary — this module assumes
- * the action is already authorized and records the audit trail.
+ * Remove the HQ account binding for a roster commander so the commander can
+ * be claimed again. Officer/maintainer authorization is enforced at the
+ * team-settings API; `unlinkOwnCommanderClaim` verifies the signed-in user
+ * owns the seat first. This module assumes the action is already authorized
+ * and records the audit trail.
  *
  * Also unwinds the `hq_user_commanders` ownership binding, clears a dangling
  * `ownerMemberExternalId` (so a re-claimer cannot inherit Discord owner proof),
@@ -173,4 +174,79 @@ export async function unlinkCommanderDiscordLinks(input: {
   });
 
   return { ok: true, target: "discord", removed: removed.length };
+}
+
+/**
+ * Self-service: the signed-in HQ user unlinks their own commander claim
+ * for this alliance seat (HQ row, and their Discord seat if connected).
+ */
+export async function unlinkOwnCommanderClaim(input: {
+  sessionId: string;
+  hqUserId: string;
+  allianceId: string;
+  ashedMemberId: string;
+}): Promise<UnlinkCommanderResult> {
+  const db = getDb();
+  const [link] = await db
+    .select({
+      id: schema.hqMemberLinks.id,
+      hqUserId: schema.hqMemberLinks.hqUserId,
+    })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.allianceId),
+        eq(schema.hqMemberLinks.ashedMemberId, input.ashedMemberId),
+        eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
+      ),
+    )
+    .limit(1);
+
+  if (!link) {
+    return { ok: false, reason: "not_linked" };
+  }
+
+  const hqResult = await unlinkCommanderHqAccount({
+    sessionId: input.sessionId,
+    actorHqUserId: input.hqUserId,
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+  });
+  if (!hqResult.ok) {
+    return hqResult;
+  }
+
+  const [discordHq] = await db
+    .select({ discordUserId: schema.discordHqLinks.discordUserId })
+    .from(schema.discordHqLinks)
+    .where(eq(schema.discordHqLinks.hqUserId, input.hqUserId))
+    .limit(1);
+
+  if (discordHq) {
+    const removed = await db
+      .delete(schema.discordMemberLinks)
+      .where(
+        and(
+          eq(schema.discordMemberLinks.allianceId, input.allianceId),
+          eq(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+          eq(schema.discordMemberLinks.discordUserId, discordHq.discordUserId),
+        ),
+      )
+      .returning({ id: schema.discordMemberLinks.id });
+    if (removed.length > 0) {
+      await writeAuditLog({
+        sessionId: input.sessionId,
+        hqUserId: input.hqUserId,
+        allianceId: input.allianceId,
+        action: "member_link.discord_unlinked",
+        metadata: {
+          ashedMemberId: input.ashedMemberId,
+          removed: removed.length,
+          source: "self_unlink",
+        },
+      });
+    }
+  }
+
+  return hqResult;
 }

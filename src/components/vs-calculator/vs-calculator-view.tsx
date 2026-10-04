@@ -257,7 +257,7 @@ export function VsCalculatorView({ initial }: Props) {
               {t("dayTotalLabel")}
             </p>
             <p className="font-mono text-4xl font-bold tabular-nums text-hq-fg">
-              {formatVsPoints(data.dayTotal)}
+              {formatVsPoints(data.dayTotal, locale)}
             </p>
           </div>
 
@@ -279,11 +279,13 @@ export function VsCalculatorView({ initial }: Props) {
                       <div className="min-w-0">
                         <p className="font-medium text-hq-fg">{def.displayName}</p>
                         <p className="text-xs text-hq-fg-muted">
-                          {t("pointsEach", { points: formatVsPoints(points) })}
+                          {t("pointsEach", {
+                            points: formatVsPoints(points, locale),
+                          })}
                         </p>
                       </div>
                       <p className="font-mono text-sm tabular-nums text-hq-accent">
-                        {formatVsPoints(lineTotal)}
+                        {formatVsPoints(lineTotal, locale)}
                       </p>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
@@ -350,7 +352,7 @@ export function VsCalculatorView({ initial }: Props) {
                       {t("dayLabel", { day: row.day })} — {tTrains(row.themeKey)}
                     </p>
                     <p className="font-mono text-lg tabular-nums text-hq-fg">
-                      {formatVsPoints(row.totalPoints)}
+                      {formatVsPoints(row.totalPoints, locale)}
                     </p>
                   </div>
                   <button

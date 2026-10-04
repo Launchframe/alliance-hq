@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { RosterLinkRequestsClient } from "@/components/members/RosterLinkRequestsClient";
 import { listPendingRosterLinkRequests } from "@/lib/member-link/roster-link-resolve.server";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("rosterLinkRequests");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function RosterLinkRequestsPage({

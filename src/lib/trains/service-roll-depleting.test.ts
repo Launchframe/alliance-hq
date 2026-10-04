@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  loadTimeOffAvailability: vi.fn(async () => ({ awayMemberIds: new Set<string>() })),
+  seedPool: vi.fn(),
+  startNewPoolGeneration: vi.fn(),
   getEffectiveSeasonForAlliance: vi.fn(),
   getConductorRecord: vi.fn(),
   resolveRollDayConfig: vi.fn(),
@@ -18,10 +21,22 @@ const mocks = vi.hoisted(() => ({
   assignVipOnLockedConductor: vi.fn(),
   getMemberRankAsOf: vi.fn(),
   refreshExhaustedPoolIfNeeded: vi.fn(),
+  loadAllianceTrainLeadTimeDays: vi.fn(),
+  withConductorPoolClaimLock: vi.fn(
+    async (_key: unknown, run: () => Promise<unknown>) => run(),
+  ),
+}));
+
+vi.mock("@/lib/time-off/availability.server", () => ({
+  loadTimeOffAvailability: mocks.loadTimeOffAvailability,
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
+}));
+
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeDays: mocks.loadAllianceTrainLeadTimeDays,
 }));
 
 vi.mock("@/lib/trains/repository", () => ({
@@ -43,8 +58,8 @@ vi.mock("@/lib/trains/pool", () => ({
   pickUniformPoolEntry: mocks.pickUniformPoolEntry,
   pickWeightedPoolEntryFromRows: vi.fn(),
   releasePoolSelectionForDate: mocks.releasePoolSelectionForDate,
-  seedPool: vi.fn(),
-  startNewPoolGeneration: vi.fn(),
+  seedPool: mocks.seedPool,
+  startNewPoolGeneration: mocks.startNewPoolGeneration,
 }));
 
 vi.mock("@/lib/trains/train-conductor-minimums.server", () => ({
@@ -61,6 +76,10 @@ vi.mock("@/lib/trains/rank-history", () => ({
   getMemberRankAsOf: mocks.getMemberRankAsOf,
   resolveMemberPoolAllianceRank: vi.fn(),
   isMemberEligibleForPool: vi.fn(),
+  memberIdsEligibleForPoolType: vi.fn(
+    async (_allianceId: string, _poolType: string, _date: string, memberIds: string[]) =>
+      new Set(memberIds),
+  ),
 }));
 
 vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
@@ -68,9 +87,7 @@ vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
 }));
 
 vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
-  withConductorPoolClaimLock: vi.fn(
-    async (_key: unknown, run: () => Promise<unknown>) => run(),
-  ),
+  withConductorPoolClaimLock: mocks.withConductorPoolClaimLock,
 }));
 
 vi.mock("@/lib/trains/native-scores.server", () => ({
@@ -84,6 +101,11 @@ vi.mock("@/lib/trains/train-economy-threshold.server", () => ({
 
 vi.mock("@/lib/trains/price-is-freight-roll.server", () => ({
   rollPriceIsFreightConductor: vi.fn(),
+}));
+
+vi.mock("@/lib/trains/day-spin-exclusions.server", () => ({
+  listDaySpinExcludedMemberIds: vi.fn(async () => []),
+  recordDaySpinExclusion: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/trains/vs-scores.server", () => ({
@@ -121,11 +143,12 @@ import { rollForConductor, rollForVip } from "@/lib/trains/service";
 describe("rollForConductor depleting pool release ordering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.loadTimeOffAvailability.mockReset().mockResolvedValue({ awayMemberIds: new Set() });
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
+    mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "economy_week",
-      vipMechanism: "none",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: { kind: "none" },
       dayConfigId: "dc1",
     });
     mocks.getPoolSummary.mockResolvedValue({
@@ -157,6 +180,62 @@ describe("rollForConductor depleting pool release ordering", () => {
       lockedAt: null,
     });
     mocks.refreshExhaustedPoolIfNeeded.mockResolvedValue(false);
+  });
+
+  it.each([
+    ["r3", { kind: "rank_pool", pool: "r3", draw: "wheel" }],
+    ["r4_plus", { kind: "rank_pool", pool: "r4_plus", draw: "wheel" }],
+    ["heavy_hitter", { kind: "rank_pool", pool: "heavy_hitter", draw: "wheel" }],
+  ] as const)("preserves an all-away %s rotation and its existing draft", async (_pool, rule) => {
+    mocks.getConductorRecord.mockResolvedValue({ conductorMemberId: "m-alice", lockedAt: null });
+    mocks.resolveRollDayConfig.mockResolvedValue({ conductorRule: rule });
+    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-bob"]) });
+
+    await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+
+    expect(mocks.loadTimeOffAvailability).toHaveBeenCalledWith("a1", "2099-06-20");
+    expect(mocks.markPoolEntrySelected).not.toHaveBeenCalled();
+    expect(mocks.seedPool).not.toHaveBeenCalled();
+    expect(mocks.startNewPoolGeneration).not.toHaveBeenCalled();
+    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
+  });
+
+  it("releases only the new claim if leave arrives before draft persistence", async () => {
+    mocks.getConductorRecord.mockResolvedValue({ conductorMemberId: "m-alice", lockedAt: null });
+    mocks.getMemberRankAsOf.mockImplementationOnce(async () => {
+      mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-bob"]) });
+      return null;
+    });
+
+    await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+
+    expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
+    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith("a1", "2099-06-20", "m-bob");
+    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalledWith("a1", "2099-06-20", "m-alice");
+    expect(mocks.startNewPoolGeneration).not.toHaveBeenCalled();
+  });
+
+  it("passes the day rule when resolving conductor minimums", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: null,
+      lockedAt: null,
+    });
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.resolvePoolRespectsConductorMinimums).toHaveBeenCalledWith({
+      allianceId: "a1",
+      poolType: "r3",
+      rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+    });
+    expect(mocks.filterMemberIdsByConductorMinimums).not.toHaveBeenCalled();
+    expect(mocks.resolveConductorQualificationGateApplies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "a1",
+        poolType: "r3",
+      }),
+    );
   });
 
   it("releases the prior conductor only after a successful depleting roll", async () => {
@@ -211,11 +290,32 @@ describe("rollForConductor depleting pool release ordering", () => {
       "m-alice",
     );
   });
+
+  it("filters conductor minimums once outside the claim loop and skips post-roll Ashed DQ", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: null,
+      lockedAt: null,
+    });
+    mocks.resolvePoolRespectsConductorMinimums.mockResolvedValue(true);
+    mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(["m-bob"]);
+    mocks.resolveConductorQualificationGateApplies.mockResolvedValue(true);
+    mocks.markPoolEntrySelected
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.filterMemberIdsByConductorMinimums).toHaveBeenCalledTimes(1);
+    expect(mocks.evaluateConductorQualification).not.toHaveBeenCalled();
+    expect(mocks.markPoolEntrySelected).toHaveBeenCalledTimes(2);
+    expect(mocks.upsertConductorDraft).toHaveBeenCalled();
+  });
 });
 
 describe("rollForVip depleting pool release ordering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.loadTimeOffAvailability.mockReset().mockResolvedValue({ awayMemberIds: new Set() });
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
     mocks.getConductorRecord.mockResolvedValue({
       lockedAt: new Date("2099-06-20T12:00:00Z"),
@@ -223,8 +323,7 @@ describe("rollForVip depleting pool release ordering", () => {
       vipMemberId: "m-alice",
     });
     mocks.resolveRollDayConfig.mockResolvedValue({
-      vipMechanism: "event_top_x_lottery",
-      vipConfig: { eventKey: "capitol_war", topN: 10 },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       dayConfigId: "dc1",
     });
     mocks.getPoolSummary.mockResolvedValue({
@@ -255,6 +354,17 @@ describe("rollForVip depleting pool release ordering", () => {
     mocks.refreshExhaustedPoolIfNeeded.mockResolvedValue(false);
   });
 
+  it("does not consume or reset an event VIP rotation while its remaining member is away", async () => {
+    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-bob"]) });
+
+    await expect(rollForVip({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+
+    expect(mocks.markPoolEntrySelected).not.toHaveBeenCalled();
+    expect(mocks.startNewPoolGeneration).not.toHaveBeenCalled();
+    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalled();
+    expect(mocks.assignVipOnLockedConductor).not.toHaveBeenCalled();
+  });
+
   it("releases the prior VIP only after assignVipOnLockedConductor", async () => {
     await rollForVip({ allianceId: "a1", date: "2099-06-20" });
 
@@ -271,5 +381,63 @@ describe("rollForVip depleting pool release ordering", () => {
     expect(
       mocks.assignVipOnLockedConductor.mock.invocationCallOrder[0],
     ).toBeLessThan(mocks.releasePoolSelectionForDate.mock.invocationCallOrder[0]!);
+  });
+
+  it("releases the newly claimed VIP when assignVipOnLockedConductor fails", async () => {
+    mocks.assignVipOnLockedConductor.mockRejectedValue(
+      new Error("Lock the conductor before assigning VIP."),
+    );
+
+    await expect(
+      rollForVip({ allianceId: "a1", date: "2099-06-20" }),
+    ).rejects.toThrow("Lock the conductor before assigning VIP.");
+
+    expect(mocks.markPoolEntrySelected).toHaveBeenCalledWith("e-bob", "2099-06-20");
+    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith(
+      "a1",
+      "2099-06-20",
+      "m-bob",
+    );
+    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalledWith(
+      "a1",
+      "2099-06-20",
+      "m-alice",
+    );
+  });
+
+  it("keeps claim+assign+prior-release inside one pool claim lock", async () => {
+    const order: string[] = [];
+    mocks.withConductorPoolClaimLock.mockImplementation(
+      async (_key: unknown, run: () => Promise<unknown>) => {
+        order.push("lock");
+        const value = await run();
+        order.push("unlock");
+        return value;
+      },
+    );
+    mocks.markPoolEntrySelected.mockImplementation(async () => {
+      order.push("claim");
+      return true;
+    });
+    mocks.assignVipOnLockedConductor.mockImplementation(async () => {
+      order.push("assign");
+      return {
+        vipMemberId: "m-bob",
+        lockedAt: new Date("2099-06-20T12:00:00Z"),
+      };
+    });
+    mocks.releasePoolSelectionForDate.mockImplementation(async () => {
+      order.push("release-prior");
+    });
+
+    await rollForVip({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(order).toEqual([
+      "lock",
+      "claim",
+      "assign",
+      "release-prior",
+      "unlock",
+    ]);
   });
 });

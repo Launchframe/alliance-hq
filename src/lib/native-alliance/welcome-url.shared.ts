@@ -40,11 +40,25 @@ export function buildWelcomeJoinCodeUrl(
   return `${base}/welcome?${params.toString()}`;
 }
 
-export function buildWelcomeInviteUrl(origin: string, token: string): string {
+/**
+ * Build `/welcome?invite=` (and optional `p=` passphrase) so a single URL
+ * carries both the invite token and protected-link secret. Prefer embedding
+ * passphrase for hybrid officer+claim invites; recipients should not need a
+ * second message. Treat `p` as sensitive (browser history / referrers).
+ */
+export function buildWelcomeInviteUrl(
+  origin: string,
+  token: string,
+  passphrase?: string | null,
+): string {
   const base = origin.replace(/\/$/, "");
   const params = new URLSearchParams({
     invite: token.trim(),
   });
+  const pass = passphrase?.trim();
+  if (pass) {
+    params.set("p", pass);
+  }
   return `${base}/welcome?${params.toString()}`;
 }
 

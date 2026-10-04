@@ -51,10 +51,11 @@ export async function loadActiveAlliancePoolMembers(input: {
   allianceId: string;
   connection?: ParsedConnection | null;
   ashedAllianceId?: string | null;
+  db?: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction;
 }) {
-  const mode = await getAllianceOperatingMode(input.allianceId);
+  const mode = await getAllianceOperatingMode(input.allianceId, input.db);
   if (mode === "native") {
-    return listActiveAllianceMembersForPool(input.allianceId);
+    return listActiveAllianceMembersForPool(input.allianceId, input.db);
   }
 
   if (input.connection && input.ashedAllianceId) {
@@ -68,11 +69,13 @@ export async function loadActiveAlliancePoolMembers(input: {
     });
   }
 
-  return listActiveAllianceMembersForPool(input.allianceId);
+  return listActiveAllianceMembersForPool(input.allianceId, input.db);
 }
 
-export async function loadAllianceRow(allianceId: string) {
-  const db = getDb();
+export async function loadAllianceRow(
+  allianceId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
+) {
   const [row] = await db
     .select()
     .from(schema.alliances)

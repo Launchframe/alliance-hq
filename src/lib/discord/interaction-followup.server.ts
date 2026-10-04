@@ -22,6 +22,27 @@ export function discordOriginalInteractionUrl(
   return `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
 }
 
+export async function sendDiscordFollowup(input: DiscordFollowupMessage & { applicationId: string; interactionToken: string }): Promise<boolean> {
+  const url = new URL(deliveryUrl(input.applicationId, input.interactionToken));
+  url.pathname = url.pathname.replace(/\/messages\/@original$/, "");
+  url.searchParams.set("wait", "true");
+  try {
+    const response = await fetch(url.toString(), { method: "POST", headers: { "Content-Type": "application/json" }, redirect: "error", signal: AbortSignal.timeout(10_000), body: JSON.stringify({ content: truncateDiscordContent(input.content), components: input.components ?? [], allowed_mentions: { parse: [] }, ...(input.ephemeral ? { flags: 64 } : {}) }) });
+    if (!response.ok) console.error("[discord] follow-up failed", { status: response.status });
+    return response.ok;
+  } catch { console.error("[discord] follow-up transport failed"); return false; }
+}
+
+function deliveryUrl(applicationId: string, interactionToken: string): string {
+  const url = new URL(discordOriginalInteractionUrl(applicationId, interactionToken));
+  if (process.env.E2E_TEST === "true" && !process.env.VERCEL && process.env.E2E_DISCORD_FOLLOWUP_ORIGIN) {
+    const origin = new URL(process.env.E2E_DISCORD_FOLLOWUP_ORIGIN);
+    if (origin.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(origin.hostname)) throw new Error("invalid_test_origin");
+    url.protocol = origin.protocol; url.host = origin.host;
+  }
+  return url.toString();
+}
+
 /**
  * Replace the deferred "thinking" message. Interaction token auth is enough —
  * do not send the bot token on this webhook route.
@@ -32,14 +53,16 @@ export async function editDiscordOriginalInteraction(input: {
   content: string;
   components?: unknown[];
   ephemeral?: boolean;
+  suppressMentions?: boolean;
 }): Promise<boolean> {
-  const url = discordOriginalInteractionUrl(
+  const url = deliveryUrl(
     input.applicationId,
     input.interactionToken,
   );
   const body: Record<string, unknown> = {
     content: truncateDiscordContent(input.content),
     components: input.components ?? [],
+    ...(input.suppressMentions ? { allowed_mentions: { parse: [] } } : {}),
   };
   if (input.ephemeral) {
     body.flags = 64;
@@ -55,7 +78,6 @@ export async function editDiscordOriginalInteraction(input: {
     console.error(
       "[discord] edit original interaction failed:",
       res.status,
-      await res.text(),
     );
     return false;
   }
@@ -75,7 +97,7 @@ export async function editDiscordOriginalInteractionWithFiles(input: {
   components?: unknown[];
   ephemeral?: boolean;
 }): Promise<boolean> {
-  const url = discordOriginalInteractionUrl(
+  const url = deliveryUrl(
     input.applicationId,
     input.interactionToken,
   );

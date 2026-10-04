@@ -18,6 +18,16 @@ describe("invite share messages", () => {
     expect(message).toContain("secret");
   });
 
+  it("omits separate passphrase line when passphrase is already in the URL", () => {
+    const message = buildInviteLinkShareMessage({
+      allianceName: "LFgo",
+      welcomeUrl: "https://hq.example/welcome?invite=abc&p=secret",
+      passphrase: "secret",
+    });
+    expect(message).toContain("welcome?invite=abc&p=secret");
+    expect(message).not.toContain("send separately");
+  });
+
   it("builds join code message with welcome URL", () => {
     const message = buildJoinCodeShareMessage({
       allianceName: "LFgo",

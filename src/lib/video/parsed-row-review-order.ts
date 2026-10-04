@@ -1,7 +1,9 @@
 import { normalizeScoreValue } from "@/lib/video/normalize-rows";
 import {
   getScoreTarget,
+  isFrontlineBreakthroughVideoTarget,
   isMemberRosterVideoTarget,
+  usesReviewRowNumberIndicator,
 } from "@/lib/video/score-targets";
 
 export type ParsedRowSortFields = {
@@ -20,6 +22,7 @@ export function reviewRowPrimarySortKey(
 ): "allianceRank" | "rank" | null {
   if (!scoreTargetId) return null;
   if (isMemberRosterVideoTarget(scoreTargetId)) return "allianceRank";
+  if (isFrontlineBreakthroughVideoTarget(scoreTargetId)) return "rank";
   const target = getScoreTarget(scoreTargetId);
   if (!target) return null;
   if (target.leaderboardModel === "podium-commendation") {
@@ -32,7 +35,8 @@ export function reviewRowPrimarySortKey(
 export function sortsInitialReviewByScoreDesc(
   scoreTargetId: string | null | undefined,
 ): boolean {
-  return scoreTargetId === "desert-storm";
+  if (!scoreTargetId) return false;
+  return usesReviewRowNumberIndicator(scoreTargetId);
 }
 
 /** Postgres ASC with default NULLS LAST. */
@@ -88,8 +92,8 @@ export function compareParsedRowsForReview(
 }
 
 /**
- * Initial review page load ordering. Desert Storm uses scoreboard order
- * (score DESC); other targets keep rank/frameIndex rules.
+ * Initial review page load ordering. Scoreboard targets that show a computed
+ * `#` rank load highest-score first so the table matches that rank order.
  */
 export function sortParsedRowsForInitialReview<T extends ParsedRowInitialSortFields>(
   rows: T[],
@@ -115,4 +119,49 @@ export function mergeParsedRowInReviewOrder<T extends ParsedRowSortFields>(
   return [...rows, newRow].sort((a, b) =>
     compareParsedRowsForReview(a, b, scoreTargetId),
   );
+}
+
+/** Manual scoreboard sort during review — deleted rows sink to the end. */
+export function sortReviewRowsByScoreDesc<
+  T extends ParsedRowInitialSortFields & { deleted?: number },
+>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const aDeleted = a.deleted ?? 0;
+    const bDeleted = b.deleted ?? 0;
+    if (aDeleted !== bDeleted) return aDeleted - bDeleted;
+    const byScore = compareScoreDesc(a.score, b.score);
+    if (byScore !== 0) return byScore;
+    return compareNullableIntAsc(a.frameIndex, b.frameIndex);
+  });
+}
+
+/**
+ * Leaderboard rank (1 = highest score) using competition ranking for ties.
+ * Rows without a parseable score are unranked (null).
+ */
+export function reviewLeaderboardRankByScoreDesc(
+  rows: readonly { id: string; score?: string | null }[],
+): Map<string, number | null> {
+  const sorted = [...rows].sort((a, b) => compareScoreDesc(a.score, b.score));
+
+  const map = new Map<string, number | null>();
+  let rank = 0;
+  let position = 0;
+  let lastScore: number | null | undefined;
+
+  for (const row of sorted) {
+    position++;
+    const scoreNum = parseScoreNumberSoft(row.score);
+    if (scoreNum == null) {
+      map.set(row.id, null);
+      continue;
+    }
+    if (scoreNum !== lastScore) {
+      rank = position;
+      lastScore = scoreNum;
+    }
+    map.set(row.id, rank);
+  }
+
+  return map;
 }

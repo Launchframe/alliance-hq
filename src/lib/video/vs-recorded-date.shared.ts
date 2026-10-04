@@ -66,6 +66,18 @@ export function vsPerformanceDayNumberForDate(
   return dow as VsWeekDayNumber;
 }
 
+/**
+ * Saturday (Day 6) for a weekly week-ending Sunday. Null when `weeklySunday`
+ * is not a valid weekly recorded date.
+ */
+export function vsSaturdayForWeeklySunday(
+  weeklySunday: string,
+): string | null {
+  const trimmed = weeklySunday.trim().slice(0, 10);
+  if (!isValidVsPerformanceRecordedDate(trimmed, "weekly")) return null;
+  return addCalendarDays(trimmed, -1);
+}
+
 export function vsPerformanceDayMetaForDate(
   recordedDate: string,
 ): VsPerformanceDayMeta | null {

@@ -18,9 +18,17 @@ describe("previewSeekSecondsForFrame", () => {
     expect(previewSeekSecondsForFrame(0, { "0": -0.4 })).toBe(0);
   });
 
-  it("returns null when frame index or timestamp is missing", () => {
+  it("returns null when frame index is missing", () => {
     expect(previewSeekSecondsForFrame(null, { "0": 1 })).toBeNull();
-    expect(previewSeekSecondsForFrame(1, {})).toBeNull();
+  });
+
+  it("falls back to frameIndex seconds when no timestamps exist (legacy jobs)", () => {
+    expect(previewSeekSecondsForFrame(1, {})).toBe(1);
+    expect(previewSeekSecondsForFrame(0, {})).toBe(0);
+  });
+
+  it("returns null for a missing index when other timestamps exist", () => {
+    expect(previewSeekSecondsForFrame(3, { "0": 0, "1": 1.5 })).toBeNull();
   });
 });
 

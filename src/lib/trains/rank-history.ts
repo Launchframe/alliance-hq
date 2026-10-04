@@ -6,6 +6,51 @@ import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { PoolType } from "@/lib/trains/types";
 
+type PoolRankEvent = {
+  allianceRank: number;
+  effectiveDate?: string | null;
+};
+
+
+type AllianceRankEventRow =
+  (typeof schema.memberAllianceRankEvents.$inferSelect);
+
+/**
+ * Rank events are append-only. Multiple rows can share the same
+ * `effectiveDate` (Ashed sync failure + retry, concurrent officer confirms).
+ * As-of reads must keep exactly one event per member: latest effectiveDate,
+ * then latest recordedAt, then id.
+ */
+export function pickLatestAllianceRankEventPerMember(
+  events: readonly AllianceRankEventRow[],
+): AllianceRankEventRow[] {
+  const latestByMember = new Map<string, AllianceRankEventRow>();
+  for (const event of events) {
+    const previous = latestByMember.get(event.ashedMemberId);
+    if (!previous || compareAllianceRankEventsNewestFirst(event, previous) < 0) {
+      latestByMember.set(event.ashedMemberId, event);
+    }
+  }
+  return [...latestByMember.values()];
+}
+
+/** Negative when `a` is newer than `b` (sort newest-first). */
+export function compareAllianceRankEventsNewestFirst(
+  a: Pick<AllianceRankEventRow, "effectiveDate" | "recordedAt" | "id">,
+  b: Pick<AllianceRankEventRow, "effectiveDate" | "recordedAt" | "id">,
+): number {
+  if (a.effectiveDate !== b.effectiveDate) {
+    return a.effectiveDate < b.effectiveDate ? 1 : -1;
+  }
+  const aRecorded = a.recordedAt?.getTime() ?? 0;
+  const bRecorded = b.recordedAt?.getTime() ?? 0;
+  if (aRecorded !== bRecorded) {
+    return aRecorded < bRecorded ? 1 : -1;
+  }
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? 1 : -1;
+}
+
 export type ResolvedMemberAllianceRank = {
   rank: number | null;
   title: string | null;
@@ -14,26 +59,88 @@ export type ResolvedMemberAllianceRank = {
 };
 
 /**
- * Effective rank for train pool eligibility. Prefer the HQ rank event when present
- * (same rule as {@link resolveMemberAllianceRankAsOf}) so confirmed demotions are
- * not overwritten by a stale higher Ashed roster rank after sync. Fall back to the
- * synced roster / Ashed rank raw when there is no event yet.
+ * Effective rank for train pool eligibility. HQ rank events win when the roster
+ * has not synced since the event's effective date; a newer {@link AllianceMember.syncedAt}
+ * overrides a stale lower HQ event (promotions). Without both dates, the HQ event
+ * wins on mismatch so confirmed demotions are not overwritten by stale roster rank.
+ * Falls back to synced roster / Ashed rank when there is no event yet.
  */
 export function resolveMemberPoolAllianceRank(
   member: AllianceMember,
-  rankEvent?: { allianceRank: number } | null,
+  rankEvent?: PoolRankEvent | null,
 ): number | null {
-  const eventRank = rankEvent?.allianceRank ?? null;
-  if (eventRank != null) {
-    return eventRank;
-  }
-
-  return (
+  const syncedRank =
     member.allianceRank ??
     parseAshedMemberAllianceRank(allianceMemberRowToAshedMember(member))
       .rank ??
-    null
+    null;
+
+  const eventRank = rankEvent?.allianceRank ?? null;
+  if (eventRank == null) {
+    return syncedRank;
+  }
+  if (syncedRank == null) {
+    return eventRank;
+  }
+  if (syncedRank === eventRank) {
+    return eventRank;
+  }
+
+  const eventDate = rankEvent?.effectiveDate?.trim();
+  const syncedAt = member.syncedAt;
+  if (eventDate && syncedAt) {
+    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const syncedMs = syncedAt.getTime();
+    if (syncedMs > eventMs) {
+      return syncedRank;
+    }
+    return eventRank;
+  }
+
+  return eventRank;
+}
+
+/** Drop pool rows whose current roster rank no longer matches the pool type. */
+export async function memberIdsEligibleForPoolType(
+  allianceId: string,
+  poolType: PoolType,
+  date: string,
+  memberIds: readonly string[],
+): Promise<Set<string>> {
+  if (poolType !== "r3" && poolType !== "r4_plus") {
+    return new Set(memberIds);
+  }
+  if (memberIds.length === 0) {
+    return new Set();
+  }
+
+  const { loadActiveAlliancePoolMembers } = await import(
+    "@/lib/members/game-roster"
   );
+  const [members, rankEvents] = await Promise.all([
+    loadActiveAlliancePoolMembers({ allianceId }),
+    getAllianceRanksAsOf(allianceId, date),
+  ]);
+  const rankByMember = new Map(
+    rankEvents.map((event) => [event.ashedMemberId, event]),
+  );
+  const memberById = new Map(
+    members.map((member) => [member.ashedMemberId, member]),
+  );
+
+  const eligible = new Set<string>();
+  for (const memberId of memberIds) {
+    const member = memberById.get(memberId);
+    if (!member) continue;
+    const rank = resolveMemberPoolAllianceRank(
+      member,
+      rankByMember.get(memberId),
+    );
+    if (isMemberEligibleForPool(poolType, rank)) {
+      eligible.add(memberId);
+    }
+  }
+  return eligible;
 }
 
 export function isMemberEligibleForPool(
@@ -55,8 +162,16 @@ export async function resolveMemberAllianceRankAsOf(
   date: string,
   syncedRank?: number | null,
   syncedTitle?: string | null,
+  db?: Parameters<typeof getMemberRankAsOf>[3],
+  options?: { lock?: boolean },
 ): Promise<ResolvedMemberAllianceRank> {
-  const rankEvent = await getMemberRankAsOf(allianceId, ashedMemberId, date);
+  const rankEvent = await getMemberRankAsOf(
+    allianceId,
+    ashedMemberId,
+    date,
+    db,
+    options,
+  );
   if (rankEvent) {
     return {
       rank: rankEvent.allianceRank,
@@ -82,9 +197,10 @@ export async function getMemberRankAsOf(
   allianceId: string,
   ashedMemberId: string,
   date: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
+  options?: { lock?: boolean },
 ): Promise<(typeof schema.memberAllianceRankEvents.$inferSelect) | null> {
-  const db = getDb();
-  const [row] = await db
+  const query = db
     .select()
     .from(schema.memberAllianceRankEvents)
     .where(
@@ -94,8 +210,13 @@ export async function getMemberRankAsOf(
         lte(schema.memberAllianceRankEvents.effectiveDate, date),
       ),
     )
-    .orderBy(desc(schema.memberAllianceRankEvents.effectiveDate))
+    .orderBy(
+      desc(schema.memberAllianceRankEvents.effectiveDate),
+      desc(schema.memberAllianceRankEvents.recordedAt),
+      desc(schema.memberAllianceRankEvents.id),
+    )
     .limit(1);
+  const [row] = await (options?.lock ? query.for("update") : query);
   return row ?? null;
 }
 
@@ -103,8 +224,8 @@ export async function getAllianceRanksAsOf(
   allianceId: string,
   date: string,
   filter?: { minRank?: number; maxRank?: number; exactRank?: number },
+  db: Parameters<typeof getMemberRankAsOf>[3] = getDb(),
 ): Promise<Array<(typeof schema.memberAllianceRankEvents.$inferSelect)>> {
-  const db = getDb();
 
   const latestPerMember = db
     .select({
@@ -143,9 +264,10 @@ export async function getAllianceRanksAsOf(
     )
     .where(eq(schema.memberAllianceRankEvents.allianceId, allianceId));
 
-  return rows
-    .map((r) => r.event)
-    .filter((event) => {
+  // Dedupe same-day ties before rank filters so a stale exactRank row cannot
+  // beat a later correction on the same effectiveDate.
+  return pickLatestAllianceRankEventPerMember(rows.map((r) => r.event)).filter(
+    (event) => {
       if (filter?.exactRank != null) {
         return event.allianceRank === filter.exactRank;
       }
@@ -156,5 +278,6 @@ export async function getAllianceRanksAsOf(
         return false;
       }
       return true;
-    });
+    },
+  );
 }

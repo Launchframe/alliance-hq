@@ -5,11 +5,11 @@ export type PostgresListenClient = ReturnType<typeof postgres>;
 export type StartPostgresListenLifecycle = {
   isIntentionalClose: () => boolean;
   onDisconnect: () => void;
-  /** Default 30_000. Set 0 to disable liveness probes. */
+  /** Default 10_000. Set 0 to disable liveness probes. */
   probeIntervalMs?: number;
 };
 
-const DEFAULT_PROBE_INTERVAL_MS = 30_000;
+const DEFAULT_PROBE_INTERVAL_MS = 10_000;
 
 /**
  * postgres.js `.listen()` rejects when the connection cannot authenticate.

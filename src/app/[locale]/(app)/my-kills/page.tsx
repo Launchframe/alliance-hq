@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { redirect } from "next/navigation";
 
 import { MyKillsTrackerView } from "@/components/kills/my-kills-tracker-view";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("myKills");
-  return { title: t("pageTitle") };
+  return await allianceScopedMetadata(t("pageTitle"));
 }
 
 export default async function MyKillsPage() {

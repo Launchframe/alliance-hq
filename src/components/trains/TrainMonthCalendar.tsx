@@ -19,16 +19,23 @@ import {
 import { buildMonthGrid } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import { expandPaintRange } from "@/lib/trains/paint-range.shared";
-import { calendarCellStyleClass } from "@/lib/trains/calendar-cell-styles.shared";
+import {
+  conductorRuleLabelKey,
+  vipRuleLabelKey,
+  type ConductorRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  paletteIdForRule,
+  ruleCellStyleClass,
+  scopeForRule,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
 import {
   isProvisionalDayConfig,
   provisionalDayConfigClass,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 import { TrainMonthToolbar } from "@/components/trains/TrainMonthToolbar";
-import type { WeekTemplateType } from "@/lib/trains/types";
-import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
-
-export { DAY_PAINT_TEMPLATES };
+import { TrainEligibilityOverrideMark } from "@/components/trains/TrainEligibilityOverrideMark";
 
 type Props = {
   today: string;
@@ -38,9 +45,10 @@ type Props = {
   selectedDate: string;
   displayWeekStartDow?: TrainsDisplayWeekStartDow;
   canPaint: boolean;
-  conductorLabels: Record<string, string>;
-  vipLabels: Record<string, string>;
-  templateLabels: Record<string, string>;
+  /** `trains.rules.*` labels keyed by rule label key. */
+  ruleTextLabels: Record<string, string>;
+  /** Palette-row labels for the paint toolbar. */
+  ruleLabels: Record<DayRulePaletteId, string>;
   vrReporterCount?: number;
   navLabels: {
     previousMonth: string;
@@ -57,8 +65,7 @@ type Props = {
   onMonthLoadError?: () => void;
   onPaintDates?: (
     dates: string[],
-    template: WeekTemplateType,
-    options?: { topN?: number },
+    rule: ConductorRule | null,
   ) => void;
   monthToolbar?: {
     today: string;
@@ -67,7 +74,9 @@ type Props = {
     busy?: boolean;
     onSpinSelected: (dates: string[]) => void;
     onManualPick: (date: string) => void;
+    onManualPickVip: (date: string) => void;
     onLockUnlock: (date: string, locked: boolean) => void;
+    onClearPending: (date: string) => void;
     onShareImage: () => void;
     onViewHistory: (record: WeekConductorRecordSummary) => void;
     onViewPool: () => void;
@@ -107,9 +116,8 @@ export function TrainMonthCalendar({
   selectedDate,
   displayWeekStartDow,
   canPaint,
-  conductorLabels,
-  vipLabels,
-  templateLabels,
+  ruleTextLabels,
+  ruleLabels,
   navLabels,
   externalMonth,
   onSelectDate,
@@ -120,6 +128,7 @@ export function TrainMonthCalendar({
   vrReporterCount = 0,
 }: Props) {
   const tc = useTranslations("common");
+  const tTrains = useTranslations("trains");
   const [viewMonthKey, setViewMonthKey] = useState(initialMonthKey);
   const [page, setPage] = useState<MonthSchedulePagePayload>({
     monthKey: initialMonthKey,
@@ -344,13 +353,11 @@ export function TrainMonthCalendar({
       expandPaintRange(selectedRange.anchor, selectedRange.focus),
     );
   }, [selectedRange]);
-  const hasSelection = Boolean(selectedRange);
   const hasProvisionalDays = useMemo(
     () => dayConfigs.some((day) => isProvisionalDayConfig(day.id)),
     [dayConfigs],
   );
   const draftAriaSuffix = navLabels.draftScheduleAriaLabel ?? "Draft schedule";
-  const selectedDateCount = selectionPreviewDates?.size ?? 0;
   const selectedDatesList = useMemo(
     () =>
       selectionPreviewDates
@@ -361,6 +368,8 @@ export function TrainMonthCalendar({
     [selectionPreviewDates, selectedDate, selectedRange],
   );
   const focusRecord = recordForDate(displayPage.monthRecords, selectedDate);
+  const focusDayConfig = configForDate(displayPage.dayConfigs, selectedDate);
+  const vipNeeded = focusDayConfig?.vipRule?.kind !== "none";
 
   return (
     <div className="flex flex-col gap-3">
@@ -395,26 +404,29 @@ export function TrainMonthCalendar({
           today={monthToolbar.today}
           hasConductor={Boolean(focusRecord?.conductorMemberId)}
           locked={Boolean(focusRecord?.lockedAt)}
+          vipNeeded={vipNeeded}
           canUnlock={monthToolbar.canUnlock}
           canShareImage={monthToolbar.canShareImage}
           canSpinSelected={monthToolbar.canSpinDates(selectedDatesList)}
           spinDisabledReason={monthToolbar.spinDisabledReason}
-          templateLabels={templateLabels}
+          ruleLabels={ruleLabels}
           vrReporterCount={vrReporterCount}
           busy={monthToolbar.busy}
-          onPaint={(dates, template, options) => {
-            onPaintDates?.(dates, template, options);
+          onPaint={(dates, rule) => {
+            onPaintDates?.(dates, rule);
           }}
           onSpinSelected={() =>
             monthToolbar.onSpinSelected(selectedDatesList)
           }
           onManualPick={() => monthToolbar.onManualPick(selectedDate)}
+          onManualPickVip={() => monthToolbar.onManualPickVip(selectedDate)}
           onLockUnlock={() =>
             monthToolbar.onLockUnlock(
               selectedDate,
               Boolean(focusRecord?.lockedAt),
             )
           }
+          onClearPending={() => monthToolbar.onClearPending(selectedDate)}
           onShareImage={monthToolbar.onShareImage}
           onViewHistory={() => {
             if (focusRecord) monthToolbar.onViewHistory(focusRecord);
@@ -458,20 +470,20 @@ export function TrainMonthCalendar({
             const isSelected = date === selectedDate;
             const isToday = date === today;
             const locked = Boolean(record?.lockedAt);
-            const style = calendarCellStyleClass(
-              day?.conductorMechanism ?? "custom",
-              day?.paintTemplate,
-            );
+            const style = ruleCellStyleClass(day?.conductorRule ?? null);
             const conductorName = record?.conductorMemberName;
             const vipName = record?.vipMemberName;
             const dayNumber = date.slice(8);
+            const scope = day ? scopeForRule(day.conductorRule) : null;
             const mechLabel = day
-              ? (conductorLabels[day.conductorMechanism] ??
-                day.conductorMechanism)
+              ? `${
+                  ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
+                  paletteIdForRule(day.conductorRule)
+                }${scope != null ? ` ${scope}` : ""}`
               : null;
             const vipLabel =
-              day?.vipMechanism && day.vipMechanism !== "none"
-                ? (vipLabels[day.vipMechanism] ?? day.vipMechanism)
+              day && day.vipRule?.kind !== "none"
+                ? (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null)
                 : null;
 
             const inSelectionPreview = Boolean(selectionPreviewDates?.has(date));
@@ -501,8 +513,16 @@ export function TrainMonthCalendar({
                   </span>
                 ) : null}
                 <div className="flex items-start justify-between gap-0.5">
-                  <span className="text-xs font-semibold tabular-nums">
-                    {dayNumber}
+                  <span className="flex items-center gap-0.5">
+                    <span className="text-xs font-semibold tabular-nums">
+                      {dayNumber}
+                    </span>
+                    {record?.eligibilityOverridden ? (
+                      <TrainEligibilityOverrideMark
+                        compact
+                        label={tTrains("calendarEligibilityOverrideMark")}
+                      />
+                    ) : null}
                   </span>
                   {day?.isOverride ? (
                     <span
@@ -564,7 +584,14 @@ export function TrainMonthCalendar({
                 }
                 aria-pressed={isSelected}
                 aria-label={
-                  isProvisional ? `${date}, ${draftAriaSuffix}` : date
+                  [
+                    isProvisional ? `${date}, ${draftAriaSuffix}` : date,
+                    record?.eligibilityOverridden
+                      ? tTrains("calendarEligibilityOverrideMark")
+                      : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")
                 }
                 className={`${cellClass} hover:opacity-95`}
               >

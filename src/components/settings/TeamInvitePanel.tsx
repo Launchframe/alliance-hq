@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { InviteInventoryPanel } from "@/components/settings/InviteInventoryPanel";
 import { InviteWizard } from "@/components/settings/InviteWizard";
 import type { SystemRoleName } from "@/lib/rbac/constants";
+import { COMMANDER_CLAIM_INVITES_ANCHOR } from "@/lib/settings/team-invites-path.shared";
 
 type Props = {
   assignableRoles: SystemRoleName[];
@@ -21,16 +22,19 @@ function InviteWizardWithParams({
   onGenerated,
 }: Props & { onGenerated: () => void }) {
   const searchParams = useSearchParams();
+  const inviteWizard = searchParams.get("inviteWizard");
+  const commander = searchParams.get("commander");
   const deepLinkClaimCommanderId =
-    searchParams.get("inviteWizard") === "claim"
-      ? searchParams.get("commander")
-      : null;
+    inviteWizard === "claim" ? commander : null;
+  const deepLinkOfficerCommanderId =
+    inviteWizard === "officer_claim" ? commander : null;
 
   return (
     <InviteWizard
       assignableRoles={assignableRoles}
       allianceName={allianceName}
       deepLinkClaimCommanderId={deepLinkClaimCommanderId}
+      deepLinkOfficerCommanderId={deepLinkOfficerCommanderId}
       onGenerated={onGenerated}
     />
   );
@@ -46,7 +50,10 @@ export function TeamInvitePanel({ assignableRoles, allianceName }: Props) {
   }
 
   return (
-    <div className="space-y-6 rounded-xl border border-hq-border bg-hq-surface p-5">
+    <div
+      id={COMMANDER_CLAIM_INVITES_ANCHOR}
+      className="space-y-6 rounded-xl border border-hq-border bg-hq-surface p-5"
+    >
       <div>
         <h2 className="text-lg font-semibold">{t("title")}</h2>
         <p className="mt-1 text-sm text-hq-fg-muted">{t("description")}</p>

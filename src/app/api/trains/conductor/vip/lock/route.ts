@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
@@ -13,7 +14,10 @@ import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -58,14 +62,41 @@ export async function POST(request: Request) {
       date,
     );
 
+    const vipMemberId = body.memberId.trim();
+    const vipMemberName = body.memberName.trim();
     const record = await upsertConductorDraft({
       allianceId: ctx.allianceId,
       date,
       seasonKey,
-      vipMemberId: body.memberId.trim(),
-      vipMemberName: body.memberName.trim(),
+      vipMemberId,
+      vipMemberName,
       vipRankEventId: rankEvent?.id ?? null,
       guardianIsVip: body.guardianIsVip ? 1 : 0,
+    });
+
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.vip_lock",
+      severity:
+        existing?.vipMemberId && existing.vipMemberId !== vipMemberId
+          ? "update"
+          : "routine",
+      resourceType: "train_conductor_record",
+      resourceId: record.id,
+      resourceName: vipMemberName,
+      metadata: {
+        date,
+        memberId: vipMemberId,
+        previousMemberId: existing?.vipMemberId ?? null,
+        previousMemberName: existing?.vipMemberName ?? null,
+        overwritten: Boolean(
+          existing?.vipMemberId && existing.vipMemberId !== vipMemberId,
+        ),
+        source: "manual",
+        guardianIsVip: Boolean(body.guardianIsVip),
+      },
     });
 
     return NextResponse.json({ record });

@@ -38,6 +38,11 @@ vi.mock("@/lib/vr/member-roster", () => ({
     resolveAllianceAshedBotConnection(...args),
 }));
 
+vi.mock("@/lib/ashed/credential-share.server", () => ({
+  resolveAshedConnectionForAlliance: vi.fn().mockResolvedValue(null),
+  requireActiveShareCapability: vi.fn(),
+}));
+
 import {
   RosterSyncUnavailableError,
   syncAllianceRosterForSession,

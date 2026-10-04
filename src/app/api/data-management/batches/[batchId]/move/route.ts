@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { changeLocalVsData, isLocalVsBatch } from "@/lib/vs-scores/data-management.server";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { forwardBulkMoveBatch } from "@/lib/data-management/batch-actions.server";
 import { canManageDataBatch } from "@/lib/data-management/batch-authorization.shared";
@@ -9,7 +11,6 @@ import {
   getAllianceDataBatch,
   markDataBatchMoved,
 } from "@/lib/data-management/batch-ledger.server";
-import { getAshedConnection } from "@/lib/session";
 
 type Props = {
   params: Promise<{ batchId: string }>;
@@ -56,7 +57,14 @@ export async function POST(request: Request, { params }: Props) {
     );
   }
 
-  const connection = await getAshedConnection(ctx.sessionId);
+  if (isLocalVsBatch(batch)) return changeLocalVsData({ allianceId: ctx.allianceId, rbac: ctx.rbac, batches: [batch], newRecordedDate });
+
+  const connection = await loadAshedConnectionForAllianceCapability({
+    sessionId: ctx.sessionId,
+    allianceId: ctx.allianceId,
+    capability: "data_management:write",
+    delegatedAction: "data_management.batch_move",
+  });
   if (!connection) {
     return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
   }

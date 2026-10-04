@@ -1,120 +1,44 @@
-import { isAutomaticTopNBoard, resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
-import { mechanismNeedsWheel } from "@/lib/trains/templates";
-import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
-import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
+import {
+  conductorRuleChanged,
+  conductorRuleIdentity,
+  type ConductorRule,
+} from "@/lib/trains/rules/catalog.shared";
 
-/** Conductor mechanism used for rolls, pool reseed, and spin-wheel UI. */
-export function effectiveConductorMechanism(
-  conductorMechanism: string | null | undefined,
-  paintTemplate?: WeekTemplateType | null,
-  date?: string | null,
-): ConductorMechanismType | null {
-  if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
-    return "heavy_hitter_lottery";
-  }
-  if (paintTemplate === "r4_event_vip") {
-    return "r4_sequence";
-  }
-  if (paintTemplate === "top_vs") {
-    return "vs_top_n";
-  }
-  if (paintTemplate === "top_vr") {
-    return "vr_top_n";
-  }
-  if (!conductorMechanism) return null;
-  return conductorMechanism as ConductorMechanismType;
-}
+/**
+ * Rule-level questions about a day's conductor.
+ *
+ * `effectiveConductorMechanism` is gone: there is no longer a stored
+ * mechanism to reconcile against a paint template and a weekday. The rule is
+ * the answer.
+ */
 
-/** Stable key for whether today's conductor draw rules changed (mechanism / paint / top-N). */
-export function conductorDrawIdentity(input: {
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: WeekTemplateType | string | null;
-  date?: string | null;
-  conductorConfig?: unknown;
-  topN?: number | null;
-}): string {
-  const mechanism = effectiveConductorMechanism(
-    input.conductorMechanism,
-    input.paintTemplate as WeekTemplateType | null,
-    input.date,
-  );
-  if (!mechanism) return "";
+export {
+  canSpinConductorForRule,
+  canSpinVipForRule,
+  conductorRuleNeedsWheel,
+} from "@/lib/trains/rules/derive.shared";
 
-  let topN = input.topN ?? null;
-  if (
-    topN == null &&
-    input.conductorConfig &&
-    typeof input.conductorConfig === "object" &&
-    "topN" in input.conductorConfig
-  ) {
-    const raw = (input.conductorConfig as { topN?: unknown }).topN;
-    if (typeof raw === "number") topN = raw;
-  }
+export { conductorRuleChanged, conductorRuleIdentity };
 
-  return [mechanism, input.paintTemplate ?? "", topN ?? ""].join("|");
-}
-
-export function conductorDrawChanged(
-  before: Parameters<typeof conductorDrawIdentity>[0],
-  after: Parameters<typeof conductorDrawIdentity>[0],
-): boolean {
-  return conductorDrawIdentity(before) !== conductorDrawIdentity(after);
-}
-
-/** Pending pick from an older draw mechanism does not count as today's conductor. */
+/**
+ * A pending pick made under a different rule is not a pick for today.
+ *
+ * Compares the rule the pick was made under with the day's current rule, so
+ * re-painting the same board at the same scope keeps the pick — the old
+ * mechanism-string comparison reported a change between the two encodings of
+ * Top 10 VS.
+ */
 export function hasValidConductorPickForDay(input: {
   conductorMemberId: string | null | undefined;
-  recordConductorMechanism: string | null | undefined;
-  dayConductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
-  date?: string | null;
-  conductorConfig?: unknown;
-  topN?: number | null;
+  recordRule: ConductorRule | null;
+  dayRule: ConductorRule | null;
+  /** False when the record predates rules and carries no snapshot. */
+  recordHasRule: boolean;
 }): boolean {
   if (!input.conductorMemberId) return false;
-  if (!input.recordConductorMechanism) return true;
-
-  const dayMechanism = effectiveConductorMechanism(
-    input.dayConductorMechanism,
-    input.paintTemplate as WeekTemplateType | null,
-    input.date,
-  );
-  return input.recordConductorMechanism === dayMechanism;
-}
-
-export function canSpinConductorForDay(
-  conductorMechanism: string | null | undefined,
-  locked: boolean,
-  paintTemplate?: WeekTemplateType | null,
-  date?: string | null,
-  conductorConfig?: unknown,
-): boolean {
-  if (locked) return false;
-  // R3 recognition is a manual award pick from the R3 pool — no wheel.
-  if (paintTemplate === "r3_recognition") return false;
-  const mechanism = effectiveConductorMechanism(
-    conductorMechanism,
-    paintTemplate,
-    date,
-  );
-  if (!mechanism) return false;
-  if (mechanism === "donations_top") {
-    return false;
-  }
-  const topBoard = resolveConductorTopNBoard(mechanism, conductorConfig);
-  if (isAutomaticTopNBoard(topBoard)) {
-    return false;
-  }
-  return mechanismNeedsWheel(mechanism, conductorConfig);
-}
-
-export function canSpinVipForDay(
-  vipMechanism: string | null | undefined,
-  locked: boolean,
-): boolean {
-  // VIP boards after the conductor is locked/spawned in-game.
-  if (!locked || !vipMechanism) return false;
+  if (!input.recordHasRule) return true;
   return (
-    vipMechanism === "donations_second" || vipMechanism === "event_top_x_lottery"
+    conductorRuleIdentity(input.recordRule) ===
+    conductorRuleIdentity(input.dayRule)
   );
 }

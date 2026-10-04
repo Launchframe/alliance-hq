@@ -17,14 +17,26 @@ import {
 } from "@/lib/ocr/ocr-diagnostics.shared";
 import { runTesseract, type OcrLineResult } from "@/lib/members/roster-ocr/tesseract";
 import {
+  matchThpLabel,
+  THP_BREAKDOWN_KEYS,
+  type ThpBreakdownKey,
+} from "@/lib/thp/breakdown.shared";
+import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
+import {
   assembleGeometryParse,
   coalesceLabelLines,
-  normalizeDigitsOnlyComponent,
+  isHeroPowerHeaderLabel,
+  isPowerDetailsModalTitle,
+  isPowerDetailsSectionStop,
   normalizeGeometryLines,
+  parseDigitsOnlyComponentCandidates,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
+  resolveUniqueBreakdownFromCandidates,
   zipLabelsToValues,
   type GeometryOcrLine,
+  type LabelValuePair,
+  type NormalizedGeometryLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import {
   toThpBreakdown,
@@ -34,7 +46,9 @@ import {
   POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
   POWER_DETAILS_LABEL_OCR_CONFIG,
   POWER_DETAILS_VALUE_OCR_CONFIG,
+  preprocessPowerDetailsComponentValueRow,
   preprocessPowerDetailsHeaderValue,
+  cropPowerDetailsValueRow,
   preprocessPowerDetailsLabelBand,
   preprocessPowerDetailsValueBand,
   preprocessPowerDetailsValueBandInverted,
@@ -49,6 +63,15 @@ export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
     pairedCount?: number;
   };
 };
+
+type HeaderOcrPass = {
+  lines: OcrLineResult[];
+  cropHeight: number;
+};
+
+const COMPONENT_ROW_OFFSETS = [-0.015, -0.005, 0.005, 0.015] as const;
+const COMPONENT_ROW_INITIAL_HEIGHTS = [0.05] as const;
+const COMPONENT_ROW_FALLBACK_HEIGHTS = [0.035, 0.04, 0.045] as const;
 
 function toGeometryLines(lines: OcrLineResult[]): GeometryOcrLine[] {
   return lines.map((line) => ({
@@ -65,7 +88,9 @@ function lineYNorm(line: OcrLineResult, cropHeight: number): number | null {
   return (box.y0 + box.y1) / 2 / Math.max(1, cropHeight);
 }
 
-function pickHeaderTotal(
+export function pickHeaderTotal(
+  labels: NormalizedGeometryLine[],
+  focusedHeaderPasses: HeaderOcrPass[],
   headerLines: OcrLineResult[],
   headerCropHeight: number,
   invertedValueLines: OcrLineResult[],
@@ -73,28 +98,45 @@ function pickHeaderTotal(
   valueLines: OcrLineResult[],
   valueCropHeight: number,
 ): number | null {
-  return (
-    pickBestHeaderCandidate(headerLines, headerCropHeight) ??
-    pickBestHeaderCandidate(invertedValueLines.slice(0, 6), invertedCropHeight) ??
-    pickBestHeaderCandidate(valueLines.slice(0, 4), valueCropHeight)
-  );
+  const headerLabel = labels.find((line) => isHeroPowerHeaderLabel(line.text));
+  if (!headerLabel) {
+    return pickBestHeaderCandidate(headerLines, headerCropHeight);
+  }
+
+  const focusedTotals = focusedHeaderPasses
+    .map((pass) => pickBestHeaderCandidate(pass.lines, pass.cropHeight))
+    .filter((value): value is number => value != null);
+  if (focusedTotals.length > 0) {
+    return focusedTotals.every((value) => value === focusedTotals[0])
+      ? focusedTotals[0]!
+      : null;
+  }
+
+  const alignedCandidates = [
+    ...collectHeaderCandidates(invertedValueLines, invertedCropHeight),
+    ...collectHeaderCandidates(valueLines, valueCropHeight),
+  ]
+    .map((candidate) => ({
+      ...candidate,
+      distance: Math.abs(candidate.yNorm - headerLabel.yNorm),
+    }))
+    .filter((candidate) => candidate.distance <= 0.04)
+    .sort((a, b) => a.distance - b.distance);
+
+  return alignedCandidates[0]?.value ?? null;
 }
 
-function pickBestHeaderCandidate(
+function collectHeaderCandidates(
   lines: OcrLineResult[],
   cropHeight: number,
-): number | null {
+): Array<{ yNorm: number; value: number }> {
   const candidates: Array<{ yNorm: number; value: number }> = [];
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!;
-    const digitLen = line.text.replace(/\D/g, "").length;
-    let normalized =
+    const normalized =
       parseDigitsOnlyHeaderTotalLoose(line.text) ??
       parseDigitsOnlyHeaderTotal(line.text);
-    if (normalized == null && digitLen > 9) {
-      normalized = normalizeDigitsOnlyComponent(line.text);
-    }
     if (normalized == null) continue;
     if (normalized < 100_000_000 || normalized > 1_000_000_000) continue;
 
@@ -105,7 +147,14 @@ function pickBestHeaderCandidate(
   }
 
   candidates.sort((a, b) => a.yNorm - b.yNorm);
-  return candidates[0]?.value ?? null;
+  return candidates;
+}
+
+function pickBestHeaderCandidate(
+  lines: OcrLineResult[],
+  cropHeight: number,
+): number | null {
+  return collectHeaderCandidates(lines, cropHeight)[0]?.value ?? null;
 }
 
 
@@ -126,6 +175,18 @@ export async function parsePowerDetailsImage(
     labelPre.buffer,
     POWER_DETAILS_LABEL_OCR_CONFIG,
   );
+  const labels = coalesceLabelLines(
+    normalizeGeometryLines(toGeometryLines(labelLinesRaw), labelPre.height),
+  );
+
+  const headerLabel = labels.find((line) => isHeroPowerHeaderLabel(line.text));
+  const focusedNormalPre = headerLabel
+    ? await cropPowerDetailsValueRow(valuePre, headerLabel.yNorm)
+    : null;
+  const focusedInvertedPre = headerLabel
+    ? await cropPowerDetailsValueRow(valueInvPre, headerLabel.yNorm)
+    : null;
+
   const valueLinesRaw = await runTesseract(
     valuePre.buffer,
     POWER_DETAILS_VALUE_OCR_CONFIG,
@@ -134,14 +195,25 @@ export async function parsePowerDetailsImage(
     valueInvPre.buffer,
     POWER_DETAILS_VALUE_OCR_CONFIG,
   );
-  const headerLinesRaw = await runTesseract(
-    headerPre.buffer,
-    POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
-  );
+  const focusedNormalLinesRaw = focusedNormalPre
+    ? await runTesseract(
+        focusedNormalPre.buffer,
+        POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+      )
+    : [];
+  const focusedInvertedLinesRaw = focusedInvertedPre
+    ? await runTesseract(
+        focusedInvertedPre.buffer,
+        POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+      )
+    : [];
+  const headerLinesRaw = headerLabel
+    ? []
+    : await runTesseract(
+        headerPre.buffer,
+        POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+      );
 
-  const labels = coalesceLabelLines(
-    normalizeGeometryLines(toGeometryLines(labelLinesRaw), labelPre.height),
-  );
   // Inverted value column recovers white outlined digits better on this UI.
   // Fall back to the non-inverted pass when inverted yields fewer digit lines.
   const invertedValues = normalizeGeometryLines(
@@ -158,7 +230,23 @@ export async function parsePowerDetailsImage(
       ? invertedValues
       : normalValues;
 
+  const focusedHeaderPasses: HeaderOcrPass[] = [];
+  if (focusedNormalPre) {
+    focusedHeaderPasses.push({
+      lines: focusedNormalLinesRaw,
+      cropHeight: focusedNormalPre.height,
+    });
+  }
+  if (focusedInvertedPre) {
+    focusedHeaderPasses.push({
+      lines: focusedInvertedLinesRaw,
+      cropHeight: focusedInvertedPre.height,
+    });
+  }
+
   const headerTotal = pickHeaderTotal(
+    labels,
+    focusedHeaderPasses,
     headerLinesRaw,
     headerPre.height,
     valueInvLinesRaw,
@@ -178,16 +266,125 @@ export async function parsePowerDetailsImage(
     return !(headerTotal != null && asHeader === headerTotal);
   });
 
-  const pairs = zipLabelsToValues({ labels, values });
+  const componentRowSamples: string[] = [];
+  let componentRawCount = 0;
+  let pairs: LabelValuePair[] | null = null;
+  if (headerTotal != null) {
+    const sortedLabels = [...labels].sort((a, b) => a.yNorm - b.yNorm);
+    const componentLabels: Array<{
+      label: string;
+      key: ThpBreakdownKey;
+      yNorm: number;
+    }> = [];
+    let inHeroSection = headerLabel == null;
+    for (const label of sortedLabels) {
+      if (label === headerLabel) {
+        inHeroSection = true;
+        continue;
+      }
+      if (!inHeroSection) continue;
+      if (isPowerDetailsSectionStop(label.text)) break;
+      if (isPowerDetailsModalTitle(label.text)) continue;
+      if (isHeroPowerHeaderLabel(label.text)) continue;
+      const key = matchThpLabel(label.text);
+      if (key == null) continue;
+      if (!componentLabels.some((row) => row.key === key)) {
+        componentLabels.push({ label: label.text, key, yNorm: label.yNorm });
+      }
+    }
+
+    const rowTexts = new Map<ThpBreakdownKey, string[]>();
+    const ocrComponentRows = async (heightFractions: readonly number[]) => {
+      for (const row of componentLabels) {
+        const texts = rowTexts.get(row.key) ?? [];
+        for (const heightFraction of heightFractions) {
+          for (const offset of COMPONENT_ROW_OFFSETS) {
+            const pre = await preprocessPowerDetailsComponentValueRow(
+              imageBuffer,
+              row.yNorm,
+              offset,
+              heightFraction,
+            );
+            const lines = await runTesseract(
+              pre.buffer,
+              POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+            );
+            componentRawCount += lines.length;
+            for (const line of lines) texts.push(line.text);
+          }
+        }
+        rowTexts.set(row.key, texts);
+      }
+    };
+
+    const resolveFromTexts = (): ThpBreakdown | null => {
+      const candidates: Partial<Record<ThpBreakdownKey, number[]>> = {};
+      const support: Partial<Record<ThpBreakdownKey, Map<number, number>>> = {};
+      for (const row of componentLabels) {
+        const found = new Set<number>();
+        const keySupport = new Map<number, number>();
+        for (const text of rowTexts.get(row.key) ?? []) {
+          for (const value of parseDigitsOnlyComponentCandidates(
+            text,
+            headerTotal,
+          )) {
+            found.add(value);
+            keySupport.set(value, (keySupport.get(value) ?? 0) + 1);
+          }
+        }
+        candidates[row.key] = [...found].sort((a, b) => a - b);
+        support[row.key] = keySupport;
+      }
+      return resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal,
+        support,
+      });
+    };
+
+    await ocrComponentRows(COMPONENT_ROW_INITIAL_HEIGHTS);
+    let resolved = resolveFromTexts();
+    if (resolved == null) {
+      await ocrComponentRows(COMPONENT_ROW_FALLBACK_HEIGHTS);
+      resolved = resolveFromTexts();
+    }
+    for (const row of componentLabels) {
+      componentRowSamples.push(
+        `row:${row.key}:${(rowTexts.get(row.key) ?? []).join("|")}`,
+      );
+    }
+
+    if (resolved) {
+      pairs = THP_BREAKDOWN_KEYS.map((key, index) => {
+        const row = componentLabels.find((entry) => entry.key === key);
+        return {
+          label: row?.label ?? key,
+          valueText: String(resolved[key]),
+          key,
+          value: resolved[key],
+          yNorm: row?.yNorm ?? index,
+        };
+      });
+    }
+  }
+  if (pairs == null) {
+    pairs = zipLabelsToValues({ labels, values });
+  }
   const assembled = assembleGeometryParse({ pairs, headerTotal });
 
+  // Pair assignments stay ahead of per-row crop dumps. Diagnostics keep
+  // only the first 12 lines, and the crop dumps would otherwise evict the
+  // `key=value` lines the live fixtures assert.
   const sampleLines = [
     ...headerLinesRaw.map((line) => `hdr:${line.text}`),
-    ...valueInvLinesRaw.slice(0, 3).map((line) => `inv:${line.text}`),
+    ...focusedNormalLinesRaw.map((line) => `rowN:${line.text}`),
+    ...focusedInvertedLinesRaw.map((line) => `rowI:${line.text}`),
+    ...valueInvLinesRaw.slice(0, 2).map((line) => `inv:${line.text}`),
     ...pairs.map(
       (pair) =>
         `${pair.key ?? "?"}=${pair.valueText} ← ${pair.label.slice(0, 40)}`,
     ),
+    ...componentRowSamples,
     ...valueLinesRaw.slice(0, 4).map((line) => `val:${line.text}`),
   ];
 
@@ -199,7 +396,10 @@ export async function parsePowerDetailsImage(
       labelLinesRaw.length +
       valueLinesRaw.length +
       valueInvLinesRaw.length +
-      headerLinesRaw.length,
+      focusedNormalLinesRaw.length +
+      focusedInvertedLinesRaw.length +
+      headerLinesRaw.length +
+      componentRawCount,
     lines: sampleLines,
     parsedOk: assembled.complete && assembled.heroPowerTotal != null,
     parsedValue: assembled.heroPowerTotal,

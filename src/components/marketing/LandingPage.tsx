@@ -32,7 +32,7 @@ export async function LandingPage() {
           />
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-lg text-hq-fg-muted">{t("tagline")}</p>
+        <p className="text-lg text-hq-fg-muted">{`"${t("slogan")}"`}</p>
       </header>
 
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">

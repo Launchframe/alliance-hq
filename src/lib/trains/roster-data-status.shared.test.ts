@@ -7,21 +7,25 @@ import {
 } from "@/lib/trains/roster-data-status.shared";
 
 describe("classifyRosterNeed", () => {
-  it("detects rank pool for economy week r3 lottery", () => {
+  it("detects the rank pool behind the R3 wheel", () => {
     expect(
       classifyRosterNeed({
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "economy_week",
-        date: "2026-07-25",
+        rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
       }),
     ).toEqual({ kind: "rank_pool", poolType: "r3" });
   });
 
-  it("falls back to members when mechanism is unset", () => {
-    expect(classifyRosterNeed({ conductorMechanism: null })).toEqual({
+  it("falls back to members for free choice", () => {
+    expect(classifyRosterNeed({ rule: null })).toEqual({
       kind: "members",
       poolType: null,
     });
+  });
+
+  it("falls back to members for score boards", () => {
+    expect(
+      classifyRosterNeed({ rule: { kind: "vs_top_n", topN: 10 } }),
+    ).toEqual({ kind: "members", poolType: null });
   });
 });
 

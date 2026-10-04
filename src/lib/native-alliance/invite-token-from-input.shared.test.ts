@@ -23,6 +23,12 @@ describe("extractHqInviteToken", () => {
     ).toBe("abcDEF123_-xyz789012345678901234567890");
   });
 
+  it("does not mistake current generated join codes for bare invite tokens", () => {
+    expect(extractHqInviteToken("LFGO-0123456789ABCDEF")).toBeNull();
+    expect(extractHqInviteToken("longalliancetag-0123456789abcdef")).toBeNull();
+    expect(extractHqInviteToken("/invite/LFGO-0123456789ABCDEF")).toBe("LFGO-0123456789ABCDEF");
+  });
+
   it("does not treat short join codes as invite tokens", () => {
     expect(extractHqInviteToken("AB12CD")).toBeNull();
     expect(extractHqInviteToken("JOIN-CODE-1")).toBeNull();

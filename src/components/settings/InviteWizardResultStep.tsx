@@ -35,7 +35,7 @@ export function InviteWizardResultStep({
   }) {
     if (input.welcomeUrlRequiresAllianceTag) {
       return (
-        <p className="text-sm text-[#e3b341]" role="status">
+        <p className="text-sm text-hq-warning" role="status">
           {tWizard("welcomeUrlRequiresTag")}
         </p>
       );
@@ -55,7 +55,7 @@ export function InviteWizardResultStep({
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold">{tWizard("resultStepTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{tWizard("resultStepHint")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{tWizard("resultStepHint")}</p>
       </div>
 
       {!result ? (
@@ -63,14 +63,14 @@ export function InviteWizardResultStep({
           type="button"
           disabled={busy}
           onClick={onGenerate}
-          className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+          className="rounded-lg border border-hq-accent bg-hq-accent/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
         >
           {busy ? tWizard("generating") : tWizard("generateButton")}
         </button>
       ) : null}
 
       {error ? (
-        <p className="text-sm text-[#f85149]" role="alert">
+        <p className="text-sm text-hq-danger" role="alert">
           {error}
         </p>
       ) : null}
@@ -97,10 +97,10 @@ export function InviteWizardResultStep({
                 label={t("invitePassphraseLabel")}
                 value={result.passphrase}
               />
-              <p className="text-xs text-[#6e7681]">{t("invitePassphraseHint")}</p>
+              <p className="text-xs text-hq-fg-subtle">{t("invitePassphraseHint")}</p>
             </>
           ) : null}
-          <p className="text-xs text-[#6e7681]">{tWizard("sharingReminderDm")}</p>
+          <p className="text-xs text-hq-fg-subtle">{tWizard("sharingReminderDm")}</p>
         </div>
       ) : null}
 
@@ -115,13 +115,13 @@ export function InviteWizardResultStep({
             label={t("joinCodeValueLabel")}
             value={result.code}
           />
-          <p className="text-xs text-[#6e7681]">{tWizard("sharingReminderPublic")}</p>
+          <p className="text-xs text-hq-fg-subtle">{tWizard("sharingReminderPublic")}</p>
         </div>
       ) : null}
 
       {result?.kind === "claim_single" ? (
         <div className="space-y-3">
-          <p className="text-sm text-[#3fb950]">
+          <p className="text-sm text-hq-success">
             {t("claimSentFor", { name: result.commanderName })}
           </p>
           <CopyShareMessageField
@@ -133,13 +133,13 @@ export function InviteWizardResultStep({
             label={t("claimCodeLabel")}
             value={result.code}
           />
-          <p className="text-xs text-[#6e7681]">{tWizard("sharingReminderDm")}</p>
+          <p className="text-xs text-hq-fg-subtle">{tWizard("sharingReminderDm")}</p>
         </div>
       ) : null}
 
       {result?.kind === "claim_bulk" ? (
         <div className="space-y-3">
-          <p className="text-sm text-[#3fb950]">
+          <p className="text-sm text-hq-success">
             {t("bulkClaimSummary", {
               created: result.items.length,
               skipped: result.skippedCount,
@@ -148,7 +148,7 @@ export function InviteWizardResultStep({
           {result.items.map((item) => (
             <div
               key={item.ashedMemberId}
-              className="rounded-lg border border-[#30363d] p-3"
+              className="rounded-lg border border-hq-border p-3"
             >
               <p className="text-sm font-medium">{item.name}</p>
               <CopyShareMessageField
@@ -164,7 +164,7 @@ export function InviteWizardResultStep({
               />
             </div>
           ))}
-          <p className="text-xs text-[#6e7681]">{tWizard("sharingReminderDm")}</p>
+          <p className="text-xs text-hq-fg-subtle">{tWizard("sharingReminderDm")}</p>
         </div>
       ) : null}
 
@@ -172,8 +172,8 @@ export function InviteWizardResultStep({
         <p
           className={
             isPublic
-              ? "text-xs text-[#3fb950]"
-              : "text-xs text-[#e3b341]"
+              ? "text-xs text-hq-success"
+              : "text-xs text-hq-warning"
           }
           role="status"
         >

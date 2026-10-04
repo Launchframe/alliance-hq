@@ -68,10 +68,18 @@ export async function POST(request: Request) {
 
   const installSessionNonce = body.installSessionNonce?.trim();
   if (installSessionNonce) {
-    await updateDiscordBotInstallSessionAllianceByNonce({
+    const updated = await updateDiscordBotInstallSessionAllianceByNonce({
       nonce: installSessionNonce,
       allianceId: result.allianceId,
+      hqUserId,
+      allianceTag: result.tag,
     });
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Install session not found or not owned by this user." },
+        { status: 404 },
+      );
+    }
   }
 
   return NextResponse.json({

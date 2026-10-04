@@ -15,6 +15,8 @@
  * ## What this deliberately does NOT do
  *
  * - No combinatorial digit-confusion search (`candidateDigitRepairs` floods).
+ *   Overlong row crops may still list separator-slot readings; a breakdown is
+ *   accepted only when one seven-row combination equals the header total.
  * - No fixed row index → breakdown key (pt-BR/KO reorder components).
  */
 
@@ -73,7 +75,7 @@ export function isHeroPowerHeaderLabel(line: string): boolean {
   if (HERO_POWER_HEADER_RE.test(trimmed)) return true;
   // OCR junk still anchors the grey header row: "(BJ [HerolPower", "HerolPower".
   const collapsed = trimmed.replace(/[^a-z]/gi, "");
-  return /herol?pow/i.test(collapsed) || /heldenkampfkraft/i.test(collapsed);
+  return /herol?pow/i.test(collapsed) || /he[li]denkampfkraft/i.test(collapsed);
 }
 
 export function isPowerDetailsSectionStop(line: string): boolean {
@@ -121,9 +123,8 @@ export function parseDigitsOnlyHeaderTotal(text: string): number | null {
 }
 
 /**
- * Header totals after digits-only OCR sometimes pick up one extra digit
- * (comma/separator mapped into the string). Try normalization, then a single
- * interior digit drop on 10-digit blobs before giving up.
+ * Header totals after digits-only OCR sometimes include separator glyphs forced
+ * into digits. Repair only structurally valid separator slots in overlong blobs.
  */
 export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
   const direct = parseDigitsOnlyHeaderTotal(text);
@@ -132,38 +133,24 @@ export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
   const digits = text.replace(/\D/g, "");
   if (!digits) return null;
 
-  const normalized = normalizeDigitsOnlyComponent(digits);
-  if (
-    normalized != null &&
-    normalized >= 100_000_000 &&
-    normalized <= 1_000_000_000
-  ) {
-    return normalized;
+  if (digits.length === 11) {
+    const repaired = [...digits];
+    for (let index = repaired.length - 4; index >= 0; index -= 4) {
+      repaired.splice(index, 1);
+    }
+    return parseDigitsOnlyHeaderTotal(repaired.join(""));
   }
 
   if (digits.length === 10) {
-    const head = digits.slice(0, 3);
-    const tail = digits.slice(-3);
     const commaLike = new Set(["1", "7", "8"]);
-    const anchored: Array<{ parsed: number; index: number }> = [];
-    const fallback: number[] = [];
-    // Thousand-separator slots in XXX,XXX,XXX — extra OCR digit usually lands here.
-    for (const i of [2, 3, 5, 6, 7]) {
-      const candidateDigits = `${digits.slice(0, i)}${digits.slice(i + 1)}`;
-      const parsed = parseDigitsOnlyHeaderTotal(candidateDigits);
-      if (parsed == null) continue;
-      if (candidateDigits.startsWith(head) && candidateDigits.endsWith(tail)) {
-        anchored.push({ parsed, index: i });
-        continue;
-      }
-      fallback.push(parsed);
-    }
-    const commaAnchored = anchored.filter((row) => commaLike.has(digits[row.index]!));
-    if (commaAnchored.length > 0) {
-      return commaAnchored[commaAnchored.length - 1]!.parsed;
-    }
-    if (anchored.length > 0) return anchored[0]!.parsed;
-    if (fallback.length > 0) return fallback[0]!;
+    const separatorSlots = [3, 6].filter((index) =>
+      commaLike.has(digits[index]!),
+    );
+    const separatorIndex = separatorSlots[separatorSlots.length - 1];
+    if (separatorIndex == null) return null;
+    return parseDigitsOnlyHeaderTotal(
+      `${digits.slice(0, separatorIndex)}${digits.slice(separatorIndex + 1)}`,
+    );
   }
 
   return null;
@@ -177,6 +164,148 @@ export function parseDigitsOnlyComponent(text: string): number | null {
     minDigits: 5,
     maxDigits: 9,
   });
+}
+
+export function parseDigitsOnlyComponentCandidates(
+  text: string,
+  maxValue: number,
+): number[] {
+  const raw = text.replace(/\D/g, "");
+  if (!raw) return [];
+
+  const found = new Set<number>();
+  for (let targetLength = 5; targetLength <= 9; targetLength += 1) {
+    const boundaryCount = Math.floor((targetLength - 1) / 3);
+    const firstGroup = targetLength - boundaryCount * 3;
+    const extra = raw.length - targetLength;
+    if (extra < 0 || extra > boundaryCount) continue;
+
+    const subsets: number[][] = [[]];
+    for (let i = 0; i < boundaryCount; i += 1) {
+      const size = subsets.length;
+      for (let s = 0; s < size; s += 1) {
+        subsets.push([...subsets[s]!, i]);
+      }
+    }
+
+    for (const selected of subsets) {
+      if (selected.length !== extra) continue;
+      let rawIndex = 0;
+      let out = "";
+      let ok = true;
+      for (let group = 0; group <= boundaryCount && ok; group += 1) {
+        const groupLength = group === 0 ? firstGroup : 3;
+        for (let c = 0; c < groupLength; c += 1) {
+          if (rawIndex >= raw.length) {
+            ok = false;
+            break;
+          }
+          out += raw[rawIndex]!;
+          rawIndex += 1;
+        }
+        if (group < boundaryCount && selected.includes(group)) rawIndex += 1;
+      }
+      if (!ok || rawIndex !== raw.length) continue;
+      const value = parseDigitsOnlyComponent(out);
+      if (value != null && value > 0 && value <= maxValue) found.add(value);
+    }
+  }
+
+  return [...found].sort((a, b) => a - b);
+}
+
+export function resolveUniqueBreakdownFromCandidates(input: {
+  candidates: Partial<Record<ThpBreakdownKey, number[]>>;
+  headerTotal: number;
+  support?: Partial<Record<ThpBreakdownKey, ReadonlyMap<number, number>>>;
+}): ThpBreakdown | null {
+  const lists = THP_BREAKDOWN_KEYS.map((key) => {
+    const list = input.candidates[key];
+    if (!list) return null;
+    const votes = input.support?.[key];
+    return [...new Set(list)]
+      .filter((value) => value > 0 && value <= input.headerTotal)
+      .sort((a, b) => (votes?.get(b) ?? 0) - (votes?.get(a) ?? 0) || a - b);
+  });
+  if (lists.some((list) => list == null || list.length === 0)) return null;
+
+  const keyCount = THP_BREAKDOWN_KEYS.length;
+  const suffixMin = new Array<number>(keyCount + 1).fill(0);
+  const suffixMax = new Array<number>(keyCount + 1).fill(0);
+  for (let i = keyCount - 1; i >= 0; i -= 1) {
+    const list = lists[i]!;
+    suffixMin[i] = suffixMin[i + 1] + Math.min(...list);
+    suffixMax[i] = suffixMax[i + 1] + Math.max(...list);
+  }
+
+  const SOLUTION_CAP = 64;
+  const VISIT_CAP = 250_000;
+  let solutions = 0;
+  let visits = 0;
+  let searchExhausted = false;
+  let best: { values: number[]; score: number } | null = null;
+  let bestTies = 0;
+  const chosen = new Array<number>(keyCount);
+
+  const scoreOf = (): number => {
+    if (!input.support) return 1;
+    let score = 0;
+    THP_BREAKDOWN_KEYS.forEach((key, index) => {
+      score += input.support?.[key]?.get(chosen[index]!) ?? 0;
+    });
+    return score;
+  };
+
+  const visit = (index: number, runningSum: number): boolean => {
+    visits += 1;
+    if (visits > VISIT_CAP) {
+      searchExhausted = true;
+      return true;
+    }
+    if (index === keyCount) {
+      if (runningSum !== input.headerTotal) return false;
+      solutions += 1;
+      if (solutions > SOLUTION_CAP) return true;
+      const score = scoreOf();
+      if (best == null || score > best.score) {
+        best = { values: [...chosen], score };
+        bestTies = 1;
+      } else if (score === best.score) {
+        bestTies += 1;
+      }
+      return !input.support && solutions >= 2;
+    }
+    if (
+      runningSum + suffixMin[index]! > input.headerTotal ||
+      runningSum + suffixMax[index]! < input.headerTotal
+    ) {
+      return false;
+    }
+    for (const value of lists[index]!) {
+      const nextSum = runningSum + value;
+      if (
+        nextSum > input.headerTotal ||
+        nextSum + suffixMin[index + 1]! > input.headerTotal ||
+        nextSum + suffixMax[index + 1]! < input.headerTotal
+      ) {
+        continue;
+      }
+      chosen[index] = value;
+      if (visit(index + 1, nextSum)) return true;
+    }
+    return false;
+  };
+
+  visit(0, 0);
+  if (searchExhausted || solutions > SOLUTION_CAP || best == null) return null;
+  if (!input.support && solutions !== 1) return null;
+  if (input.support && bestTies !== 1) return null;
+
+  const breakdown = {} as ThpBreakdown;
+  THP_BREAKDOWN_KEYS.forEach((key, index) => {
+    breakdown[key] = best!.values[index]!;
+  });
+  return breakdown;
 }
 
 /**
@@ -194,7 +323,7 @@ export function normalizeDigitsOnlyComponent(rawDigits: string): number | null {
   if (!digits) return null;
 
   const commaSevens = stripOcrCommaSevens(digits);
-  if (commaSevens) digits = commaSevens;
+  if (commaSevens) return parseDigitsOnlyComponent(commaSevens);
 
   // Same pattern when one separator slot is `1` instead of `7`
   // (`9,408,080` → `974081080`). Only for 7-digit values with a leading `9`
@@ -368,6 +497,14 @@ export function zipLabelsToValues(input: {
 }
 
 /**
+ * Same-key fragments belong to one wrapped row (German
+ * "Dekorationen und" / "Gebäudestatistiken"). A full component row is about
+ * 0.08 of the modal; keep the merge inside that pitch so two detections a
+ * row apart are not averaged into the gap between them.
+ */
+const SAME_KEY_LABEL_WRAP_MAX_Y_GAP = 0.06;
+
+/**
  * Coalesce a label that is only "Decorations & Building" with a following
  * "Stats" line (common OCR split) before matching.
  */
@@ -387,6 +524,24 @@ export function coalesceLabelLines(
       out.push({
         text: `${current.text} Stats`,
         // Value is vertically centered on the full two-line row — use midpoint.
+        yNorm: (current.yNorm + next.yNorm) / 2,
+        yCenterPx:
+          current.yCenterPx != null && next.yCenterPx != null
+            ? (current.yCenterPx + next.yCenterPx) / 2
+            : current.yCenterPx,
+      });
+      i += 1;
+      continue;
+    }
+    const currentKey = matchThpLabel(current.text);
+    if (
+      next &&
+      currentKey != null &&
+      matchThpLabel(next.text) === currentKey &&
+      Math.abs(next.yNorm - current.yNorm) <= SAME_KEY_LABEL_WRAP_MAX_Y_GAP
+    ) {
+      out.push({
+        text: `${current.text} ${next.text}`,
         yNorm: (current.yNorm + next.yNorm) / 2,
         yCenterPx:
           current.yCenterPx != null && next.yCenterPx != null
@@ -438,22 +593,10 @@ export function assembleGeometryParse(input: {
     breakdown[pair.key] = pair.value;
   }
 
-  let heroPowerTotal = input.headerTotal;
+  const heroPowerTotal = input.headerTotal;
   let working = breakdown;
   if (heroPowerTotal != null) {
     working = fillMissingComponentFromTotal(working, heroPowerTotal);
-  } else {
-    // Header crop often misses white-on-grey totals. If all seven components
-    // parsed, use their sum as the total (same number the UI shows on the bar).
-    const allPresent = THP_BREAKDOWN_KEYS.every(
-      (key) => typeof working[key] === "number" && working[key]! > 0,
-    );
-    if (allPresent) {
-      const sum = sumThpBreakdown(working as ThpBreakdown);
-      if (sum >= 1_000_000 && sum <= 1_000_000_000) {
-        heroPowerTotal = sum;
-      }
-    }
   }
 
   const allPresent = THP_BREAKDOWN_KEYS.every(

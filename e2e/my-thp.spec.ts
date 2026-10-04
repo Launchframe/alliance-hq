@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   createAllianceMembership,
+  createAllianceRosterMember,
   createAuthenticatedHqSession,
   createHqMemberLink,
   createNativeAlliance,
@@ -14,7 +15,12 @@ import {
 /** Minimal Commander + roster membership row so `/my-thp` resolves a commanderId for the linked member. */
 async function insertCommanderMembership(
   sql: Sql,
-  input: { allianceId: string; ashedMemberId: string; primaryName: string },
+  input: {
+    allianceId: string;
+    ashedMemberId: string;
+    primaryName: string;
+    hqUserId: string;
+  },
 ): Promise<{ commanderId: string }> {
   const now = new Date();
   const commanderId = nanoid(16);
@@ -47,6 +53,19 @@ async function insertCommanderMembership(
     )
   `;
 
+  await sql`
+    INSERT INTO hq_user_commanders (
+      id, hq_user_id, commander_id, is_primary, linked_at, updated_at
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.hqUserId},
+      ${commanderId},
+      true,
+      ${now},
+      ${now}
+    )
+  `;
+
   return { commanderId };
 }
 
@@ -74,6 +93,12 @@ test.describe("My THP tracker", () => {
       allianceId: alliance.allianceId,
       ashedMemberId,
       primaryName: "E2E THP Commander",
+      hqUserId: session.hqUserId,
+    });
+    await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId,
+      currentName: "E2E THP Commander",
     });
     await sql`
       UPDATE sessions
@@ -155,6 +180,12 @@ test.describe("My THP tracker", () => {
       allianceId: alliance.allianceId,
       ashedMemberId,
       primaryName: "E2E OCR Partial Commander",
+      hqUserId: session.hqUserId,
+    });
+    await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId,
+      currentName: "E2E OCR Partial Commander",
     });
     await sql`
       UPDATE sessions

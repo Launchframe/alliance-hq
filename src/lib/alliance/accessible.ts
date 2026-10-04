@@ -146,3 +146,10 @@ export function resolveSystemRoleForAlliance(
   }
   return "viewer";
 }
+
+/** Bot Ashed credential install is owner-only (collaborators must not overwrite). */
+export function canInstallAshedBotCredentials(
+  accessRole: AllianceAccessRole,
+): boolean {
+  return accessRole === "owner";
+}

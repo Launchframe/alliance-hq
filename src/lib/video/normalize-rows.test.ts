@@ -4,6 +4,7 @@ import {
   collapseEntriesBySanitizedName,
   dedupeEntries,
   extractEntries,
+  integerScoresAreOcrNearDuplicates,
   mergeOcrResults,
   normalizeName,
   normalizeScoreValue,
@@ -34,6 +35,16 @@ describe("stripParsedNameDecorations", () => {
 
   it("leaves names unchanged when no tag applies", () => {
     expect(stripParsedNameDecorations("Freddy")).toBe("Freddy");
+  });
+
+  it("strips a trailing alliance tag and a 1-edit OCR of the tag", () => {
+    expect(stripParsedNameDecorations("Redd LFgo", "LFgo")).toBe("Redd");
+    expect(stripParsedNameDecorations("Redd TFLgo", "LFgo")).toBe("Redd");
+  });
+
+  it("does not treat a short tag as a fuzzy last-name match", () => {
+    expect(stripParsedNameDecorations("John Gold", "Go")).toBe("John Gold");
+    expect(stripParsedNameDecorations("Sam ABD", "ABC")).toBe("Sam ABD");
   });
 });
 
@@ -232,5 +243,41 @@ describe("collapseEntriesBySanitizedName", () => {
     expect(unresolvedConflicts).toEqual(["redd"]);
     expect(entries).toHaveLength(2);
     expect(entries.every((entry) => entry.scoreConflict)).toBe(true);
+  });
+
+  it("collapses near-duplicate integer scores for the same sanitized name", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Parker Stanley", score: "13333850" },
+      { name: "Parker Stanley", score: "13333950" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.name).toBe("Parker Stanley");
+  });
+
+  it("keeps far-apart integer scores as a conflict for the same name", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Parker Stanley", score: "13333850" },
+      { name: "Parker Stanley", score: "14000000" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual(["parker stanley"]);
+    expect(entries).toHaveLength(2);
+  });
+});
+
+describe("integerScoresAreOcrNearDuplicates", () => {
+  it("accepts a one-digit wobble on a long integer score", () => {
+    expect(integerScoresAreOcrNearDuplicates("13333850", "13333950")).toBe(
+      true,
+    );
+  });
+
+  it("rejects short scores and large relative gaps", () => {
+    expect(integerScoresAreOcrNearDuplicates("100", "200")).toBe(false);
+    expect(integerScoresAreOcrNearDuplicates("13333850", "14000000")).toBe(
+      false,
+    );
   });
 });

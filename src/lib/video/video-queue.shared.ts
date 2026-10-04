@@ -10,4 +10,5 @@ export type AllianceQueueJob = {
   frameCount: number | null;
   uploadedFrameCount: number | null;
   errorMessage: string | null;
+  requiresAshedConnection?: boolean;
 };

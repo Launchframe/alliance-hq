@@ -118,6 +118,19 @@ Officer, viewer, and data_entry invites are still valid when you need different 
 
 ---
 
+## Optional: share your Ashed credentials with an officer
+
+When you are the only officer with a live Ashed connection, you can **delegate** specific capabilities to another named officer without copying your JWT into their session:
+
+1. Open **Settings → Team access → Ashed credential sharing**.
+2. Pick a named **officer**, select capabilities (roster sync, video processing, bot credentials, data management writes), and set a duration up to **7 days**.
+3. Send the invite link (or let HQ email the officer). They accept on `/pair` and acknowledge delegation terms.
+4. **Revoke** or **extend** access from the same panel; owner reconnect refreshes delegated snapshots automatically.
+
+Delegates never receive iframe embed access — only whitelisted HQ actions run against your credential snapshot in audit logs.
+
+---
+
 ## See also
 
 - [Fresh native alliance onboarding](./fresh-native-alliance-onboarding.md) — no Ashed roster on day one

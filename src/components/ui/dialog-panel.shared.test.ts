@@ -31,4 +31,10 @@ describe("dialogPanelClassName", () => {
     expect(className).toContain("max-h-[90vh]");
     expect(className).toContain("max-w-3xl");
   });
+
+  it("omits default overflow-y-auto when caller passes overflow-*", () => {
+    const className = dialogPanelClassName("overflow-hidden flex flex-col");
+    expect(className).not.toContain("overflow-y-auto");
+    expect(className).toContain("overflow-hidden");
+  });
 });

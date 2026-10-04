@@ -8,6 +8,7 @@ const getAllianceMembershipRbacMock = vi.fn();
 const sessionHasPermissionForAllianceMock = vi.fn();
 const loadTrainDiscordSettingsMock = vi.fn();
 const saveTrainDiscordSettingsMock = vi.fn();
+const revokeGuildTrainChannelMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
@@ -63,6 +64,18 @@ vi.mock("@/lib/trains/train-discord-settings.server", () => ({
       input,
       canConfigureChannelSetterMinRank,
       canManage,
+    ),
+  revokeGuildTrainChannel: (
+    allianceId: string,
+    guildId: string,
+    canManage: boolean,
+    canConfigureChannelSetterMinRank: boolean,
+  ) =>
+    revokeGuildTrainChannelMock(
+      allianceId,
+      guildId,
+      canManage,
+      canConfigureChannelSetterMinRank,
     ),
 }));
 
@@ -193,5 +206,52 @@ describe("PATCH /api/alliance/[tag]/train-discord", () => {
       "trains:write",
     );
     expect(saveTrainDiscordSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("clears a guild train channel when clearTrainChannelForGuildId is set", async () => {
+    revokeGuildTrainChannelMock.mockResolvedValue({
+      cleared: true,
+      settings: {
+        ...settings,
+        guildChannelCount: 0,
+      },
+    });
+
+    const res = await patchTrainDiscord({
+      clearTrainChannelForGuildId: "guild-99",
+    });
+
+    expect(res.status).toBe(200);
+    expect(requireAllianceRoutePermissionMock).toHaveBeenCalledWith(
+      "sess-1",
+      "ally-1",
+      "trains:write",
+    );
+    expect(revokeGuildTrainChannelMock).toHaveBeenCalledWith(
+      "ally-1",
+      "guild-99",
+      true,
+      false,
+    );
+    expect(writeAuditLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "trains.discord_train_channel_revoke",
+        resourceId: "guild-99",
+      }),
+    );
+    expect(saveTrainDiscordSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("404s when clearTrainChannelForGuildId targets an unknown guild", async () => {
+    revokeGuildTrainChannelMock.mockResolvedValue({
+      cleared: false,
+      settings,
+    });
+
+    const res = await patchTrainDiscord({
+      clearTrainChannelForGuildId: "guild-missing",
+    });
+
+    expect(res.status).toBe(404);
   });
 });

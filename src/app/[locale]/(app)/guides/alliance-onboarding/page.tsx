@@ -1,14 +1,14 @@
 import { Link } from "@/i18n/navigation";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { requirePageSession } from "@/lib/session";
 import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Alliance onboarding — help",
-  description:
-    "How to invite and link members for Ashed-sync and fresh native alliances.",
-};
+export async function generateMetadata() {
+  const meta = allianceScopedMetadata("Alliance onboarding — help");
+  return { ...meta, description: "How to invite and link members for Ashed-sync and fresh native alliances." };
+}
 
 export default async function AllianceOnboardingGuideHubPage() {
   await requirePageSession("/guides/alliance-onboarding");

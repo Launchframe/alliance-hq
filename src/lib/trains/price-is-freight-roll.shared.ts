@@ -86,6 +86,37 @@ export function buildUniformEconomyDrawSet(input: {
   return { eligible, excluded };
 }
 
+/**
+ * Why a Price Is Freight with-replacement spin has no wheel candidates.
+ * Call after roster-rank candidates are loaded (and day-spin exclusions applied).
+ */
+export type PriceIsFreightEmptyReason =
+  | { kind: "no_roster_candidates" }
+  | { kind: "missing_vs_scores"; scoreDate: string; leadDays: number }
+  | { kind: "none_qualify" };
+
+export function classifyPriceIsFreightEmptyReason(input: {
+  rosterCandidateCount: number;
+  scoreDate: string;
+  leadDays: number;
+  /** Distinct members with a prior-day VS row for scoreDate. */
+  vsScoreMemberCount: number;
+  eligibleCount: number;
+}): PriceIsFreightEmptyReason | null {
+  if (input.eligibleCount > 0) return null;
+  if (input.rosterCandidateCount <= 0) {
+    return { kind: "no_roster_candidates" };
+  }
+  if (input.vsScoreMemberCount <= 0) {
+    return {
+      kind: "missing_vs_scores",
+      scoreDate: input.scoreDate,
+      leadDays: input.leadDays,
+    };
+  }
+  return { kind: "none_qualify" };
+}
+
 export function pickUniformRollCandidate<T>(candidates: T[]): T | null {
   if (candidates.length === 0) return null;
   return candidates[Math.floor(Math.random() * candidates.length)] ?? null;

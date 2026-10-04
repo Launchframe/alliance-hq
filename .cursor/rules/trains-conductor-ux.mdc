@@ -18,10 +18,10 @@ See also: [trains.mdc](./trains.mdc), [trains-simple-advanced-modes.mdc](./train
 
 | Term | Means | Do not confuse with |
 |------|--------|---------------------|
-| **Rule** (UI) | Conductor selection mechanism for a day (`conductorMechanism`, `ConductorMechanismType`, day paint) | Week **template** |
+| **Rule** (UI) | Conductor or VIP selection mechanism for a day (typed `ConductorRule` / `VipRule`, day paint) | Week **template** |
 | **Eligibility** (UI) | Members who can be drawn for a rule (`conductor_pool_entries`, minimums, score gates) | Code `PoolType` / API `pool` |
-| **Week template** (UI) | Collection of rules applied over a stretch of time, currently a full week (`WeekTemplateType`, composite templates) | A single day's rule |
-| **Day rule** / day paint | One day's conductor (+ VIP) rule from `DAY_PAINT_TEMPLATES` | Week template names that contain "week" |
+| **Week template** (UI) | A calendar-weekday 7-slot preset of day rules (`WeekTemplateType`) | A single day's rule |
+| **Day rule** / day paint | One day's conductor (+ VIP) rule from `DAY_RULE_PALETTE` | Week preset names that contain "week" |
 | **Lock** | `lockedAt` — conductor boarded / train spawned | VIP assignment |
 
 **UI copy rule:** use **Rule** / **Eligibility** / **Week template** in officer-facing strings. Do **not** rename TS types, DB columns, or API fields in Phase 1-style copy-only work.
@@ -30,46 +30,49 @@ Guided flow first row: **"This day's rule"** — never label it "Week template".
 
 ## Day paint vs week templates (exclusive)
 
-Canonical lists: `DAY_PAINT_TEMPLATES` vs selectable week/composites in `paint-templates.shared.ts` + `week-template-registry.shared.ts`.
+Canonical lists: `DAY_RULE_PALETTE` in `rules/palette.shared.ts` (day rules) vs `WEEK_TEMPLATES` / `PRESET_WEEK_RULES` in `rules/presets.shared.ts` (week presets). A week preset is seven day rules — painting either goes through `applyPaint`. A paint is a `DayRulePatch`: an **omitted side preserves** the day's current rule, `null` is a deliberate value (conductor free choice / VIP conductor's pick), and only a supplied side can keep/clear assignments.
 
 | Surface | Options |
 |---------|---------|
-| Month — **one** day selected | Day mechanisms only — **no** composites |
-| Month — **multiple** days | Week templates (composites OK) |
-| Week strip — **Week template** control | Week / composite templates |
-| Week strip — long-press / change day | Day mechanisms for that date only |
-| Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` — never `WeekTemplatePickerDialog` |
+| Month — **one** day selected | Day rules only — **no** week templates |
+| Month — **multiple** days | Week templates |
+| Week strip — **Week template** control | Week templates |
+| Week strip — long-press / change day | Day rules for that date only (conductor side; preserves VIP) |
+| Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` (conductor / VIP / both scope) — never `WeekTemplatePickerDialog` |
 
-- Do **not** put composites (e.g. `vs_push_week`) in single-day pickers.
-- **Composite segment resolution** uses **calendar DOW relative to Tuesday** (Tue=0 … Mon=6) via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts` — **not** alliance `trainWeekStartDow`. A Monday-start train week must still paint Tue–Sat push and Sun–Mon R4 segments on the correct calendar days.
+- Do **not** put week templates (e.g. `vs_push_week`) in single-day pickers.
+- **Preset resolution** maps each calendar weekday to one slot of the preset's 7-slot array in `rules/presets.shared.ts` — **not** alliance `trainWeekStartDow`. A Monday-start train week still paints Tue–Sat push and Sun–Mon R4 days on the correct calendar days.
 - Day-painted mechanism **sticks** unless impossible for that server date (e.g. TPIF on Monday bounces; Saturday **day** TPIF must not auto-rewrite to the week’s heavy-hitter segment).
-- Changing a day’s conductor mechanism **releases** any unlocked pending conductor/VIP draft so the officer can spin again under the new mechanism.
-- Composite Saturday segment **`takedown_week`** is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
+- Changing a day’s conductor mechanism **keeps** the pending or locked conductor when they are still eligible for the new rule (do not reset them). If they are **not** eligible, officers who can unlock (train owner in-window, alliance owner, or platform maintainer) confirm **Clear the conductor and change rules?**; otherwise offer **Request to unlock this conductor**. Do not leave a locked-day paint as a dead-end API error toast. A VIP-only paint can never clear or block a conductor.
+- Saturday's `takedown_week` rule is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
 
 ## Lifecycle: conductor → lock → VIP
 
 In-game: conductor boards (lock/spawn) **before** VIP can board.
 
 - Guided order: `… → conductor → lock → vip → done` (`guided-flow.shared.ts` / `currentGuidedStep`).
-- VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked.
+- VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked. Guided VIP step shows **Pick VIP manually** next to Spin (same parity as conductor). Month toolbar Crown is VIP pick after lock. **Manual VIP pick is an open roster assign** — it must not consult or consume conductor/event pools.
 - Do **not** put VIP before lock in UI, skill, or docs.
+- **Clear pending conductor** — officers may unassign an unlocked draft (`POST /api/trains/conductor/clear`). This **releases** the depleting-pool slot. Distinct from **Unlock** (undoes `lockedAt` only). **Train ownership:** the locking officer may unlock until midnight Server Time of that train day (past-day locks remain unlockable by that officer). After midnight, alliance owner or platform maintainer. Show the control in guided Conductor step, advanced quick-actions, and month toolbar when `conductorMemberId` is set and `lockedAt` is null.
 
 ## Dates (server calendar)
 
 - “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
-- **Monday:** no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals.
-- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day).
-- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains or daily Top VS / ticket math.
+- **Monday:** with **lead time 0**, no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals. With **lead time ≥ 1**, score reference is `trainDate − 1 − leadDays` (e.g. lead=1 Monday train uses Saturday Buster Day scores).
+- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day) at lead 0.
+- Alliance setting `trainConductorLeadTimeDays` (0–7) + optional `trainConductorConfirmationEnabled` (auto-nominate → R4 confirm → lock). Score-upload rules nominate when VS lands; pool/sequence rules nominate at day-before-train reset. Cron: `/api/internal/train/nominate-conductor-scheduled`, `/api/internal/train/conductor-confirmation-tick`.
+- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains (lead=0) or daily Top VS / ticket math.
 - **Manual picks** (e.g. `r3_recognition`) are never blocked on missing/low VS scores.
 - `r3_recognition` is **manual award only** — no R3 pool wheel.
 
 ## Pool rank, Top VS roster, conductor minimums
 
 - **Pool rank eligibility** (`resolveMemberPoolAllianceRank`): when an HQ **`member_alliance_rank_events`** row exists, use that rank — **do not** `Math.max` with a stale **higher** synced Ashed roster rank after an in-game demotion. Fall back to synced roster / Ashed rank raw only when there is no HQ event yet.
+- **Current R3 / R4+ generation vs roster rank**: rank dual-write and roster sync must update the **eligibility (unselected)** side of the current generation — remove members who left that rank band; add newly eligible members **unless they already have a selected row** in that generation (do not refresh a spent slot by thrashing ranks). Missing rank-eligible roster members (new accounts) are inserted as unselected so the **wheel** can land on them. Manual Pick Conductor may still assign a member who is already chosen or missing from the generation after an officer confirm — that does not re-open wheel eligibility.
 - **Top VS** (`fetchAllianceVsTopScorersForTrainDate` / `fetchVsTopScorersForRecordedDate`):
   - **Dedupe** Ashed `VSScore` rows by member — keep the **max** score per `member_id` before sorting/slicing Top N (re-uploads must not inflate odds or push the true Nth scorer off the board).
   - **Intersect** with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
-- **Conductor minimums** (season HQ VR thresholds on `r3` / `heavy_hitter` pools): post-roll DQ and pool seed filtering apply when minimums are enabled — **independent** of VS upload readiness (`classifyVsDataNeed` / guided `prerequisites`). Monday and non-VS lottery days still enforce minimums when configured.
+- **Conductor minimums** (alliance VS / donation thresholds): apply on **Price Is Freight paints only** (`usesPriceIsFreightConductorRoll`). Evaluate **Ashed daily VS** over the configured window (not season VR). Post-roll DQ and pool seed filtering apply when that paint gate is on — do not block the check on `classifyVsDataNeed` / guided `prerequisites`; missing VS data counts as zero for that period. Economy Week skips minimums and may spin after an optional “everyone is eligible” confirm when scores are missing.
 
 ## Swap / make-up day
 
@@ -90,7 +93,8 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Week strip
 
 - Every day tile always shows the conductor name or **"—"** (not only when selected).
-- Long-press day paint uses `DAY_PAINT_TEMPLATES`.
+- Long-press day paint uses `DAY_RULE_PALETTE`; scoped boards open the scope picker before painting.
+- Week tiles may show **score-source stats** (VS day name, score-date weekday, considered count, eligible-under-rule count) when the day's rule uses VS/VR scores. Month calendar tiles do **not** show these stats.
 
 ## Share image / wheel readability
 
@@ -104,6 +108,10 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Roster/pool blockers: in-flow Ashed sync when alliance + session allow; **Members** CTA only as last resort.
 - Sync/upload dialogs: loading → success/error → next-step CTAs; refresh guided step state after success.
 - `WheelBlockedDialog` CTAs must match the real blocker (upload prior-day VS vs sync roster vs reseed) — not a generic Members link when scores or Ashed sync would unblock.
+- **Never offer reseed / “start new rotation” for `POOL_UNAVAILABLE`** — members remain in the current generation but none qualify (minimums, etc.). Offer manual pick instead. Reseed only for depleting-pool `POOL_EMPTY` or `POOL_EXHAUSTED`.
+- **Never offer reseed for Price Is Freight with-replacement** (`usesPriceIsFreightConductorRoll`) — empty eligibility is not a generation to reset.
+- **Missing VS** (`NO_WHEEL_CANDIDATES` + `candidateKind: "vs"`) must name the score **weekday** (e.g. “scores from Monday”); when alliance **lead time** is > 0, note that lead time sets that day and link to `/settings/trains#lead-time`. Do not mislabel missing scores as “no R3 on roster” (`POOL_EMPTY`).
+- Pool details **“Start new rotation”** is a new generation; confirm copy must warn when unpicked members remain. Show **prior generation** summaries when `generation > 1`.
 - Disqualified-winner UI only when that mechanism actually required VS. If the wizard skipped scores (e.g. R4), do not show VS disqualification for a 0-score roster.
 
 ## Before implementing UX changes

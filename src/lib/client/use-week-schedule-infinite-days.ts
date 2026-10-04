@@ -7,6 +7,7 @@ import type {
   WeekScheduleDayConfig,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
+import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import {
   addCalendarDays,
 } from "@/lib/trains/game-time";
@@ -22,29 +23,24 @@ export type WeekCarouselDayEntry = {
   day: WeekScheduleDayConfig;
   weekStart: string;
   weekEnd: string;
+  weekDayConfigs: WeekScheduleDayConfig[];
   record: WeekConductorRecordSummary | undefined;
+  scoreStats: TrainDayScoreStats | null;
 };
 
 const EDGE_THRESHOLD = 2;
 
-function templateTypeForWeek(
-  weekStart: string,
-  cache: Map<string, WeekSchedulePagePayload>,
-): WeekTemplateType {
-  const cached = cache.get(weekStart);
-  if (cached?.templateType) return cached.templateType;
-  const prev = cache.get(addCalendarDays(weekStart, -7));
-  if (prev?.templateType) return prev.templateType;
-  const next = cache.get(addCalendarDays(weekStart, 7));
-  if (next?.templateType) return next.templateType;
-  return "vs_push_week";
-}
-
+/**
+ * Placeholder page for a week that has not loaded yet.
+ *
+ * Days show as free choice rather than borrowing a neighbouring week's
+ * template — guessing here is what made the carousel briefly render rules an
+ * alliance never applied.
+ */
 function provisionalWeekFromCache(
   weekStart: string,
-  cache: Map<string, WeekSchedulePagePayload>,
 ): WeekSchedulePagePayload {
-  return buildProvisionalWeekPage(weekStart, templateTypeForWeek(weekStart, cache));
+  return buildProvisionalWeekPage(weekStart);
 }
 
 function flattenWeekPage(page: WeekSchedulePagePayload): WeekCarouselDayEntry[] {
@@ -55,7 +51,9 @@ function flattenWeekPage(page: WeekSchedulePagePayload): WeekCarouselDayEntry[] 
     day,
     weekStart: page.weekStart,
     weekEnd: page.weekEnd,
+    weekDayConfigs: page.dayConfigs,
     record: recordByDate.get(day.date),
+    scoreStats: page.dayScoreStats?.[day.date] ?? null,
   }));
 }
 
@@ -247,7 +245,7 @@ export function useWeekScheduleInfiniteDays({
 
     const prevStart = addCalendarDays(first.weekStart, -7);
     if (!cacheRef.current.has(prevStart)) {
-      rememberPage(provisionalWeekFromCache(prevStart, cacheRef.current));
+      rememberPage(provisionalWeekFromCache(prevStart));
     }
 
     const oldLength = current.length;
@@ -276,7 +274,7 @@ export function useWeekScheduleInfiniteDays({
 
     const nextStart = addCalendarDays(last.weekStart, 7);
     if (!cacheRef.current.has(nextStart)) {
-      rememberPage(provisionalWeekFromCache(nextStart, cacheRef.current));
+      rememberPage(provisionalWeekFromCache(nextStart));
     }
 
     const merged = rebuildFromRange(current[0]!.weekStart, nextStart);
@@ -359,7 +357,7 @@ export function useWeekScheduleInfiniteDays({
 
       const weekStart = getTrainWeekStart(date, trainWeekConfig);
       if (!cacheRef.current.has(weekStart)) {
-        rememberPage(provisionalWeekFromCache(weekStart, cacheRef.current));
+        rememberPage(provisionalWeekFromCache(weekStart));
       }
 
       let startWeek = first.weekStart;
@@ -373,7 +371,7 @@ export function useWeekScheduleInfiniteDays({
           cursor = addCalendarDays(cursor, -7)
         ) {
           if (!cacheRef.current.has(cursor)) {
-            rememberPage(provisionalWeekFromCache(cursor, cacheRef.current));
+            rememberPage(provisionalWeekFromCache(cursor));
           }
         }
       } else if (date > last.day.date) {
@@ -384,7 +382,7 @@ export function useWeekScheduleInfiniteDays({
           cursor = addCalendarDays(cursor, 7)
         ) {
           if (!cacheRef.current.has(cursor)) {
-            rememberPage(provisionalWeekFromCache(cursor, cacheRef.current));
+            rememberPage(provisionalWeekFromCache(cursor));
           }
         }
       }

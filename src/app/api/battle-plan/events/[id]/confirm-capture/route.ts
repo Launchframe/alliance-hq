@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
 
-import { getDb, schema } from "@/lib/db";
-import { serializeBank, validateBankPayload, type BankPayload } from "@/lib/banks/api.shared";
-import { createBank } from "@/lib/banks/repository.server";
+import { serializeBank } from "@/lib/banks/api.shared";
 import { requireBankWrite } from "@/lib/banks/route-helpers.server";
 import { deactivateCaptureReminderInboxItem } from "@/lib/battle-plan/capture-reminder-inbox.server";
+import {
+  ConfirmCaptureError,
+  confirmStrongholdCaptureCreatesBank,
+} from "@/lib/battle-plan/confirm-capture.server";
 import {
   requireBattlePlanAllianceContext,
   requireBattlePlanWrite,
@@ -35,100 +36,29 @@ export async function POST(request: Request, { params }: Props) {
   if (bankDenied) return bankDenied;
 
   const { id: eventId } = await params;
-  const db = getDb();
-
-  const [event] = await db
-    .select()
-    .from(schema.battlePlanCaptureEvents)
-    .where(
-      and(
-        eq(schema.battlePlanCaptureEvents.id, eventId),
-        eq(schema.battlePlanCaptureEvents.allianceId, allianceId),
-      ),
-    )
-    .limit(1);
-
-  if (!event) {
-    return NextResponse.json({ error: "Event not found." }, { status: 404 });
-  }
-
-  if (event.territoryType !== "stronghold") {
-    return NextResponse.json(
-      { error: "Only stronghold capture events can confirm a bank." },
-      { status: 400 },
-    );
-  }
-
-  if (event.status === "cancelled") {
-    return NextResponse.json(
-      { error: "Event was cancelled." },
-      { status: 400 },
-    );
-  }
-
-  if (event.bankId) {
-    const [existingBank] = await db
-      .select()
-      .from(schema.banks)
-      .where(
-        and(
-          eq(schema.banks.id, event.bankId),
-          eq(schema.banks.allianceId, allianceId),
-        ),
-      )
-      .limit(1);
-    if (existingBank) {
-      await deactivateCaptureReminderInboxItem(eventId);
-      return NextResponse.json({ bank: serializeBank(existingBank) });
-    }
-  }
-
-  if (
-    event.gameServerNumber == null ||
-    event.coordX == null ||
-    event.coordY == null ||
-    event.level == null
-  ) {
-    return NextResponse.json(
-      { error: "Event is missing coordinate or level data." },
-      { status: 400 },
-    );
-  }
-
-  const depositPolicy =
-    event.capturePolicy === "war" ? "warzone" : "alliance";
-
-  const bankPayload: BankPayload = {
-    gameServerNumber: event.gameServerNumber,
-    coordX: event.coordX,
-    coordY: event.coordY,
-    level: event.level,
-    capturedAt: event.scheduledAt.toISOString(),
-    depositPolicy,
-    priorCaptureCount: 1,
-  };
-
-  const validationError = validateBankPayload(bankPayload);
-  if (validationError) {
-    return NextResponse.json({ error: validationError }, { status: 400 });
-  }
 
   try {
-    const bank = await createBank(allianceId, bankPayload);
-
-    await db
-      .update(schema.battlePlanCaptureEvents)
-      .set({
-        status: "completed",
-        bankId: bank.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.battlePlanCaptureEvents.id, eventId));
+    const bank = await confirmStrongholdCaptureCreatesBank({
+      allianceId,
+      eventId,
+    });
 
     await deactivateCaptureReminderInboxItem(eventId);
 
     return NextResponse.json({ bank: serializeBank(bank) });
   } catch (error) {
+    if (error instanceof ConfirmCaptureError) {
+      const status =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "CANCELLED" || error.code === "CONFLICT"
+            ? 409
+            : 400;
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status },
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Unexpected error.";
     return NextResponse.json({ error: message }, { status: 400 });

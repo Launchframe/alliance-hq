@@ -14,9 +14,8 @@ import {
   loadLatestSnapshot,
   loadMemberThpTable,
   loadSnapshotSeries,
-  loadThpValuesForDate,
   parseDashboardRange,
-  type SnapshotRow,
+  withLiveThpSeries,
 } from "@/lib/analytics/snapshots.server";
 import {
   loadDashboardViewerContext,
@@ -26,6 +25,7 @@ import { loadVideoUploadCoverage } from "@/lib/dashboard/video-upload-coverage.s
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadMembersAttentionSummary } from "@/lib/members/members-attention-summary.server";
 import { loadReminderInboxForUser } from "@/lib/eur/satisfaction";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
@@ -63,7 +63,7 @@ export async function loadDashboardSummary(
     videoCoverage,
     squad,
     latestSnapshot,
-    snapshotSeries,
+    snapshotSeriesRaw,
     effectiveSeason,
     ashedConnection,
   ] = await Promise.all([
@@ -73,9 +73,11 @@ export async function loadDashboardSummary(
       allianceId,
       commanderIndexResolved,
     ),
-    permissions.has("inbox:read")
+    (permissions.has("inbox:read") || ctx?.isPlatformMaintainer)
       ? loadReminderInboxForUser({
           hqUserId: session.hqUserId,
+          principalHqUserId: ctx?.hqUserId,
+          notesActor: await getKnowledgeActorForSession(sessionId),
           allianceId,
           permissions,
         })
@@ -91,6 +93,12 @@ export async function loadDashboardSummary(
     getEffectiveSeasonForAlliance(allianceId),
     getAshedConnection(sessionId),
   ]);
+
+  const snapshotSeries = await withLiveThpSeries(
+    allianceId,
+    snapshotSeriesRaw,
+    "90d",
+  );
 
   return {
     viewer,
@@ -108,9 +116,9 @@ export async function loadDashboardSummary(
     videoCoverage,
     squad,
     latestSnapshot,
-    linkProgressSeries: snapshotSeries,
+    linkProgressSeries: snapshotSeriesRaw,
     thpSeries: snapshotSeries,
-    donationSeries: snapshotSeries,
+    donationSeries: snapshotSeriesRaw,
     vrAvailable: !effectiveSeason.isPostSeason,
     canManageTrains,
     canWriteMembers,
@@ -130,13 +138,14 @@ export async function loadHeroPowerDashboard(
 
   const range = parseDashboardRange(rangeRaw);
   const today = getServerCalendarDate();
-  const [viewer, series, table] = await Promise.all([
+  const [viewer, seriesRaw, table] = await Promise.all([
     loadDashboardViewerContext(sessionId, session.hqUserId, allianceId),
     loadSnapshotSeries(allianceId, range),
     loadMemberThpTable(allianceId, today),
   ]);
 
-  const thpValues = await loadThpValuesForDate(allianceId, today);
+  const series = await withLiveThpSeries(allianceId, seriesRaw, range);
+  const thpValues = table.map((row) => row.totalHeroPower);
   const standing = computeViewerThpStanding(thpValues, viewer.totalHeroPower);
 
   return { viewer, series, table, standing, range, today };

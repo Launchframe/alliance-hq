@@ -1,4 +1,6 @@
 import { getLocale } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { LinkDeviceSettingsClient } from "@/components/credential-pairing/LinkDeviceSettingsClient";
 import { redirect } from "@/i18n/navigation";
@@ -11,6 +13,10 @@ import { rethrowNavigationError } from "@/lib/navigation";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("deviceLink");
+  return await allianceScopedMetadata(t("pageTitle"));
+}
 export default async function LinkDeviceSettingsPage() {
   const locale = await getLocale();
   let isConnected = false;

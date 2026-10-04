@@ -38,17 +38,26 @@ vi.mock("@/lib/rbac/require-permission", () => ({
   ) => requireAlliancePermissionMock(sessionId, allianceId, permission),
 }));
 
-vi.mock("@/lib/video/score-targets", () => ({
-  getScoreTarget: () => ({ id: "bank-deposit-slip-history" }),
-  isBankDepositSlipHistoryTarget: (id: string) =>
-    id === "bank-deposit-slip-history",
-  isMemberRosterVideoTarget: () => false,
-  toScoreTargetClientMeta: () => ({ id: "bank-deposit-slip-history" }),
-}));
+const currentScoreTarget = vi.hoisted(() => ({ id: "bank-deposit-slip-history" }));
+
+vi.mock("@/lib/video/score-targets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/video/score-targets")>();
+  return {
+    ...actual,
+    getScoreTarget: () => currentScoreTarget,
+    toScoreTargetClientMeta: () => currentScoreTarget,
+  };
+});
+
+const listAllianceMembersMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/members/roster.server", () => ({
   allianceMemberRowToAshedMember: (row: unknown) => row,
-  listAllianceMembers: vi.fn(),
+  listAllianceMembers: listAllianceMembersMock,
+}));
+
+vi.mock("@/lib/alliance/ashed-write-guard", () => ({
+  getAshedAllianceIdIfLinked: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/video/pipeline-stats-display", () => ({
@@ -65,8 +74,32 @@ vi.mock("@/lib/video/video-job-alliance.shared", () => ({
   VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR: "Alliance context missing on job.",
 }));
 
-vi.mock("@/lib/rbac/constants", () => ({
-  BANK_READ_PERMISSION: "bank:read",
+vi.mock("@/lib/rbac/constants", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rbac/constants")>();
+  return {
+    ...actual,
+    BANK_READ_PERMISSION: "bank:read",
+  };
+});
+
+vi.mock("@/lib/rbac/context", () => ({
+  sessionHasPermission: vi.fn(),
+  getRbacContext: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/video/scoreboard-review-preferences.server", () => ({
+  canEditScoreboardReviewPreferences: () => false,
+  canOfferScoreboardMemberActionsForAlliance: vi
+    .fn()
+    .mockResolvedValue({ canOffer: false, hqUserId: null }),
+  loadScoreboardReviewPreferences: vi.fn(),
+}));
+
+const sessionCanProcessVideoMock = vi.fn();
+
+vi.mock("@/lib/video/processor-slots.server", () => ({
+  sessionCanProcessVideo: (...args: unknown[]) =>
+    sessionCanProcessVideoMock(...args),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -146,6 +179,9 @@ describe("GET /api/tools/video-upload/[jobId]", () => {
       },
     ]);
     parsedRowsOrderByMock.mockResolvedValue([]);
+    sessionCanProcessVideoMock.mockResolvedValue(false);
+    listAllianceMembersMock.mockResolvedValue([]);
+    currentScoreTarget.id = "bank-deposit-slip-history";
   });
 
   it("requires bank read before returning deposit-slip review rows", async () => {
@@ -163,5 +199,65 @@ describe("GET /api/tools/video-upload/[jobId]", () => {
       "bank:read",
     );
     expect(parsedRowsOrderByMock).not.toHaveBeenCalled();
+  });
+
+  it("serializes frontlineStage on review rows without extra permission gates", async () => {
+    currentScoreTarget.id = "frontline-breakthrough";
+    resolveVideoJobAccessMock.mockResolvedValue({
+      ok: true,
+      job: {
+        id: "job-1",
+        status: "review",
+        scoreTarget: "frontline-breakthrough",
+        category: "frontline-breakthrough",
+        allianceId: "stored-alliance",
+        parseSessionId: "parse-1",
+      },
+    });
+    parseSessionLimitMock.mockResolvedValue([
+      {
+        id: "parse-1",
+        rowCount: 1,
+        matchedCount: 0,
+        scoreTarget: "frontline-breakthrough",
+        allianceId: "alliance-1",
+        status: "review",
+        dedupeReportJson: null,
+      },
+    ]);
+    parsedRowsOrderByMock.mockResolvedValue([
+      {
+        id: "r1",
+        ocrName: "Alpha",
+        score: "2670",
+        rank: 3,
+        frontlineStage: 5,
+        rosterRankRaw: null,
+        allianceRank: null,
+        allianceRankTitle: null,
+        powerLevel: null,
+        memberLevel: null,
+        profession: null,
+        frameIndex: 0,
+        memberId: null,
+        memberName: null,
+        matchConfidence: 0,
+        matchMethod: "none",
+        scoreConflict: 0,
+        dedupeClusterId: null,
+        deleted: 0,
+        manuallyAdded: 0,
+      },
+    ]);
+
+    const res = await GET(new Request("http://localhost/job"), {
+      params: Promise.resolve({ jobId: "job-1" }),
+    });
+
+    const body = await res.json();
+    expect(res.status, JSON.stringify(body)).toBe(200);
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0]).toMatchObject({ id: "r1", frontlineStage: 5, rank: 3 });
+    expect(requireAlliancePermissionMock).not.toHaveBeenCalled();
   });
 });

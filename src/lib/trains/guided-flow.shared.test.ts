@@ -109,13 +109,13 @@ describe("currentGuidedStep", () => {
     ).toBe("prerequisites");
   });
 
-  it("proceeds to conductor when VS data is ready", () => {
+  it("proceeds to conductor when VS data is not required (Economy Week)", () => {
     expect(
       currentGuidedStep({
         ...base,
         hasConductor: false,
         locked: false,
-        vsDataRequired: true,
+        vsDataRequired: false,
         vsDataReady: true,
       }),
     ).toBe("conductor");

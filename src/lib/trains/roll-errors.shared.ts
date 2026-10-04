@@ -4,15 +4,24 @@ export type TrainRollErrorCode =
   | "POOL_EMPTY"
   | "POOL_EXHAUSTED"
   | "POOL_UNAVAILABLE"
+  | "POOL_BUSY"
   | "NO_WHEEL_CANDIDATES"
   | "ASHED_REQUIRED";
 
 export type WheelCandidateKind = "vs" | "vr" | "event" | "donation";
 
+export type TrainRollSpinBlockReason = "day_spin_exhausted";
+
 export type TrainRollErrorDetails = {
   code: TrainRollErrorCode;
   poolType?: PoolType;
   candidateKind?: WheelCandidateKind;
+  /** VS score calendar day when blocked on missing prior-day scores. */
+  scoreDate?: string;
+  /** Alliance conductor lead-time days when blocked on missing scores. */
+  leadDays?: number;
+  /** Finer-grained spin block reason for wheel-blocked copy/CTAs. */
+  spinBlockReason?: TrainRollSpinBlockReason;
 };
 
 export type TrainRollErrorResponse = {
@@ -44,6 +53,13 @@ export function parseTrainRollError(
 
   if (message === "No pool entry available.") {
     return { code: "POOL_UNAVAILABLE" };
+  }
+
+  if (
+    message ===
+    "Another officer is spinning this pool right now. Try again in a moment."
+  ) {
+    return { code: "POOL_BUSY" };
   }
 
   if (message === "No VS scores found for the wheel.") {
@@ -82,5 +98,8 @@ export function parseTrainRollError(
 export function isWheelBlockedError(
   details: TrainRollErrorDetails | null,
 ): details is TrainRollErrorDetails {
-  return details != null;
+  if (details == null) return false;
+  // Transient lock contention — officer should retry, not open the blocked dialog.
+  if (details.code === "POOL_BUSY") return false;
+  return true;
 }

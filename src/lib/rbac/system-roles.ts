@@ -33,3 +33,13 @@ export function shouldUpgradeSystemRole(
 ): boolean {
   return SYSTEM_ROLE_RANK[nextRoleName] > SYSTEM_ROLE_RANK[currentRoleName];
 }
+
+/** Officer, maintainer, and owner — people who may review and write scores. */
+export function isOfficerOrAbove(
+  roleName: string | null | undefined,
+): boolean {
+  if (!roleName || !(roleName in SYSTEM_ROLE_RANK)) return false;
+  return (
+    SYSTEM_ROLE_RANK[roleName as SystemRoleName] >= SYSTEM_ROLE_RANK.officer
+  );
+}

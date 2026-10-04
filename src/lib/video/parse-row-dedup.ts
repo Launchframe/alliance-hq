@@ -19,7 +19,7 @@ function nameMatchScore(ocrName: string, memberName: string | null): number {
   return 0;
 }
 
-function pickBestMatchedRow(
+export function pickBestMatchedRow(
   group: MatchedParseEntry[],
   allianceTag?: string | null,
 ): MatchedParseEntry {
@@ -29,7 +29,10 @@ function pickBestMatchedRow(
       frameIndex: row.entry._sourceFrameIndex ?? Number.MAX_SAFE_INTEGER,
       stripped: stripParsedNameDecorations(row.entry.name, allianceTag),
       hasBrackets: row.entry.name.includes("["),
-      memberNameScore: nameMatchScore(row.entry.name, row.match.memberName),
+      memberNameScore: nameMatchScore(
+        row.entry.name,
+        row.match.memberName ?? "",
+      ),
     }))
     .sort((a, b) => {
       if (a.memberNameScore !== b.memberNameScore) {

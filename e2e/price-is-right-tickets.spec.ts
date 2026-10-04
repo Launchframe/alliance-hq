@@ -84,7 +84,7 @@ test.describe("Price Is Freight raffle tickets", () => {
       },
       data: {
         weekStart: dashboard.weekStart,
-        templateType: "price_is_right",
+        templateId: "tmpl_preset_price_is_right",
       },
     });
     expect(createRes.ok(), await createRes.text()).toBeTruthy();
@@ -102,7 +102,7 @@ test.describe("Price Is Freight raffle tickets", () => {
     const today = getServerCalendarDate();
     // Saturday uses the heavy-hitter odds panel (still mounted). Desktop week
     // strip hides carousel "Previous day"; select Friday via the day cell so we
-    // assert the weighted VS raffle hero + chart. Train week starts Tuesday →
+    // assert the weighted VS raffle chart + eligibility list. Train week starts Tuesday →
     // Friday is weekStart + 3.
     const friday = addCalendarDays(dashboard.weekStart, 3);
     if (today !== friday) {
@@ -117,7 +117,33 @@ test.describe("Price Is Freight raffle tickets", () => {
     }
 
     await expect(page.getByTestId("price-is-right-tickets-panel")).toBeVisible();
-    await expect(page.getByTestId("price-is-right-tickets-hero")).toBeVisible();
     await expect(page.getByTestId("price-is-right-tickets-chart")).toBeVisible();
+
+    const trainsRoot = page.locator("#hq-app-shell");
+    const guided = trainsRoot.getByTestId("trains-guided-conductor-flow");
+    const podium = trainsRoot.getByTestId("score-leaderboard-podium");
+    await expect(guided).toBeVisible();
+    await expect(podium).toBeVisible();
+    const guidedBox = await guided.boundingBox();
+    const podiumBox = await podium.boundingBox();
+    const ticketsBox = await trainsRoot
+      .getByTestId("price-is-right-tickets-panel")
+      .boundingBox();
+    expect(guidedBox, "guided setup should render").toBeTruthy();
+    expect(podiumBox, "podium should render").toBeTruthy();
+    expect(ticketsBox, "raffle panel should render").toBeTruthy();
+    expect(guidedBox!.y).toBeLessThan(podiumBox!.y);
+    expect(podiumBox!.y).toBeLessThan(ticketsBox!.y);
+
+    await trainsRoot.getByTestId("trains-help-trigger").click();
+    const economyGuide = page.getByTestId("trains-help-week-goal-economy");
+    await expect(economyGuide).toBeVisible();
+    await economyGuide.locator("summary").click();
+    await expect(economyGuide).toHaveAttribute("open", "");
+    await expect(page.getByTestId("trains-help-week-goal-save")).toBeVisible();
+    await expect(
+      page.getByTestId("trains-help-week-goal-certainDays"),
+    ).toBeVisible();
+    await expect(page.getByTestId("trains-help-week-goal-allOut")).toBeVisible();
   });
 });

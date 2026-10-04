@@ -97,6 +97,13 @@ export function serializeTimeOffEntry(row: {
   availability: string;
   entryKind: string;
   source: string;
+  version?: number;
+  globalAbsence?: boolean;
+  activityScope?: string;
+  syncStatus?: string;
+  lastSyncedAt?: Date | null;
+  noticeVerified?: boolean;
+  cancelledAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): SerializedTimeOffEntry {
@@ -112,6 +119,13 @@ export function serializeTimeOffEntry(row: {
       : "full_away",
     entryKind: isTimeOffEntryKind(row.entryKind) ? row.entryKind : "planned",
     source: isTimeOffSource(row.source) ? row.source : "web",
+    version: row.version ?? 0,
+    globalAbsence: row.globalAbsence ?? false,
+    activityScope: row.activityScope === "vs" || row.activityScope === "donation" ? row.activityScope : "all",
+    syncStatus: (row.syncStatus ?? "local") as SerializedTimeOffEntry["syncStatus"],
+    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
+    noticeVerified: row.noticeVerified ?? true,
+    cancelledAt: row.cancelledAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

@@ -17,6 +17,22 @@ export function shouldShowRecentUploadJob(job: RecentUploadJobFields): boolean {
   return job.status !== "discarded" || job.approvedAt == null;
 }
 
+/** Split recent uploads so awaiting-approval jobs can sit in their own group. */
+export function partitionRecentUploadJobs<T extends { status: string }>(
+  jobs: T[],
+): { awaitingApproval: T[]; other: T[] } {
+  const awaitingApproval: T[] = [];
+  const other: T[] = [];
+  for (const job of jobs) {
+    if (job.status === "pending_approval") {
+      awaitingApproval.push(job);
+    } else {
+      other.push(job);
+    }
+  }
+  return { awaitingApproval, other };
+}
+
 /** Processor rejects lack approvedAt; use updatedAt until a dedicated column exists. */
 export function deriveRejectedAt(job: RejectedAtInput): string | null {
   return job.status === "discarded" && job.approvedAt == null

@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { ActivityPrincipal } from "@/lib/activity/access.server";
+import { ActivityWriteError } from "@/lib/activity/errors.server";
 import { createDiscordTranslator, type DiscordTranslate } from "@/lib/discord/i18n";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
@@ -20,6 +22,8 @@ import {
   resolveVrSeasonContext,
   saveHqVrPending,
   upsertMemberSeasonVr,
+  VrPendingChangedError,
+  VrSubmissionChangedError,
 } from "@/lib/vr/repository";
 import type { VrPendingState } from "@/lib/vr/types";
 import {
@@ -139,6 +143,7 @@ export async function handleWebVrCommand(input: {
   sessionId: string;
   allianceId: string;
   hqUserId: string;
+  principal: ActivityPrincipal;
   locale: string;
   explicitInstituteLevel?: number | null;
   confirm?: "yes" | "no" | null;
@@ -147,16 +152,47 @@ export async function handleWebVrCommand(input: {
     explicitInstituteLevel: input.explicitInstituteLevel ?? null,
     confirm: input.confirm ?? null,
   };
-  const { result, commanderId } = await handleWebVrCommandCore(input);
+  const translate = createDiscordTranslator(
+    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+  );
+  let outcome: WebVrCommandCoreOutcome;
+  try {
+    outcome = await handleWebVrCommandCore(input);
+  } catch (error) {
+    if (error instanceof VrPendingChangedError) {
+      outcome = {
+        result: {
+          status: "error",
+          message: translate("errors.noConfirm"),
+        },
+        ashedMemberId: null,
+        commanderId: null,
+      };
+    } else if (
+      error instanceof VrSubmissionChangedError ||
+      error instanceof ActivityWriteError
+    ) {
+      outcome = {
+        result: {
+          status: "error",
+          message: translate("activity.saveBlocked"),
+        },
+        ashedMemberId: null,
+        commanderId: null,
+      };
+    } else {
+      throw error;
+    }
+  }
   await auditWebVrCommand({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
-    commanderId,
+    commanderId: outcome.commanderId,
     payload: auditPayload,
-    result,
+    result: outcome.result,
   });
-  return result;
+  return outcome.result;
 }
 
 type WebVrCommandCoreOutcome = {
@@ -166,12 +202,25 @@ type WebVrCommandCoreOutcome = {
 };
 
 async function handleWebVrCommandCore(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
+  principal: ActivityPrincipal;
   locale: string;
   explicitInstituteLevel?: number | null;
   confirm?: "yes" | "no" | null;
 }): Promise<WebVrCommandCoreOutcome> {
+  if (
+    input.principal.hqUserId !== input.hqUserId ||
+    input.principal.currentAllianceId !== input.allianceId ||
+    input.principal.sessionId !== input.sessionId
+  ) {
+    return {
+      result: { code: "member_link_required" },
+      ashedMemberId: null,
+      commanderId: null,
+    };
+  }
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   if (!link) {
     return {
@@ -212,6 +261,7 @@ async function handleWebVrCommandCore(input: {
         seasonKey: season.seasonKey,
         answer: input.confirm,
         translate,
+        principal: input.principal,
       }),
       ashedMemberId: link.ashedMemberId,
       commanderId,
@@ -257,8 +307,6 @@ async function handleWebVrCommandCore(input: {
     seasonKey: season.seasonKey,
   });
 
-  await saveHqVrPending(input.allianceId, input.hqUserId, result.pending);
-
   if (result.action.type === "set_vr") {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
@@ -269,8 +317,14 @@ async function handleWebVrCommandCore(input: {
       hqUserId: input.hqUserId,
       flagReason: result.action.flagReason ?? null,
       eventSource: "web",
+      activity: {
+        identity: { kind: "web", principal: input.principal },
+        expectedPreviousBaseVr: seasonHigh,
+        ...(pending
+          ? { pending: { expected: pending, required: false } }
+          : {}),
+      },
     });
-    await saveHqVrPending(input.allianceId, input.hqUserId, null);
     const message = await vrSetSuccessMessage({
       translate,
       seasonKey: season.seasonKey,
@@ -292,6 +346,8 @@ async function handleWebVrCommandCore(input: {
       commanderId: result.action.commanderId ?? commanderId,
     };
   }
+
+  await saveHqVrPending(input.allianceId, input.hqUserId, result.pending);
 
   if (result.needsConfirmation && result.proposedVr != null) {
     return {
@@ -327,6 +383,7 @@ async function handleWebVrConfirm(input: {
   seasonKey: string;
   answer: "yes" | "no";
   translate: ReturnType<typeof createDiscordTranslator>;
+  principal: ActivityPrincipal;
 }): Promise<MyVrPostResponse> {
   const season = await resolveVrSeasonContext(input.allianceId);
   if (season.vrUpdatesLocked) {
@@ -337,7 +394,16 @@ async function handleWebVrConfirm(input: {
   }
 
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
-  if (!pending || pending.kind !== "anomaly_confirm") {
+  if (
+    !pending ||
+    pending.kind !== "anomaly_confirm" ||
+    season.seasonKey !== input.seasonKey ||
+    pending.seasonKey !== season.seasonKey ||
+    (pending.commanderId != null &&
+      pending.commanderId !== input.commanderId) ||
+    (pending.ashedMemberId != null &&
+      pending.ashedMemberId !== input.ashedMemberId)
+  ) {
     return {
       status: "error",
       message: input.translate("errors.noConfirm"),
@@ -350,9 +416,13 @@ async function handleWebVrConfirm(input: {
     translate: input.translate,
     seasonKey: input.seasonKey,
   });
-  await saveHqVrPending(input.allianceId, input.hqUserId, result.pending);
 
   if (result.action.type === "set_vr") {
+    const seasonHigh = await getMemberSeasonHigh(
+      input.allianceId,
+      input.ashedMemberId,
+      input.seasonKey,
+    );
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
       ashedMemberId: result.action.ashedMemberId || input.ashedMemberId,
@@ -362,8 +432,12 @@ async function handleWebVrConfirm(input: {
       hqUserId: input.hqUserId,
       flagReason: result.action.flagReason ?? null,
       eventSource: "web",
+      activity: {
+        identity: { kind: "web", principal: input.principal },
+        expectedPreviousBaseVr: seasonHigh,
+        pending: { expected: pending, required: true },
+      },
     });
-    await saveHqVrPending(input.allianceId, input.hqUserId, null);
     const message = await vrSetSuccessMessage({
       translate: input.translate,
       seasonKey: input.seasonKey,
@@ -381,6 +455,8 @@ async function handleWebVrConfirm(input: {
       ),
     };
   }
+
+  await saveHqVrPending(input.allianceId, input.hqUserId, result.pending);
 
   return {
     status: input.answer === "no" ? "anomaly_rejected" : "error",

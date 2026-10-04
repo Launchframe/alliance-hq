@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   TrainRollErrorDetails,
+  TrainRollSpinBlockReason,
   WheelCandidateKind,
 } from "@/lib/trains/roll-errors.shared";
 import type { PoolType } from "@/lib/trains/types";
@@ -37,13 +38,32 @@ export function throwPoolUnavailable(poolType?: PoolType): never {
   });
 }
 
+export function throwPoolBusy(poolType?: PoolType): never {
+  throw new TrainRollError(
+    "Another officer is spinning this pool right now. Try again in a moment.",
+    { code: "POOL_BUSY", poolType },
+  );
+}
+
 export function throwNoWheelCandidates(
   candidateKind: WheelCandidateKind,
   message: string,
+  extras?: {
+    scoreDate?: string;
+    leadDays?: number;
+    spinBlockReason?: TrainRollSpinBlockReason;
+  },
 ): never {
   throw new TrainRollError(message, {
     code: "NO_WHEEL_CANDIDATES",
     candidateKind,
+    ...(extras?.scoreDate !== undefined
+      ? { scoreDate: extras.scoreDate }
+      : {}),
+    ...(extras?.leadDays !== undefined ? { leadDays: extras.leadDays } : {}),
+    ...(extras?.spinBlockReason !== undefined
+      ? { spinBlockReason: extras.spinBlockReason }
+      : {}),
   });
 }
 
@@ -53,8 +73,9 @@ export function throwAshedRequired(message: string): never {
 
 export function trainRollErrorResponse(error: unknown) {
   if (error instanceof TrainRollError) {
+    const status = error.details.code === "POOL_BUSY" ? (503 as const) : (400 as const);
     return {
-      status: 400 as const,
+      status,
       body: { error: error.message, rollError: error.details },
     };
   }

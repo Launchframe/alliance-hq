@@ -2,10 +2,35 @@ import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
 
+function ashedApiOrigin(): string {
+  const override = process.env.ASHED_API_BASE_ORIGIN?.trim();
+  if (!override || process.env.E2E_TEST !== "true") {
+    return "https://base44.app";
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(override);
+  } catch {
+    throw new Error("ASHED_API_BASE_ORIGIN must be an HTTP loopback URL");
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new Error("ASHED_API_BASE_ORIGIN must be an HTTP loopback URL");
+  }
+  return parsed.origin;
+}
+
 export function appApiUrl(connection: ParsedConnection, path: string): string {
   const appId = connection.appId || DEFAULT_APP_ID;
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `https://base44.app/api/apps/${appId}${normalized}`;
+  return `${ashedApiOrigin()}/api/apps/${appId}${normalized}`;
 }
 
 export function authHeaders(connection: ParsedConnection): Record<string, string> {
@@ -147,6 +172,18 @@ export async function base44EntityPost<T>(
 ): Promise<unknown> {
   return base44Json(connection, `/entities/${entity}`, {
     method: "POST",
+    body: JSON.stringify(row),
+  });
+}
+
+export async function base44EntityPut<T>(
+  connection: ParsedConnection,
+  entity: string,
+  id: string,
+  row: T,
+): Promise<unknown> {
+  return base44Json(connection, `/entities/${entity}/${id}`, {
+    method: "PUT",
     body: JSON.stringify(row),
   });
 }

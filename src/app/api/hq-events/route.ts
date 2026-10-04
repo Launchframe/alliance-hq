@@ -3,6 +3,8 @@ import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
@@ -18,7 +20,7 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const scoreTarget = url.searchParams.get("scoreTarget");
-    const allianceId = session.allianceId;
+    const allianceId = resolveSessionAllianceId(session);
 
     if (!allianceId) {
       return NextResponse.json(
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
     const denied = await requireSessionPermission(session.id, "hq:events:write");
     if (denied) return denied;
 
-    const allianceId = session.allianceId;
+    const allianceId = resolveSessionAllianceId(session);
     if (!allianceId) {
       return NextResponse.json(
         { error: "Alliance context required." },
@@ -102,6 +104,18 @@ export async function POST(request: Request) {
       .from(schema.hqEvents)
       .where(eq(schema.hqEvents.id, id))
       .limit(1);
+
+    await writeOfficerActionAudit({
+      sessionId: session.id,
+      allianceId,
+      hqUserId: session.hqUserId,
+      action: "hq_events.created",
+      severity: "routine",
+      permission: "hq:events:write",
+      resourceType: "hq_event",
+      resourceId: id,
+      metadata: { scoreTarget: body.scoreTarget },
+    });
 
     return NextResponse.json({ event });
   } catch (error) {

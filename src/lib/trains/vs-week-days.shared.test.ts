@@ -37,4 +37,12 @@ describe("vsScoreContextForTrainDate", () => {
     expect(ctx.vsDayNumber).toBe(6);
     expect(ctx.vsDayKey).toBe("busterDay");
   });
+
+  it("with leadDays=1 maps Monday train days to Saturday Buster Day scores", () => {
+    expect(vsScoreReferenceDate("2026-06-15", 1)).toBe("2026-06-13");
+    const ctx = vsScoreContextForTrainDate("2026-06-15", 1);
+    expect(ctx.scoreDate).toBe("2026-06-13");
+    expect(ctx.vsDayNumber).toBe(6);
+    expect(ctx.vsDayKey).toBe("busterDay");
+  });
 });

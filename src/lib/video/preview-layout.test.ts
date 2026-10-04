@@ -14,6 +14,11 @@ import {
   parsePreviewPrefs,
   serializePreviewPrefs,
   DEFAULT_PLACEMENT,
+  PREVIEW_HEADER_OFFSET,
+  REVIEW_ISSUE_NAV_BAR_PX,
+  PREVIEW_HEADER_OFFSET_PX,
+  reviewIssueNavScrollOffsetPx,
+  reviewIssueNavStickyTop,
 } from "@/lib/video/preview-layout";
 
 const VIEWPORT = { width: 1280, height: 800 };
@@ -126,6 +131,64 @@ describe("preview pane size", () => {
     expect(clampDockHeightPx(50, 1000)).toBe(200);
     expect(clampDockHeightPx(900, 1000)).toBe(800);
     expect(clampDockHeightPx(420, 1000)).toBe(420);
+  });
+});
+
+describe("reviewIssueNavStickyTop", () => {
+  it("sits below the header when the preview is closed or not top-docked", () => {
+    expect(
+      reviewIssueNavStickyTop({
+        previewOpen: false,
+        placement: "top",
+        dockHeightPx: 400,
+      }),
+    ).toBe(PREVIEW_HEADER_OFFSET);
+    expect(
+      reviewIssueNavStickyTop({
+        previewOpen: true,
+        placement: "bottom",
+        dockHeightPx: 400,
+      }),
+    ).toBe(PREVIEW_HEADER_OFFSET);
+    expect(
+      reviewIssueNavStickyTop({
+        previewOpen: true,
+        placement: "side",
+        dockHeightPx: 400,
+      }),
+    ).toBe(PREVIEW_HEADER_OFFSET);
+  });
+
+  it("clears the top preview dock so the issue bar cannot cover the video", () => {
+    expect(
+      reviewIssueNavStickyTop({
+        previewOpen: true,
+        placement: "top",
+        dockHeightPx: 320,
+      }),
+    ).toBe("calc(3.25rem + 320px)");
+  });
+});
+
+describe("reviewIssueNavScrollOffsetPx", () => {
+  it("accounts for header and issue bar when the preview is not top-docked", () => {
+    expect(
+      reviewIssueNavScrollOffsetPx({
+        previewOpen: true,
+        placement: "bottom",
+        dockHeightPx: 400,
+      }),
+    ).toBe(PREVIEW_HEADER_OFFSET_PX + REVIEW_ISSUE_NAV_BAR_PX);
+  });
+
+  it("includes the top preview dock so the row is not hidden under the video", () => {
+    expect(
+      reviewIssueNavScrollOffsetPx({
+        previewOpen: true,
+        placement: "top",
+        dockHeightPx: 320,
+      }),
+    ).toBe(PREVIEW_HEADER_OFFSET_PX + 320 + REVIEW_ISSUE_NAV_BAR_PX);
   });
 });
 

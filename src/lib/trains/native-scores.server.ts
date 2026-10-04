@@ -42,7 +42,10 @@ export async function fetchNativeVrTopScorers(
   return candidates;
 }
 
-/** HQ season VR totals keyed by roster member id (for economy / ticket weighting). */
+/**
+ * Season HQ VR totals keyed by roster member id.
+ * Used for event Top-X VIP pool context — not conductor VS minimums.
+ */
 export async function fetchHqSeasonVsScoresByMember(
   allianceId: string,
 ): Promise<Map<string, number>> {

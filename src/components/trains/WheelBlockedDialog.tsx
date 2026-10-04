@@ -1,18 +1,30 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
 import type { PoolType } from "@/lib/trains/types";
+import {
+  resolveWheelBlockedReseedPoolType,
+  shouldShowWheelBlockedLeadTimeLink,
+  shouldShowWheelBlockedManualPick,
+  wheelBlockedReseedLabelKey,
+  wheelBlockedVsBodyKey,
+} from "@/lib/trains/wheel-blocked-cta.shared";
 
 type Props = {
   open: boolean;
   details: TrainRollErrorDetails | null;
   /** Used when the error payload omitted poolType (legacy / POOL_UNAVAILABLE). */
   fallbackPoolType?: PoolType | null;
+  /** Day paint — suppresses reseed for Price Is Freight with-replacement. */
+  rule?: ConductorRule | null;
+  /** Deep-link for VS score upload (vs-performance + recorded date). */
+  uploadHref?: string;
   busy?: boolean;
   rosterSyncBusy?: boolean;
   rosterSyncNotice?: string | null;
@@ -44,8 +56,11 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
     case "POOL_UNAVAILABLE":
       return "wheelBlocked.poolUnavailable";
     case "NO_WHEEL_CANDIDATES":
+      if (details.spinBlockReason === "day_spin_exhausted") {
+        return "wheelBlocked.daySpinExhausted";
+      }
       if (details.candidateKind === "vs") {
-        return "wheelBlocked.noVsScores";
+        return wheelBlockedVsBodyKey(details);
       }
       if (details.candidateKind === "vr") {
         return "wheelBlocked.noVrStandings";
@@ -64,31 +79,13 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
   }
 }
 
-function resolveReseedPoolType(
-  details: TrainRollErrorDetails,
-  fallbackPoolType?: PoolType | null,
-): PoolType | null {
-  const poolType = details.poolType ?? fallbackPoolType ?? null;
-  if (
-    poolType !== "r3" &&
-    poolType !== "r4_plus" &&
-    poolType !== "heavy_hitter"
-  ) {
-    return null;
-  }
-  if (
-    details.code === "POOL_EXHAUSTED" ||
-    details.code === "POOL_UNAVAILABLE" ||
-    details.code === "POOL_EMPTY"
-  ) {
-    return poolType;
-  }
-  return null;
-}
-
 function primaryLinkCta(
   details: TrainRollErrorDetails,
-  options?: { canSyncRoster?: boolean; rosterSyncSucceeded?: boolean },
+  options?: {
+    canSyncRoster?: boolean;
+    rosterSyncSucceeded?: boolean;
+    uploadHref?: string;
+  },
 ): { href: string; labelKey: string } | null {
   if (details.code === "POOL_EMPTY") {
     if (details.poolType === "heavy_hitter") {
@@ -103,8 +100,13 @@ function primaryLinkCta(
     return { href: "/members", labelKey: "wheelBlocked.goToMembers" };
   }
   if (details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vs") {
+    if (details.spinBlockReason === "day_spin_exhausted") {
+      return null;
+    }
     return {
-      href: "/tools/video-upload",
+      href:
+        options?.uploadHref ??
+        "/tools/video-upload?scoreTarget=vs-performance",
       labelKey: "wheelBlocked.uploadScoreVideo",
     };
   }
@@ -118,12 +120,6 @@ function primaryLinkCta(
     };
   }
   return null;
-}
-
-function showPickManuallyCta(details: TrainRollErrorDetails): boolean {
-  return (
-    details.code === "NO_WHEEL_CANDIDATES" || details.code === "ASHED_REQUIRED"
-  );
 }
 
 function showRetrySpinCta(details: TrainRollErrorDetails): boolean {
@@ -144,10 +140,25 @@ function noticeToneClass(
   return "text-hq-success";
 }
 
+function formatScoreWeekdayForLocale(scoreDate: string, locale: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(scoreDate);
+  if (!match) return scoreDate;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.toLocaleDateString(locale, {
+    timeZone: "UTC",
+    weekday: "long",
+  });
+}
+
 export function WheelBlockedDialog({
   open,
   details,
   fallbackPoolType = null,
+  rule = null,
+  uploadHref,
   busy = false,
   rosterSyncBusy = false,
   rosterSyncNotice = null,
@@ -161,18 +172,26 @@ export function WheelBlockedDialog({
   onSyncRoster,
 }: Props) {
   const t = useTranslations("trains");
+  const locale = useLocale();
 
   if (!details) return null;
 
   const dialogBusy = busy || rosterSyncBusy;
   const rosterSyncSucceeded = rosterSyncNoticeTone === "success";
   const bodyKey = bodyMessageKey(details);
-  const reseedPoolType = resolveReseedPoolType(details, fallbackPoolType);
+  const reseedPoolType = resolveWheelBlockedReseedPoolType(
+    details,
+    fallbackPoolType,
+    { rule },
+  );
   const showReseed = reseedPoolType != null && onReseedAndRespin != null;
+  const reseedLabelKey = wheelBlockedReseedLabelKey(details);
   const linkCta = primaryLinkCta(details, {
     canSyncRoster,
     rosterSyncSucceeded,
+    uploadHref,
   });
+  const showLeadTimeLink = shouldShowWheelBlockedLeadTimeLink(details);
   const showSyncRoster =
     canSyncRoster &&
     details.code === "POOL_EMPTY" &&
@@ -182,10 +201,19 @@ export function WheelBlockedDialog({
     !rosterSyncSucceeded;
   const showPick =
     canPickManually &&
-    showPickManuallyCta(details) &&
+    shouldShowWheelBlockedManualPick(details) &&
     onPickManually != null;
   const showRetry =
     showRetrySpinCta(details) && onRetrySpin != null && !showReseed;
+
+  const bodyParams =
+    details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vs"
+      ? {
+          scoreWeekday: details.scoreDate
+            ? formatScoreWeekdayForLocale(details.scoreDate, locale)
+            : "",
+        }
+      : undefined;
 
   return (
     <Dialog
@@ -200,14 +228,17 @@ export function WheelBlockedDialog({
           <h2 className="text-lg font-semibold text-hq-fg">
             {t("wheelBlocked.title")}
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
-            {t(bodyKey)}
+          <p
+            className="mt-2 text-sm leading-relaxed text-hq-fg-muted"
+            data-testid="trains-wheel-blocked-body"
+          >
+            {bodyParams ? t(bodyKey, bodyParams) : t(bodyKey)}
           </p>
         </div>
 
         {rosterSyncBusy ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5 text-sm text-cyan-100"
+            className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5 text-sm text-cyan-800 dark:text-cyan-100"
             data-testid="trains-wheel-blocked-syncing"
             role="status"
           >
@@ -257,10 +288,21 @@ export function WheelBlockedDialog({
                 onClose();
                 onRetrySpin();
               }}
-              className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+              className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-800 hover:bg-cyan-500/20 dark:text-cyan-100 disabled:opacity-50"
             >
               {t("wheelBlocked.retrySpin")}
             </button>
+          ) : null}
+
+          {showLeadTimeLink ? (
+            <Link
+              href="/settings/trains#lead-time"
+              onClick={onClose}
+              className="inline-flex justify-center rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              data-testid="trains-wheel-blocked-lead-time"
+            >
+              {t("wheelBlocked.goToLeadTimeSettings")}
+            </Link>
           ) : null}
 
           {showSyncRoster ? (
@@ -295,7 +337,7 @@ export function WheelBlockedDialog({
             >
               {busy
                 ? t("wheelBlocked.reseedAndRespinBusy")
-                : t("wheelBlocked.reseedAndRespin")}
+                : t(reseedLabelKey)}
             </button>
           ) : null}
         </div>

@@ -1,4 +1,5 @@
 import type { SystemRoleName } from "@/lib/rbac/constants";
+import { hybridLeadershipInviteRoleForRank } from "@/lib/native-alliance/invite-rank-exceptions.shared";
 
 export type InviteWizardType = "invite_link" | "join_code" | "commander_claim";
 
@@ -14,6 +15,8 @@ export type InviteWizardTargets = {
   inviteRole: SystemRoleName | "";
   inviteAdminLabel: string;
   inviteRedirectPath: string;
+  /** Optional unclaimed commander to bind on an invite_link (hybrid officer+claim). */
+  inviteLinkCommanderId: string;
   joinCodeRole: SystemRoleName;
   joinCodeMaxUses: string;
   joinCodeLabel: string;
@@ -32,7 +35,7 @@ export type InviteWizardResultInvite = {
   kind: "invite_link";
   inviteUrl: string;
   welcomeUrl: string;
-  welcomeUrlRequiresAllianceTag: false;
+  welcomeUrlRequiresAllianceTag: boolean;
   passphrase?: string;
   shareMessage: string;
 };
@@ -91,6 +94,7 @@ export function defaultInviteWizardTargets(
     inviteRole: defaultRole,
     inviteAdminLabel: "",
     inviteRedirectPath: "",
+    inviteLinkCommanderId: "",
     joinCodeRole: defaultRole,
     joinCodeMaxUses: String(JOIN_CODE_DEFAULT_MAX_USES[defaultRole] ?? 10),
     joinCodeLabel: "",
@@ -104,4 +108,11 @@ export function defaultInviteWizardTargets(
 export function isValidInviteEmail(value: string): boolean {
   const trimmed = value.trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
+/** Hybrid leadership+claim role from in-game rank (R4→officer, R5→owner). */
+export function resolveOfficerHybridInviteRole(
+  allianceRank: number | null | undefined,
+): SystemRoleName | null {
+  return hybridLeadershipInviteRoleForRank(allianceRank);
 }

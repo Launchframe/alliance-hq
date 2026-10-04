@@ -1,15 +1,42 @@
 import "server-only";
 
-import { and, asc, eq, gte, isNull, lte } from "drizzle-orm";
-import { nanoid } from "nanoid";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or } from "drizzle-orm";
 
-import {
-  serializeTimeOffEntry,
-  type TimeOffEntryPayload,
-} from "@/lib/time-off/api.shared";
+import { serializeTimeOffEntry } from "@/lib/time-off/api.shared";
 import type { SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
+import { isTimeOffDate } from "./workflow.shared";
 import { getDb, schema } from "@/lib/db";
 import { getMonthKey, monthEndFromKey } from "@/lib/trains/game-time";
+
+export async function listTimeOffRoster(allianceId: string) {
+  return getDb().select({ id: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName })
+    .from(schema.allianceMembers)
+    .where(and(eq(schema.allianceMembers.allianceId, allianceId), ne(schema.allianceMembers.status, "former")))
+    .orderBy(asc(schema.allianceMembers.currentName));
+}
+
+export async function listOwnTimeOffPage(input: {
+  allianceId: string;
+  ownedCommanderIds: string[];
+  today: string;
+  history: boolean;
+  page: number;
+  pageSize?: number;
+}) {
+  const pageSize = Math.max(1, Math.min(input.pageSize ?? 25, 25));
+  if (input.ownedCommanderIds.length === 0) return { entries: [], hasMore: false };
+  const rows = await getDb().select().from(schema.memberTimeOff)
+    .where(and(
+      eq(schema.memberTimeOff.allianceId, input.allianceId),
+      inArray(schema.memberTimeOff.ashedMemberId, input.ownedCommanderIds),
+      input.history
+        ? or(lt(schema.memberTimeOff.endDate, input.today), isNotNull(schema.memberTimeOff.cancelledAt))
+        : and(gte(schema.memberTimeOff.endDate, input.today), isNull(schema.memberTimeOff.cancelledAt)),
+    ))
+    .orderBy(input.history ? desc(schema.memberTimeOff.updatedAt) : asc(schema.memberTimeOff.startDate), asc(schema.memberTimeOff.id))
+    .limit(pageSize + 1).offset(input.page * pageSize);
+  return { entries: rows.slice(0, pageSize).map(serializeTimeOffEntry), hasMore: rows.length > pageSize };
+}
 
 export async function listActiveTimeOffEntries(input: {
   allianceId: string;
@@ -78,58 +105,6 @@ export async function findActiveTimeOffForMemberOnDate(input: {
   return rows[0] ? serializeTimeOffEntry(rows[0]) : null;
 }
 
-export async function createTimeOffEntry(input: {
-  allianceId: string;
-  payload: TimeOffEntryPayload;
-  createdByHqUserId?: string | null;
-  createdByDiscordUserId?: string | null;
-}) {
-  const now = new Date();
-  const [row] = await getDb()
-    .insert(schema.memberTimeOff)
-    .values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      ashedMemberId: input.payload.ashedMemberId.trim(),
-      memberName: input.payload.memberName.trim(),
-      startDate: input.payload.startDate,
-      endDate: input.payload.endDate,
-      notes: input.payload.notes?.trim() || null,
-      availability: input.payload.availability ?? "full_away",
-      entryKind: input.payload.entryKind ?? "planned",
-      source: input.payload.source ?? "web",
-      createdByHqUserId: input.createdByHqUserId ?? null,
-      createdByDiscordUserId: input.createdByDiscordUserId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  return row!;
-}
-
-export async function cancelTimeOffEntry(input: {
-  allianceId: string;
-  entryId: string;
-}) {
-  const [row] = await getDb()
-    .update(schema.memberTimeOff)
-    .set({
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.memberTimeOff.id, input.entryId),
-        eq(schema.memberTimeOff.allianceId, input.allianceId),
-        isNull(schema.memberTimeOff.cancelledAt),
-      ),
-    )
-    .returning();
-
-  return row ?? null;
-}
-
 export async function listUnexpectedAbsenceReport(input: {
   allianceId: string;
   asOfDate: string;
@@ -173,7 +148,7 @@ export function resolveMonthKeyFromQuery(
   month: string | null | undefined,
   today: string,
 ): string {
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
+  if (month && /^\d{4}-\d{2}$/.test(month) && isTimeOffDate(`${month}-01`)) {
     return month;
   }
   return getMonthKey(today);
@@ -183,17 +158,20 @@ export async function listLinkedCommanderIdsForHqUser(input: {
   allianceId: string;
   hqUserId: string;
 }): Promise<string[]> {
-  const rows = await getDb()
-    .select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId })
-    .from(schema.hqMemberLinks)
-    .where(
-      and(
-        eq(schema.hqMemberLinks.allianceId, input.allianceId),
-        eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
-      ),
-    );
-
-  return rows.map((row) => row.ashedMemberId);
+  const db = getDb();
+  const [legacy, commanders] = await Promise.all([
+    db.select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId }).from(schema.hqMemberLinks)
+      .where(and(eq(schema.hqMemberLinks.allianceId, input.allianceId), eq(schema.hqMemberLinks.hqUserId, input.hqUserId))),
+    db.select({ ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId }).from(schema.hqUserCommanders)
+      .innerJoin(schema.commanderAllianceMemberships, eq(schema.commanderAllianceMemberships.commanderId, schema.hqUserCommanders.commanderId))
+      .where(and(
+        eq(schema.hqUserCommanders.hqUserId, input.hqUserId),
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        eq(schema.commanderAllianceMemberships.status, "active"),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      )),
+  ]);
+  return [...new Set([...legacy, ...commanders].map((row) => row.ashedMemberId))];
 }
 
 export async function hqUserOwnsCommander(input: {
@@ -201,19 +179,7 @@ export async function hqUserOwnsCommander(input: {
   hqUserId: string;
   ashedMemberId: string;
 }): Promise<boolean> {
-  const [row] = await getDb()
-    .select({ id: schema.hqMemberLinks.id })
-    .from(schema.hqMemberLinks)
-    .where(
-      and(
-        eq(schema.hqMemberLinks.allianceId, input.allianceId),
-        eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
-        eq(schema.hqMemberLinks.ashedMemberId, input.ashedMemberId),
-      ),
-    )
-    .limit(1);
-
-  return row != null;
+  return (await listLinkedCommanderIdsForHqUser(input)).includes(input.ashedMemberId);
 }
 
 export async function findOverlappingEntries(input: {

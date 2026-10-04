@@ -66,7 +66,7 @@ describe("buildSubmitPayloads", () => {
       target,
       "alliance-1",
       { recordedDate: "2026-06-14" },
-      [{ memberId: "m1", memberName: "Bob", score: "1750" }],
+      [{ memberId: "m1", memberName: "Bob", score: "1750", frontlineStage: 5 }],
       "seasonal-ev-1",
     );
     expect(rows[0]).toEqual({
@@ -77,6 +77,8 @@ describe("buildSubmitPayloads", () => {
       score: 1750,
       recorded_date: "2026-06-14",
     });
+    expect(rows[0]).not.toHaveProperty("frontlineStage");
+    expect(rows[0]).not.toHaveProperty("stage");
   });
 
   it("builds VSScore rows with competition_id matching recorded date", () => {

@@ -8,11 +8,17 @@ import {
   normalizeDigitsOnlyComponent,
   normalizeGeometryLines,
   parseDigitsOnlyComponent,
+  parseDigitsOnlyComponentCandidates,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
+  resolveUniqueBreakdownFromCandidates,
   zipLabelsToValues,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
-import { sumThpBreakdown } from "@/lib/thp/breakdown.shared";
+import {
+  matchThpLabel,
+  sumThpBreakdown,
+  THP_BREAKDOWN_KEYS,
+} from "@/lib/thp/breakdown.shared";
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 
 /**
@@ -50,19 +56,174 @@ describe("parseDigitsOnlyValue", () => {
     expect(normalizeDigitsOnlyComponent("974081080")).toBe(9_408_080);
     expect(normalizeDigitsOnlyComponent("17051707")).toBe(7_051_707);
     expect(normalizeDigitsOnlyComponent("65811990")).toBe(6_581_990);
+    expect(normalizeDigitsOnlyComponent("17979827025")).toBe(179_982_025);
   });
 
   it("parseDigitsOnlyHeaderTotalLoose recovers one extra header digit", () => {
     expect(parseDigitsOnlyHeaderTotalLoose("1665817498")).toBe(166_581_498);
+    expect(parseDigitsOnlyHeaderTotalLoose("17979827025")).toBe(179_982_025);
+    expect(parseDigitsOnlyHeaderTotalLoose("1797979304")).toBe(179_979_304);
+    expect(parseDigitsOnlyHeaderTotalLoose("17979795304")).toBe(179_979_304);
+    expect(parseDigitsOnlyHeaderTotalLoose("1797979260")).toBe(179_979_260);
   });
 
   it("parseDigitsOnlyHeaderTotalLoose accepts clean 9-digit header totals", () => {
     expect(parseDigitsOnlyHeaderTotalLoose("166581498")).toBe(166_581_498);
   });
 
+  it("parseDigitsOnlyComponentCandidates enumerates separator-slot repairs", () => {
+    const max = 200_000_000;
+    expect(parseDigitsOnlyComponentCandidates("913461688", max)).toContain(
+      91_346_688,
+    );
+    expect(parseDigitsOnlyComponentCandidates("417691945", max)).toContain(
+      41_691_945,
+    );
+    expect(parseDigitsOnlyComponentCandidates("1476443134", max)).toContain(
+      14_644_134,
+    );
+    expect(parseDigitsOnlyComponentCandidates("1192314314", max)).toContain(
+      11_231_314,
+    );
+    expect(parseDigitsOnlyComponentCandidates("733347628", max)).toContain(
+      7_334_628,
+    );
+    expect(parseDigitsOnlyComponentCandidates("619401820", max)).toContain(
+      6_940_820,
+    );
+    expect(parseDigitsOnlyComponentCandidates("67895775", max)).toContain(
+      6_789_775,
+    );
+  });
+
+  it("resolveUniqueBreakdownFromCandidates accepts one exact full combination", () => {
+    const candidates = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [key, [2]]),
+    );
+    const resolved = resolveUniqueBreakdownFromCandidates({
+      candidates,
+      headerTotal: 14,
+    });
+    expect(resolved).not.toBeNull();
+    expect(THP_BREAKDOWN_KEYS.every((key) => resolved![key] === 2)).toBe(true);
+  });
+
+  it("resolveUniqueBreakdownFromCandidates rejects ambiguous and impossible totals", () => {
+    const ambiguous = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [key, [1, 2]]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates: ambiguous,
+        headerTotal: 8,
+      }),
+    ).toBeNull();
+
+    const exact = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [key, [1, 2]]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates: exact,
+        headerTotal: 100,
+      }),
+    ).toBeNull();
+  });
+
+  it("resolveUniqueBreakdownFromCandidates breaks ambiguity only by unique vote lead", () => {
+    const candidates = {
+      heroLevel: [2, 3],
+      decorationsAndBuildings: [3, 2],
+      gear: [1],
+      exclusiveWeapons: [1],
+      heroTier: [1],
+      heroSkill: [1],
+      wallOfHonor: [1],
+    };
+
+    const winner = resolveUniqueBreakdownFromCandidates({
+      candidates,
+      headerTotal: 10,
+      support: {
+        heroLevel: new Map([
+          [2, 5],
+          [3, 1],
+        ]),
+        decorationsAndBuildings: new Map([
+          [3, 1],
+          [2, 1],
+        ]),
+      },
+    });
+    expect(winner).not.toBeNull();
+    expect(winner?.heroLevel).toBe(2);
+    expect(winner?.decorationsAndBuildings).toBe(3);
+
+    const tied = resolveUniqueBreakdownFromCandidates({
+      candidates,
+      headerTotal: 10,
+      support: {
+        heroLevel: new Map([
+          [2, 5],
+          [3, 5],
+        ]),
+        decorationsAndBuildings: new Map([
+          [3, 5],
+          [2, 5],
+        ]),
+      },
+    });
+    expect(tied).toBeNull();
+  });
+
+  it("resolveUniqueBreakdownFromCandidates fails closed when too many combinations sum", () => {
+    const values = [10, 11, 12, 13, 14, 15, 16, 17];
+    const candidates = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [key, values]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal: 98,
+      }),
+    ).toBeNull();
+    const support = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [
+        key,
+        new Map(values.map((value) => [value, 1])),
+      ]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal: 98,
+        support,
+      }),
+    ).toBeNull();
+  });
+
+  it("resolveUniqueBreakdownFromCandidates returns null when suffix bounds exclude the total", () => {
+    const candidates = Object.fromEntries(
+      THP_BREAKDOWN_KEYS.map((key) => [key, [1_000_000, 2_000_000]]),
+    );
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal: 100_000_000,
+      }),
+    ).toBeNull();
+    expect(
+      resolveUniqueBreakdownFromCandidates({
+        candidates,
+        headerTotal: 100,
+      }),
+    ).toBeNull();
+  });
+
   it("parseDigitsOnlyHeaderTotalLoose returns null when no header can be recovered", () => {
     expect(parseDigitsOnlyHeaderTotalLoose("123")).toBeNull();
     expect(parseDigitsOnlyHeaderTotalLoose("164376153505")).toBeNull();
+    expect(parseDigitsOnlyHeaderTotalLoose("179797573841")).toBeNull();
   });
 });
 
@@ -70,6 +231,7 @@ describe("label guards", () => {
   it("detects OCR-noisy hero header and modal title lines", () => {
     expect(isHeroPowerHeaderLabel("(BJ [HerolPower")).toBe(true);
     expect(isHeroPowerHeaderLabel("HerolPower")).toBe(true);
+    expect(isHeroPowerHeaderLabel("(B)[Heidenkampfkraft")).toBe(true);
     expect(isPowerDetailsModalTitle("POWER DETH")).toBe(true);
     expect(isPowerDetailsModalTitle("POWER DETAILS")).toBe(true);
   });
@@ -182,6 +344,39 @@ describe("zipLabelsToValues + assembleGeometryParse", () => {
     expect(parsed.pairedCount).toBe(7);
   });
 
+  it("does not synthesize a total from component rows when the header is missing", () => {
+    const keys = [
+      "heroLevel",
+      "decorationsAndBuildings",
+      "gear",
+      "exclusiveWeapons",
+      "heroTier",
+      "heroSkill",
+      "wallOfHonor",
+    ] as const;
+    const labels = [
+      "Hero Level",
+      "Decorations & Building Stats",
+      "Gear",
+      "Exclusive Weapon",
+      "Hero Tier",
+      "Hero Skill",
+      "Wall of Honor",
+    ];
+    const pairs = keys.map((key, index) => ({
+      label: labels[index]!,
+      valueText: "1000000",
+      key,
+      value: 1_000_000,
+      yNorm: 0.1 + index * 0.1,
+    }));
+
+    const parsed = assembleGeometryParse({ pairs, headerTotal: null });
+
+    expect(parsed.heroPowerTotal).toBeNull();
+    expect(parsed.complete).toBe(false);
+  });
+
   it("does not consume a value row for unknown OCR label garbage", () => {
     const cropHeight = 1000;
     const labels = normalizeGeometryLines(
@@ -231,6 +426,37 @@ describe("zipLabelsToValues + assembleGeometryParse", () => {
     expect(pairs.map((p) => p.key)).toEqual(["heroLevel", "gear"]);
     expect(pairs[0]?.value).toBe(87_659_312);
     expect(pairs[1]?.value).toBe(13_190_850);
+  });
+
+  it("coalesces German same-key wrapped labels", () => {
+    const merged = coalesceLabelLines([
+      { text: "Dekorationen und", yNorm: 0.3, yCenterPx: 300 },
+      { text: "Gebäudestatistiken", yNorm: 0.33, yCenterPx: 330 },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.text).toBe("Dekorationen und Gebäudestatistiken");
+    expect(matchThpLabel(merged[0]!.text)).toBe("decorationsAndBuildings");
+    expect(merged[0]?.yNorm).toBeCloseTo(0.315, 3);
+  });
+
+  it("does not coalesce same-key labels a row apart or different components", () => {
+    const far = coalesceLabelLines([
+      { text: "Dekorationen und", yNorm: 0.2, yCenterPx: 200 },
+      { text: "Gebäudestatistiken", yNorm: 0.4, yCenterPx: 400 },
+    ]);
+    expect(far.map((line) => line.text)).toEqual([
+      "Dekorationen und",
+      "Gebäudestatistiken",
+    ]);
+
+    const distinct = coalesceLabelLines([
+      { text: "Gear", yNorm: 0.4, yCenterPx: 400 },
+      { text: "Exclusive Weapon", yNorm: 0.43, yCenterPx: 430 },
+    ]);
+    expect(distinct.map((line) => line.text)).toEqual([
+      "Gear",
+      "Exclusive Weapon",
+    ]);
   });
 
   it("coalesces split decorations label at row midpoint yNorm", () => {

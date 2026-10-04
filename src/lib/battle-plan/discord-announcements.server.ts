@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
@@ -111,6 +111,21 @@ export async function processPreCaptureAnnouncements(): Promise<{
     }
 
     for (const event of events) {
+      const claimed = await db
+        .update(schema.battlePlanCaptureEvents)
+        .set({ discordAnnouncedAt: now })
+        .where(
+          and(
+            eq(schema.battlePlanCaptureEvents.id, event.id),
+            isNull(schema.battlePlanCaptureEvents.discordAnnouncedAt),
+          ),
+        )
+        .returning({ id: schema.battlePlanCaptureEvents.id });
+      if (claimed.length === 0) {
+        skipped += channels.length;
+        continue;
+      }
+
       const minutesAway = Math.round(
         (event.scheduledAt.getTime() - now.getTime()) / 60_000,
       );
@@ -125,16 +140,23 @@ export async function processPreCaptureAnnouncements(): Promise<{
 
       const message = `🏰 We take the ${parts.join(" ")}`;
 
+      let eventPosted = 0;
       for (const channelId of channels) {
         const ok = await postDiscordChannelMessage(channelId, message);
-        if (ok) posted++;
-        else skipped++;
+        if (ok) {
+          posted++;
+          eventPosted++;
+        } else {
+          skipped++;
+        }
       }
 
-      await db
-        .update(schema.battlePlanCaptureEvents)
-        .set({ discordAnnouncedAt: now })
-        .where(eq(schema.battlePlanCaptureEvents.id, event.id));
+      if (eventPosted === 0) {
+        await db
+          .update(schema.battlePlanCaptureEvents)
+          .set({ discordAnnouncedAt: null })
+          .where(eq(schema.battlePlanCaptureEvents.id, event.id));
+      }
     }
   }
 
@@ -216,16 +238,43 @@ export async function processBankProtectionAnnouncements(): Promise<{
       const advice = depositTermAdvice(hoursRemaining);
       const message = advice ? `${timerLine}\n${advice}` : timerLine;
 
-      for (const channelId of channels) {
-        const ok = await postDiscordChannelMessage(channelId, message);
-        if (ok) posted++;
-        else skipped++;
-      }
-
-      await db
+      const claimed = await db
         .update(schema.banks)
         .set({ discordProtectionLastMilestone: milestone })
-        .where(eq(schema.banks.id, bank.id));
+        .where(
+          and(
+            eq(schema.banks.id, bank.id),
+            // Only claim when this milestone is strictly newer than last.
+            or(
+              isNull(schema.banks.discordProtectionLastMilestone),
+              gt(schema.banks.discordProtectionLastMilestone, milestone),
+            ),
+          ),
+        )
+        .returning({ id: schema.banks.id });
+      if (claimed.length === 0) {
+        skipped += channels.length;
+        continue;
+      }
+
+      let bankPosted = 0;
+      for (const channelId of channels) {
+        const ok = await postDiscordChannelMessage(channelId, message);
+        if (ok) {
+          posted++;
+          bankPosted++;
+        } else {
+          skipped++;
+        }
+      }
+
+      if (bankPosted === 0) {
+        // Restore prior milestone so the next cron can retry this warning.
+        await db
+          .update(schema.banks)
+          .set({ discordProtectionLastMilestone: lastMilestone })
+          .where(eq(schema.banks.id, bank.id));
+      }
     }
   }
 

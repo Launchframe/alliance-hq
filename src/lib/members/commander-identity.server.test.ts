@@ -118,9 +118,20 @@ import {
   syncCommanderFromAllianceMember,
   syncCommanderIdentityFromMemberLink,
   upsertCommanderFromLink,
+  upsertCommanderAllianceMembership,
 } from "@/lib/members/commander-identity.server";
 
 describe("commander-identity.server", () => {
+  it.each([false, true])("preserves continuous membership start but renews a returning stint, rejoining=%s", async (rejoining) => {
+    const joinedAt = new Date("2026-01-01T00:00:00Z");
+    mockState.selectResults = [[{ status: "active" }], [{ id: "membership", joinedAt, leftAt: rejoining ? new Date("2026-02-01T00:00:00Z") : null, status: rejoining ? "former" : "active" }], []];
+    await upsertCommanderAllianceMembership({ commanderId: "commander", allianceId: "alliance", ashedMemberId: "same-roster-id" });
+    const write = mockState.updatedMemberships.find((row) => row.ashedMemberId === "same-roster-id")!;
+    expect(write.leftAt).toBeNull();
+    expect(write.status).toBe("active");
+    if (rejoining) expect((write.joinedAt as Date).getTime()).toBeGreaterThan(joinedAt.getTime());
+    else expect(write.joinedAt).toEqual(joinedAt);
+  });
   beforeEach(() => {
     mockState.selectResults = [];
     mockState.selectCallIndex = 0;
@@ -245,6 +256,102 @@ describe("commander-identity.server", () => {
       allianceId: "alliance-a",
       ashedMemberId: "member-ghost",
     });
+  });
+
+  it("adopts a stale Ashed id instead of blocking a roster row that already exists", async () => {
+    const member = {
+      currentName: "UncleRichAtomic",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [member],
+      [],
+      [],
+      [{ gameServerNumber: 100 }],
+      [],
+      [{ commander: { id: "cmd-stale" }, ashedMemberId: "stale-id" }],
+      [],
+      [member],
+      [member],
+      [{ id: "cam-reattached" }],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-live",
+    });
+
+    expect(result.status).toBe("synced");
+    expect(mockState.updatedMemberships).toContainEqual(
+      expect.objectContaining({ ashedMemberId: "member-live" }),
+    );
+    expect(mockState.updatedMemberships).not.toContainEqual(
+      expect.objectContaining({ commanderSyncStatus: "name_conflict" }),
+    );
+  });
+
+  it("keeps a name conflict when another live roster member owns the name", async () => {
+    const member = {
+      currentName: "UncleRichAtomic",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [member],
+      [],
+      [],
+      [{ gameServerNumber: 100 }],
+      [],
+      [{ commander: { id: "cmd-other" }, ashedMemberId: "other-live" }],
+      [{ currentName: "Uncle Rich", status: "active" }],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-live",
+    });
+
+    expect(result).toMatchObject({
+      status: "deferred",
+      reason: "name_conflict",
+      conflict: { existingMemberName: "Uncle Rich" },
+    });
+  });
+
+  it("does not raise a name conflict when this roster row is already linked", async () => {
+    const member = {
+      currentName: "UncleRichAtomic",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [member],
+      [],
+      [],
+      [{ gameServerNumber: 100 }],
+      [{ commanderId: "cmd-linked" }],
+      [{ commander: { id: "cmd-stale" }, ashedMemberId: "stale-id" }],
+      [member],
+      [member],
+      [],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-live",
+    });
+
+    expect(result.status).toBe("synced");
+    expect(mockState.updatedCommanders).not.toContainEqual(
+      expect.objectContaining({ primaryName: "UncleRichAtomic" }),
+    );
+    expect(mockState.updatedCommanders).not.toContainEqual(
+      expect.objectContaining({ gameUid: null }),
+    );
+    expect(mockState.updatedMemberships).not.toContainEqual(
+      expect.objectContaining({ commanderSyncStatus: "name_conflict" }),
+    );
   });
 
   it("syncCommanderFromAllianceMember defers when game server is unset", async () => {

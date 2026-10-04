@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { swapConductors } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
@@ -7,7 +8,10 @@ import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -38,6 +42,24 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       dateA,
       dateB,
+    });
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.conductor_swap",
+      severity: "update",
+      resourceType: "train_conductor_record",
+      resourceId: `${ctx.allianceId}:${dateA}:${dateB}`,
+      metadata: {
+        dateA,
+        dateB,
+        records: records.map((record) => ({
+          date: record.date,
+          conductorMemberId: record.conductorMemberId,
+          conductorMemberName: record.conductorMemberName,
+        })),
+      },
     });
     return NextResponse.json({ records });
   } catch (error) {

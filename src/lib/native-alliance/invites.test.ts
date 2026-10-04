@@ -11,6 +11,12 @@ import {
 
 vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds: vi.fn().mockResolvedValue(new Set<string>()),
+  getDiscordLinkByAllianceAndMember: vi.fn().mockResolvedValue(null),
+  getDiscordHqLink: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkByAllianceAndMember: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/db", async (importOriginal) => {
@@ -77,8 +83,12 @@ describe("createHqInvite", () => {
     expect(insertValues).toHaveBeenCalled();
   });
 
-  it("rejects commander claim targets for non-member roles", async () => {
+  it("allows officer invites with an optional commander claim target", async () => {
+    const insertValues = vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+    });
     let selectCalls = 0;
+    vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set());
     vi.mocked(getDb).mockReturnValue({
       select: vi.fn(() => {
         selectCalls += 1;
@@ -88,26 +98,32 @@ describe("createHqInvite", () => {
         if (selectCalls === 2) {
           return dbSelectChain([{ id: "alliance-1" }]);
         }
+        if (selectCalls === 3) {
+          return dbSelectChain([
+            { currentName: "RoarR4", status: "active" },
+          ]);
+        }
         throw new Error(`unexpected select call ${selectCalls}`);
       }),
       insert: vi.fn(() => ({
-        values: vi.fn(() => ({
-          onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
-        })),
+        values: insertValues,
       })),
     } as never);
 
-    await expect(
-      createHqInvite({
-        allianceId: "alliance-1",
-        kind: "protected_link",
-        roleName: "officer",
-        invitedByHqUserId: "user-1",
-        origin: "https://hq.test",
-        targetAshedMemberId: "m-1",
-      }),
-    ).rejects.toThrow("Invalid invite role.");
-    expect(getLinkedMemberIds).not.toHaveBeenCalled();
+    const result = await createHqInvite({
+      allianceId: "alliance-1",
+      kind: "protected_link",
+      roleName: "officer",
+      invitedByHqUserId: "user-1",
+      origin: "https://hq.test",
+      targetAshedMemberId: "m-1",
+    });
+
+    expect(result.roleName).toBe("officer");
+    expect(result.targetAshedMemberId).toBe("m-1");
+    expect(result.targetCommanderName).toBe("RoarR4");
+    expect(getLinkedMemberIds).toHaveBeenCalledWith("alliance-1");
+    expect(insertValues).toHaveBeenCalled();
   });
 
   it("rejects claim invites for commanders already linked through any account", async () => {

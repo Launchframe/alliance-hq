@@ -1,48 +1,91 @@
 import "server-only";
 
+import { addCalendarDays } from "@/lib/trains/game-time";
 import { loadAllianceRow } from "@/lib/members/game-roster";
-import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
-import { getDayConfig, getWeekSchedule } from "@/lib/trains/repository";
-import { generateDayConfigForDate } from "@/lib/trains/templates";
+import { listDayConfigsForWeek } from "@/lib/trains/repository";
+import { resolveWeekFillTemplateResolver } from "@/lib/trains/rules/week-template-resolve.server";
+import { templateRulesForDate } from "@/lib/trains/rules/template-days.shared";
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
-import type {
-  ConductorMechanismType,
-  DayConfigInput,
-  VipMechanismType,
-  WeekTemplateType,
-} from "@/lib/trains/types";
+import {
+  PROVISIONAL_DAY_CONFIG_ID_PREFIX,
+  resolveWeekDisplayDayConfigs,
+} from "@/lib/trains/week-schedule-day-configs.shared";
+import type { DayConfigInput } from "@/lib/trains/types";
 
 export type ResolvedRollDayConfig = DayConfigInput & {
   dayConfigId: string | null;
-  paintTemplate?: WeekTemplateType | null;
 };
 
 async function trainWeekStartForAlliance(
   allianceId: string,
   date: string,
+  db?: Parameters<typeof loadAllianceRow>[1],
 ): Promise<string> {
-  const row = await loadAllianceRow(allianceId);
+  const row = await loadAllianceRow(allianceId, db);
   return getTrainWeekStart(date, allianceTrainWeekFromRow(row ?? {}));
 }
 
-export async function resolveAnchorTemplateType(
+/**
+ * Same merge as the week strip / dashboard: persisted rows plus preset fill
+ * for gaps. Use for rolls, leaderboards, and score stats — not only raw
+ * `getDayConfig` rows.
+ */
+export async function resolveDisplayMergedDayConfigForDate(
   allianceId: string,
+  date: string,
   seasonKey: string,
-): Promise<WeekTemplateType> {
-  const today = getServerCalendarDate();
-  const weekStart = await trainWeekStartForAlliance(allianceId, today);
-  const anchorSchedule = await getWeekSchedule(
+  options?: {
+    db?: import("@/lib/trains/repository").TrainsDb;
+    updateSeason?: boolean;
+  },
+): Promise<ResolvedRollDayConfig> {
+  const weekStart = await trainWeekStartForAlliance(allianceId, date, options?.db);
+  const weekEnd = addCalendarDays(weekStart, 6);
+  const templateForDate = await resolveWeekFillTemplateResolver(
+    allianceId,
+    [...weekDatesInTrainWeek(weekStart), date],
+    seasonKey,
+    undefined,
+    options,
+  );
+  const dayConfigRows = await listDayConfigsForWeek(
     allianceId,
     weekStart,
-    seasonKey,
+    weekEnd,
+    options?.db,
   );
-  return (anchorSchedule?.templateType ?? "vs_push_week") as WeekTemplateType;
+  const merged = resolveWeekDisplayDayConfigs(
+    weekStart,
+    templateForDate,
+    dayConfigRows,
+  );
+  const day = merged.find((row) => row.date === date);
+  if (!day) {
+    // Outside the display week (lead time can reach back a day).
+    const template = templateForDate(date);
+    const rules = templateRulesForDate(template.days, date);
+    return {
+      date,
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
+      sourceTemplateId: template.id,
+      dayConfigId: null,
+    };
+  }
+
+  return {
+    date: day.date,
+    conductorRule: day.conductorRule,
+    vipRule: day.vipRule,
+    sourceTemplateId: day.sourceTemplateId,
+    dayConfigId: day.id.startsWith(PROVISIONAL_DAY_CONFIG_ID_PREFIX)
+      ? null
+      : day.id,
+  };
 }
 
 /** Match month/week schedule previews when a day has no persisted config row yet. */
@@ -50,45 +93,15 @@ export async function resolveRollDayConfig(
   allianceId: string,
   date: string,
   seasonKey: string,
+  options?: {
+    db?: import("@/lib/trains/repository").TrainsDb;
+    updateSeason?: boolean;
+  },
 ): Promise<ResolvedRollDayConfig> {
-  const stored = await getDayConfig(allianceId, date);
-  if (stored) {
-    const paintTemplate = paintTemplateFromConductorConfig(stored.conductorConfig);
-    const isDayOverride = stored.isOverride === 1;
-    const conductorMechanism = isDayOverride
-      ? (stored.conductorMechanism as ConductorMechanismType)
-      : (effectiveConductorMechanism(
-          stored.conductorMechanism,
-          paintTemplate,
-          date,
-        ) ?? (stored.conductorMechanism as ConductorMechanismType));
-    return {
-      date: stored.date,
-      conductorMechanism,
-      conductorConfig: stored.conductorConfig as DayConfigInput["conductorConfig"],
-      vipMechanism: (stored.vipMechanism ?? "none") as VipMechanismType,
-      vipConfig: stored.vipConfig as DayConfigInput["vipConfig"],
-      dayConfigId: stored.id,
-      paintTemplate,
-    };
-  }
-
-  const weekStart = await trainWeekStartForAlliance(allianceId, date);
-  const weekSchedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  const anchorTemplate = await resolveAnchorTemplateType(allianceId, seasonKey);
-  const templateType = (weekSchedule?.templateType ??
-    anchorTemplate) as WeekTemplateType;
-  const generated = generateDayConfigForDate(templateType, date, weekStart);
-  const paintTemplate = resolvePaintTemplateForDay(templateType, date, weekStart);
-
-  const generatedConfig =
-    generated.conductorConfig && typeof generated.conductorConfig === "object"
-      ? (generated.conductorConfig as Record<string, unknown>)
-      : {};
-  return {
-    ...generated,
-    conductorConfig: { ...generatedConfig, paintTemplate },
-    dayConfigId: null,
-    paintTemplate,
-  };
+  return resolveDisplayMergedDayConfigForDate(
+    allianceId,
+    date,
+    seasonKey,
+    options,
+  );
 }

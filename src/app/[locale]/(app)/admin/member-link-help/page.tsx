@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { adminScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { MemberLinkHelpRequestsClient } from "@/components/members/MemberLinkHelpRequestsClient";
 import { listMemberLinkHelpRequestsForAdmin } from "@/lib/member-link/member-link-help-queue.server";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("memberLinkHelpRequests");
-  return { title: t("adminTitle") };
+  return adminScopedMetadata(t("adminTitle"));
 }
 
 export default async function AdminMemberLinkHelpPage() {

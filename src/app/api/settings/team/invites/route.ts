@@ -29,7 +29,7 @@ const bodySchema = z
   .object({
     kind: z.enum(["email", "protected_link"]).default("protected_link"),
     email: z.string().trim().email().optional(),
-    roleName: z.enum(["officer", "data_entry", "viewer", "member"]),
+    roleName: z.enum(["owner", "officer", "data_entry", "viewer", "member"]),
     redirectPath: z.string().trim().max(512).optional(),
     adminLabel: z.string().trim().max(120).optional(),
     targetAshedMemberId: z.string().trim().min(1).max(64).optional(),
@@ -67,7 +67,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName);
+    await assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName, {
+      allianceId: access.allianceId,
+      targetAshedMemberId: body.targetAshedMemberId,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Forbidden" },
@@ -78,9 +81,10 @@ export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
 
   try {
-    // Commander claims use a single-use join code (paste after Discord /link),
-    // not a second invite hyperlink + passphrase.
-    if (body.targetAshedMemberId) {
+    // Member + commander target → single-use claim join code (DM paste).
+    // Privileged role + optional commander → invite link (passphrase in URL)
+    // so officer invites can also bind a roster claim.
+    if (body.targetAshedMemberId && body.roleName === "member") {
       const joinCode = await createAllianceJoinCode({
         allianceId: access.allianceId,
         roleName: "member",
@@ -119,6 +123,7 @@ export async function POST(request: Request) {
       origin,
       redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
       adminLabel: body.adminLabel,
+      targetAshedMemberId: body.targetAshedMemberId,
     });
 
     const alliance = await loadAllianceInviteShareContext(access.allianceId);
@@ -127,6 +132,7 @@ export async function POST(request: Request) {
       allianceName: alliance.allianceName,
       inviteUrl: invite.inviteUrl,
       passphrase: invite.passphrase,
+      embedPassphraseInUrl: true,
     });
 
     return NextResponse.json({

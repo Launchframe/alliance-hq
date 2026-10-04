@@ -6,8 +6,16 @@ import {
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
 import { withBankDepositCommitLock } from "@/lib/banks/bank-deposit-commit-lock.server";
+import {
+  findHistoricalDepositMatch,
+  shouldSkipHistoricalDepositDuplicate,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
 import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
-import { createDepositSlip } from "@/lib/banks/repository.server";
+import {
+  createDepositSlip,
+  listDepositSlipsForBank,
+} from "@/lib/banks/repository.server";
+import type { DepositStatus } from "@/lib/banks/types.shared";
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   requireBankAllianceContext,
@@ -55,6 +63,50 @@ export async function POST(request: Request) {
           };
         }
 
+        // Same advisory lock as OCR commits: reject history duplicates so a
+        // double-submit (or manual create after OCR) cannot insert a second
+        // slip the video path would have skipped.
+        const existingSlips = await listDepositSlipsForBank(
+          allianceId,
+          payload.bankId,
+        );
+        const history = existingSlips.map((slip) => ({
+          id: slip.id,
+          commanderName: slip.commanderName,
+          depositAt:
+            slip.depositAt instanceof Date
+              ? slip.depositAt.toISOString()
+              : String(slip.depositAt),
+          amount: slip.amount,
+          termDays: slip.termDays,
+          depositAllianceTag: slip.depositAllianceTag,
+          status: slip.status as DepositStatus,
+          allianceMemberId: slip.allianceMemberId ?? null,
+          outcomeAt:
+            slip.outcomeAt == null
+              ? null
+              : slip.outcomeAt instanceof Date
+                ? slip.outcomeAt.toISOString()
+                : String(slip.outcomeAt),
+        }));
+        const incoming = {
+          commanderName: payload.commanderName,
+          depositAt: payload.depositAt,
+          amount: payload.amount,
+          termDays: payload.termDays,
+          depositAllianceTag: payload.depositAllianceTag ?? null,
+          status: (payload.status ?? "locked") as DepositStatus,
+          outcomeAt: payload.outcomeAt ?? null,
+          allianceMemberId: payload.allianceMemberId ?? null,
+        };
+        const historicalMatch = findHistoricalDepositMatch(incoming, history);
+        if (
+          historicalMatch &&
+          shouldSkipHistoricalDepositDuplicate(incoming, historicalMatch)
+        ) {
+          throw new Error("Duplicate deposit slip.");
+        }
+
         return createDepositSlip(allianceId, payload);
       },
     );
@@ -65,7 +117,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error.";
-    const status = message === "Bank not found." ? 404 : 400;
+    const status =
+      message === "Bank not found."
+        ? 404
+        : message === "Duplicate deposit slip."
+          ? 409
+          : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }

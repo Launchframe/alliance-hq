@@ -32,8 +32,8 @@ const allianceSeasonSelect = {
 
 export async function loadAllianceSeasonRow(
   allianceId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<AllianceSeasonRow | null> {
-  const db = getDb();
   const [row] = await db
     .select(allianceSeasonSelect)
     .from(schema.alliances)
@@ -44,8 +44,9 @@ export async function loadAllianceSeasonRow(
 
 export async function getEffectiveSeasonForAlliance(
   allianceId: string,
+  db?: Parameters<typeof loadAllianceSeasonRow>[1],
 ): Promise<EffectiveSeason> {
-  const row = await loadAllianceSeasonRow(allianceId);
+  const row = await loadAllianceSeasonRow(allianceId, db);
   if (!row) {
     return {
       seasonKey: "1",
@@ -207,6 +208,7 @@ export async function applyGameServerSeasonSync(
         updatedAt: now,
       })
       .where(eq(schema.gameServers.id, gameServerId));
+    await syncShinySpawnWeekdaysForGameServer(gameServerId, openTs);
     await mirrorServerSeasonToAlliances(gameServerId, {
       currentSeasonKey: resolved.seasonKey,
       seasonKeySynced: resolved.seasonKey,

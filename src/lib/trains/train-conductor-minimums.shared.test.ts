@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertConductorMinimumOverrideQualification,
+  buildConductorMinimumsDataStatus,
   buildMemberQualification,
   effectiveMinimum,
   evaluationPeriodForTrainDate,
+  evaluationPeriodHasUploadedVsScores,
   minimumsEnforcementEnabled,
   minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
@@ -52,12 +54,36 @@ describe("train-conductor-minimums", () => {
         minimumsEnabled: true,
       }),
     ).toBe(true);
-    // Season HQ VR minimums apply even when prior-day VS is not required
-    // (e.g. Monday / economy week with Sunday break).
+    // VS minimums apply to r3/heavy_hitter pools when enabled (score source is
+    // Ashed VS for the evaluation window, not season VR).
     expect(
       conductorQualificationGateApplies({
         poolType: "r3",
         minimumsEnabled: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("skips conductor minimums off Price Is Freight paints", () => {
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      }),
+    ).toBe(false);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        rule: { kind: "price_is_freight", board: "weekday" },
+      }),
+    ).toBe(true);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "heavy_hitter",
+        minimumsEnabled: true,
+        rule: { kind: "price_is_freight", board: "heavy_hitter" },
       }),
     ).toBe(true);
   });
@@ -71,6 +97,21 @@ describe("train-conductor-minimums", () => {
     expect(
       evaluationPeriodForTrainDate("2026-06-18", "weekly"),
     ).toEqual({ start: "2026-06-09", end: "2026-06-15" });
+  });
+
+  it("aligns daily PIF evaluation with VS score reference date under lead time", () => {
+    expect(
+      evaluationPeriodForTrainDate("2026-06-10", "daily", undefined, {
+        leadDays: 1,
+        rule: { kind: "price_is_freight", board: "weekday" },
+      }),
+    ).toEqual({ start: "2026-06-08", end: "2026-06-08" });
+    expect(
+      evaluationPeriodForTrainDate("2026-06-10", "daily", undefined, {
+        leadDays: 0,
+        rule: { kind: "price_is_freight", board: "weekday" },
+      }),
+    ).toEqual({ start: "2026-06-09", end: "2026-06-09" });
   });
 
   it("daily evaluation uses prior calendar day", () => {
@@ -122,6 +163,34 @@ describe("train-conductor-minimums", () => {
     expect(
       minimumsEnforcementEnabled(normalizeTrainMinimumsSettings({})),
     ).toBe(false);
+  });
+
+  it("evaluationPeriodHasUploadedVsScores is false for empty maps", () => {
+    expect(evaluationPeriodHasUploadedVsScores(new Map())).toBe(false);
+    expect(
+      evaluationPeriodHasUploadedVsScores(new Map([["m1", 0]])),
+    ).toBe(true);
+  });
+
+  it("buildConductorMinimumsDataStatus flags missing VS for PIF daily minimums", () => {
+    const settings = normalizeTrainMinimumsSettings({
+      minVsPoints: 7_200_000,
+      window: "daily",
+    });
+    const status = buildConductorMinimumsDataStatus({
+      settings,
+      trainDate: "2026-08-28",
+      rule: { kind: "price_is_freight", board: "weekday" },
+      leadDays: 1,
+      vsScoreCount: 0,
+    });
+    expect(status?.missingVsScores).toBe(true);
+    expect(status?.uploadScoreDate).toBe(
+      evaluationPeriodForTrainDate("2026-08-28", "daily", undefined, {
+        leadDays: 1,
+        rule: { kind: "price_is_freight", board: "weekday" },
+      }).start,
+    );
   });
 
   it("minimumsSettingsForHqLocalEval clears donation threshold without HQ ledger", () => {
