@@ -5779,18 +5779,18 @@
       "sandboxActive": "**Modo sandbox** — este relatório de VR é apenas prática e não conta no placar ao vivo."
     },
     "thp": {
-      "notLinked": "Primeiro, execute `/link-commander` no Discord para vincular seu personagem; depois informe o THP com `/thp total:163460435` ou anexe uma captura da tela Power Details.",
+      "notLinked": "Primeiro, execute `/link-commander` no Discord para vincular seu personagem; depois informe o THP com `/thp total` ou `/thp screenshot` (tela Power Details).",
       "pickCharacter": "Para qual personagem é este THP?",
       "success": "{name} -- poder total de heróis {total}. Isso é um aumento de {delta} no poder nos últimos {window}.",
       "successFirst": "{name} -- poder total de heróis {total}.",
       "windowDay": "1 dia",
       "windowDays": "{count} dias",
-      "usage": "Informe o THP com `/thp total:163460435` ou anexe uma captura da tela Power Details na opção `screenshot`.",
+      "usage": "Use `/thp total` (informe o número) ou `/thp screenshot` (envie a tela completa Power Details — não uma linha do ranking).",
       "unchanged": "Isso corresponde ao seu THP atual — nenhuma alteração salva.",
-      "declined": "Sem problemas. Envie `/thp` novamente quando estiver pronto.",
+      "declined": "Sem problemas. Execute `/thp total` ou `/thp screenshot` quando estiver pronto.",
       "anomalyConfirm": "Tem *certeza* de que seu THP total é {total}? Esse é um salto grande à frente do grupo. Toque Sim se for sério.",
       "ocrConfirm": "Li o poder total de heróis como **{total}**. Toque Sim para salvar, ou Não para cancelar.",
-      "ocrFailed": "Não foi possível ler essa captura. Tente uma imagem mais nítida da tela Power Details ou informe `/thp total:163460435` manualmente.",
+      "ocrFailed": "Não foi possível ler essa captura. Use a tela completa **Power Details** no jogo (não uma linha do ranking) ou informe o número com `/thp total`.",
       "ocrPartial": "Alguns valores foram difíceis de ler. Revise e corrija o detalhamento pré-preenchido abaixo.",
       "invalidTotal": "Informe um THP total válido entre 1 e 1.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."

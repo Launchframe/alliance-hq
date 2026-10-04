@@ -47,25 +47,46 @@ const vrLevelOption = {
   required: false,
 };
 
+/** Subcommands avoid Discord mobile bugs with optional attachment + optional integer on one command. */
 const thpOptions = [
   {
     name: "total",
-    description: "Total hero power from Power Details (optional)",
+    description: "Enter total hero power manually",
     description_localizations: {
-      "pt-BR": "Poder total de heróis na tela Power Details (opcional)",
+      "pt-BR": "Informar o poder total de heróis manualmente",
     },
-    type: 4,
-    min_value: 1,
-    required: false,
+    type: 1,
+    options: [
+      {
+        name: "value",
+        description: "Total hero power from Power Details",
+        description_localizations: {
+          "pt-BR": "Poder total de heróis na tela Power Details",
+        },
+        type: 4,
+        min_value: 1,
+        required: true,
+      },
+    ],
   },
   {
     name: "screenshot",
-    description: "Screenshot of your Power Details screen (optional)",
+    description: "Upload a Power Details screenshot",
     description_localizations: {
-      "pt-BR": "Captura da tela Power Details (opcional)",
+      "pt-BR": "Enviar captura da tela Power Details",
     },
-    type: 11,
-    required: false,
+    type: 1,
+    options: [
+      {
+        name: "image",
+        description: "Screenshot of your Power Details screen",
+        description_localizations: {
+          "pt-BR": "Captura da tela Power Details",
+        },
+        type: 11,
+        required: true,
+      },
+    ],
   },
 ];
 
@@ -735,10 +756,11 @@ function validateDiscordCommandDescriptions(commands) {
         check(`${cmdPath}.description_localizations.${locale}`, text);
       }
     }
-    const options = /** @type {Record<string, unknown>[] | undefined} */ (cmd.options);
-    if (options) {
+    /** @param {Record<string, unknown>[] | undefined} options @param {string} optionsPath */
+    function walkOptions(options, optionsPath) {
+      if (!options) return;
       for (const [index, option] of options.entries()) {
-        const optionPath = `${cmdPath}.options[${index}].${option.name ?? index}`;
+        const optionPath = `${optionsPath}[${index}].${option.name ?? index}`;
         check(`${optionPath}.description`, /** @type {string | undefined} */ (option.description));
         const optionLocs = /** @type {Record<string, string> | undefined} */ (
           option.description_localizations
@@ -748,8 +770,16 @@ function validateDiscordCommandDescriptions(commands) {
             check(`${optionPath}.description_localizations.${locale}`, text);
           }
         }
+        const nested = /** @type {Record<string, unknown>[] | undefined} */ (option.options);
+        if (nested?.length) {
+          walkOptions(nested, `${optionPath}.options`);
+        }
       }
     }
+    walkOptions(
+      /** @type {Record<string, unknown>[] | undefined} */ (cmd.options),
+      `${cmdPath}.options`,
+    );
   }
 
   for (const [index, command] of /** @type {Record<string, unknown>[]} */ (commands).entries()) {

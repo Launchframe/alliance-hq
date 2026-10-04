@@ -8,10 +8,8 @@ import {
   parseLanguageChoice,
   type DiscordBotLocale,
 } from "@/lib/discord/i18n";
-import {
-  downloadDiscordAttachment,
-  parseResolvedAttachment,
-} from "@/lib/discord/attachments";
+import { downloadDiscordAttachment } from "@/lib/discord/attachments";
+import { parseThpSlashInput } from "@/lib/discord/thp-slash-input";
 import { editDiscordOriginalInteraction, editDiscordOriginalInteractionWithFiles, sendDiscordFollowup } from "@/lib/discord/interaction-followup.server";
 import {
   DISCORD_PING_RESPONSE,
@@ -594,8 +592,7 @@ async function handleSlashCommand(
   }
 
   if (isDiscordThpSlashCommand(commandName)) {
-    const explicitTotal = parseSlashOptionInteger(payload, "total");
-    const attachment = parseResolvedAttachment(payload, "screenshot");
+    const { explicitTotal, attachment } = parseThpSlashInput(payload);
     const thpLabels = {
       yes: t("buttons.yes"),
       no: t("buttons.no"),
