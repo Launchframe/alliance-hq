@@ -2,12 +2,17 @@ import { config } from "dotenv";
 import postgres from "postgres";
 
 import { getDatabaseUrlFromProcessEnv } from "../lib/database-url.mjs";
+import { assertE2eDatabaseUrl } from "../e2e-database-url-guard.mjs";
 import { PRESET_TEMPLATE_SEEDS } from "./preset-template-seeds.mjs";
 
-config({ path: ".env" });
-config({ path: ".env.local" });
-if (process.env.NODE_ENV !== "production") {
-  config({ path: ".env.development.local" });
+if (process.env.HQ_E2E_ISOLATED !== "1") {
+  config({ path: ".env" });
+  config({ path: ".env.local" });
+  if (process.env.NODE_ENV !== "production") {
+    config({ path: ".env.development.local" });
+  }
+} else {
+  assertE2eDatabaseUrl(getDatabaseUrlFromProcessEnv());
 }
 
 /**
