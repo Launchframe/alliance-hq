@@ -93,10 +93,8 @@ describe("dispatchActivityBlockedAlert", () => {
 
   it("sends one localized message per recipient without touching the DB", async () => {
     const getDbSpy = vi.spyOn(dbModule, "getDb");
-    const result = await dispatchActivityBlockedAlert(
-      writeError(),
-      WINDOW_START,
-    );
+    const error = writeError();
+    const result = await dispatchActivityBlockedAlert(error, WINDOW_START);
 
     expect(result).toEqual({ sent: true, recipientCount: 2 });
     expect(getDbSpy).not.toHaveBeenCalled();
@@ -108,6 +106,8 @@ describe("dispatchActivityBlockedAlert", () => {
       "[Alliance HQ] Activity recording blocked a user action",
     );
     expect(enRequest.text).toContain("Incident:");
+    expect(enRequest.text).toContain("Log reference:");
+    expect(enRequest.text).toContain(error.incidentId);
     expect(enRequest.text).toContain("Action: thp.submitted");
     expect(enRequest.text).toContain("Failure category: constraint");
     expect(enRequest.text).toContain("Alert window: 2026-09-29T12:00:00.000Z");
@@ -117,6 +117,8 @@ describe("dispatchActivityBlockedAlert", () => {
       "[Alliance HQ] O registro de atividade bloqueou uma ação do usuário",
     );
     expect(ptRequest.text).toContain("Incidente:");
+    expect(ptRequest.text).toContain("Referência do log:");
+    expect(ptRequest.text).toContain(error.incidentId);
     expect(ptRequest.text).toContain("Ação: thp.submitted");
     expect(ptRequest.text).toContain("Categoria da falha: constraint");
   });
@@ -203,7 +205,7 @@ describe("dispatchActivityBlockedAlert", () => {
     await dispatchActivityBlockedAlert(error, WINDOW_START);
     const firstBody = sendMock.mock.calls[0][0].text;
     sendMock.mockClear();
-    await dispatchActivityBlockedAlert(writeError(), WINDOW_START);
+    await dispatchActivityBlockedAlert(error, WINDOW_START);
     expect(sendMock.mock.calls[0][0].text).toBe(firstBody);
   });
 
