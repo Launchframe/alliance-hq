@@ -189,7 +189,7 @@ export function AshedImportPanel({
                 void runImport("real");
               }}
             >
-              {t("leaderboardEvidence")}
+              {t("actualScoresImport")}
             </Button>
             <Button
               type="button"

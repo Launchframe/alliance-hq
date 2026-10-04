@@ -62,6 +62,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),
   "nav.otherEvents": seq("g", "n"),
+  "nav.eventResults": seq("g", "1"),
   "nav.zombieSiege": seq("g", "z"),
   "nav.dataManagement": seq("g", "a"),
   "nav.videoUpload": seq("g", "u"),

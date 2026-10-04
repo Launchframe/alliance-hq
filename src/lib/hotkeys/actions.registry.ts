@@ -374,6 +374,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/seasonal-events",
   },
   {
+    id: "nav.eventResults",
+    labelKey: "actions.nav.eventResults",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/events",
+    requiredPermission: "events:read",
+  },
+  {
     id: "nav.zombieSiege",
     labelKey: "actions.nav.zombieSiege",
     category: "navigation",
