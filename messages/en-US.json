@@ -8448,7 +8448,6 @@
     "weeklySubtitle": "Totals for each match day this week, with save reminders.",
     "dayLabel": "Day {day}",
     "openDay": "Open day",
-    "uploadComingSoon": "Bag photo upload is coming in the next update. Use Day view to enter counts manually for now.",
     "upload": {
       "hint": "Upload a full bag screenshot. We match item icons and read stack counts — review before saving.",
       "chooseImage": "Choose bag screenshot",

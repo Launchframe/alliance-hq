@@ -495,7 +495,7 @@ const ADMIN_SEQUENCE_KEYS = [
   "8",
   "9",
   "0",
-  "j",
+  "k",
   "a",
   "b",
   "c",

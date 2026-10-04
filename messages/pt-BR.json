@@ -8448,7 +8448,6 @@
     "weeklySubtitle": "Totais de cada dia de VS nesta semana, com lembretes do que guardar.",
     "dayLabel": "Dia {day}",
     "openDay": "Abrir dia",
-    "uploadComingSoon": "Envio de foto da mochila chega na próxima atualização. Use a aba Dia para digitar as quantidades por enquanto.",
     "upload": {
       "hint": "Envie uma captura da mochila inteira. Combinamos ícones e lemos as pilhas — revise antes de salvar.",
       "chooseImage": "Escolher captura da mochila",
