@@ -606,20 +606,11 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
   await expect(
     panel(page).getByText("Screenshot ready for review.", { exact: true }),
   ).toBeVisible({ timeout: 180_000 });
-  await expect
-    .poll(
-      async () => {
-        const ui = await panel(page)
-          .getByLabel("Opponent alliance name", { exact: true })
-          .inputValue();
-        if (ui === "TriVision") return ui;
-        const draft = (await evidenceRow(sql, job.jobId, f.allianceId))
-          ?.draft as { form?: { opponent?: { name?: string | null } } } | null;
-        return draft?.form?.opponent?.name ?? ui;
-      },
-      { timeout: 90_000 },
-    )
-    .toBe("TriVision");
+  await page.reload();
+  await expect(panel(page)).toBeVisible({ timeout: 30_000 });
+  await expect(
+    panel(page).getByLabel("Opponent alliance name", { exact: true }),
+  ).toHaveValue("TriVision", { timeout: 30_000 });
   await expect(page.getByTestId("vs-video-confirm-sides")).not.toBeChecked();
 
   const removeHold = await holdRoute(
