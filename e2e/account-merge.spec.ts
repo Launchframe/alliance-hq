@@ -1,6 +1,9 @@
 import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
+import enUS from "../messages/en-US.json";
+import ptBR from "../messages/pt-BR.json";
+
 import {
   cleanupSeededActivityEvents,
   seedActivityEvent,
@@ -282,6 +285,120 @@ test.describe("Account merge", () => {
     );
     expect(itemIds).not.toContain(otherOwned);
   });
+
+  for (const [locale, messages] of [
+    ["en-US", enUS],
+    ["pt-BR", ptBR],
+  ] as const) {
+    test(`confirm surfaces localized retryable error on identity race (${locale})`, async ({
+      page,
+    }) => {
+      const sql = getE2eSql();
+      const alliance = await createNativeAlliance(sql, {
+        tag: `MR${nanoid(3)}`,
+        name: "Merge Retry Alliance",
+      });
+      const email = `merge-retry-${nanoid(6)}@alliance-hq.test`;
+      const session = await createAuthenticatedHqSession(sql, email);
+      await createAllianceMembership(sql, {
+        hqUserId: session.hqUserId,
+        allianceId: alliance.allianceId,
+        roleName: "member",
+        source: "manual",
+      });
+      await createHqMemberLink(sql, {
+        allianceId: alliance.allianceId,
+        hqUserId: session.hqUserId,
+      });
+      await sql`
+        UPDATE sessions
+        SET current_alliance_id = ${alliance.allianceId}
+        WHERE id = ${session.sessionId}
+      `;
+
+      await page.context().addCookies(
+        playwrightAuthCookies({
+          sessionId: session.sessionId,
+          nextAuthToken: session.nextAuthToken,
+        }),
+      );
+
+      const sourceEmail = `merge-source-${nanoid(6)}@alliance-hq.test`;
+      const code = "424242";
+      const confirmBodies: { sourceEmail: string; code: string }[] = [];
+      let confirmCalls = 0;
+
+      await page.route(
+        "**/api/user/account-merge/request-source-proof",
+        (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ok: true }),
+          }),
+      );
+      await page.route("**/api/user/account-merge/preview", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ preview: { alliances: [] } }),
+        }),
+      );
+      await page.route("**/api/user/account-merge/confirm", (route) => {
+        confirmCalls += 1;
+        confirmBodies.push(route.request().postDataJSON());
+        return route.fulfill({
+          status: confirmCalls === 1 ? 409 : 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            confirmCalls === 1 ? { error: "identity_changed" } : { ok: true },
+          ),
+        });
+      });
+
+      const prefix = locale === "pt-BR" ? "/pt-BR" : "";
+      await page.goto(`${prefix}/settings/account`);
+
+      await page
+        .getByLabel(messages.accountSecurity.consolidateSourceEmailLabel)
+        .fill(sourceEmail);
+      await page
+        .getByRole("button", {
+          name: messages.accountSecurity.consolidateSendCode,
+        })
+        .click();
+      await page
+        .getByLabel(messages.accountSecurity.consolidateCodeLabel)
+        .fill(code);
+      await page
+        .getByRole("button", {
+          name: messages.accountSecurity.consolidateReview,
+        })
+        .click();
+
+      const confirmButton = page.getByRole("button", {
+        name: messages.accountSecurity.consolidateConfirm,
+      });
+      await confirmButton.click();
+      await expect(
+        page.getByText(messages.activity.saveBlocked, { exact: true }),
+      ).toBeVisible();
+      await expect(confirmButton).toBeEnabled();
+
+      await confirmButton.click();
+      await expect(
+        page.getByText(messages.accountSecurity.consolidateSuccess, {
+          exact: true,
+        }),
+      ).toBeVisible();
+
+      expect(confirmCalls).toBe(2);
+      expect(confirmBodies).toEqual([
+        { sourceEmail, code },
+        { sourceEmail, code },
+      ]);
+    });
+  }
 
   test("settings page exposes combine accounts UI", async ({ page }) => {
     const sql = getE2eSql();
