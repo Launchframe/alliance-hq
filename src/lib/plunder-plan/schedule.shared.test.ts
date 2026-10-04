@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandPlan, occurrenceIsAway, parsePlanSchedule, resolvePlanClock } from "./schedule.shared";
+import { expandPlan, occurrenceIsAway, parsePlanSchedule, parsePlanWeekdays, resolvePlanClock, normalizePlanClockTime } from "./schedule.shared";
 
 const weekly = { kind: "weekly", date: "2026-01-01", days: [0, 2], start: "20:00", end: "21:00", endsNextDay: false, zone: "America/New_York" };
 
@@ -43,5 +43,15 @@ describe("Plunder Plan recurrence", () => {
   it("bounds range expansion and rejects inverted or invalid ranges", () => {
     const schedule = parsePlanSchedule(weekly);
     for (const [start, end] of [["2026-01-01", "2027-01-01"], ["2026-02-01", "2026-01-01"], ["bad", "bad"]]) expect(() => expandPlan(schedule, start, end)).toThrow("invalidSchedule");
+  });
+  it("strips seconds from HTML time values", () => {
+    expect(normalizePlanClockTime("09:30:00")).toBe("09:30");
+    expect(normalizePlanClockTime("09:30")).toBe("09:30");
+    expect(normalizePlanClockTime("25:00")).toBeNull();
+  });
+  it("accepts numeric weekdays and locale leading tokens", () => {
+    expect(parsePlanWeekdays("1, 3", "en-US")).toEqual([1, 3]);
+    expect(parsePlanWeekdays("segunda", "pt-BR")).toEqual([1]);
+    expect(parsePlanWeekdays("segunda-feira", "pt-BR")).toEqual([1]);
   });
 });

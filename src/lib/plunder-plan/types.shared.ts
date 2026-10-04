@@ -1,6 +1,6 @@
 import type { PlanSchedule, PlanOccurrence, ScheduleErrorCode } from "./schedule.shared";
 
-export type PlanErrorCode = ScheduleErrorCode | "forbidden" | "linkRequired" | "commanderUnavailable" | "invalidColor" | "duplicate" | "stale" | "notFound" | "expired" | "channel" | "load" | "save" | "rateLimit";
+export type PlanErrorCode = ScheduleErrorCode | "forbidden" | "linkRequired" | "guildNotRegistered" | "notificationsRequired" | "commanderUnavailable" | "invalidColor" | "duplicate" | "stale" | "notFound" | "expired" | "channel" | "load" | "save" | "rateLimit";
 export class PlunderPlanError extends Error {
   constructor(readonly code: PlanErrorCode, readonly status = 400) { super(code); }
 }

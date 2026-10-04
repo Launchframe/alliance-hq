@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  handlePerformanceNoteMemberModal,
   handlePerformanceNoteSlash,
   handlePerformanceReasonModal,
 } from "@/lib/performance-notes/discord-handlers.server";
@@ -29,14 +30,21 @@ vi.mock("@/lib/vr/member-roster", () => ({
 }));
 
 import { callerCanRunVrReport } from "@/lib/vr/bot-officer-auth";
-import { createPerformanceNote } from "@/lib/performance-notes/repository.server";
-import { saveDiscordBotPending } from "@/lib/vr/repository";
+import {
+  createPerformanceNote,
+  getPerformanceNoteForAlliance,
+} from "@/lib/performance-notes/repository.server";
+import { getAllianceById, saveDiscordBotPending } from "@/lib/vr/repository";
+import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 
 describe("handlePerformanceNoteSlash", () => {
   beforeEach(() => {
     vi.mocked(callerCanRunVrReport).mockReset();
     vi.mocked(createPerformanceNote).mockReset();
     vi.mocked(saveDiscordBotPending).mockReset();
+    vi.mocked(getPerformanceNoteForAlliance).mockReset();
+    vi.mocked(getAllianceById).mockReset();
+    vi.mocked(loadAllianceMembersForBot).mockReset();
   });
 
   it("rejects non-officers", async () => {
@@ -96,5 +104,41 @@ describe("handlePerformanceNoteSlash", () => {
     expect(createPerformanceNote).not.toHaveBeenCalled();
     expect(handleDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "a1", discordUserId: "d1", payload: expect.objectContaining({ id: "interaction-one", type: 2 }) }));
     expect(result).toEqual({ type: "message", content: "Review this private draft" });
+  });
+
+  it("offers Try again and Nevermind when the typed name misses the roster", async () => {
+    vi.mocked(callerCanRunVrReport).mockResolvedValue(true);
+    vi.mocked(getPerformanceNoteForAlliance).mockResolvedValue({
+      id: "note-1",
+    } as Awaited<ReturnType<typeof getPerformanceNoteForAlliance>>);
+    vi.mocked(getAllianceById).mockResolvedValue({ tag: "LFgo" } as Awaited<
+      ReturnType<typeof getAllianceById>
+    >);
+    vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
+      { id: "m1", current_name: "Cookie" },
+    ]);
+    const result = await handlePerformanceNoteMemberModal({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+      pending: { kind: "perf_note_attach", noteId: "note-1" },
+      memberName: "Apollo",
+    });
+    expect(result).toMatchObject({
+      type: "message",
+      content: "No roster match for Apollo.",
+    });
+    if (result.type === "message") {
+      expect(result.components?.[0]?.components).toEqual([
+        expect.objectContaining({
+          custom_id: "note:another:yes",
+          label: "Try again",
+        }),
+        expect.objectContaining({
+          custom_id: "note:another:no",
+          label: "Nevermind",
+        }),
+      ]);
+    }
   });
 });

@@ -7,9 +7,9 @@ import { PlanScheduleError } from "@/lib/plunder-plan/schedule.shared";
 
 export const dynamic = "force-dynamic";
 
-async function failure(error: unknown) {
+async function failure(error: unknown, fallback: "load" | "save") {
   const t = await getTranslations("plunderPlan");
-  const code = error instanceof PlunderPlanError || error instanceof PlanScheduleError ? error.code : "save";
+  const code = error instanceof PlunderPlanError || error instanceof PlanScheduleError ? error.code : fallback;
   const status = error instanceof PlunderPlanError ? error.status : error instanceof PlanScheduleError ? 400 : 500;
   return NextResponse.json({ code, error: t(`errors.${code}`) }, { status });
 }
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const from = url.searchParams.get("from") ?? new Date().toISOString();
     const until = url.searchParams.get("until") ?? new Date(Date.now() + 8 * 86_400_000).toISOString();
     return NextResponse.json(await loadPlunderPlan(actor, from, until));
-  } catch (error) { return failure(error); }
+  } catch (error) { return failure(error, "load"); }
 }
 
 export async function POST(request: Request) {
@@ -32,5 +32,5 @@ export async function POST(request: Request) {
     let command: unknown;
     try { command = JSON.parse(text); } catch { throw new PlunderPlanError("invalidSchedule"); }
     return NextResponse.json(await mutatePlunderPlan(actor, command));
-  } catch (error) { return failure(error); }
+  } catch (error) { return failure(error, "save"); }
 }

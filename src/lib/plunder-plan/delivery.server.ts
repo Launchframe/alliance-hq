@@ -58,7 +58,7 @@ async function candidates(tx: PlanTx, allianceId: string, now: Date): Promise<Ca
       if (content.length + line.length > 1600) break;
       content += `\n${line}`; included++;
     }
-    if (included < today.length) content += `\n${t("plunderPlan.morePlans", { count: today.length - included })}`;
+    if (included < today.length) content += `\n${t("plunderPlan.notifications.digestOverflow", { count: today.length - included })}`;
     content += `\n${t("plunderPlan.notifications.open")}: ${buildDiscordBotAppUrl(locale, "/plunder-plan")}`;
     result.push({ kind: "digest", recipientId: setting.guildId, occurrenceKey: day, dueAt, expiresAt: new Date(nextDay), content, target: { guildId: setting.guildId, channelId: setting.channelId } });
   }
@@ -69,7 +69,33 @@ export async function materializePlunderDeliveries(allianceId: string, now = new
   return getDb().transaction(async (tx) => {
     await lockPlans(tx, allianceId);
     const due = await candidates(tx, allianceId, now);
-    for (const { kind, recipientId, occurrenceKey, dueAt, expiresAt } of due) await tx.insert(schema.plunderPlanDeliveries).values({ id: nanoid(), allianceId, kind, recipientId, occurrenceKey, dueAt, expiresAt }).onConflictDoNothing();
+    for (const { kind, recipientId, occurrenceKey, dueAt, expiresAt } of due) {
+      await tx.insert(schema.plunderPlanDeliveries).values({
+        id: nanoid(),
+        allianceId,
+        kind,
+        recipientId,
+        occurrenceKey,
+        dueAt,
+        expiresAt,
+      }).onConflictDoUpdate({
+        target: [
+          schema.plunderPlanDeliveries.allianceId,
+          schema.plunderPlanDeliveries.kind,
+          schema.plunderPlanDeliveries.recipientId,
+          schema.plunderPlanDeliveries.occurrenceKey,
+        ],
+        set: {
+          dueAt,
+          expiresAt,
+          status: "pending",
+          attempts: 0,
+          leaseToken: null,
+          leaseUntil: null,
+        },
+        setWhere: eq(schema.plunderPlanDeliveries.status, "cancelled"),
+      });
+    }
     await tx.update(schema.plunderPlanState).set({ nextTickAt: new Date(now.getTime() + MINUTE) }).where(eq(schema.plunderPlanState.allianceId, allianceId));
     return due.length;
   });

@@ -65,6 +65,7 @@ export async function loadCommanderIndex(
         currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
         mainSquad: schema.commanders.mainSquad,
         mainSquadSource: schema.commanders.mainSquadSource,
+        country: schema.commanders.lastrankCountry,
       })
       .from(schema.commanderAllianceMemberships)
       .innerJoin(
@@ -120,6 +121,7 @@ export async function loadCommanderIndex(
       highestBaseVr: row.highestBaseVr,
       hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
       oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
+      country: stats?.country ?? null,
     };
   });
 

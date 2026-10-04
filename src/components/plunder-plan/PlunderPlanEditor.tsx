@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { expandPlan, parsePlanSchedule, PlanScheduleError, type PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
 import type { PlanSummary } from "@/lib/plunder-plan/types.shared";
+import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 
 const inputClass = "w-full rounded border border-hq-border bg-hq-canvas p-2 text-hq-fg";
 export function PlunderPlanEditor({ initial, commanders, suggestion, source, zone, date, busy, discordLinked, onSave }: {
@@ -25,7 +26,7 @@ export function PlunderPlanEditor({ initial, commanders, suggestion, source, zon
   const patch = (update: Partial<PlanSchedule>) => setSchedule((current) => ({ ...current, ...update }));
   const format = (iso: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: schedule.zone }).format(new Date(iso));
   return <form className="space-y-4" onSubmit={async (event) => {
-    event.preventDefault();
+    preventDefaultFormSubmit(event);
     if (preview.error) return;
     await onSave(initial ? { action: "edit", id: initial.id, expectedVersion: initial.version, schedule, reminder } : { action: "create", kind: suggestion ? "suggestion" : "plan", ...(suggestion ? {} : { memberId }), ...(source ? { sourceId: source.id, sourceVersion: source.version } : {}), schedule, reminder: !suggestion && reminder });
   }}>

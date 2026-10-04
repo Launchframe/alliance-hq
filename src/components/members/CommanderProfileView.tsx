@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import { CountryFlag } from "@/components/members/CountryFlag";
 import {
   MemberCommendationCards,
   MemberViolationCards,
@@ -113,7 +114,10 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">{member.currentName}</h1>
+          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">
+            {member.currentName}
+            <CountryFlag code={member.country} locale={locale} />
+          </h1>
           <p className="mt-1 text-sm text-hq-fg-muted">
             {t("allianceContext", {
               tag: alliance.tag ?? alliance.slug,
@@ -144,8 +148,8 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
             size="md"
           />
           <div className="min-w-0">
-            <p className="truncate text-lg font-medium text-hq-fg">
-              {member.currentName}
+            <p className="flex min-w-0 items-center gap-2 truncate text-lg font-medium text-hq-fg">
+              <span className="truncate">{member.currentName}</span>
             </p>
             <p className="truncate text-sm text-hq-fg-muted">
               {member.gameUid
