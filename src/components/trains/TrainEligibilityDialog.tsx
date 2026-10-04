@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Info } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
 import { Dialog } from "@/components/ui/dialog";
+import { Link } from "@/i18n/navigation";
+import { formatEventScore } from "@/lib/hq-events/workspace.shared";
+import type { EventEligibilityPreview } from "@/lib/trains/event-eligibility.shared";
 import { poolUsesSequenceDraw } from "@/lib/trains/pool-draw-mode.shared";
 import {
   poolResetConfirmActionKey,
@@ -63,6 +66,10 @@ type PoolPayload = {
   priorGenerations?: PriorGenerationSnapshot[];
   restorePreviousGeneration?: RestorePreviousGenerationInfo | null;
   eventContext?: EventPoolContext | null;
+  /** event_scores day rules return the eligibility preview instead of a pool. */
+  eventEligibility?: EventEligibilityPreview;
+  /** Legacy event_top_x days point officers at the event picker instead. */
+  requiresEventSelection?: boolean;
   error?: string;
 };
 
@@ -77,6 +84,20 @@ export type EligibilityPickMember = {
 };
 
 type MemberTab = "eligible" | "chosen";
+
+const EVENT_KIND_BADGE_KEY: Record<string, string> = {
+  real: "leaderboardEvidence",
+  yes_only: "pollYes",
+  explicit_no: "pollNo",
+  legacy_leaderboard: "legacyLeaderboard",
+  conflict: "conflictingEvidence",
+  none: "noEvidence",
+};
+
+const EVENT_EXCLUSION_LABEL_KEY: Record<string, string> = {
+  unavailable: "excludedTimeOff",
+  locked_conductor: "excludedLockedConductor",
+};
 
 type Props = {
   open: boolean;
@@ -145,6 +166,8 @@ export function TrainEligibilityDialog({
 }: Props) {
   const t = useTranslations("trains.poolDetails");
   const tRoot = useTranslations("trains");
+  const tEvent = useTranslations("eventEvidence");
+  const locale = useLocale();
   const [poolSwitch, setPoolSwitch] = useState<PoolType | null>(null);
   const [memberTab, setMemberTab] = useState<MemberTab>("eligible");
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,6 +208,7 @@ export function TrainEligibilityDialog({
           });
           if (activePoolType === "event_top_x" && trainDate) {
             params.set("date", trainDate);
+            if (activeOption?.role) params.set("role", activeOption.role);
           }
           const res = await fetch(`/api/trains/pool?${params.toString()}`);
           const body = (await res.json()) as PoolPayload;
@@ -212,7 +236,7 @@ export function TrainEligibilityDialog({
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-  }, [activePoolType, open, reloadNonce, t, trainDate]);
+  }, [activeOption?.role, activePoolType, open, reloadNonce, t, trainDate]);
 
   const handleClose = useCallback(() => {
     setPoolSwitch(null);
@@ -281,6 +305,9 @@ export function TrainEligibilityDialog({
   }, [payload?.eventContext, t]);
 
   const showEventScores = activePoolType === "event_top_x";
+  const eventPreview = payload?.eventEligibility ?? null;
+  const requiresEventSelection = Boolean(payload?.requiresEventSelection);
+  const showEventPreview = eventPreview != null || requiresEventSelection;
   const usesSequenceDraw =
     activePoolType != null && poolUsesSequenceDraw(activePoolType);
 
@@ -363,7 +390,7 @@ export function TrainEligibilityDialog({
             {eventContextLine ? (
               <p className="mt-2 text-sm text-hq-fg-muted">{eventContextLine}</p>
             ) : null}
-            {payload && showPoolList ? (
+            {payload?.summary && showPoolList && !showEventPreview ? (
               <p className="mt-1 text-sm text-hq-fg-muted">
                 {t("summaryLine", {
                   remaining: payload.summary.remaining,
@@ -377,7 +404,7 @@ export function TrainEligibilityDialog({
             ) : null}
           </div>
 
-          {priorGenerations.length > 0 ? (
+          {priorGenerations.length > 0 && !showEventPreview ? (
             <div
               className="max-h-[min(28vh,12rem)] overflow-y-auto rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2"
               data-testid="trains-eligibility-prior-generations"
@@ -468,7 +495,7 @@ export function TrainEligibilityDialog({
             </div>
           ) : null}
 
-          {showPoolList ? (
+          {showPoolList && !showEventPreview ? (
             <div
               className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
               role="tablist"
@@ -515,7 +542,10 @@ export function TrainEligibilityDialog({
             </div>
           ) : null}
 
-          {showPoolList && !loading && filteredEntries.length > 0 ? (
+          {showPoolList &&
+          !showEventPreview &&
+          !loading &&
+          filteredEntries.length > 0 ? (
             <label className="block">
               <span className="sr-only">{t("searchLabel")}</span>
               <input
@@ -535,7 +565,123 @@ export function TrainEligibilityDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {showPoolList ? (
+          {showPoolList && showEventPreview ? (
+            <>
+              {loading ? (
+                <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
+              ) : null}
+
+              {fetchError ? (
+                <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
+                  {fetchError}
+                </p>
+              ) : null}
+
+              {!loading && requiresEventSelection ? (
+                <div
+                  className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                  data-testid="trains-eligibility-event-unbound"
+                >
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    {tEvent("eventNotSelected")}
+                  </p>
+                </div>
+              ) : null}
+
+              {!loading &&
+              eventPreview &&
+              !eventPreview.eligibility.ok ? (
+                <div
+                  className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                  data-testid="trains-eligibility-event-not-ready"
+                >
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    {eventPreview.eligibility.reason === "unbound"
+                      ? tEvent("eventNotSelected")
+                      : tEvent("pendingEvidence")}
+                  </p>
+                  {eventPreview.sourceIdentity.occurrenceId ? (
+                    <div className="mt-2">
+                      <Link
+                        href={`/events/${eventPreview.sourceIdentity.occurrenceId}`}
+                        className="inline-flex rounded-md border border-hq-border px-2.5 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas"
+                      >
+                        {tEvent("reviewEvent")}
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {!loading && eventPreview?.eligibility.ok ? (
+                <div
+                  className="space-y-2"
+                  data-testid="trains-eligibility-event-preview"
+                >
+                  <p className="text-sm font-medium text-hq-fg">
+                    {tEvent("eligibilitySummary", {
+                      count: eventPreview.eligibility.drawableCount,
+                    })}
+                  </p>
+                  {eventPreview.eligibility.drawableCount > 0 ? (
+                    <p className="text-xs text-hq-fg-muted">
+                      {tEvent("uniformOdds", {
+                        count: eventPreview.eligibility.drawableCount,
+                      })}
+                    </p>
+                  ) : null}
+                  {eventPreview.eligibility.cutoff.applied &&
+                  eventPreview.eligibility.cutoff.tieExpanded > 0 ? (
+                    <p className="text-xs text-hq-fg-muted">
+                      {tEvent("tiedCutoff", {
+                        count: eventPreview.eligibility.candidates.length,
+                      })}
+                    </p>
+                  ) : null}
+                  {eventPreview.eligibility.shortBoard ? (
+                    <p className="text-xs text-hq-fg-muted">
+                      {tEvent("shortBoard", {
+                        count: eventPreview.eligibility.scoredBoardSize,
+                      })}
+                    </p>
+                  ) : null}
+                  {Object.entries(
+                    eventPreview.eligibility.exclusionReasons,
+                  ).map(([reason, count]) =>
+                    EVENT_EXCLUSION_LABEL_KEY[reason] ? (
+                      <p key={reason} className="text-xs text-hq-fg-muted">
+                        {tEvent(EVENT_EXCLUSION_LABEL_KEY[reason])}: {count}
+                      </p>
+                    ) : null,
+                  )}
+                  <ul className="space-y-1.5">
+                    {eventPreview.eligibility.candidates.map((candidate) => (
+                      <li
+                        key={candidate.memberId}
+                        className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-hq-border bg-hq-canvas/60 px-3 py-2"
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-sm font-medium text-hq-fg">
+                            {candidate.memberName ?? candidate.memberId}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-hq-surface-muted px-1.5 py-0.5 text-[10px] text-hq-fg-muted">
+                            {tEvent(
+                              EVENT_KIND_BADGE_KEY[candidate.evidenceKind] ??
+                                "noEvidence",
+                            )}
+                          </span>
+                        </span>
+                        <span className="shrink-0 font-mono text-sm tabular-nums text-hq-fg-muted">
+                          {formatEventScore(candidate.eventScore, locale) ??
+                            "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          ) : showPoolList ? (
             <>
               {loading ? (
                 <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
@@ -713,7 +859,7 @@ export function TrainEligibilityDialog({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            {restoreAvailable && !restoreConfirm ? (
+            {restoreAvailable && !restoreConfirm && !showEventPreview ? (
               <button
                 type="button"
                 disabled={footerBusy}
@@ -730,7 +876,7 @@ export function TrainEligibilityDialog({
               </button>
             ) : null}
 
-            {canResetPool && onResetPool ? (
+            {canResetPool && onResetPool && !showEventPreview ? (
               resetConfirm ? (
                 <div className="flex w-full flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
                   <p className="text-sm text-hq-fg">

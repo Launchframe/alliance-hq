@@ -17,7 +17,11 @@ export async function generateMetadata() {
 }
 
 type Props = {
-  searchParams: Promise<{ date?: string; scoresReady?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    scoresReady?: string;
+    eventId?: string;
+  }>;
 };
 
 export default async function TrainsPage({ searchParams }: Props) {
@@ -30,6 +34,7 @@ export default async function TrainsPage({ searchParams }: Props) {
     <TrainsDashboard
       initial={initial}
       initialSelectedDate={parseTrainsHubDateParam(sp.date)}
+      initialEventId={sp.eventId?.trim() || null}
       initialScoresReady={parseTrainsScoresReadyParam(sp.scoresReady)}
     />
   );

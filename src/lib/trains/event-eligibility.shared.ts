@@ -59,6 +59,53 @@ export type EventEligibilityInput = {
   emptyBoardConfirmed: boolean;
 };
 
+/** Serialized preview row — one drawable member. Scores stay decimal strings. */
+export type EventEligibilityCandidateDto = {
+  memberId: string;
+  memberName: string | null;
+  eventScore: string | null;
+  stage: number | null;
+  evidenceKind: string;
+};
+
+/** Serialized `previewEventEligibility` result (GET/POST event-eligibility). */
+export type EventEligibilityPreview = {
+  fingerprint: string | null;
+  sourceIdentity: EventEligibilitySourceIdentity;
+  readyRevisions: { boardId: string; readyVersion: number }[];
+  eligibility:
+    | { ok: false; reason: "unbound" | "not_ready" }
+    | {
+        ok: true;
+        candidates: EventEligibilityCandidateDto[];
+        groupCounts: Record<string, number>;
+        exclusionReasons: Record<string, number>;
+        excluded?: { memberId: string; memberName: string | null; reason: string }[];
+        cutoff: {
+          applied: boolean;
+          score: string | null;
+          stage: number | null;
+          tieExpanded: number;
+        };
+        shortBoard: boolean;
+        scoredBoardSize: number;
+        drawableCount: number;
+        fallback: {
+          available: boolean;
+          requiresAcknowledgement: boolean;
+          count: number;
+        };
+        /** Yes-respondent member ids — internal draw pool, not for display. */
+        fallbackCandidates: string[];
+      };
+  /** Bound board revisions at preview time (receipt payload). */
+  boardRevisions: {
+    boardId: string;
+    evidenceVersion: number;
+    readyVersion: number | null;
+  }[];
+};
+
 export type EventEligibilityGroups = {
   real: number;
   legacy: number;

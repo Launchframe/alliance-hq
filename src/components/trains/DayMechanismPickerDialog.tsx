@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { EventRulePicker } from "@/components/trains/EventRulePicker";
 import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
 import { RulePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import { Dialog } from "@/components/ui/dialog";
@@ -14,6 +15,7 @@ import {
   vipRuleLabelKey,
   type ConductorRule,
   type DayRulePatch,
+  type EventScoresRule,
   type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import { validateConductorRuleOnDate } from "@/lib/trains/rules/derive.shared";
@@ -32,7 +34,6 @@ const VIP_CHOICES: Array<VipRule | null> = [
   null,
   { kind: "none" },
   { kind: "donations_second" },
-  { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
 ];
 
 type Props = {
@@ -48,6 +49,8 @@ type Props = {
   onWeightingEnabledChange: (next: boolean) => void | Promise<void>;
   onClose: () => void;
   onSelect: (patch: DayRulePatch) => void;
+  /** Prefill occurrence when arriving from the event workspace. */
+  initialEventId?: string | null;
 };
 
 export function DayMechanismPickerDialog({
@@ -62,6 +65,7 @@ export function DayMechanismPickerDialog({
   onWeightingEnabledChange,
   onClose,
   onSelect,
+  initialEventId = null,
 }: Props) {
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
@@ -74,6 +78,9 @@ export function DayMechanismPickerDialog({
   );
   const [scopeBoard, setScopeBoard] = useState<
     "vs_top_n" | "vr_top_n" | null
+  >(null);
+  const [eventPickerRole, setEventPickerRole] = useState<
+    "conductor" | "vip" | null
   >(null);
   const [weightingBusy, setWeightingBusy] = useState(false);
 
@@ -124,6 +131,7 @@ export function DayMechanismPickerDialog({
       onOpenChange={(next) => {
         if (!next) {
           setScopeBoard(null);
+          setEventPickerRole(null);
           onClose();
         }
       }}
@@ -143,7 +151,38 @@ export function DayMechanismPickerDialog({
           </p>
         </div>
 
-        {scopeBoard ? (
+        {eventPickerRole ? (
+          <div className="max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain px-5 py-4">
+            <EventRulePicker
+              role={eventPickerRole}
+              date={date}
+              initialRule={
+                eventPickerRole === "vip"
+                  ? selectedVip?.kind === "event_scores"
+                    ? selectedVip
+                    : null
+                  : selected?.kind === "event_scores"
+                    ? selected
+                    : null
+              }
+              initialEventId={initialEventId}
+              disabled={disabled}
+              onApplyBoth={(patch) => {
+                onSelect(patch);
+                onClose();
+              }}
+              onApply={(rule: EventScoresRule) => {
+                if (eventPickerRole === "vip") {
+                  setSelectedVip(rule);
+                } else {
+                  setSelected(rule);
+                }
+                setEventPickerRole(null);
+              }}
+              onBack={() => setEventPickerRole(null)}
+            />
+          </div>
+        ) : scopeBoard ? (
           <TopNScopePicker
             board={scopeBoard}
             vrReporterCount={vrReporterCount}
@@ -305,6 +344,33 @@ export function DayMechanismPickerDialog({
                         </div>
                       );
                     })}
+                    <div
+                      className={`rounded-lg border px-3 py-3 transition-colors ${
+                        selected?.kind === "event_scores"
+                          ? "border-cyan-500/50 bg-cyan-500/10"
+                          : "border-transparent hover:bg-hq-canvas"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected?.kind === "event_scores"}
+                        disabled={disabled}
+                        data-testid="trains-day-rule-row-event_scores"
+                        onClick={() => setEventPickerRole("conductor")}
+                        className="w-full text-left disabled:opacity-50"
+                      >
+                        <RulePaletteOptionLabel
+                          paletteId="event_scores"
+                          label={tEventEvidence("title")}
+                        />
+                        {selected?.kind === "event_scores" ? (
+                          <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
+                            {tEventEvidence("chooseOccurrenceHint")}
+                          </p>
+                        ) : null}
+                      </button>
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -343,6 +409,25 @@ export function DayMechanismPickerDialog({
                         </div>
                       );
                     })}
+                    <div
+                      className={`rounded-lg border px-3 py-3 transition-colors ${
+                        selectedVip?.kind === "event_scores"
+                          ? "border-cyan-500/50 bg-cyan-500/10"
+                          : "border-transparent hover:bg-hq-canvas"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selectedVip?.kind === "event_scores"}
+                        disabled={disabled}
+                        data-testid="trains-day-vip-row-event_scores"
+                        onClick={() => setEventPickerRole("vip")}
+                        className="w-full text-left text-sm font-medium text-hq-fg disabled:opacity-50"
+                      >
+                        {tEventEvidence("title")}
+                      </button>
+                    </div>
                   </div>
                 </>
               ) : null}

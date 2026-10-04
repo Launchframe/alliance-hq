@@ -34,6 +34,11 @@ const DEFAULT_VIDEO_UPLOAD_HREF =
 export type TrainsGuidedConductorFlowProps = {
   /** Rule painted on this day; null is free choice. */
   conductorRule: ConductorRule | null;
+  /**
+   * Readiness of the bound event's reviewed evidence (event_scores rules).
+   * `ready` null = still loading/unknown (non-blocking); false = blocked.
+   */
+  eventEvidence?: { ready: boolean | null; eventId: string | null } | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
@@ -239,6 +244,7 @@ function StepRow({
 export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps) {
   const {
     conductorRule,
+    eventEvidence = null,
     templateDetailHint,
     vsDataStatus,
     conductorMinimumsDataStatus = null,
@@ -300,6 +306,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   }, [lockConfirm]);
 
   const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
+  const eventEvidenceRequired = conductorRule?.kind === "event_scores";
+  const eventEvidenceReady =
+    eventEvidenceRequired && eventEvidence ? eventEvidence.ready : null;
+  const prerequisiteRequired = vsRequired || eventEvidenceRequired;
   const rosterRequired = Boolean(rosterDataStatus?.required);
   const guidedInput = {
     hasConductor,
@@ -311,6 +321,8 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     vsDataRequired: vsDataStatus?.required,
     vsDataReady: vsDataStatus?.ready,
     conductorManualPickAvailable: canManualPick,
+    eventEvidenceRequired,
+    eventEvidenceReady: eventEvidenceReady ?? undefined,
   };
   const current = currentGuidedStep(guidedInput);
 
@@ -355,33 +367,33 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     "prerequisites",
     current,
     vipNeeded,
-    vsRequired,
+    prerequisiteRequired,
     rosterRequired,
   );
   const rosterStatus = stepStatus(
     "roster",
     current,
     vipNeeded,
-    vsRequired,
+    prerequisiteRequired,
     rosterRequired,
   );
   const templateStatus = stepStatus(
     "template",
     current,
     vipNeeded,
-    vsRequired,
+    prerequisiteRequired,
     rosterRequired,
   );
   const conductorStatus = stepStatus(
     "conductor",
     current,
     vipNeeded,
-    vsRequired,
+    prerequisiteRequired,
     rosterRequired,
   );
-  const vipStatus = stepStatus("vip", current, vipNeeded, vsRequired, rosterRequired);
-  const lockStatus = stepStatus("lock", current, vipNeeded, vsRequired, rosterRequired);
-  const doneStatus = stepStatus("done", current, vipNeeded, vsRequired, rosterRequired);
+  const vipStatus = stepStatus("vip", current, vipNeeded, prerequisiteRequired, rosterRequired);
+  const lockStatus = stepStatus("lock", current, vipNeeded, prerequisiteRequired, rosterRequired);
+  const doneStatus = stepStatus("done", current, vipNeeded, prerequisiteRequired, rosterRequired);
 
   const rosterRankLabel =
     rosterDataStatus?.poolType != null
@@ -527,7 +539,27 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             status={prerequisitesStatus}
             title={t("steps.prerequisites.title")}
           >
-            {prerequisitesStatus === "current" ? (
+            {prerequisitesStatus === "current" && eventEvidenceRequired ? (
+              <div
+                className="flex flex-col gap-2"
+                data-testid="trains-guided-prerequisites"
+              >
+                <p className="text-sm text-hq-fg">
+                  {tEventEvidence("pendingEvidence")}
+                </p>
+                <Link
+                  href={
+                    eventEvidence?.eventId
+                      ? `/events/${eventEvidence.eventId}`
+                      : "/events"
+                  }
+                  data-testid="trains-guided-review-event"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                >
+                  {tEventEvidence("reviewEvent")}
+                </Link>
+              </div>
+            ) : prerequisitesStatus === "current" ? (
               <div
                 className="flex flex-col gap-2"
                 data-testid="trains-guided-prerequisites"
@@ -546,6 +578,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                   {t("steps.prerequisites.uploadLink")}
                 </Link>
               </div>
+            ) : prerequisitesStatus === "completed" && eventEvidenceRequired ? (
+              <p className="text-xs text-hq-fg-muted">
+                {tEventEvidence("readyForDraws")}
+              </p>
             ) : prerequisitesStatus === "completed" ? (
               scoreStats ? (
                 <TrainDayScoreStatsSummary stats={scoreStats} />

@@ -44,6 +44,13 @@ export type GuidedFlowInput = {
    * the flow (e.g. R3 recognition, or officer override when data is late).
    */
   conductorManualPickAvailable?: boolean;
+  /**
+   * Conductor rule is `event_scores`: the bound event's reviewed evidence must
+   * be ready before the wheel (event-not-ready blocks like missing VS data).
+   */
+  eventEvidenceRequired?: boolean;
+  /** Bound event boards are ready (`eligibility.ok`). Unknown stays non-blocking. */
+  eventEvidenceReady?: boolean;
 };
 
 /**
@@ -65,7 +72,8 @@ export function guidedFlowPrerequisitesBlocking(
   if (input.locked) return false;
   if (guidedFlowRosterBlocking(input)) return false;
   if (input.conductorManualPickAvailable) return false;
-  return Boolean(input.vsDataRequired) && !input.vsDataReady;
+  if (Boolean(input.vsDataRequired) && !input.vsDataReady) return true;
+  return Boolean(input.eventEvidenceRequired) && input.eventEvidenceReady === false;
 }
 
 /**

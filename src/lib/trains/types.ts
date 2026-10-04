@@ -92,6 +92,10 @@ export type RollCandidate = {
   allianceRank?: number | null;
   ticketCount?: number;
   priorDayVsScore?: number;
+  /** Event-evidence scoreboard fields (event_scores rules). Decimal string. */
+  eventScore?: string | null;
+  eventStage?: number | null;
+  eventEvidenceKind?: string | null;
 };
 
 export type RollResult = {

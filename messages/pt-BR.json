@@ -2049,7 +2049,8 @@
         "discordBotGuide": "Ir para Ajuda do bot Discord",
         "gettingStartedGuide": "Ir para Primeiros passos — R5",
         "discordTrainGuide": "Ir para Guia do trem no Discord",
-        "allianceOnboardingGuide": "Ir para Integração da aliança"
+        "allianceOnboardingGuide": "Ir para Integração da aliança",
+        "eventResults": "Ir para Resultados de eventos"
       },
       "admin": {
         "overview": "Visão geral Admin",
@@ -4786,7 +4787,8 @@
       "vipConductorPick": "Escolha do condutor",
       "vipDonationsSecond": "Segundo doador",
       "vipEventTopX": "Top X evento",
-      "vipNone": "Sem VIP"
+      "vipNone": "Sem VIP",
+      "eventScores": "Resultados de eventos"
     },
     "ruleDetails": {
       "free_choice": "Sem regra. Um oficial designa quem quiser, e o condutor escolhe o VIP.",
@@ -4799,7 +4801,8 @@
       "r4_rotation": "Percorre os oficiais R4+ em ordem, um condutor por dia.",
       "heavy_hitter_pool": "Gira o rodízio heavy-hitter. Os vencedores saem dele até que se esgote e seja reiniciado.",
       "donations_top": "O maior doador do dia anterior vira condutor automaticamente.",
-      "event_top_x": "Gira uma loteria entre os melhores colocados do evento."
+      "event_top_x": "Gira uma loteria entre os melhores colocados do evento.",
+      "eventScores": "Escolha um evento e sorteie entre seus resultados revisados."
     },
     "mechanismsShort": {
       "vsHighScore": "VS D1",
@@ -8415,16 +8418,29 @@
     "confirmPollFallback": "Nenhum membro do placar se qualifica. Sortear igualmente entre todos os {count} respondentes Sim disponíveis?",
     "eventNotSelected": "Escolha o evento antes de girar.",
     "eligibilityChanged": "A elegibilidade mudou. Revise a lista atualizada antes de girar.",
-    "batchSourceManual": "Entrada manual",
-    "batchSourceVideo": "Evidência em vídeo",
-    "batchSourceImage": "Evidência em imagem",
-    "batchSourceAshedImport": "Importação do Ashed",
-    "batchSourceLegacyImport": "Importação legada",
-    "batchSourceUnknown": "Outra fonte",
-    "batchStatusStaged": "Em preparo",
-    "batchStatusCommitted": "Confirmado",
-    "batchStatusSuperseded": "Substituído",
-    "batchStatusUnknown": "Status desconhecido"
+    "sourcePolicy": "Quem é elegível?",
+    "leaderboardOnly": "Membros do placar",
+    "allParticipants": "Todos os participantes",
+    "allParticipantsHint": "Inclui membros do placar e membros que responderam Sim.",
+    "allScored": "Todos os membros do placar",
+    "realScoreScopeHint": "Top {count} usa pontuações reais do evento dentro da nossa aliança. Créditos de enquete não preenchem posições vazias.",
+    "tiedCutoff": "Membros empatados no corte estão incluídos. {count} membros se qualificam.",
+    "shortBoard": "Apenas {count} membros têm pontuações reais qualificadas. Todos estão incluídos.",
+    "eligibilitySummary": "{count} membros elegíveis",
+    "belowMinimum": "Abaixo da pontuação mínima do evento",
+    "allowPollFallback": "Permitir alternativa de Sim da enquete quando o placar estiver confirmado como vazio",
+    "fallbackInUse": "Usando participação de Sim da enquete, não um ranking de Top X.",
+    "reviewEvent": "Revisar evento",
+    "excludedTimeOff": "De folga",
+    "excludedLockedConductor": "Já é o condutor",
+    "uniformOdds": "Cada membro elegível tem as mesmas chances (1/{count}).",
+    "warzoneDefaults": "Usar padrões de Warzone: condutor do Top 10 do placar, VIP de todos os participantes",
+    "addEvent": "Adicionar evento",
+    "eventName": "Nome do evento",
+    "eventDate": "Data do evento",
+    "eventSeries": "Série do evento",
+    "markNotReady": "Marcar como não pronto",
+    "actualScoresImport": "Estas são pontuações reais do placar"
   },
   "activity": {
     "title": "Atividade",

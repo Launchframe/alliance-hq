@@ -2049,7 +2049,8 @@
         "discordBotGuide": "Go to Discord bot help",
         "gettingStartedGuide": "Go to Getting started — R5",
         "discordTrainGuide": "Go to Discord train guide",
-        "allianceOnboardingGuide": "Go to Alliance onboarding help"
+        "allianceOnboardingGuide": "Go to Alliance onboarding help",
+        "eventResults": "Go to Event results"
       },
       "admin": {
         "overview": "Admin overview",
@@ -4840,7 +4841,8 @@
       "vipConductorPick": "Conductor's pick",
       "vipDonationsSecond": "Second donor",
       "vipEventTopX": "Event top X",
-      "vipNone": "No VIP"
+      "vipNone": "No VIP",
+      "eventScores": "Event results"
     },
     "ruleDetails": {
       "free_choice": "No rule. An officer assigns whoever they want, and the conductor picks the VIP.",
@@ -4853,7 +4855,8 @@
       "r4_rotation": "Walks R4+ officers in order, one conductor per day.",
       "heavy_hitter_pool": "Spins the heavy-hitter rotation. Winners leave it until it is exhausted and reseeded.",
       "donations_top": "The prior day's top donor becomes conductor automatically.",
-      "event_top_x": "Spins a lottery among the event's top scorers."
+      "event_top_x": "Spins a lottery among the event's top scorers.",
+      "eventScores": "Choose an event and draw from its reviewed results."
     },
     "mechanismsShort": {
       "vsHighScore": "VS D1",
@@ -8415,16 +8418,29 @@
     "confirmPollFallback": "No leaderboard members qualify. Draw equally from all {count} available Yes respondents?",
     "eventNotSelected": "Choose the event before spinning.",
     "eligibilityChanged": "Eligibility changed. Review the updated list before spinning.",
-    "batchSourceManual": "Manual entry",
-    "batchSourceVideo": "Video evidence",
-    "batchSourceImage": "Image evidence",
-    "batchSourceAshedImport": "Ashed import",
-    "batchSourceLegacyImport": "Legacy import",
-    "batchSourceUnknown": "Other source",
-    "batchStatusStaged": "Staged",
-    "batchStatusCommitted": "Committed",
-    "batchStatusSuperseded": "Superseded",
-    "batchStatusUnknown": "Unknown status"
+    "sourcePolicy": "Who is eligible?",
+    "leaderboardOnly": "Leaderboard members",
+    "allParticipants": "All participants",
+    "allParticipantsHint": "Includes leaderboard members and members who answered Yes.",
+    "allScored": "All leaderboard members",
+    "realScoreScopeHint": "Top {count} uses actual event scores within our alliance. Poll credits do not fill empty places.",
+    "tiedCutoff": "Members tied at the cutoff are included. {count} members qualify.",
+    "shortBoard": "Only {count} members have qualifying actual scores. All are included.",
+    "eligibilitySummary": "{count} eligible members",
+    "belowMinimum": "Below the event's score minimum",
+    "allowPollFallback": "Allow a poll Yes fallback when the leaderboard is confirmed empty",
+    "fallbackInUse": "Using poll Yes participation, not a Top X score ranking.",
+    "reviewEvent": "Review event",
+    "excludedTimeOff": "On time off",
+    "excludedLockedConductor": "Already the conductor",
+    "uniformOdds": "Every eligible member has the same odds (1/{count}).",
+    "warzoneDefaults": "Use Warzone defaults: conductor from leaderboard Top 10, VIP from all participants",
+    "addEvent": "Add event",
+    "eventName": "Event name",
+    "eventDate": "Event date",
+    "eventSeries": "Event series",
+    "markNotReady": "Mark not ready",
+    "actualScoresImport": "These are actual leaderboard scores"
   },
   "activity": {
     "title": "Activity",
