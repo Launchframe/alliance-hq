@@ -73,7 +73,15 @@ export function throwAshedRequired(message: string): never {
 
 export function trainRollErrorResponse(error: unknown) {
   if (error instanceof TrainRollError) {
-    const status = error.details.code === "POOL_BUSY" ? (503 as const) : (400 as const);
+    const status =
+      error.details.code === "POOL_BUSY"
+        ? (503 as const)
+        : error.details.code === "ELIGIBILITY_CHANGED" ||
+            error.details.code === "READINESS_INVALIDATED" ||
+            error.details.code === "REQUEST_CONFLICT" ||
+            error.details.code === "CONFIRM_POLL_FALLBACK"
+          ? (409 as const)
+          : (400 as const);
     return {
       status,
       body: { error: error.message, rollError: error.details },

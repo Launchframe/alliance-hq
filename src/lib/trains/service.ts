@@ -11,7 +11,6 @@ import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 import type {
   ConductorMechanismType,
   DayConfigInput,
-  EventTopXConfig,
   PoolType,
   PoolRefreshedInfo,
   RollCandidate,
@@ -35,6 +34,7 @@ import {
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
+  TrainRollError,
   throwNoWheelCandidates,
   throwPoolEmpty,
   throwPoolExhausted,
@@ -142,7 +142,6 @@ import {
   listDayConfigsForWeek,
   lockConductorRecord,
   replaceDayConfigs,
-  assignVipOnLockedConductor,
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
@@ -283,8 +282,11 @@ async function buildPoolCandidates(input: {
   respectConductorMinimums?: boolean;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
-    const limit = input.eventTopN ?? 10;
-    return fetchNativeVrTopScorers(input.hqAllianceId, limit);
+    // Legacy event rules are display-only; event draws go through
+    // rollEventForTrain against the reviewed evidence ledger.
+    throw new TrainRollError("Select a reviewed event before spinning.", {
+      code: "EVENT_NOT_SELECTED",
+    });
   }
 
   if (input.poolType === "heavy_hitter") {
@@ -1580,6 +1582,12 @@ export async function rollForConductor(input: {
       excludedMemberIds: dayExcluded,
     });
   } else if (rule?.kind === "rank_pool" || rule?.kind === "event_top_x") {
+      if (rule.kind === "event_top_x") {
+        throw new TrainRollError(
+          "Legacy event rules no longer spin — configure a reviewed event.",
+          { code: "EVENT_NOT_SELECTED" },
+        );
+      }
       if (rule.kind === "rank_pool" && rule.draw === "manual") {
         throw new Error(
           "R3 recognition conductors are awarded by manual pick, not the wheel.",
@@ -1769,107 +1777,29 @@ export async function rollForVip(input: {
       );
     }
     case "event_top_x": {
-      const config: EventTopXConfig = {
-        eventKey: vipRule.eventKey,
-        topN: vipRule.topN,
-      };
-      const poolType: PoolType = "event_top_x";
-      // Keep the prior VIP depleting selection until the replacement wins and
-      // is persisted — a failed re-roll must not free the current VIP slot.
-      await ensureConductorPoolSeeded({
-        hqAllianceId: input.allianceId,
-        poolType,
-        date: input.date,
-        useSequence: false,
-        eventTopN: config.topN ?? 10,
-      });
-      // Hold the pool claim lock through VIP assign + prior release. Claiming
-      // then unlocking before assign orphaned winners when assign failed or a
-      // concurrent VIP spin overwrote the record (burned pool slots).
-      result = await withConductorPoolClaimLock(
-        { allianceId: input.allianceId, poolType },
-        async () => {
-          const rolled = await rollFromPool(
-            input.allianceId,
-            poolType,
-            input.date,
-            false,
-            mechanism,
-            false,
-            false,
-            undefined,
-            undefined,
-            { skipClaimLock: true },
-          );
-
-          const rankEvent = await getMemberRankAsOf(
-            input.allianceId,
-            rolled.memberId,
-            input.date,
-          );
-
-          try {
-            await recheckAutomaticDutyAvailability({
-              allianceId: input.allianceId,
-              date: input.date,
-              result: rolled,
-            });
-            await assignVipOnLockedConductor({
-              automaticDuty: true,
-              allianceId: input.allianceId,
-              date: input.date,
-              seasonKey,
-              vipMemberId: rolled.memberId,
-              vipMemberName: rolled.memberName,
-              vipRankEventId: rankEvent?.id ?? null,
-              vipMechanism: mechanism,
-              dayConfigId: dayConfig.dayConfigId,
-            });
-          } catch (error) {
-            await releasePoolSelectionForDate(
-              input.allianceId,
-              input.date,
-              rolled.memberId,
-            );
-            if (error instanceof CoverageConflictError) throwPoolUnavailable(poolType);
-            throw error;
-          }
-
-          if (
-            shouldReleasePriorPoolSelection({
-              previousMemberId: record?.vipMemberId,
-              nextMemberId: rolled.memberId,
-            })
-          ) {
-            await releasePoolSelectionForDate(
-              input.allianceId,
-              input.date,
-              record!.vipMemberId!,
-            );
-          }
-
-          return rolled;
-        },
+      throw new TrainRollError(
+        "Legacy event rules no longer spin — configure a reviewed event.",
+        { code: "EVENT_NOT_SELECTED" },
       );
-      break;
     }
     default:
       throw new Error(`VIP mechanism "${mechanism}" is not rollable yet.`);
   }
 
   await recheckAutomaticDutyAvailability({ ...input, result });
-  const poolRefreshed = result.poolType
-    ? await refreshExhaustedPoolIfNeeded({
-        allianceId: input.allianceId,
-        poolType: result.poolType,
-        date: input.date,
-        eventTopN:
-          dayConfig.vipRule?.kind === "event_top_x"
-            ? dayConfig.vipRule.topN
-            : 10,
-      })
-    : null;
-  return poolRefreshed ? { ...result, poolRefreshed } : result;
+  const rolledPoolType = result.poolType;
+  const poolRefreshed =
+    rolledPoolType != null
+      ? await refreshExhaustedPoolIfNeeded({
+          allianceId: input.allianceId,
+          poolType: rolledPoolType as PoolType,
+          date: input.date,
+          eventTopN: 10,
+        })
+      : null;
+  const out: RollResult = { ...result };
+  if (poolRefreshed) out.poolRefreshed = poolRefreshed as PoolRefreshedInfo;
+  return out;
 }
 
 export async function reseedPool(input: {
@@ -1937,7 +1867,8 @@ export async function refreshExhaustedPoolsForDay(input: {
   };
 
   const conductorPool = conductorRulePoolType(dayConfig.conductorRule);
-  if (conductorPool) {
+  // Legacy event pools are display-only — never auto-reseed them.
+  if (conductorPool && conductorPool !== "event_top_x") {
     const next = await refreshExhaustedPoolIfNeeded({
       ...base,
       poolType: conductorPool,
@@ -1947,15 +1878,12 @@ export async function refreshExhaustedPoolsForDay(input: {
   }
 
   const vipPool = vipRulePoolType(dayConfig.vipRule);
-  if (vipPool) {
-    const vipConfig: EventTopXConfig =
-      dayConfig.vipRule?.kind === "event_top_x"
-        ? { eventKey: dayConfig.vipRule.eventKey, topN: dayConfig.vipRule.topN }
-        : { eventKey: "capitol_war", topN: 10 };
+  // Legacy event pools are display-only — never auto-reseed them.
+  if (vipPool && vipPool !== "event_top_x") {
     const next = await refreshExhaustedPoolIfNeeded({
       ...base,
       poolType: vipPool,
-      eventTopN: vipConfig.topN ?? 10,
+      eventTopN: 10,
     });
     if (next) refreshed.push(next);
   }

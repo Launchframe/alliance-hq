@@ -1,7 +1,8 @@
-import { and, asc, count, desc, eq, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { TrainRollError } from "@/lib/trains/roll-errors.server";
 import { lockAllianceAvailability, type AvailabilityTransaction } from "@/lib/time-off/availability.server";
 import { assertDutyCoverage, CoverageConflictError, findCoverageConflicts, recordAppliedTrainCoverage, trainCoverageDuties } from "@/lib/time-off/coverage.server";
 import { resolveConductorLastConductedDate } from "@/lib/trains/conductor-stats.shared";
@@ -475,9 +476,13 @@ export async function upsertConductorDraft(input: {
   conductorEligibilityOverridden?: number;
   conductorEligibilityOverriddenAt?: Date | null;
   conductorEligibilityOverriddenByHqUserId?: string | null;
+  conductorEventDrawId?: string | null;
+  vipEventDrawId?: string | null;
+  /** Caller-owned transaction; when set the caller holds the schedule lock. */
+  tx?: AvailabilityTransaction;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
-  return getDb().transaction(async (db) => {
-  await lockAllianceAvailability(db, input.allianceId);
+  const run = async (db: AvailabilityTransaction) => {
+  if (!input.tx) await lockAllianceAvailability(db, input.allianceId);
   const [snapshot] = await db.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` })
     .from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, input.allianceId), eq(schema.trainConductorRecords.date, input.date))).for("update");
   const existing = snapshot?.row;
@@ -556,6 +561,14 @@ export async function upsertConductorDraft(input: {
           input.conductorEligibilityOverriddenByHqUserId !== undefined
             ? input.conductorEligibilityOverriddenByHqUserId
             : existing.conductorEligibilityOverriddenByHqUserId,
+        conductorEventDrawId:
+          input.conductorEventDrawId !== undefined
+            ? input.conductorEventDrawId
+            : existing.conductorEventDrawId,
+        vipEventDrawId:
+          input.vipEventDrawId !== undefined
+            ? input.vipEventDrawId
+            : existing.vipEventDrawId,
         updatedAt: new Date(),
       })
       .where(
@@ -604,6 +617,8 @@ export async function upsertConductorDraft(input: {
       input.conductorEligibilityOverriddenAt ?? null,
     conductorEligibilityOverriddenByHqUserId:
       input.conductorEligibilityOverriddenByHqUserId ?? null,
+    conductorEventDrawId: input.conductorEventDrawId ?? null,
+    vipEventDrawId: input.vipEventDrawId ?? null,
   });
 
   const [row] = await db
@@ -613,7 +628,8 @@ export async function upsertConductorDraft(input: {
     .limit(1);
   await recordAppliedTrainCoverage(db, input.allianceId, id);
   return row!;
-  });
+  };
+  return input.tx ? run(input.tx) : getDb().transaction(run);
 }
 
 export async function clearConductorAssignment(
@@ -730,9 +746,12 @@ export async function assignVipOnLockedConductor(input: {
   dayConfigId?: string | null;
   guardianIsVip?: number | null;
   automaticDuty?: boolean;
+  vipEventDrawId?: string | null;
+  /** Caller-owned transaction; when set the caller holds the schedule lock. */
+  tx?: AvailabilityTransaction;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
-  return getDb().transaction(async (db) => {
-  await lockAllianceAvailability(db, input.allianceId);
+  const run = async (db: AvailabilityTransaction) => {
+  if (!input.tx) await lockAllianceAvailability(db, input.allianceId);
   const [snapshot] = await db.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` })
     .from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, input.allianceId), eq(schema.trainConductorRecords.date, input.date))).for("update");
   const existing = snapshot?.row;
@@ -761,6 +780,10 @@ export async function assignVipOnLockedConductor(input: {
         input.guardianIsVip != null
           ? input.guardianIsVip
           : existing.guardianIsVip,
+      vipEventDrawId:
+        input.vipEventDrawId !== undefined
+          ? input.vipEventDrawId
+          : existing.vipEventDrawId,
       updatedAt: new Date(),
     })
     .where(
@@ -777,7 +800,8 @@ export async function assignVipOnLockedConductor(input: {
 
   await recordAppliedTrainCoverage(db, input.allianceId, existing.id);
   return updated[0]!;
-  });
+  };
+  return input.tx ? run(input.tx) : getDb().transaction(run);
 }
 
 export async function clearVipAssignment(
@@ -1076,6 +1100,63 @@ export async function lockConductorRecord(
   }
   if (!existing.conductorMemberId || !existing.conductorMemberName) {
     throw new Error("Select a conductor before locking.");
+  }
+
+  // A draft produced by an event draw must not lock once the bound boards'
+  // confirmed readiness moved on — evidence changed under the draft.
+  if (
+    existing.conductorEventDrawId &&
+    existing.conductorEligibilityOverridden !== 1
+  ) {
+    const [draw] = await db
+      .select()
+      .from(schema.trainEventDraws)
+      .where(
+        and(
+          eq(schema.trainEventDraws.id, existing.conductorEventDrawId),
+          eq(schema.trainEventDraws.allianceId, allianceId),
+        ),
+      )
+      .limit(1);
+    const revisions = (draw?.boardRevisions ?? []) as {
+      boardId: string;
+      evidenceVersion?: number;
+      readyVersion: number | null;
+    }[];
+    if (revisions.length > 0) {
+      const boards = await db
+        .select({
+          id: schema.hqEventBoards.id,
+          evidenceVersion: schema.hqEventBoards.evidenceVersion,
+          readyVersion: schema.hqEventBoards.readyVersion,
+        })
+        .from(schema.hqEventBoards)
+        .where(
+          and(
+            eq(schema.hqEventBoards.allianceId, allianceId),
+            inArray(
+              schema.hqEventBoards.id,
+              revisions.map((rev) => rev.boardId),
+            ),
+          ),
+        );
+      const current = new Map(boards.map((b) => [b.id, b]));
+      const stale = revisions.some((rev) => {
+        const board = current.get(rev.boardId);
+        return (
+          !board ||
+          board.readyVersion !== rev.readyVersion ||
+          (rev.evidenceVersion != null &&
+            board.evidenceVersion !== rev.evidenceVersion)
+        );
+      });
+      if (stale || boards.length !== revisions.length) {
+        throw new TrainRollError(
+          "Event evidence changed after this draw — re-spin before locking.",
+          { code: "READINESS_INVALIDATED" },
+        );
+      }
+    }
   }
 
   await assertDutyCoverage(db, allianceId, trainCoverageDuties(existing, snapshot!.version));

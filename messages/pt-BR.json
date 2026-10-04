@@ -8365,7 +8365,12 @@
   },
   "eventEvidence": {
     "title": "Resultados de eventos",
-    "chooseOccurrenceHint": "Selecione a data do evento cujos resultados devem contar."
+    "chooseOccurrenceHint": "Selecione a data do evento cujos resultados devem contar.",
+    "readinessInvalidated": "A evidência do evento mudou. Revise-a novamente antes do próximo sorteio.",
+    "pendingEvidence": "A evidência ainda está sendo processada ou revisada.",
+    "confirmPollFallback": "Nenhum membro do placar se qualifica. Sortear igualmente entre todos os {count} respondentes Sim disponíveis?",
+    "eventNotSelected": "Escolha o evento antes de girar.",
+    "eligibilityChanged": "A elegibilidade mudou. Revise a lista atualizada antes de girar."
   },
   "activity": {
     "title": "Atividade",

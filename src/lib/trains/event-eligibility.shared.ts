@@ -77,6 +77,8 @@ export type EventEligibility =
       groupCounts: EventEligibilityGroups;
       /** Reason → count, only for members that were otherwise qualifying. */
       exclusionReasons: Record<string, number>;
+      /** Qualifying members excluded by day/role rules, with their reason. */
+      excludedMembers: { memberId: string; reason: string }[];
       cutoff: {
         applied: boolean;
         /** Score of the last included member, canonical decimal string. */
@@ -300,6 +302,7 @@ export function buildEventEligibility(
 
   // Exclusions apply after the cutoff — an unavailable Top-10 member does not
   // silently promote #11.
+  const excludedMembers: { memberId: string; reason: string }[] = [];
   const exclusionByMember = new Map<string, string>();
   for (const entry of input.exclusions ?? []) {
     if (!exclusionByMember.has(entry.memberId)) {
@@ -315,6 +318,7 @@ export function buildEventEligibility(
     const reason = exclusionByMember.get(memberId);
     if (reason == null) return true;
     exclusionReasons[reason] = (exclusionReasons[reason] ?? 0) + 1;
+    excludedMembers.push({ memberId, reason });
     return false;
   });
   candidates.sort();
@@ -380,6 +384,7 @@ export function buildEventEligibility(
     candidates,
     groupCounts: fingerprintInput.groupCounts as EventEligibilityGroups,
     exclusionReasons,
+    excludedMembers,
     cutoff: {
       applied: cutoffApplied,
       score: cutoffScore,

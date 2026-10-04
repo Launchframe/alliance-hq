@@ -89,6 +89,47 @@ export async function GET(request: Request) {
   }
 
   if (poolType === "event_top_x" && trainDate) {
+    const role = params.get("role") === "vip" ? "vip" : "conductor";
+    const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
+      .seasonKey;
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      trainDate,
+      seasonKey,
+    );
+    const dayRule =
+      role === "vip" ? dayConfig.vipRule : dayConfig.conductorRule;
+
+    if (dayRule?.kind === "event_scores") {
+      const { previewEventEligibility } = await import(
+        "@/lib/trains/event-eligibility.server"
+      );
+      const { resolveTrainActorHqUserId } = await import(
+        "@/lib/trains/train-ownership.server"
+      );
+      const preview = await previewEventEligibility(
+        {
+          allianceId: ctx.allianceId,
+          hqUserId: await resolveTrainActorHqUserId(session.id),
+          sessionId: session.id,
+        },
+        { date: trainDate, role },
+      );
+      return NextResponse.json({ eventEligibility: preview });
+    }
+
+    // Legacy event pools no longer surface VR scoreboards — the client shows
+    // the configure-event state for event rules.
+    if (dayRule?.kind === "event_top_x") {
+      return NextResponse.json({
+        summary,
+        priorGenerations,
+        restorePreviousGeneration,
+        requiresEventSelection: true,
+        entries,
+      });
+    }
+
     const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
     const eventContext = vsScoreContextForTrainDate(trainDate, leadDays);
     const scoresByMember = await fetchHqSeasonVsScoresByMember(ctx.allianceId);
