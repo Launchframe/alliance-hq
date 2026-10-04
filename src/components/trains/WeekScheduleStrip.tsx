@@ -71,7 +71,10 @@ type Props = {
   /** Palette-row labels for the day-rule menu. */
   ruleLabels?: Record<DayRulePaletteId, string>;
   /** Per-occurrence summary for `event_scores` cells (family/scope label). */
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   /** Officers/admins may open the day-template menu. */
   canPaintDays?: boolean;
   /** Per-date gate (today/future for officers; admins may paint past). */
@@ -140,7 +143,10 @@ type DayCellOptions = {
   weekEnd: string;
   showDetail: boolean;
   ruleTextLabels: Record<string, string>;
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   scoreStats?: TrainDayScoreStats | null;
   className?: string;
   layout?: "grid" | "carousel";
@@ -190,14 +196,14 @@ function WeekScheduleDayCell({
     day.vipRule?.kind !== "none"
       ? (day.vipRule?.kind === "event_scores" ||
         day.vipRule?.kind === "event_top_x"
-          ? (eventRuleSummary?.(day.vipRule) ?? null)
+          ? (eventRuleSummary?.(day.vipRule, day.sourceTemplateId) ?? null)
           : null) ??
         (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null)
       : null;
   const displayScope = scopeForRule(displayRule);
   const conductorLineLabel =
     displayRule?.kind === "event_scores" || displayRule?.kind === "event_top_x"
-      ? (eventRuleSummary?.(displayRule) ??
+      ? (eventRuleSummary?.(displayRule, day.sourceTemplateId) ??
         ruleTextLabels[conductorRuleLabelKey(displayRule)] ??
         paletteIdForRule(displayRule))
       : `${
@@ -374,7 +380,10 @@ type CarouselProps = {
   today: string;
   selectedDate: string;
   ruleTextLabels: Record<string, string>;
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   canPaintDays?: boolean;
   isDatePaintable?: (date: string) => boolean;
   onOpenTemplateMenu?: (anchor: DayTemplateMenuAnchor) => void;

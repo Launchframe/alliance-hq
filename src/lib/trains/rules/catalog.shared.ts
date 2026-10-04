@@ -356,6 +356,25 @@ export function vipRuleLabelKey(rule: VipRule | null): string {
  */
 export const EVENT_SCORES_LABEL_KEY = "eventScores";
 
+/**
+ * `eventEvidence` key for a day whose event rule still needs an occurrence.
+ * Unbound `event_scores` intents painted from a template get the
+ * shared-template helper; legacy `event_top_x` and directly-painted unbound
+ * days keep `eventNotSelected`. `null` when the rule is bound or not an
+ * event rule.
+ */
+export function eventUnboundLabelKey(
+  rule: ConductorRule | VipRule | null,
+  sourceTemplateId?: string | null,
+): "eventNotSelected" | "importedEventNeedsSelection" | null {
+  if (!rule) return null;
+  if (rule.kind === "event_top_x") return "eventNotSelected";
+  if (rule.kind !== "event_scores" || rule.source.occurrenceId) return null;
+  return sourceTemplateId
+    ? "importedEventNeedsSelection"
+    : "eventNotSelected";
+}
+
 type RuleLabelTranslate = (key: string) => string;
 
 /** Resolve a rule label key, routing `eventScores` to `eventEvidence.title`. */

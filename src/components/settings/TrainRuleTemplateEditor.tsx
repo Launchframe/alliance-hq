@@ -238,6 +238,13 @@ export function TrainRuleTemplateEditor({
                         {" · "}
                         {vipLabel(slot.vipRule)}
                       </span>
+                      {slot.conductorRule?.kind === "event_scores" ||
+                      slot.vipRule?.kind === "event_scores" ? (
+                        <span className="text-hq-fg-muted">
+                          {" · "}
+                          {tEventEvidence("importedEventNeedsSelection")}
+                        </span>
+                      ) : null}
                     </span>
                     {warning ? (
                       <span

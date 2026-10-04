@@ -51,7 +51,10 @@ type Props = {
   /** Palette-row labels for the paint toolbar. */
   ruleLabels: Record<DayRulePaletteId, string>;
   /** Per-occurrence summary for `event_scores` cells (family/scope label). */
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   vrReporterCount?: number;
   navLabels: {
     previousMonth: string;
@@ -484,7 +487,7 @@ export function TrainMonthCalendar({
             const mechLabel = day
               ? day.conductorRule?.kind === "event_scores" ||
                 day.conductorRule?.kind === "event_top_x"
-                ? (eventRuleSummary?.(day.conductorRule) ??
+                ? (eventRuleSummary?.(day.conductorRule, day.sourceTemplateId) ??
                   ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
                   paletteIdForRule(day.conductorRule))
                 : `${
@@ -496,7 +499,7 @@ export function TrainMonthCalendar({
               day && day.vipRule?.kind !== "none"
                 ? ((day.vipRule?.kind === "event_scores" ||
                   day.vipRule?.kind === "event_top_x"
-                    ? (eventRuleSummary?.(day.vipRule) ?? null)
+                    ? (eventRuleSummary?.(day.vipRule, day.sourceTemplateId) ?? null)
                     : null) ??
                   (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null))
                 : null;

@@ -116,6 +116,7 @@ import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import {
   conductorRuleIdentity,
   conductorRuleLabelKey,
+  eventUnboundLabelKey,
   ruleLabelText,
   vipRuleIdentity,
   type ConductorRule,
@@ -2521,13 +2522,16 @@ export function TrainsDashboard({
   }, [eventRuleOccurrenceIds]);
 
   const eventRuleSummary = useCallback(
-    (rule: ConductorRule | VipRule | null): string | null => {
-      // Legacy event_top_x and unbound event_scores days surface the same
-      // "choose the event" state on every cell.
-      if (rule?.kind === "event_top_x") return tEventEvidence("eventNotSelected");
+    (
+      rule: ConductorRule | VipRule | null,
+      sourceTemplateId?: string | null,
+    ): string | null => {
+      // Legacy event_top_x and unbound event_scores days surface a "choose
+      // the event" state on every cell; template-painted intents get the
+      // shared-template helper instead.
+      const unboundKey = eventUnboundLabelKey(rule, sourceTemplateId);
+      if (unboundKey) return tEventEvidence(unboundKey);
       if (rule?.kind !== "event_scores") return null;
-      if (!rule.source.occurrenceId)
-        return tEventEvidence("eventNotSelected");
       const occurrence = rule.source.occurrenceId
         ? eventRuleOccurrenceNames[rule.source.occurrenceId]
         : null;
@@ -3421,6 +3425,9 @@ export function TrainsDashboard({
                     dayMechanismPickerTargetDate(selectedDate),
                     "conductor",
                   )
+                }
+                eventSourceTemplateId={
+                  selectedDayConfig?.sourceTemplateId ?? null
                 }
                 eventEvidence={
                   selectedConductorRule?.kind === "event_scores"

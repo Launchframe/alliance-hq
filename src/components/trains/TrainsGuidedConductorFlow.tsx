@@ -19,6 +19,7 @@ import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
 import {
   conductorRuleLabelKey,
+  eventUnboundLabelKey,
   ruleLabelText,
   type ConductorRule,
 } from "@/lib/trains/rules/catalog.shared";
@@ -41,6 +42,12 @@ export type TrainsGuidedConductorFlowProps = {
   eventEvidence?: { ready: boolean | null; eventId: string | null } | null;
   /** Opens the shared event rule picker (unbound / legacy event days). */
   onConfigureEvent?: () => void;
+  /**
+   * Template this day was painted from. When set and the conductor rule is
+   * an unbound `event_scores` intent, the unbound label uses the
+   * shared-template helper (`importedEventNeedsSelection`).
+   */
+  eventSourceTemplateId?: string | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
@@ -248,6 +255,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     conductorRule,
     eventEvidence = null,
     onConfigureEvent,
+    eventSourceTemplateId = null,
     templateDetailHint,
     vsDataStatus,
     conductorMinimumsDataStatus = null,
@@ -344,8 +352,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
 
   const rulePaletteId = paletteIdForRule(conductorRule);
   const ruleScope = scopeForRule(conductorRule);
-  const conductorPickLabel = eventUnbound
-    ? tEventEvidence("eventNotSelected")
+  const eventUnboundKey = eventUnbound
+    ? (eventUnboundLabelKey(conductorRule, eventSourceTemplateId) ??
+      "eventNotSelected")
+    : null;
+  const conductorPickLabel = eventUnboundKey
+    ? tEventEvidence(eventUnboundKey)
     : `${ruleLabelText(
         conductorRuleLabelKey(conductorRule),
         tRules,
@@ -565,7 +577,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 data-testid="trains-guided-prerequisites"
               >
                 <p className="text-sm text-hq-fg">
-                  {tEventEvidence("eventNotSelected")}
+                  {tEventEvidence(eventUnboundKey ?? "eventNotSelected")}
                 </p>
                 {onConfigureEvent ? (
                   <button

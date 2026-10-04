@@ -8431,6 +8431,7 @@
     "pendingEvidence": "Evidence is still being processed or reviewed.",
     "confirmPollFallback": "No leaderboard members qualify. Draw equally from all {count} available Yes respondents?",
     "eventNotSelected": "Choose the event before spinning.",
+    "importedEventNeedsSelection": "Choose this alliance's event before using this template.",
     "eligibilityChanged": "Eligibility changed. Review the updated list before spinning.",
     "sourcePolicy": "Who is eligible?",
     "leaderboardOnly": "Leaderboard members",
