@@ -1696,41 +1696,67 @@ export const auditLog = pgTable("audit_log", {
     .notNull(),
 });
 
-export const hqEventSeries = pgTable("hq_event_series", {
-  id: text("id").primaryKey(),
-  allianceId: text("alliance_id").notNull(),
-  scoreTarget: text("score_target").notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  scoreType: text("score_type"),
-  ashedSeriesId: text("ashed_series_id"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const hqEventSeries = pgTable(
+  "hq_event_series",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id").notNull(),
+    scoreTarget: text("score_target").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    scoreType: text("score_type"),
+    ashedSeriesId: text("ashed_series_id"),
+    /** `EventTarget` — validated event family for evidence-backed boards. */
+    eventFamily: text("event_family"),
+    /** Typed per-series scoring policy override (never reinterprets history). */
+    scoringPolicy: jsonb("scoring_policy"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("hq_event_series_alliance_id_unique").on(
+      table.allianceId,
+      table.id,
+    ),
+  ],
+);
 
-export const hqEvents = pgTable("hq_events", {
-  id: text("id").primaryKey(),
-  seriesId: text("series_id").references(() => hqEventSeries.id, {
-    onDelete: "set null",
-  }),
-  allianceId: text("alliance_id").notNull(),
-  scoreTarget: text("score_target").notNull(),
-  name: text("name").notNull(),
-  startDate: text("start_date"),
-  endDate: text("end_date"),
-  status: text("status").notNull().default("active"),
-  ashedEventId: text("ashed_event_id"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const hqEvents = pgTable(
+  "hq_events",
+  {
+    id: text("id").primaryKey(),
+    seriesId: text("series_id").references(() => hqEventSeries.id, {
+      onDelete: "set null",
+    }),
+    allianceId: text("alliance_id").notNull(),
+    scoreTarget: text("score_target").notNull(),
+    name: text("name").notNull(),
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+    status: text("status").notNull().default("active"),
+    ashedEventId: text("ashed_event_id"),
+    /** `EventTarget` — copied from the series at create/link time. */
+    eventFamily: text("event_family"),
+    /** `EVENT_POLICY_VERSION` snapshot — never reinterpreted by later series. */
+    policyVersion: integer("policy_version"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("hq_events_alliance_id_unique").on(
+      table.allianceId,
+      table.id,
+    ),
+  ],
+);
 
 export const hqCommendations = pgTable("hq_commendations", {
   id: text("id").primaryKey(),
@@ -1743,25 +1769,51 @@ export const hqCommendations = pgTable("hq_commendations", {
     .notNull(),
 });
 
-export const hqEventBoards = pgTable("hq_event_boards", {
-  id: text("id").primaryKey(),
-  hqEventId: text("hq_event_id")
-    .notNull()
-    .references(() => hqEvents.id, { onDelete: "cascade" }),
-  boardKey: text("board_key").notNull(),
-  name: text("name"),
-  scoreType: text("score_type"),
-  commendationId: text("commendation_id").references(() => hqCommendations.id, {
-    onDelete: "set null",
-  }),
-  ashedEventId: text("ashed_event_id"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const hqEventBoards = pgTable(
+  "hq_event_boards",
+  {
+    id: text("id").primaryKey(),
+    /** Canonical tenant — composite FKs keep boards bound to their event. */
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqEventId: text("hq_event_id")
+      .notNull()
+      .references(() => hqEvents.id, { onDelete: "cascade" }),
+    boardKey: text("board_key").notNull(),
+    name: text("name"),
+    scoreType: text("score_type"),
+    commendationId: text("commendation_id").references(
+      () => hqCommendations.id,
+      { onDelete: "set null" },
+    ),
+    ashedEventId: text("ashed_event_id"),
+    /** Bumped on every committed evidence batch affecting this board. */
+    evidenceVersion: integer("evidence_version").notNull().default(0),
+    /** `evidenceVersion` an officer last marked ready; null = never ready. */
+    readyVersion: integer("ready_version"),
+    /** Selected evidence source batch ids included in the ready projection. */
+    readySources: jsonb("ready_sources").$type<string[]>(),
+    readyBy: text("ready_by").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    /** Officer explicitly confirmed the scored board is genuinely empty. */
+    emptyConfirmed: integer("empty_confirmed").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("hq_event_boards_alliance_id_unique").on(
+      table.allianceId,
+      table.id,
+    ),
+  ],
+);
 
 export const hqEventMembers = pgTable("hq_event_members", {
   id: text("id").primaryKey(),
@@ -1777,6 +1829,399 @@ export const hqEventMembers = pgTable("hq_event_members", {
     .defaultNow()
     .notNull(),
 });
+
+/**
+ * One logical upload-group/import/manual evidence source. The
+ * `(alliance_id, request_id)` receipt makes reviewed saves idempotent; a
+ * different body under the same request id is a conflict, never a replay.
+ */
+export const hqEventEvidenceBatches = pgTable(
+  "hq_event_evidence_batches",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqEventId: text("hq_event_id").notNull(),
+    boardId: text("board_id"),
+    sourceKind: text("source_kind")
+      .$type<"manual" | "video" | "image" | "ashed_import" | "legacy_import">()
+      .notNull(),
+    sourceRef: text("source_ref"),
+    parseRevision: integer("parse_revision"),
+    reviewedRevision: integer("reviewed_revision"),
+    status: text("status")
+      .$type<"staged" | "committed" | "superseded">()
+      .notNull()
+      .default("committed"),
+    requestId: text("request_id"),
+    requestSignature: text("request_signature"),
+    contentHash: text("content_hash"),
+    /** Persisted source ids/hashes for Ashed imports. */
+    importManifest: jsonb("import_manifest"),
+    /** `complete | incomplete` — incomplete imports cannot be marked ready. */
+    importStatus: text("import_status").$type<"complete" | "incomplete">(),
+    legacyMappingConfirmed: integer("legacy_mapping_confirmed")
+      .notNull()
+      .default(0),
+    createdBy: text("created_by").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    reviewedBy: text("reviewed_by").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "hq_event_batches_event_fk",
+      columns: [table.allianceId, table.hqEventId],
+      foreignColumns: [hqEvents.allianceId, hqEvents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_batches_board_fk",
+      columns: [table.allianceId, table.boardId],
+      foreignColumns: [hqEventBoards.allianceId, hqEventBoards.id],
+    }).onDelete("cascade"),
+    check(
+      "hq_event_batches_source_kind_check",
+      sql`${table.sourceKind} in ('manual','video','image','ashed_import','legacy_import')`,
+    ),
+    check(
+      "hq_event_batches_status_check",
+      sql`${table.status} in ('staged','committed','superseded')`,
+    ),
+    check(
+      "hq_event_batches_import_status_check",
+      sql`${table.importStatus} is null or ${table.importStatus} in ('complete','incomplete')`,
+    ),
+    uniqueIndex("hq_event_batches_alliance_id_unique").on(
+      table.allianceId,
+      table.id,
+    ),
+    uniqueIndex("hq_event_batches_request_unique")
+      .on(table.allianceId, table.requestId)
+      .where(sql`${table.requestId} is not null`),
+    index("hq_event_batches_event_idx").on(table.allianceId, table.hqEventId),
+  ],
+);
+
+/**
+ * Append-only source facts. Retractions and corrections append a new revision
+ * (never delete history); poll rows always carry a null real score.
+ */
+export const hqEventObservations = pgTable(
+  "hq_event_observations",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqEventId: text("hq_event_id").notNull(),
+    boardId: text("board_id").notNull(),
+    batchId: text("batch_id").notNull(),
+    revision: integer("revision").notNull().default(1),
+    /** Stable source-row identity — identical replays collapse on it. */
+    sourceRowKey: text("source_row_key"),
+    /** Canonical member id (Ashed member id); no FK so departed members stay. */
+    memberId: text("member_id").notNull(),
+    memberName: text("member_name"),
+    evidenceKind: text("evidence_kind")
+      .$type<"leaderboard" | "poll_yes" | "poll_no" | "legacy_leaderboard">()
+      .notNull(),
+    realScore: numeric("real_score", { precision: 30, scale: 0 }),
+    stage: integer("stage"),
+    observedRank: integer("observed_rank"),
+    pollOption: integer("poll_option"),
+    provenance: text("provenance")
+      .$type<"video" | "image" | "manual" | "ashed" | "legacy">()
+      .notNull(),
+    sourceFrame: text("source_frame"),
+    sourceOffsetMs: integer("source_offset_ms"),
+    supersedesObservationId: text("supersedes_observation_id"),
+    supersededByObservationId: text("superseded_by_observation_id"),
+    retracted: integer("retracted").notNull().default(0),
+    correctionActor: text("correction_actor").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    correctionReason: text("correction_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "hq_event_observations_event_fk",
+      columns: [table.allianceId, table.hqEventId],
+      foreignColumns: [hqEvents.allianceId, hqEvents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_observations_board_fk",
+      columns: [table.allianceId, table.boardId],
+      foreignColumns: [hqEventBoards.allianceId, hqEventBoards.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_observations_batch_fk",
+      columns: [table.allianceId, table.batchId],
+      foreignColumns: [hqEventEvidenceBatches.allianceId, hqEventEvidenceBatches.id],
+    }).onDelete("cascade"),
+    check(
+      "hq_event_observations_kind_check",
+      sql`${table.evidenceKind} in ('leaderboard','poll_yes','poll_no','legacy_leaderboard')`,
+    ),
+    check(
+      "hq_event_observations_provenance_check",
+      sql`${table.provenance} in ('video','image','manual','ashed','legacy')`,
+    ),
+    check(
+      "hq_event_observations_poll_score_check",
+      sql`${table.evidenceKind} not in ('poll_yes','poll_no') or ${table.realScore} is null`,
+    ),
+    uniqueIndex("hq_event_observations_row_revision_unique")
+      .on(table.allianceId, table.batchId, table.revision, table.sourceRowKey)
+      .where(sql`${table.sourceRowKey} is not null`),
+    index("hq_event_observations_board_member_idx").on(
+      table.allianceId,
+      table.boardId,
+      table.memberId,
+    ),
+  ],
+);
+
+/** Materialized event+board+member head produced by the canonical merge. */
+export const hqEventMemberResults = pgTable(
+  "hq_event_member_results",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqEventId: text("hq_event_id").notNull(),
+    boardId: text("board_id").notNull(),
+    memberId: text("member_id").notNull(),
+    memberName: text("member_name"),
+    realScore: numeric("real_score", { precision: 30, scale: 0 }),
+    stage: integer("stage"),
+    observedRank: integer("observed_rank"),
+    evidenceClass: text("evidence_class")
+      .$type<
+        "none" | "explicit_no" | "yes_only" | "legacy_leaderboard" | "real" | "conflict"
+      >()
+      .notNull(),
+    participation: text("participation"),
+    conflictKind: text("conflict_kind"),
+    contributingObservationIds: jsonb(
+      "contributing_observation_ids",
+    ).$type<string[]>(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "hq_event_member_results_event_fk",
+      columns: [table.allianceId, table.hqEventId],
+      foreignColumns: [hqEvents.allianceId, hqEvents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_member_results_board_fk",
+      columns: [table.allianceId, table.boardId],
+      foreignColumns: [hqEventBoards.allianceId, hqEventBoards.id],
+    }).onDelete("cascade"),
+    check(
+      "hq_event_member_results_class_check",
+      sql`${table.evidenceClass} in ('none','explicit_no','yes_only','legacy_leaderboard','real','conflict')`,
+    ),
+    uniqueIndex("hq_event_member_results_unique").on(
+      table.allianceId,
+      table.hqEventId,
+      table.boardId,
+      table.memberId,
+    ),
+  ],
+);
+
+/**
+ * Desired member-result sync state. Desired revision/payload hash only — no
+ * network I/O happens while board locks are held.
+ */
+export const hqEventSyncItems = pgTable(
+  "hq_event_sync_items",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqEventId: text("hq_event_id").notNull(),
+    boardId: text("board_id"),
+    /** alliance+entity+event+team/board+member logical remote identity. */
+    remoteKey: text("remote_key").notNull(),
+    memberId: text("member_id").notNull(),
+    desiredRevision: integer("desired_revision").notNull(),
+    desiredPayloadHash: text("desired_payload_hash"),
+    lastSyncedRevision: integer("last_synced_revision"),
+    lastSyncedValueHash: text("last_synced_value_hash"),
+    status: text("status")
+      .$type<"pending" | "synced" | "conflict" | "failed" | "unsupported">()
+      .notNull()
+      .default("pending"),
+    leaseToken: text("lease_token"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    errorCode: text("error_code"),
+    retryAt: timestamp("retry_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "hq_event_sync_items_event_fk",
+      columns: [table.allianceId, table.hqEventId],
+      foreignColumns: [hqEvents.allianceId, hqEvents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_sync_items_board_fk",
+      columns: [table.allianceId, table.boardId],
+      foreignColumns: [hqEventBoards.allianceId, hqEventBoards.id],
+    }).onDelete("cascade"),
+    check(
+      "hq_event_sync_items_status_check",
+      sql`${table.status} in ('pending','synced','conflict','failed','unsupported')`,
+    ),
+    uniqueIndex("hq_event_sync_items_remote_key_unique").on(
+      table.allianceId,
+      table.remoteKey,
+    ),
+    index("hq_event_sync_items_pending_idx").on(
+      table.status,
+      table.leaseExpiresAt,
+    ),
+  ],
+);
+
+/**
+ * Immutable event draw receipt. `candidates` holds the eligible-name/score/
+ * evidence snapshot at spin time — never original media or poll
+ * non-participants.
+ */
+export const trainEventDraws = pgTable(
+  "train_event_draws",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    role: text("role").$type<"conductor" | "vip">().notNull(),
+    requestId: text("request_id").notNull(),
+    ruleIdentity: text("rule_identity").notNull(),
+    rule: jsonb("rule"),
+    hqEventId: text("hq_event_id").notNull(),
+    /** `[{ boardId, evidenceVersion, readyVersion }]` bound at spin time. */
+    boardRevisions: jsonb("board_revisions"),
+    eligibilityFingerprint: text("eligibility_fingerprint").notNull(),
+    candidates: jsonb("candidates"),
+    candidatesHash: text("candidates_hash"),
+    winnerMemberId: text("winner_member_id").notNull(),
+    winnerMemberName: text("winner_member_name"),
+    fallbackUsed: integer("fallback_used").notNull().default(0),
+    fallbackAcknowledged: integer("fallback_acknowledged").notNull().default(0),
+    actorHqUserId: text("actor_hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "train_event_draws_event_fk",
+      columns: [table.allianceId, table.hqEventId],
+      foreignColumns: [hqEvents.allianceId, hqEvents.id],
+    }),
+    check(
+      "train_event_draws_role_check",
+      sql`${table.role} in ('conductor','vip')`,
+    ),
+    uniqueIndex("train_event_draws_request_unique").on(
+      table.allianceId,
+      table.requestId,
+    ),
+    index("train_event_draws_date_idx").on(table.allianceId, table.date),
+  ],
+);
+
+/**
+ * Unique external link for imported/linked series, occurrences and boards.
+ * New links always land here; legacy `ashed_*` columns only gained in-place
+ * uniqueness in the migration when no duplicates already existed.
+ */
+export const hqEventExternalLinks = pgTable(
+  "hq_event_external_links",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    entityKind: text("entity_kind")
+      .$type<"series" | "event" | "board">()
+      .notNull(),
+    hqSeriesId: text("hq_series_id"),
+    hqEventId: text("hq_event_id"),
+    hqBoardId: text("hq_board_id"),
+    externalSource: text("external_source").notNull().default("ashed"),
+    externalId: text("external_id").notNull(),
+    createdBy: text("created_by").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "hq_event_external_links_series_fk",
+      columns: [table.allianceId, table.hqSeriesId],
+      foreignColumns: [hqEventSeries.allianceId, hqEventSeries.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_external_links_event_fk",
+      columns: [table.allianceId, table.hqEventId],
+      foreignColumns: [hqEvents.allianceId, hqEvents.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "hq_event_external_links_board_fk",
+      columns: [table.allianceId, table.hqBoardId],
+      foreignColumns: [hqEventBoards.allianceId, hqEventBoards.id],
+    }).onDelete("cascade"),
+    check(
+      "hq_event_external_links_kind_check",
+      sql`${table.entityKind} in ('series','event','board')`,
+    ),
+    check(
+      "hq_event_external_links_target_check",
+      sql`(${table.entityKind} = 'series' and ${table.hqSeriesId} is not null and ${table.hqEventId} is null and ${table.hqBoardId} is null) or (${table.entityKind} = 'event' and ${table.hqEventId} is not null and ${table.hqSeriesId} is null and ${table.hqBoardId} is null) or (${table.entityKind} = 'board' and ${table.hqBoardId} is not null and ${table.hqSeriesId} is null and ${table.hqEventId} is null)`,
+    ),
+    uniqueIndex("hq_event_external_links_unique").on(
+      table.allianceId,
+      table.entityKind,
+      table.externalSource,
+      table.externalId,
+    ),
+  ],
+);
 
 /** Maps an HQ web user to an in-game roster member within an alliance. */
 export const hqMemberLinks = pgTable(
@@ -2506,6 +2951,13 @@ export type HqEvent = typeof hqEvents.$inferSelect;
 export type HqEventBoard = typeof hqEventBoards.$inferSelect;
 export type HqCommendation = typeof hqCommendations.$inferSelect;
 export type HqEventMember = typeof hqEventMembers.$inferSelect;
+export type HqEventEvidenceBatch =
+  typeof hqEventEvidenceBatches.$inferSelect;
+export type HqEventObservation = typeof hqEventObservations.$inferSelect;
+export type HqEventMemberResult = typeof hqEventMemberResults.$inferSelect;
+export type HqEventSyncItem = typeof hqEventSyncItems.$inferSelect;
+export type TrainEventDraw = typeof trainEventDraws.$inferSelect;
+export type HqEventExternalLink = typeof hqEventExternalLinks.$inferSelect;
 
 export const surveyFeedback = pgTable("survey_feedback", {
   id: text("id").primaryKey(),
@@ -3732,6 +4184,15 @@ export const trainConductorRecords = pgTable(
     dayConfigId: text("day_config_id").references(() => trainDayConfigs.id, {
       onDelete: "set null",
     }),
+    /** Immutable `train_event_draws` receipts when the draw used event scores. */
+    conductorEventDrawId: text("conductor_event_draw_id").references(
+      () => trainEventDraws.id,
+      { onDelete: "set null" },
+    ),
+    vipEventDrawId: text("vip_event_draw_id").references(
+      () => trainEventDraws.id,
+      { onDelete: "set null" },
+    ),
     substituteForMemberId: text("substitute_for_member_id"),
     substituteForMemberName: text("substitute_for_member_name"),
     lockedAt: timestamp("locked_at", { withTimezone: true }),
