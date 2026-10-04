@@ -473,6 +473,34 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("submitEventEvidenceFromVid
     ).rejects.toMatchObject({ code: "event_not_bound", httpStatus: 409 });
   });
 
+  it("rolls back evidence rows when post-commit consumption fails", async () => {
+    const f = await setup();
+    const media = await createMediaJob(f, {
+      scoreTarget: `bogus-target-${nanoid(6)}`,
+      parseRows: [{ ocrName: "Roster One", memberId: f.memberId, score: "7" }],
+    });
+    // getScoreTargetOrThrow inside the commit's onCommitted hook throws — the
+    // whole transaction must roll back, leaving no observations behind.
+    await expect(
+      submitEventEvidenceFromVideoJob({
+        session: f.session,
+        job: media.job,
+        body: {
+          requestId: `req-${nanoid(12)}`,
+          rows: [
+            { rowId: media.rowIds[0]!, memberId: f.memberId, kind: "leaderboard", realScore: "7" },
+          ],
+        },
+      }),
+    ).rejects.toThrow();
+    expect(await observationCount(f)).toBe(0);
+    const batches = await f.sql`SELECT COUNT(*)::int AS c FROM hq_event_evidence_batches WHERE alliance_id = ${f.allianceId}`;
+    expect(batches[0]!.c).toBe(0);
+    const dataBatches = await f.sql`SELECT COUNT(*)::int AS c FROM data_upload_batches WHERE source_job_id = ${media.jobId}`;
+    expect(dataBatches[0]!.c).toBe(0);
+    expect(await jobStatus(f, media.jobId)).toBe("review");
+  });
+
   it("rejects shadow/alternate passes from publishing", async () => {
     const f = await setup();
     const media = await createMediaJob(f, {

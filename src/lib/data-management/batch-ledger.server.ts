@@ -51,8 +51,9 @@ export async function recordDataUploadBatch(input: {
   sourceJobId: string;
   parseSessionId: string | null;
   createdByHqUserId: string | null;
+  tx?: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 }): Promise<string> {
-  const db = getDb();
+  const db = input.tx ?? getDb();
 
   // One ledger row per video job — safe to call only after submit completes, and
   // also idempotent if a prior attempt wrote upstream before a local failure.

@@ -102,6 +102,27 @@ function frameCropSrc(
   return `/api/tools/video-jobs/${jobId}/frames/${frameIndex}?crop=${crop.left},${crop.top},${crop.width},${crop.height}`;
 }
 
+type SyncSummary = {
+  status: string;
+  synced: number;
+  pending: number;
+  conflict: number;
+  failed: number;
+  uncertain: number;
+  unsupported: number;
+} | null;
+
+/** Ashed status line for the save confirmation, worst-case first. */
+function syncStatusKey(sync: NonNullable<SyncSummary>): string {
+  if (sync.conflict > 0) return "syncConflict";
+  if (sync.uncertain > 0) return "syncUncertain";
+  if (sync.unsupported > 0) return "precisionUnsupported";
+  if (sync.failed > 0 || sync.status === "connection_required")
+    return "syncFailed";
+  if (sync.pending > 0 || sync.status === "partial") return "syncPending";
+  return "synced";
+}
+
 type Props = {
   jobId: string;
 };
@@ -118,6 +139,7 @@ export function EventEvidenceReview({ jobId }: Props) {
   const tMembers = useTranslations("members");
   const tCommon = useTranslations("common");
   const tTrains = useTranslations("trains.wheel");
+  const tSettings = useTranslations("settings");
   const locale = useLocale();
 
   const [loading, setLoading] = useState(true);
@@ -131,6 +153,8 @@ export function EventEvidenceReview({ jobId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [sync, setSync] = useState<SyncSummary>(null);
+  const [syncRetrying, setSyncRetrying] = useState(false);
   const requestIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
@@ -256,6 +280,7 @@ export function EventEvidenceReview({ jobId }: Props) {
         );
         return;
       }
+      setSync((body?.sync as SyncSummary) ?? null);
       setSaved(true);
     } catch {
       setSubmitError(tEvent("actionFailed"));
@@ -279,10 +304,56 @@ export function EventEvidenceReview({ jobId }: Props) {
     );
   }
 
+  async function handleSyncRetry() {
+    if (!eventContext?.eventId || syncRetrying) return;
+    setSyncRetrying(true);
+    try {
+      const res = await fetch(`/api/hq-events/${eventContext.eventId}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json().catch(() => null);
+      if (res.ok && body?.sync) setSync(body.sync as SyncSummary);
+    } finally {
+      setSyncRetrying(false);
+    }
+  }
+
   if (saved) {
+    const showAshedStatus = sync != null && sync.status !== "not_configured";
+    const syncKey = showAshedStatus ? syncStatusKey(sync) : null;
     return (
       <div className="mx-auto w-full max-w-3xl space-y-4 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5">
         <h1 className="text-xl font-semibold">{tEvent("eventSaved")}</h1>
+        {showAshedStatus ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p
+              className={`text-sm ${
+                syncKey === "synced" ? "text-hq-fg-muted" : "text-hq-warning"
+              }`}
+            >
+              {tEvent(syncKey!)}
+            </p>
+            {sync.status === "connection_required" ? (
+              <Link
+                href="/settings"
+                className="text-sm text-hq-accent hover:underline"
+              >
+                {tSettings("connectAshedCta")}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled={syncRetrying}
+                onClick={() => void handleSyncRetry()}
+                className="text-sm text-hq-accent hover:underline disabled:opacity-50"
+              >
+                {tEvent("syncRetry")}
+              </button>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-4">
           {eventContext?.eventId ? (
             <Link

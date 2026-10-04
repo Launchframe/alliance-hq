@@ -8454,7 +8454,13 @@
     "eventDate": "Event date",
     "eventSeries": "Event series",
     "markNotReady": "Mark not ready",
-    "actualScoresImport": "These are actual leaderboard scores"
+    "actualScoresImport": "These are actual leaderboard scores",
+    "synced": "Synced to Ashed.",
+    "syncFailed": "Saved in HQ. Ashed sync failed — retry to try again.",
+    "syncConflict": "Saved in HQ. Ashed already has different values — review needed.",
+    "syncUncertain": "Saved in HQ. Ashed sync result is uncertain — retry to reconcile.",
+    "precisionUnsupported": "Saved in HQ. A score is too large for Ashed sync.",
+    "syncRetry": "Retry Ashed sync"
   },
   "activity": {
     "title": "Activity",

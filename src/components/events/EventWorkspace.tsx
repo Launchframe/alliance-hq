@@ -12,6 +12,7 @@ import type { EventTarget } from "@/lib/hq-events/event-types.shared";
 import {
   batchSourceKindLabelKey,
   batchStatusLabelKey,
+  aggregateEventSync,
   boardTeamScope,
   formatEventScore,
   participationCreditFor,
@@ -390,6 +391,7 @@ export function EventWorkspace({
             minimum: formatEventScore(scoreMinimumFor(target), locale) ?? "0",
           })}
         </p>
+        {board ? <BoardSyncStatus eventId={eventId} boardId={board.id} items={evidence.syncItems ?? []} canRetry={canWriteScores} onChanged={reload} /> : null}
         {filter === "no_evidence" ? (
           <p className="text-xs text-hq-fg-muted">{t("noEvidenceHint")}</p>
         ) : null}
@@ -660,3 +662,74 @@ const KIND_BADGE: Record<string, string> = {
   poll_no: "pollNo",
   legacy_leaderboard: "legacyLeaderboard",
 };
+
+const SYNC_STATUS_KEY: Record<string, string> = {
+  synced: "synced",
+  pending: "syncPending",
+  conflict: "syncConflict",
+  failed: "syncFailed",
+  uncertain: "syncUncertain",
+  unsupported: "precisionUnsupported",
+};
+
+/** Per-board Ashed status line — HQ save state lives on the board itself. */
+function BoardSyncStatus({
+  eventId,
+  boardId,
+  items,
+  canRetry,
+  onChanged,
+}: {
+  eventId: string;
+  boardId: string;
+  items: { boardId: string | null; status: string; errorCode: string | null }[];
+  canRetry: boolean;
+  onChanged: () => void;
+}) {
+  const t = useTranslations("eventEvidence");
+  const [retrying, setRetrying] = useState(false);
+  const boardItems = items.filter((item) => item.boardId === boardId);
+  const aggregate = aggregateEventSync(boardItems);
+  if (aggregate.status === "none") return null;
+  const key =
+    aggregate.errorCode === "precisionUnsupported"
+      ? "precisionUnsupported"
+      : (SYNC_STATUS_KEY[aggregate.status] ?? "syncPending");
+
+  async function retry() {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      const res = await fetch(`/api/hq-events/${eventId}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardIds: [boardId] }),
+      });
+      if (res.ok) onChanged();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  return (
+    <p className="flex flex-wrap items-center gap-2 text-xs">
+      <span
+        className={
+          aggregate.status === "synced" ? "text-hq-fg-muted" : "text-hq-warning"
+        }
+      >
+        {t(key)}
+      </span>
+      {canRetry && aggregate.status !== "synced" ? (
+        <button
+          type="button"
+          disabled={retrying}
+          onClick={() => void retry()}
+          className="text-hq-accent hover:underline disabled:opacity-50"
+        >
+          {t("syncRetry")}
+        </button>
+      ) : null}
+    </p>
+  );
+}

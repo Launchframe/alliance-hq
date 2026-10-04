@@ -97,6 +97,7 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
 - **Game season** — owner override → Monday cpt-hedge cron → age fallback (caps S4) → default `"1"`; see [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc).
 - Full terminology and train rules: [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc), conductor UX invariants [`.cursor/rules/trains-conductor-ux.mdc`](.cursor/rules/trains-conductor-ux.mdc) (ranks + server time: [`.cursor/rules/alliance-affairs.mdc`](.cursor/rules/alliance-affairs.mdc)).
 - **Season 5 Bank Strongholds** — ownership lifecycle (Looting → Investible; wild vs alliance via `priorCaptureCount`), deposit pairing (blue/green/orange + synthetics), City List OCR upsert, and drop optimization: [`.cursor/rules/season-5-bank-deposits.mdc`](.cursor/rules/season-5-bank-deposits.mdc).
+- **Event evidence** — native event results live in the `hq_event_*` ledger (observations append-only; results recomputed per board; `evidence_version` bumps invalidate readiness). Event→Ashed sync (`src/lib/hq-events/ashed-sync.server.ts`) is **create-only + conflicts by maintainer decision**: it POSTs missing remote rows and marks differing existing rows `conflict` — it never updates, overwrites, or deletes remote rows. Reconciling/editing existing Ashed rows is a documented blocker for a later PR.
 
 ## Discord bot: multi-tenant architecture
 

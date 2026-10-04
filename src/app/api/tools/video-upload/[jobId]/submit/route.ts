@@ -110,9 +110,11 @@ import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-matc
 import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
 import { submitVsReview, vsEvidenceErrorResponse } from "@/lib/vs-scores/submit.server";
 import {
+  commitScoreRowsToEventLedger,
   eventEvidenceSubmitErrorResponse,
   submitEventEvidenceFromVideoJob,
 } from "@/lib/hq-events/evidence-submit.server";
+import { syncEventResults } from "@/lib/hq-events/ashed-sync.server";
 import { VsEvidenceError, parseVsScore } from "@/lib/vs-scores/evidence.shared";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { prepareReviewFeedback, confirmReviewFeedback } from "@/lib/ocr/learning/feedback.server";
@@ -391,15 +393,18 @@ export async function POST(request: Request, { params }: Props) {
         errorMessage: null,
       });
       try {
-        const { receipt, rowCount } = await submitEventEvidenceFromVideoJob({
-          session,
-          job,
-          body,
-        });
+        const { receipt, rowCount, sync } = await submitEventEvidenceFromVideoJob(
+          {
+            session,
+            job,
+            body,
+          },
+        );
         return NextResponse.json({
           ok: true,
           submitted: rowCount,
           eventEvidence: receipt,
+          sync,
         });
       } catch (error) {
         const mapped = eventEvidenceSubmitErrorResponse(error);
@@ -1299,6 +1304,60 @@ export async function POST(request: Request, { params }: Props) {
           commendationId: submitContext.commendationId ?? null,
           submittedAt: new Date().toISOString(),
         });
+      }
+    }
+
+    // Event targets also save through the evidence ledger (canonical HQ
+    // store) so ledger readers and create-only Ashed sync can take over.
+    // The Ashed projection and hq_event_members metadata above remain the
+    // compatibility path for this PR.
+    if (
+      submitContext.hqEventId &&
+      (isFrontlineTarget ||
+        scoreTargetId === "seasonal" ||
+        isDesertStormVideoTarget(scoreTargetId) ||
+        scoreTargetId === "canyon-storm")
+    ) {
+      try {
+        const ledger = await commitScoreRowsToEventLedger({
+          actor: {
+            allianceId,
+            hqUserId: session.hqUserId ?? null,
+            sessionId: session.id,
+          },
+          job: { id: jobId },
+          eventId: submitContext.hqEventId,
+          boardKey: submitContext.boardKey ?? null,
+          team: submitContext.team ?? null,
+          scoreTargetId,
+          rows: activeRows.map((row) => ({
+            id: row.id,
+            memberId: row.memberId,
+            memberName: row.memberName,
+            score: row.score ?? null,
+            rank: row.rank ?? null,
+            frontlineStage: row.frontlineStage ?? null,
+            frameIndex:
+              originalRowById.get(row.id)?.frameIndex ?? row.frameIndex ?? null,
+          })),
+        });
+        if (ledger && !ledger.receipt.replayed) {
+          await syncEventResults(
+            {
+              allianceId,
+              hqUserId: session.hqUserId ?? null,
+              sessionId: session.id,
+            },
+            {
+              eventId: submitContext.hqEventId,
+              boardIds: [ledger.boardId],
+            },
+          ).catch(() => null);
+        }
+      } catch (error) {
+        const mapped = eventEvidenceSubmitErrorResponse(error);
+        if (mapped) return mapped;
+        throw error;
       }
     }
 

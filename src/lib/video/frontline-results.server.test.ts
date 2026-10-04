@@ -23,6 +23,11 @@ type DbState = {
   alliances?: unknown[];
   parseSessions?: unknown[];
   hqEvents?: unknown[];
+  hqEventBoards?: unknown[];
+  hqEventEvidenceBatches?: unknown[];
+  hqEventObservations?: unknown[];
+  hqEventMemberResults?: unknown[];
+  hqEventSyncItems?: unknown[];
   parsedRows?: unknown[];
   allianceMembers?: unknown[];
   hqEventMembers?: unknown[];
@@ -33,6 +38,14 @@ function tableRows(table: unknown, state: DbState): unknown[] {
   if (table === schema.alliances) return state.alliances ?? [];
   if (table === schema.parseSessions) return state.parseSessions ?? [];
   if (table === schema.hqEvents) return state.hqEvents ?? [];
+  if (table === schema.hqEventBoards) return state.hqEventBoards ?? [];
+  if (table === schema.hqEventEvidenceBatches)
+    return state.hqEventEvidenceBatches ?? [];
+  if (table === schema.hqEventObservations)
+    return state.hqEventObservations ?? [];
+  if (table === schema.hqEventMemberResults)
+    return state.hqEventMemberResults ?? [];
+  if (table === schema.hqEventSyncItems) return state.hqEventSyncItems ?? [];
   if (table === schema.parsedRows) return state.parsedRows ?? [];
   if (table === schema.allianceMembers) return state.allianceMembers ?? [];
   if (table === schema.hqEventMembers) return state.hqEventMembers ?? [];
@@ -387,6 +400,73 @@ describe("commitFrontlineReview", () => {
     const audit = audits[0]!.values as { action: string; severity: string };
     expect(audit.action).toBe("frontline.results_saved");
     expect(audit.severity).toBe("routine");
+  });
+
+  it("commits evidence ledger rows in the same transaction when the event has a board", async () => {
+    const { db, calls } = makeDb({
+      ...baseState(),
+      videoJobs: [{ ...job }],
+      hqEventBoards: [
+        {
+          id: "bd-1",
+          allianceId: "al-1",
+          hqEventId: "ev-1",
+          boardKey: "main",
+          evidenceVersion: 1,
+        },
+      ],
+      // Prior committed observations so the merge recompute produces member
+      // results + desired sync items (the mock can't see same-tx inserts).
+      hqEventObservations: [
+        {
+          id: "obs-1",
+          allianceId: "al-1",
+          hqEventId: "ev-1",
+          boardId: "bd-1",
+          memberId: "m1",
+          memberName: "Alpha",
+          evidenceKind: "leaderboard",
+          realScore: "90",
+          retracted: 0,
+          createdAt: new Date("2025-06-01"),
+        },
+      ],
+    });
+    mocks.getDb.mockReturnValue(db);
+
+    await commitFrontlineReview({
+      job,
+      allianceId: "al-1",
+      sessionId: "s1",
+      hqUserId: "u1",
+      body: goodBody(),
+    });
+
+    const batchInserts = calls.inserts.filter(
+      (insert) => insert.table === schema.hqEventEvidenceBatches,
+    );
+    expect(batchInserts).toHaveLength(1);
+    const observationInserts = calls.inserts.filter(
+      (insert) => insert.table === schema.hqEventObservations,
+    );
+    expect(observationInserts).toHaveLength(2);
+    const obs = observationInserts[0]!.values as {
+      evidenceKind: string;
+      realScore: string | null;
+      stage: number | null;
+      memberId: string;
+    };
+    expect(obs.evidenceKind).toBe("leaderboard");
+    expect(obs.realScore).toBe("100");
+    expect(obs.stage).toBe(5);
+    const resultInserts = calls.inserts.filter(
+      (insert) => insert.table === schema.hqEventMemberResults,
+    );
+    expect(resultInserts.length).toBeGreaterThan(0);
+    const syncInserts = calls.inserts.filter(
+      (insert) => insert.table === schema.hqEventSyncItems,
+    );
+    expect(syncInserts.length).toBeGreaterThan(0);
   });
 
   it("uses update severity and does not touch other-owned event members on resave", async () => {

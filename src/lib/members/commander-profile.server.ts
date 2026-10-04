@@ -270,6 +270,34 @@ export async function loadCommanderProfile(
     .orderBy(desc(schema.hqEventMembers.updatedAt))
     .limit(20);
 
+  const ledgerScoreRows = await db
+    .select({
+      eventId: schema.hqEventMemberResults.hqEventId,
+      eventName: schema.hqEvents.name,
+      boardKey: schema.hqEventBoards.boardKey,
+      realScore: schema.hqEventMemberResults.realScore,
+      stage: schema.hqEventMemberResults.stage,
+      observedRank: schema.hqEventMemberResults.observedRank,
+      updatedAt: schema.hqEventMemberResults.updatedAt,
+    })
+    .from(schema.hqEventMemberResults)
+    .innerJoin(
+      schema.hqEventBoards,
+      eq(schema.hqEventMemberResults.boardId, schema.hqEventBoards.id),
+    )
+    .innerJoin(
+      schema.hqEvents,
+      eq(schema.hqEventMemberResults.hqEventId, schema.hqEvents.id),
+    )
+    .where(
+      and(
+        eq(schema.hqEventMemberResults.allianceId, allianceId),
+        eq(schema.hqEventMemberResults.memberId, ashedMemberId),
+      ),
+    )
+    .orderBy(desc(schema.hqEventMemberResults.updatedAt))
+    .limit(50);
+
   const trainRows = await db
     .select()
     .from(schema.trainConductorRecords)
@@ -432,18 +460,43 @@ export async function loadCommanderProfile(
       highestBaseVr: row.highestBaseVr,
       updatedAt: row.updatedAt.toISOString(),
     })),
-    eventScores: eventScoreRows.map((row) => {
-      const parsed = parseEventScoreMetadata(row.metadata, row.scoreTarget);
-      return {
-        eventId: row.eventId,
-        eventName: row.eventName,
-        boardKey: null,
-        score: parsed.score,
-        rank: parsed.rank,
-        frontlineStage: parsed.frontlineStage,
-        updatedAt: row.updatedAt.toISOString(),
-      };
-    }),
+    eventScores: (() => {
+      // Ledger results are canonical once a board has them; legacy
+      // hq_event_members metadata rows for the same event are skipped.
+      const ledgerEventIds = new Set(ledgerScoreRows.map((row) => row.eventId));
+      const fromLedger = ledgerScoreRows.map((row) => {
+        const score =
+          row.realScore != null && BigInt(row.realScore) <= BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number(row.realScore)
+            : null;
+        return {
+          eventId: row.eventId,
+          eventName: row.eventName,
+          boardKey: row.boardKey,
+          score,
+          rank: row.observedRank ?? null,
+          frontlineStage: row.stage ?? null,
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      });
+      const fromLegacy = eventScoreRows
+        .filter((row) => !ledgerEventIds.has(row.eventId))
+        .map((row) => {
+          const parsed = parseEventScoreMetadata(row.metadata, row.scoreTarget);
+          return {
+            eventId: row.eventId,
+            eventName: row.eventName,
+            boardKey: null,
+            score: parsed.score,
+            rank: parsed.rank,
+            frontlineStage: parsed.frontlineStage,
+            updatedAt: row.updatedAt.toISOString(),
+          };
+        });
+      return [...fromLedger, ...fromLegacy]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, 20);
+    })(),
     commendations: commendationRows.map((row) => ({
       id: row.id,
       commendationType: row.commendationType,

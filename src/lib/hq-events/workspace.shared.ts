@@ -120,6 +120,7 @@ export type EventEvidencePageDto = {
   results: EventResultRow[];
   observations: EventObservationDto[];
   batches: EventEvidenceBatchDto[];
+  syncItems: { boardId: string | null; status: string; errorCode: string | null }[];
   nextCursor: string | null;
 };
 
@@ -216,4 +217,47 @@ export function batchSourceKindLabelKey(sourceKind: string): string {
 /** i18n key under `eventEvidence` for a batch lifecycle status (fallback: unknown). */
 export function batchStatusLabelKey(status: string): string {
   return BATCH_STATUS_LABEL_KEY[status] ?? "batchStatusUnknown";
+}
+
+export type EventSyncItemStatus =
+  | "pending"
+  | "synced"
+  | "conflict"
+  | "failed"
+  | "unsupported"
+  | "uncertain";
+
+export type EventSyncAggregate = {
+  /** Aggregated Ashed status for a board; "none" when no sync items exist. */
+  status: EventSyncItemStatus | "none";
+  /** First error code behind a failing aggregate (e.g. precisionUnsupported). */
+  errorCode: string | null;
+  total: number;
+};
+
+const SYNC_STATUS_SEVERITY: Record<EventSyncItemStatus, number> = {
+  conflict: 5,
+  uncertain: 4,
+  unsupported: 3,
+  failed: 2,
+  pending: 1,
+  synced: 0,
+};
+
+/** Roll sync items up to one worst-case status + its error code. */
+export function aggregateEventSync(
+  items: readonly { status: string; errorCode: string | null }[],
+): EventSyncAggregate {
+  let worst: EventSyncItemStatus | null = null;
+  let errorCode: string | null = null;
+  for (const item of items) {
+    const status = item.status as EventSyncItemStatus;
+    const severity = SYNC_STATUS_SEVERITY[status];
+    if (severity == null) continue;
+    if (worst == null || severity > SYNC_STATUS_SEVERITY[worst]) {
+      worst = status;
+      errorCode = item.errorCode;
+    }
+  }
+  return { status: worst ?? "none", errorCode, total: items.length };
 }
