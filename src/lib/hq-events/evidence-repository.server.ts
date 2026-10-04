@@ -296,13 +296,17 @@ async function upsertDesiredSyncItems(
       ) {
         continue;
       }
+      const nextStatus =
+        existing.lastSyncedValueHash === payloadHash ? "synced" : "pending";
       await tx
         .update(schema.hqEventSyncItems)
         .set({
           desiredRevision,
           desiredPayloadHash: payloadHash,
-          status:
-            existing.lastSyncedValueHash === payloadHash ? "synced" : "pending",
+          status: nextStatus,
+          ...(nextStatus === "pending"
+            ? { errorCode: null, remoteRowId: null }
+            : {}),
           updatedAt: now,
         })
         .where(eq(schema.hqEventSyncItems.id, existing.id));

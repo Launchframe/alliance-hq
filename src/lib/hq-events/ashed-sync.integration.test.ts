@@ -289,6 +289,36 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     expect((await syncItemFor(f))?.status).toBe("conflict");
   });
 
+  it("reconciles conflict when remote is corrected to match HQ (re-read only)", async () => {
+    const f = await setup();
+    seedRemote("SeasonalScore", [
+      {
+        id: "remote-1",
+        alliance_id: f.ashedAllianceId,
+        event_id: f.remoteEventId,
+        member_id: f.memberId,
+        score: 9999,
+      },
+    ]);
+    await commitScore(f, "5000");
+    await syncEventResults(f.actor, { eventId: f.eventId });
+    expect((await syncItemFor(f))?.status).toBe("conflict");
+
+    seedRemote("SeasonalScore", [
+      {
+        id: "remote-1",
+        alliance_id: f.ashedAllianceId,
+        event_id: f.remoteEventId,
+        member_id: f.memberId,
+        score: 5000,
+      },
+    ]);
+    const second = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(second.synced).toBe(1);
+    expect(posts).toHaveLength(0);
+    expect((await syncItemFor(f))?.status).toBe("synced");
+  });
+
   it("marks duplicate remote rows as conflict", async () => {
     const f = await setup();
     seedRemote("SeasonalScore", [

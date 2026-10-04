@@ -257,6 +257,8 @@ export async function syncEventResults(
             eq(schema.hqEventSyncItems.status, "pending"),
             eq(schema.hqEventSyncItems.status, "failed"),
             eq(schema.hqEventSyncItems.status, "uncertain"),
+            // Re-read only: bind if remote now matches HQ; never POST over conflict.
+            eq(schema.hqEventSyncItems.status, "conflict"),
           ),
         ),
       )
