@@ -35,6 +35,11 @@ export function isTagEligible(tag: string): boolean {
   return allowed.includes(tag.trim().toLowerCase());
 }
 
+/** Case-insensitive alliance tag equality for bot-install allowlist binding. */
+export function allianceTagsEqual(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 async function audit(
   allianceId: string | null,
   discordUserId: string,
@@ -143,7 +148,8 @@ export async function handleDiscordLinkUser(input: {
  * When the tag already exists in HQ, only the alliance owner, credential
  * registrant, or platform maintainer may start this flow (not R4 officers).
  * When the tag is not in HQ yet (Ashed-first bootstrap), any HQ-linked user may
- * open the authorize URL; the authorize handler still requires an Ashed
+ * mint an authorize URL; redeeming it still requires (1) an HQ Auth.js session
+ * whose Discord OAuth id matches the slash-command caller and (2) an Ashed
  * **owner** connection key before credentials are stored.
  */
 export async function handleDiscordLinkToAshedSeat(input: {
@@ -203,8 +209,9 @@ export async function handleDiscordLinkToAshedSeat(input: {
       reply: t("errors.tagAmbiguous", { tag }),
     };
   }
-  // reason === "not_found": Ashed-first bootstrap — authorize still requires
-  // an Ashed owner connection key before credentials are stored.
+  // reason === "not_found": Ashed-first bootstrap — redeem still requires an
+  // HQ Auth.js session whose Discord OAuth id matches this slash-command
+  // caller, plus an Ashed owner connection key, before credentials are stored.
 
   const nonce = await createDiscordAuthNonce({
     discordUserId: input.discordUserId,

@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ashedLink } from "@/components/i18n/richText";
 
 export function ConnectPageFooter() {
@@ -21,7 +20,6 @@ export function ConnectPageFooter() {
         <Link href="/terms" className="text-hq-accent hover:underline">
           {t("termsOfService")}
         </Link>
-        <LanguageSwitcher />
       </div>
     </footer>
   );

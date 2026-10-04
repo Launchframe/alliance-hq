@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import {
@@ -9,6 +9,7 @@ import {
   isSnoozed,
   snoozeItem,
 } from "@/lib/battle-plan/capture-reminder-inbox.shared";
+import { OFFICER_ACTION_ITEM_DUE_INBOX_KIND } from "@/lib/officer-intel/action-item-inbox.shared";
 import {
   REGULAR_EVENT_REMINDER_INBOX_KIND,
   REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND,
@@ -16,6 +17,10 @@ import {
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
+import {
+  MEMBER_ROLE_DEESCALATE_INBOX_KIND,
+  MEMBER_ROLE_ESCALATE_INBOX_KIND,
+} from "@/lib/member-role-nudges/types.shared";
 import { Link } from "@/i18n/navigation";
 import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
 
@@ -37,6 +42,11 @@ export default function InboxPageClient({
 }) {
   const t = useTranslations("inbox");
   const tRoster = useTranslations("rosterLinkRequests");
+  const tDraft = useTranslations("supportTeams.draft");
+  const tProposal = useTranslations("supportTeams.proposals");
+  const locale = useLocale();
+  const tCompliance = useTranslations("vsCompliance");
+  const tWork = useTranslations("teamWork");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
@@ -131,6 +141,10 @@ export default function InboxPageClient({
   }
 
   function kindLabel(kind: string): string {
+    if (kind === "team_work") return tWork("title");
+    if (kind === "support_team_proposal") return tProposal("title");
+    if (kind === "support_team_draft") return tDraft("title");
+    if (kind === "vs_compliance") return tCompliance("title");
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
@@ -143,10 +157,20 @@ export default function InboxPageClient({
     if (kind === REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND) {
       return t("kind.regularEventUploadReminder");
     }
+    if (kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND)
+      return t("kind.officerActionItemDue");
+    if (kind === MEMBER_ROLE_ESCALATE_INBOX_KIND)
+      return t("kind.memberRoleEscalate");
+    if (kind === MEMBER_ROLE_DEESCALATE_INBOX_KIND)
+      return t("kind.memberRoleDeescalate");
     return kind;
   }
 
   function displayTitle(item: ReminderItem): string {
+    if (item.kind === "team_work") return tWork("digest");
+    if (item.kind === "support_team_proposal") return tProposal("title");
+    if (item.kind === "support_team_draft") return tDraft("title");
+    if (item.kind === "vs_compliance") return tCompliance("title");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkRequestTitle", { name });
@@ -159,10 +183,25 @@ export default function InboxPageClient({
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkHelpTitle", { name });
     }
+    if (
+      item.kind === MEMBER_ROLE_ESCALATE_INBOX_KIND ||
+      item.kind === MEMBER_ROLE_DEESCALATE_INBOX_KIND
+    ) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return item.kind === MEMBER_ROLE_ESCALATE_INBOX_KIND
+        ? t("kind.memberRoleEscalateTitle", { name })
+        : t("kind.memberRoleDeescalateTitle", { name });
+    }
     return item.title;
   }
 
   function displayBody(item: ReminderItem): string | null {
+    if (item.kind === "support_team_proposal") return tProposal("majorityHint");
+    if (item.kind === "support_team_draft") {
+      const format = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
+      return `${tDraft("startsAt")}: ${format(item.scoreTarget)} · ${tDraft("endsAt")}: ${format(item.body)}`;
+    }
+    if (item.kind === "vs_compliance") return tCompliance("manualHint");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       return t("kind.memberLinkRequestBody");
     }
@@ -171,6 +210,15 @@ export default function InboxPageClient({
     }
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       return t("kind.memberLinkHelpBody");
+    }
+    if (item.kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND) {
+      return t("kind.officerActionItemDueBody");
+    }
+    if (item.kind === MEMBER_ROLE_ESCALATE_INBOX_KIND) {
+      return t("kind.memberRoleEscalateBody");
+    }
+    if (item.kind === MEMBER_ROLE_DEESCALATE_INBOX_KIND) {
+      return t("kind.memberRoleDeescalateBody");
     }
     return item.body;
   }

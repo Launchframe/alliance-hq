@@ -1,4 +1,9 @@
 import { eq, and, notInArray } from "drizzle-orm";
+import { isLearningTarget } from "@/lib/ocr/learning/observations.shared";
+import { recordPipelineRun } from "@/lib/ocr/learning/recording.server";
+import { hashVideoInput } from "@/lib/ocr/learning/media-hash.server";
+import { getMaxVideoUploadBytes } from "@/lib/video/upload-limit";
+import type { OcrEntry } from "@/lib/video/normalize-rows";
 
 import { resolveSessionAllianceId, getSessionAllianceTag } from "@/lib/alliance/session-alliance";
 import {
@@ -38,6 +43,7 @@ import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeli
 import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { stripUnmatchedScoreGhostEntries } from "@/lib/video/score-ghost-clusters.shared";
+import { dedupeSameScoreOcrTwins } from "@/lib/video/score-ocr-twin-dedupe.shared";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
   getScoreTargetOrThrow,
@@ -45,6 +51,7 @@ import {
   isDesertStormVideoTarget,
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
+  isFrontlineBreakthroughVideoTarget,
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
@@ -73,11 +80,15 @@ import {
 } from "@/lib/video/run-deposit-slip-ocr-phase.server";
 import {
   engineRequiresAshed,
-  isNativeAllianceVsTarget,
+  isNativeAllianceScoreTarget,
   resolveVideoJobAshedConnection,
   resolveVideoOcrEngineForJob,
   shouldEnqueueAshedOcrShadowPasses,
 } from "@/lib/video/ocr-provider.shared";
+import {
+  collapseFrontlineEntries,
+  dedupeFrontlineMatchedEntries,
+} from "@/lib/video/frontline-breakthrough.shared";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import { VIDEO_JOB_FAIL_PROTECTED_STATUSES } from "@/lib/video/video-lifecycle.shared";
@@ -128,9 +139,10 @@ export async function processVideoJob(
     job.allianceId,
   );
   const ocrContext = await loadAllianceVideoOcrContext(jobHqAllianceId);
-  const nativeVsTarget = isNativeAllianceVsTarget(scoreTargetId, ocrContext);
+  const isFrontline = isFrontlineBreakthroughVideoTarget(scoreTargetId);
+  const nativeScoreTarget = isNativeAllianceScoreTarget(scoreTargetId, ocrContext);
   const loadJobAllianceTag = async () => {
-    if (!nativeVsTarget || !jobHqAllianceId) return getSessionAllianceTag(job.sessionId);
+    if (!nativeScoreTarget || !jobHqAllianceId) return getSessionAllianceTag(job.sessionId);
     const [alliance] = await db.select({ tag: schema.alliances.tag })
       .from(schema.alliances)
       .where(eq(schema.alliances.id, jobHqAllianceId)).limit(1);
@@ -288,6 +300,9 @@ export async function processVideoJob(
   let denseFrameCount: number | null = null;
   let framesSkipped: number | null = null;
   let totalRawOcrRows: number | null = null;
+  let learningEntries: OcrEntry[] = [];
+  let learningSourceSha256: string | null = null;
+  let learningSourceKind: "original_video" | "playback_archive" | "unknown" = "unknown";
 
   try {
     const videoStorageKey = await resolveJobVideoStorageKey(job);
@@ -382,6 +397,14 @@ export async function processVideoJob(
         (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
 
       try {
+        if (isLearningTarget(scoreTargetId)) {
+          try {
+            learningSourceSha256 = await hashVideoInput(tmpVideo, getMaxVideoUploadBytes());
+            learningSourceKind = videoStorageKey.endsWith("/archive.mp4") ? "playback_archive" : videoStorageKey === job.storageKey ? "original_video" : "unknown";
+          } catch (err) {
+            console.error("[ocr-learning] hashVideoInput failed; continuing without source hash", err);
+          }
+        }
         const extractResult = await timer.measureStep("ffmpeg.extract", () =>
           extractLeaderboardFrames(tmpVideo, extractionConfig),
           (result) => ({ frameCount: result.frames.length }),
@@ -706,7 +729,7 @@ export async function processVideoJob(
         : undefined;
       if (ocrEngine === "mock") {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
-          nativeVsTarget && jobHqAllianceId
+          nativeScoreTarget && jobHqAllianceId
             ? Promise.resolve(jobHqAllianceId)
             : resolveHqAllianceIdFromSession(processingSessionId),
         );
@@ -739,7 +762,9 @@ export async function processVideoJob(
           await timer.measureStep(
             "parse.collapse_rows",
             async () =>
-              collapseEntriesBySanitizedName(rawEntries, allianceTag),
+              isFrontline
+                ? collapseFrontlineEntries(rawEntries, allianceTag)
+                : collapseEntriesBySanitizedName(rawEntries, allianceTag),
             (result) => ({
               inputRows: rawEntries.length,
               outputRows: result.entries.length,
@@ -816,9 +841,14 @@ export async function processVideoJob(
                   },
             }));
 
-            const dedupedRows = stripUnmatchedScoreGhostEntries(
-              dedupeMatchedParseEntries(matchedRows, allianceTag),
-            );
+            const dedupedRows = isFrontline
+              ? dedupeFrontlineMatchedEntries(matchedRows, allianceTag)
+              : stripUnmatchedScoreGhostEntries(
+                  dedupeMatchedParseEntries(
+                    dedupeSameScoreOcrTwins(matchedRows, allianceTag),
+                    allianceTag,
+                  ),
+                );
             rowCount = dedupedRows.length;
             matchedCount = 0;
 
@@ -831,6 +861,7 @@ export async function processVideoJob(
                 ocrName: entry.name,
                 score: String(entry.score),
                 rank: entry.rank ?? null,
+                frontlineStage: entry.frontlineStage ?? null,
                 memberId: match.memberId,
                 memberName: match.memberName,
                 matchConfidence: match.confidence,
@@ -873,11 +904,19 @@ export async function processVideoJob(
         }
       });
 
-    const { entries: rawEntries, frameTimings, concurrency } =
+    const { entries: rawEntries, observations, frameTimings, concurrency } =
       await timer.measureStep(
         ocrEngine === "native" ? "native.ocr_total" : "ashed.ocr_total",
         async () => {
           if (ocrEngine === "native") {
+            if (isFrontline) {
+              const { ocrFrontlineNativeFrames } = await import(
+                "@/lib/video/ocr-frontline-native"
+              );
+              return ocrFrontlineNativeFrames(frames, {
+                onProgress: emitOcrFrameProgress,
+              });
+            }
             const { ocrVsNativeFrames } = await import("@/lib/video/ocr-vs-native");
             return ocrVsNativeFrames(frames, { onProgress: emitOcrFrameProgress });
           }
@@ -894,6 +933,7 @@ export async function processVideoJob(
           rowCount: result.entries.length,
         }),
       );
+    learningEntries = observations ?? rawEntries;
     ocrFrameMs = frameTimings.map((f) => f.ms);
     ocrConcurrency = concurrency;
     ashedUploadTotalMs = frameTimings.reduce((sum, f) => sum + f.uploadMs, 0);
@@ -927,7 +967,9 @@ export async function processVideoJob(
       await timer.measureStep(
       "parse.collapse_rows",
       async () =>
-        collapseEntriesBySanitizedName(rawEntries, allianceTag),
+        isFrontline
+          ? collapseFrontlineEntries(rawEntries, allianceTag)
+          : collapseEntriesBySanitizedName(rawEntries, allianceTag),
       (result) => ({
         inputRows: rawEntries.length,
         outputRows: result.entries.length,
@@ -1023,9 +1065,14 @@ export async function processVideoJob(
               },
         }));
 
-        const dedupedRows = stripUnmatchedScoreGhostEntries(
-          dedupeMatchedParseEntries(matchedRows, allianceTag),
-        );
+        const dedupedRows = isFrontline
+          ? dedupeFrontlineMatchedEntries(matchedRows, allianceTag)
+          : stripUnmatchedScoreGhostEntries(
+              dedupeMatchedParseEntries(
+                dedupeSameScoreOcrTwins(matchedRows, allianceTag),
+                allianceTag,
+              ),
+            );
         rowCount = dedupedRows.length;
         matchedCount = 0;
 
@@ -1038,6 +1085,7 @@ export async function processVideoJob(
             ocrName: entry.name,
             score: String(entry.score),
             rank: entry.rank ?? null,
+            frontlineStage: entry.frontlineStage ?? null,
             memberId: match.memberId,
             memberName: match.memberName,
             matchConfidence: match.confidence,
@@ -1100,6 +1148,14 @@ export async function processVideoJob(
         ocrConcurrency,
       });
       return timings;
+    }
+
+    if (isLearningTarget(scoreTargetId)) {
+      try {
+        await recordPipelineRun({ jobId, parseSessionId, allianceId, scoreTarget: scoreTargetId, engine: ocrEngine, sourceSha256: learningSourceSha256, sourceKind: learningSourceKind, extractionConfig: job.extractionConfigJson, frames, entries: learningEntries });
+      } catch (err) {
+        console.error("[ocr-learning] recordPipelineRun failed; continuing", err);
+      }
     }
 
     // Persist parseSessionId on the job before comparison sync —

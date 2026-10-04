@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  loadTimeOffAvailability: vi.fn(),
   getEffectiveSeasonForAlliance: vi.fn(),
   getConductorRecord: vi.fn(),
   resolveRollDayConfig: vi.fn(),
@@ -8,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   fetchNativeVrTopScorers: vi.fn(),
   loadAllianceTrainLeadTimeDays: vi.fn(),
 }));
+
+vi.mock("@/lib/time-off/availability.server", () => ({ loadTimeOffAvailability: mocks.loadTimeOffAvailability }));
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
@@ -62,12 +65,19 @@ describe("rollForConductor VR top board", () => {
     mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.getConductorRecord.mockResolvedValue(null);
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "vr_top_n",
-      conductorConfig: { topN: 5 },
-      vipMechanism: "none",
+      conductorRule: { kind: "vr_top_n", topN: 3 },
+      vipRule: { kind: "none" },
       dayConfigId: "dc1",
     });
     mocks.countAllianceVrReporters.mockResolvedValue(10);
+  });
+
+  it("does not draw an away member from an otherwise complete VR board", async () => {
+    const top = Array.from({ length: 5 }, (_, index) => ({ memberId: `m${index}`, memberName: `Member ${index}` }));
+    mocks.fetchNativeVrTopScorers.mockResolvedValue(top);
+    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(top.map((candidate) => candidate.memberId)) });
+    await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+    expect(mocks.loadTimeOffAvailability).toHaveBeenCalledWith("a1", "2099-06-20");
   });
 
   it("fails closed when the active-roster board is shorter than scope N", async () => {
@@ -91,7 +101,7 @@ describe("rollForConductor VR top board", () => {
     ).rejects.toMatchObject({
       name: "TrainRollError",
       message:
-        "Only 2 of 5 active-roster VR standings available for Top 5.",
+        "Only 2 of 3 active-roster VR standings available for Top 3.",
       details: { code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" },
     } satisfies Partial<TrainRollError>);
   });

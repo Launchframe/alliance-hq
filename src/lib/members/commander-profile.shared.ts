@@ -2,9 +2,14 @@ import type {
   MainSquadSource,
   MainSquadType,
 } from "@/lib/commanders/main-squad.shared";
+import {
+  FRONTLINE_BREAKTHROUGH_TARGET,
+  frontlinePositiveInteger,
+  normalizeFrontlineScore,
+} from "@/lib/video/frontline-breakthrough.shared";
 
 export type CommanderProfilePayload = {
-    member: {
+  member: {
     ashedMemberId: string;
     currentName: string;
     previousNames: string[];
@@ -79,6 +84,7 @@ export type CommanderProfilePayload = {
     boardKey: string | null;
     score: number | null;
     rank: number | null;
+    frontlineStage?: number | null;
     updatedAt: string;
   }>;
   commendations: Array<{
@@ -99,5 +105,39 @@ export type CommanderProfilePayload = {
     role: "conductor" | "vip" | "substitute";
     lockedAt: string | null;
   }>;
+  hqNotes: Array<{
+    id: string;
+    kind: "commendation" | "violation" | "note";
+    body: string;
+    createdAt: string;
+  }>;
   operatingMode: "ashed" | "native";
 };
+
+export function parseEventScoreMetadata(
+  metadata: unknown,
+  scoreTarget?: string | null,
+): {
+  score: number | null;
+  rank: number | null;
+  frontlineStage: number | null;
+} {
+  if (!metadata || typeof metadata !== "object") {
+    return { score: null, rank: null, frontlineStage: null };
+  }
+  const row = metadata as Record<string, unknown>;
+  const scoreRaw = row.score ?? row.total_score ?? row.points;
+  const rankRaw = row.rank ?? row.placement;
+  const isFrontline = scoreTarget === FRONTLINE_BREAKTHROUGH_TARGET;
+  let score = typeof scoreRaw === "number" ? scoreRaw : null;
+  if (isFrontline) {
+    const normalized = normalizeFrontlineScore(scoreRaw);
+    score = normalized != null ? Number(normalized) : null;
+  }
+  const stageRaw = row.frontlineStage;
+  return {
+    score,
+    rank: typeof rankRaw === "number" ? rankRaw : null,
+    frontlineStage: isFrontline ? frontlinePositiveInteger(stageRaw) : null,
+  };
+}

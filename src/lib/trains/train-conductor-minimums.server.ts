@@ -1,3 +1,4 @@
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import "server-only";
 
 import { eq } from "drizzle-orm";
@@ -82,7 +83,7 @@ export async function evaluateConductorQualification(input: {
   allianceId: string;
   memberId: string;
   trainDate: string;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
   leadDays?: number;
 }): Promise<MemberQualificationPayload | null> {
   const settings = await loadTrainConductorMinimums(input.allianceId, false);
@@ -99,7 +100,7 @@ export async function evaluateConductorQualification(input: {
     input.trainDate,
     settings.window,
     trainWeekConfig,
-    { leadDays, paintTemplate: input.paintTemplate },
+    { leadDays, rule: input.rule },
   );
 
   const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
@@ -129,7 +130,7 @@ export async function filterMemberIdsByConductorMinimums(
   allianceId: string,
   trainDate: string,
   memberIds: readonly string[],
-  options?: { paintTemplate?: string | null; leadDays?: number },
+  options?: { rule?: ConductorRule | null; leadDays?: number },
 ): Promise<string[] | null> {
   const settings = await loadTrainConductorMinimums(allianceId, false);
   if (!minimumsEnforcementEnabled(settings)) {
@@ -147,7 +148,7 @@ export async function filterMemberIdsByConductorMinimums(
     trainDate,
     settings.window,
     trainWeekConfig,
-    { leadDays, paintTemplate: options?.paintTemplate },
+    { leadDays, rule: options?.rule },
   );
   const evalSettings = minimumsSettingsForHqLocalEval(settings);
   const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
@@ -179,19 +180,19 @@ export async function filterMemberIdsByConductorMinimums(
 export async function resolvePoolRespectsConductorMinimums(input: {
   allianceId: string;
   poolType: PoolType;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
 }): Promise<boolean> {
   return resolveConductorQualificationGateApplies({
     allianceId: input.allianceId,
     poolType: input.poolType,
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
   });
 }
 
 export async function loadConductorMinimumsDataStatusForTrainDate(input: {
   allianceId: string;
   trainDate: string;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
   leadDays?: number;
   /** When set, reuse a prior fetch for the same evaluation window. */
   vsScoreCount?: number;
@@ -211,7 +212,7 @@ export async function loadConductorMinimumsDataStatusForTrainDate(input: {
     input.trainDate,
     evalSettings.window,
     trainWeekConfig,
-    { leadDays, paintTemplate: input.paintTemplate },
+    { leadDays, rule: input.rule },
   );
 
   let vsScoreCount = input.vsScoreCount;
@@ -227,7 +228,7 @@ export async function loadConductorMinimumsDataStatusForTrainDate(input: {
   return buildConductorMinimumsDataStatus({
     settings,
     trainDate: input.trainDate,
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
     leadDays,
     vsScoreCount,
     trainWeekConfig,
@@ -239,7 +240,7 @@ export async function loadWeekConductorMinimumsDataStatus(input: {
   leadDays?: number;
   days: ReadonlyArray<{
     trainDate: string;
-    paintTemplate?: string | null;
+    rule?: ConductorRule | null;
   }>;
 }): Promise<Record<string, ConductorMinimumsDataStatus | null>> {
   const settings = await loadTrainConductorMinimums(input.allianceId, false);
@@ -264,7 +265,7 @@ export async function loadWeekConductorMinimumsDataStatus(input: {
     const status = buildConductorMinimumsDataStatus({
       settings,
       trainDate: day.trainDate,
-      paintTemplate: day.paintTemplate,
+      rule: day.rule,
       leadDays,
       vsScoreCount: 0,
       trainWeekConfig,
@@ -289,7 +290,7 @@ export async function loadWeekConductorMinimumsDataStatus(input: {
     out[day.trainDate] = buildConductorMinimumsDataStatus({
       settings,
       trainDate: day.trainDate,
-      paintTemplate: day.paintTemplate,
+      rule: day.rule,
       leadDays,
       vsScoreCount,
       trainWeekConfig,
@@ -303,12 +304,12 @@ export async function loadWeekConductorMinimumsDataStatus(input: {
 export async function resolveConductorQualificationGateApplies(input: {
   allianceId: string;
   poolType?: PoolType | null;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
 }): Promise<boolean> {
   const settings = await loadTrainConductorMinimums(input.allianceId, false);
   return conductorQualificationGateApplies({
     poolType: input.poolType,
     minimumsEnabled: minimumsEnforcementEnabled(settings),
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
   });
 }

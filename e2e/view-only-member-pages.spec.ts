@@ -19,11 +19,14 @@ function e2eBaseUrl(): string {
 /** Native HQ pages a view-only member should reach without a personal Ashed credential. */
 const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
+  { path: "/notes", heading: /^notes$/i },
   { path: "/data-management", heading: /data management/i },
   { path: "/trains", heading: /alliance train/i },
   { path: "/battle-plan", heading: /battle plan/i },
   { path: "/bank-management", heading: /bank management/i },
   { path: "/time-off", heading: /^my time off$/i },
+  { path: "/vs-performance", heading: /^week of/i },
+  { path: "/plunder-plan", heading: /^plunder plan$/i },
   { path: "/professions", heading: /^profession$/i },
   { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
@@ -43,9 +46,12 @@ const IFRAME_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
 /** Read permissions the default view-only member fixture already has. */
 const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set([
   "members:read",
+  "scores:read",
+  "notes:read",
   "battle_plan:read",
   "bank:read",
   "time_off:read",
+  "plunder_plan:read",
   "data:read",
 ]);
 
@@ -100,10 +106,18 @@ for (const operatingMode of ["native", "ashed"] as const) {
     }
 
     for (const path of PERMISSION_GATED_NAV_PATHS) {
-      test(`redirects ${path} when write permission is missing`, async ({
+      test(`denies ${path} when the required permission is missing`, async ({
         page,
       }) => {
-        await expectRedirectedToMembers(page, path);
+        if (path === "/vs-compliance") {
+          const response = await page.goto(path);
+          expect(response?.status()).toBeLessThan(500);
+          await expect(page.getByRole("heading", { name: "Page not found", exact: true })).toBeVisible();
+          await expect(page.getByRole("heading", { name: "VS compliance", exact: true })).toHaveCount(0);
+          expect((await page.request.get("/api/vs-compliance")).status()).toBe(403);
+        } else {
+          await expectRedirectedToMembers(page, path);
+        }
       });
     }
 

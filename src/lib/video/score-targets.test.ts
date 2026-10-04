@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isVideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
+import { FRONTLINE_BREAKTHROUGH_OCR_SCHEMA } from "@/lib/video/frontline-breakthrough.shared";
 import {
   ENABLED_SCORE_TARGETS,
   SCORE_TARGETS,
@@ -9,6 +10,7 @@ import {
   getScoreTargetOrThrow,
   isBankDepositSlipHistoryTarget,
   isDesertStormVideoTarget,
+  isFrontlineBreakthroughVideoTarget,
   isHqOnlySubmitTarget,
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
@@ -105,6 +107,30 @@ describe("score targets", () => {
     expect(getScoreTargetOrThrow("alliance-star").inHouseOcrAccuracy).toBe(
       "none",
     );
+  });
+
+  it("registers Frontline Breakthrough with stage and rank review columns", () => {
+    const target = getScoreTargetOrThrow("frontline-breakthrough");
+    expect(isFrontlineBreakthroughVideoTarget("frontline-breakthrough")).toBe(true);
+    expect(isFrontlineBreakthroughVideoTarget("vs-performance")).toBe(false);
+    expect(target.enabled).toBe(true);
+    expect(target.ocrSchema).toBe(FRONTLINE_BREAKTHROUGH_OCR_SCHEMA);
+    expect(isHqOnlySubmitTarget(target)).toBe(false);
+    expect(isNativeOnlyVideoTarget("frontline-breakthrough")).toBe(false);
+
+    const meta = toScoreTargetClientMeta(target);
+    expect(meta.showStageColumn).toBe(true);
+    expect(meta.showRankColumn).toBe(true);
+    expect(meta.showReviewRowNumber).toBe(false);
+    expect(meta.showScoreColumn).toBe(true);
+    expect(meta.usesHqEvents).toBe(true);
+  });
+
+  it("keeps stage column off for all other targets", () => {
+    for (const target of SCORE_TARGETS) {
+      if (target.id === "frontline-breakthrough") continue;
+      expect(toScoreTargetClientMeta(target).showStageColumn).toBe(false);
+    }
   });
 
   it("shows read-only row numbers for linear leaderboard video targets", () => {

@@ -46,4 +46,46 @@ describe("parseStoredVrPending", () => {
       }),
     ).toBeNull();
   });
+
+  it("parses anomaly confirm with a season binding", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        proposedVr: 8000,
+        commanderId: "cmd-1",
+        ashedMemberId: "member-1",
+        seasonKey: "1",
+      }),
+    ).toEqual({
+      kind: "anomaly_confirm",
+      proposedVr: 8000,
+      commanderId: "cmd-1",
+      ashedMemberId: "member-1",
+      seasonKey: "1",
+    });
+  });
+
+  it("accepts legacy anomaly confirm rows without a season binding", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        proposedVr: 8000,
+        ashedMemberId: "member-1",
+      }),
+    ).toEqual({
+      kind: "anomaly_confirm",
+      proposedVr: 8000,
+      ashedMemberId: "member-1",
+    });
+  });
+
+  it("rejects kills anomaly confirm mistaken for VR", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 150_000,
+        commanderId: "cmd-1",
+      }),
+    ).toBeNull();
+  });
 });

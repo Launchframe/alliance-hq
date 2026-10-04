@@ -14,19 +14,25 @@ import {
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 import type { TrainsRosterDataStatus } from "@/lib/trains/roster-data-status.shared";
-import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
 import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import {
+  conductorRuleLabelKey,
+  type ConductorRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  paletteIdForRule,
+  scopeForRule,
+} from "@/lib/trains/rules/palette.shared";
 
 /** Default destination for the "upload score video" prerequisites link. */
 const DEFAULT_VIDEO_UPLOAD_HREF =
   "/tools/video-upload?scoreTarget=vs-performance";
 
 export type TrainsGuidedConductorFlowProps = {
-  templateType: WeekTemplateType | null;
-  paintTemplate?: WeekTemplateType | null;
+  /** Rule painted on this day; null is free choice. */
+  conductorRule: ConductorRule | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
@@ -39,6 +45,7 @@ export type TrainsGuidedConductorFlowProps = {
   rosterDataStatus: TrainsRosterDataStatus | null;
   hasConductor: boolean;
   conductorName?: string | null;
+  eligibilityOverridden?: boolean;
   vipNeeded: boolean;
   hasVip: boolean;
   vipName?: string | null;
@@ -51,7 +58,7 @@ export type TrainsGuidedConductorFlowProps = {
   /** Precomputed via `canSpinVip(...)` in the dashboard — not re-derived here. */
   canSpinVipWheel: boolean;
   /** Used only to choose the "pick top scorer" label vs. the wheel/manual CTAs. */
-  conductorMech: string | null;
+
   vipMech?: string | null;
   busy: boolean;
   onChangeTemplate: () => void;
@@ -230,8 +237,7 @@ function StepRow({
 
 export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps) {
   const {
-    templateType,
-    paintTemplate,
+    conductorRule,
     templateDetailHint,
     vsDataStatus,
     conductorMinimumsDataStatus = null,
@@ -240,6 +246,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     rosterDataStatus,
     hasConductor,
     conductorName,
+    eligibilityOverridden = false,
     vipNeeded,
     hasVip,
     vipName,
@@ -249,7 +256,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     canManualPickVip,
     canSpinConductorWheel,
     canSpinVipWheel,
-    conductorMech,
     busy,
     onChangeTemplate,
     onRollConductor,
@@ -280,9 +286,9 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const connectAshedHref = buildConnectHref("/trains");
 
   const t = useTranslations("trains.guidedFlow");
+  const tTrains = useTranslations("trains");
   const tConfirmation = useTranslations("trains.conductorConfirmation");
-  const tTemplates = useTranslations("trains.templates");
-  const tTemplateDetails = useTranslations("trains.templateDetails");
+  const tRules = useTranslations("trains.rules");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const lockStepRef = useRef<HTMLDivElement>(null);
 
@@ -306,20 +312,21 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   };
   const current = currentGuidedStep(guidedInput);
 
-  const dayConductorPick = paintTemplate ?? templateType;
-  const conductorPickLabel = dayConductorPick ? tTemplates(dayConductorPick) : null;
+  const rulePaletteId = paletteIdForRule(conductorRule);
+  const ruleScope = scopeForRule(conductorRule);
+  const conductorPickLabel = `${tRules(
+    conductorRuleLabelKey(conductorRule),
+  )}${ruleScope != null ? ` ${ruleScope}` : ""}`;
+  const ruleDetailKey = `ruleDetails.${rulePaletteId}` as const;
   const conductorPickHint =
     templateDetailHint ??
-    (dayConductorPick && WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(dayConductorPick)
-      ? tTemplateDetails(dayConductorPick)
-      : null);
+    (tTrains.has(ruleDetailKey) ? tTrains(ruleDetailKey) : null);
 
   const conductorAction: PrimaryAction = canSpinConductorWheel
     ? { label: t("steps.conductor.spin"), onClick: onRollConductor }
     : canRoll &&
-        (conductorMech === "vs_high_score" ||
-          conductorMech === "vs_top_n" ||
-          conductorMech === "donations_top") &&
+        (conductorRule?.kind === "vs_top_n" ||
+          conductorRule?.kind === "donations_top") &&
         !canSpinConductorWheel
       ? { label: t("steps.conductor.pickTop"), onClick: onPickTopScorer }
       : null;
@@ -552,6 +559,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 <span className="text-sm text-hq-fg-muted">
                   {t("steps.conductor.assigned", { name: conductorName ?? "—" })}
                 </span>
+                {eligibilityOverridden ? (
+                  <span
+                    className="rounded-full bg-hq-warning/15 px-2 py-0.5 text-xs font-medium text-hq-warning"
+                    data-testid="trains-conductor-eligibility-override"
+                    title={tTrains("conductorEligibilityOverrideHint")}
+                  >
+                    {tTrains("conductorEligibilityOverrideBadge")}
+                  </span>
+                ) : null}
                 {!locked && canSpinConductorWheel ? (
                   <ChangeLink
                     label={tWheel("spinAgain")}
@@ -561,8 +577,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 ) : null}
                 {!locked &&
                 canRoll &&
-                (conductorMech === "vs_high_score" ||
-                  conductorMech === "vs_top_n") &&
+                conductorRule?.kind === "vs_top_n" &&
                 !canSpinConductorWheel ? (
                   <ChangeLink
                     label={t("steps.conductor.pickTop")}

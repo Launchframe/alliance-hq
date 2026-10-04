@@ -7,6 +7,7 @@ import {
   inArray,
   isNull,
   lt,
+  lte,
   ne,
   or,
   sql,
@@ -14,19 +15,36 @@ import {
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { ActivityWriteError, toActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  captureActivityContext,
+  type ActivityIdentity,
+} from "@/lib/activity/identity.server";
+import {
+  claimDiscordActivityOwnership,
+  lockActivityIdentity,
+} from "@/lib/activity/ownership.server";
+import {
+  appendActivityEvent,
+  withActivityTransaction,
+  type ActivityTransaction,
+} from "@/lib/activity/writer.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/discord-link-live-identity.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
-import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
+import { coerceInstituteLevelFromBaseVr, validateBaseVrForSeason } from "@/lib/vr/institute-levels.shared";
+import { shouldApplySeasonVrWrite } from "@/lib/vr/season-high-write.shared";
+import { maxAllowedDowngradeForSeason } from "@/lib/vr/validation";
 import {
   canRebindGuildToDifferentAlliance,
   evaluateGuildRegistrationAuth,
@@ -44,16 +62,39 @@ import type { KillsPendingState } from "@/lib/kills/types";
 import { parseStoredKillsPending } from "@/lib/kills/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
 import { parseStoredThpPending } from "@/lib/thp/pending-state";
+import type { PerformanceNotesPendingState } from "@/lib/performance-notes/pending-state";
+import { parsePerformanceNotesPending } from "@/lib/performance-notes/pending-state";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 import { parseStoredVrPending } from "@/lib/vr/pending-state";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
+export type VrSubmissionActivity = {
+  identity: Exclude<ActivityIdentity, { kind: "automation" }>;
+  expectedPreviousBaseVr: number | null;
+  pending?: { expected: VrPendingState; required: boolean };
+};
+
+export class VrPendingChangedError extends Error {
+  constructor() {
+    super("vr_pending_changed");
+    this.name = "VrPendingChangedError";
+  }
+}
+
+export class VrSubmissionChangedError extends Error {
+  constructor() {
+    super("vr_submission_changed");
+    this.name = "VrSubmissionChangedError";
+  }
+}
+
 export type DiscordBotPendingState =
   | VrPendingState
   | LinkPendingState
   | ThpPendingState
-  | KillsPendingState;
+  | KillsPendingState
+  | PerformanceNotesPendingState;
 
 function parseVrPending(value: unknown): VrPendingState | null {
   return parseStoredVrPending(value);
@@ -266,6 +307,7 @@ function parseKillsPending(value: unknown): KillsPendingState | null {
 
 function parseDiscordBotPending(value: unknown): DiscordBotPendingState | null {
   return (
+    parsePerformanceNotesPending(value) ??
     parseThpPending(value) ??
     parseKillsPending(value) ??
     parseVrPending(value) ??
@@ -286,7 +328,12 @@ export async function getDiscordBotPending(
   if (row.expiresAt.getTime() <= Date.now()) {
     await db
       .delete(schema.discordBotPending)
-      .where(eq(schema.discordBotPending.discordUserId, discordUserId));
+      .where(
+        and(
+          eq(schema.discordBotPending.discordUserId, discordUserId),
+          lte(schema.discordBotPending.expiresAt, new Date()),
+        ),
+      );
     return null;
   }
   const pending = parseDiscordBotPending(row.pendingJson);
@@ -321,12 +368,18 @@ export async function saveDiscordBotPending(
     });
 }
 
+/**
+ * Overlay live roster names by default. Last War rematerialize is **opt-in**
+ * (`rematerializeFormer: true`). Web callers must pass that flag if they need
+ * UID follow; `getDiscordLinkById` rematerializes unless opted out.
+ */
 export async function listDiscordLinksForUser(
   allianceId: string,
   discordUserId: string,
+  options?: { followLiveRoster?: boolean; rematerializeFormer?: boolean },
 ) {
   const db = getDb();
-  return db
+  const rows = await db
     .select()
     .from(schema.discordMemberLinks)
     .where(
@@ -335,6 +388,12 @@ export async function listDiscordLinksForUser(
         eq(schema.discordMemberLinks.discordUserId, discordUserId),
       ),
     );
+  if (options?.followLiveRoster === false) {
+    return rows;
+  }
+  return hydrateDiscordMemberLinks(rows, {
+    rematerializeFormer: options?.rematerializeFormer === true,
+  });
 }
 
 export async function listDiscordLinksByAlliance(allianceId: string) {
@@ -345,14 +404,24 @@ export async function listDiscordLinksByAlliance(allianceId: string) {
     .where(eq(schema.discordMemberLinks.allianceId, allianceId));
 }
 
-export async function getDiscordLinkById(linkId: string) {
+/** Rematerializes former seats by default (`rematerializeFormer !== false`). */
+export async function getDiscordLinkById(
+  linkId: string,
+  options?: { followLiveRoster?: boolean; rematerializeFormer?: boolean },
+) {
   const db = getDb();
   const [row] = await db
     .select()
     .from(schema.discordMemberLinks)
     .where(eq(schema.discordMemberLinks.id, linkId))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  if (options?.followLiveRoster === false) {
+    return row;
+  }
+  return hydrateDiscordMemberLink(row, {
+    rematerializeFormer: options?.rematerializeFormer !== false,
+  });
 }
 
 export async function getLinkedMemberIds(allianceId: string): Promise<Set<string>> {
@@ -467,10 +536,9 @@ export async function linkDiscordMember(input: {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 
-  if (input.replaceAll) {
-    await deleteDiscordMemberLinksForUser(input.allianceId, input.discordUserId);
-  }
-
+  // Occupancy must be checked before any replaceAll wipe. Deleting the caller's
+  // seats first then failing on an occupied target permanently orphans Discord
+  // commanders (and frees them for sniping).
   const existingMemberLink = await getDiscordLinkByAllianceAndMember(
     input.allianceId,
     input.ashedMemberId,
@@ -485,6 +553,7 @@ export async function linkDiscordMember(input: {
   const userLinks = await listDiscordLinksForUser(
     input.allianceId,
     input.discordUserId,
+    { followLiveRoster: false },
   );
   const existingPair = userLinks.find(
     (row) => row.ashedMemberId === input.ashedMemberId,
@@ -492,16 +561,30 @@ export async function linkDiscordMember(input: {
 
   try {
     if (existingPair) {
-      const [row] = await db
-        .update(schema.discordMemberLinks)
-        .set({
-          memberDisplayName: input.memberDisplayName ?? null,
-          gameUid: input.gameUid,
-          discordUsername: input.discordUsername ?? null,
-          updatedAt: now,
-        })
-        .where(eq(schema.discordMemberLinks.id, existingPair.id))
-        .returning();
+      const row = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(schema.discordMemberLinks)
+          .set({
+            memberDisplayName: input.memberDisplayName ?? null,
+            gameUid: input.gameUid,
+            discordUsername: input.discordUsername ?? null,
+            updatedAt: now,
+          })
+          .where(eq(schema.discordMemberLinks.id, existingPair.id))
+          .returning();
+        if (input.replaceAll) {
+          await tx
+            .delete(schema.discordMemberLinks)
+            .where(
+              and(
+                eq(schema.discordMemberLinks.allianceId, input.allianceId),
+                eq(schema.discordMemberLinks.discordUserId, input.discordUserId),
+                ne(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+              ),
+            );
+        }
+        return updated;
+      });
       await denormalizeGameUidOnMember({
         allianceId: input.allianceId,
         ashedMemberId: input.ashedMemberId,
@@ -521,24 +604,41 @@ export async function linkDiscordMember(input: {
       return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
     }
 
-    if (userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
+    // replaceAll briefly exceeds the soft cap (insert target, then prune others).
+    if (!input.replaceAll && userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
       return { ok: false, reason: "cap_reached" };
     }
 
-    const [row] = await db
-      .insert(schema.discordMemberLinks)
-      .values({
-        id: nanoid(),
-        allianceId: input.allianceId,
-        discordUserId: input.discordUserId,
-        discordUsername: input.discordUsername ?? null,
-        ashedMemberId: input.ashedMemberId,
-        memberDisplayName: input.memberDisplayName ?? null,
-        gameUid: input.gameUid,
-        linkedAt: now,
-        updatedAt: now,
-      })
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(schema.discordMemberLinks)
+        .values({
+          id: nanoid(),
+          allianceId: input.allianceId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername ?? null,
+          ashedMemberId: input.ashedMemberId,
+          memberDisplayName: input.memberDisplayName ?? null,
+          gameUid: input.gameUid,
+          linkedAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      // Prune only after the new seat commits. A unique conflict on insert rolls
+      // the transaction back so prior Discord links are preserved.
+      if (input.replaceAll) {
+        await tx
+          .delete(schema.discordMemberLinks)
+          .where(
+            and(
+              eq(schema.discordMemberLinks.allianceId, input.allianceId),
+              eq(schema.discordMemberLinks.discordUserId, input.discordUserId),
+              ne(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+            ),
+          );
+      }
+      return inserted;
+    });
 
     await denormalizeGameUidOnMember({
       allianceId: input.allianceId,
@@ -637,8 +737,9 @@ export async function resolveCommanderIdForMember(
 export async function getCommanderSeasonHigh(
   commanderId: string,
   seasonKey: string,
+  tx?: ActivityTransaction,
 ): Promise<number | null> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const [row] = await db
     .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
     .from(schema.commanderSeasonVr)
@@ -686,8 +787,9 @@ export async function getMemberSeasonHigh(
 export async function listAllianceSeasonVrForLeaderboard(
   allianceId: string,
   seasonKey: string,
+  tx?: ActivityTransaction,
 ): Promise<AllianceSeasonVrLeaderboardRow[]> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const rows = await db
     .select({
       id: schema.commanderSeasonVr.id,
@@ -745,8 +847,8 @@ export async function countSeasonReporters(
 export async function countAllianceSeasonVrReporters(
   allianceId: string,
   seasonKey: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<number> {
-  const db = getDb();
   const [row] = await db
     .select({
       count: sql<number>`cast(count(*) as integer)`,
@@ -785,10 +887,15 @@ export async function countAllianceSeasonVrReporters(
   return row?.count ?? 0;
 }
 
-export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
+export async function listSeasonVrRows(
+  allianceId: string,
+  seasonKey: string,
+  tx?: ActivityTransaction,
+) {
   const allianceRows = await listAllianceSeasonVrForLeaderboard(
     allianceId,
     seasonKey,
+    tx,
   );
   return allianceRows.map((row) => ({
     id: row.id,
@@ -817,88 +924,280 @@ export async function upsertCommanderSeasonVr(input: {
   hqUserId?: string | null;
   flagReason?: string | null;
   eventSource?: VrEventSource;
-}): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-  const previousBaseVr = await getCommanderSeasonHigh(
-    input.commanderId,
-    input.seasonKey,
-  );
-  const instituteLevel =
-    input.instituteLevel ??
-    coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
-  const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
-  const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
-  const peerMaxLevel = peerMaxInstituteLevelExcludingMember(
-    rows,
-    input.ashedMemberId,
-    input.seasonKey,
-  );
-  const flagReason =
-    input.flagReason ??
-    (shouldAnomalyConfirm({
-      seasonKey: input.seasonKey,
-      proposedVr: input.baseVr,
-      proposedLevel: instituteLevel,
-      reporterCount: rows.length,
-      peerMax,
-      peerMaxLevel,
-    })
-      ? buildFlagReason(
-          input.seasonKey,
-          input.baseVr,
-          peerMax,
-          instituteLevel,
-          peerMaxLevel,
-        )
-      : null);
+  activity?: VrSubmissionActivity;
+}): Promise<boolean> {
+  return withActivityTransaction(async (db) => {
+    const activityInput = input.activity;
+    const activity = activityInput
+      ? await captureActivityContext(db, {
+          eventKey: "vr.submitted",
+          identity: activityInput.identity,
+          alliance: { kind: "hq", id: input.allianceId },
+          actingMemberId: input.ashedMemberId,
+          method: "manual",
+        })
+      : null;
+    if (
+      activity &&
+      activityInput &&
+      (!input.allianceId ||
+        !input.ashedMemberId ||
+        activity.actor.commanderId !== input.commanderId ||
+        input.eventSource !== activityInput.identity.kind ||
+        !(
+          activityInput.expectedPreviousBaseVr === null ||
+          (Number.isInteger(activityInput.expectedPreviousBaseVr) &&
+            activityInput.expectedPreviousBaseVr >= 0)
+        ) ||
+        (activityInput.identity.kind === "web" &&
+          (input.hqUserId !== activity.actor.hqUserId ||
+            activityInput.identity.principal.currentAllianceId !==
+              input.allianceId)) ||
+        (activityInput.identity.kind === "discord" &&
+          input.discordUserId !== activity.actor.discordUserId))
+    ) {
+      throw new ActivityWriteError({
+        eventKey: "vr.submitted",
+        failureCategory: "validation",
+      });
+    }
 
-  await db
-    .insert(schema.commanderSeasonVr)
-    .values({
-      id: nanoid(),
-      commanderId: input.commanderId,
-      seasonKey: input.seasonKey,
-      highestBaseVr: input.baseVr,
-      instituteLevel,
-      updatedByDiscordUserId: input.discordUserId ?? null,
-      updatedByHqUserId: input.hqUserId ?? null,
-      flaggedAt: flagReason ? now : null,
-      flagReason,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.commanderSeasonVr.commanderId,
-        schema.commanderSeasonVr.seasonKey,
-      ],
-      set: {
+    const expectedPrevious = activityInput
+      ? activityInput.expectedPreviousBaseVr
+      : await getCommanderSeasonHigh(input.commanderId, input.seasonKey, db);
+
+    if (activityInput?.pending) {
+      const expectedPending = activityInput.pending.expected;
+      if (
+        activityInput.pending.required &&
+        expectedPending.kind === "anomaly_confirm" &&
+        expectedPending.seasonKey !== input.seasonKey
+      ) {
+        throw new VrPendingChangedError();
+      }
+      const expectedJson = JSON.stringify(expectedPending);
+      const consumed =
+        activityInput.identity.kind === "web"
+          ? await db
+              .delete(schema.hqVrPending)
+              .where(
+                and(
+                  eq(schema.hqVrPending.allianceId, input.allianceId),
+                  eq(schema.hqVrPending.hqUserId, input.hqUserId!),
+                  gt(schema.hqVrPending.expiresAt, new Date()),
+                  sql`${schema.hqVrPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning()
+          : await db
+              .delete(schema.discordBotPending)
+              .where(
+                and(
+                  eq(
+                    schema.discordBotPending.discordUserId,
+                    input.discordUserId!,
+                  ),
+                  eq(schema.discordBotPending.allianceId, input.allianceId),
+                  gt(schema.discordBotPending.expiresAt, new Date()),
+                  sql`${schema.discordBotPending.pendingJson} = ${expectedJson}::jsonb`,
+                ),
+              )
+              .returning();
+      if (consumed.length === 0 && activityInput.pending.required) {
+        throw new VrPendingChangedError();
+      }
+    }
+
+    const now = new Date();
+    const [locked] = await db
+      .select({ id: schema.commanders.id })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, input.commanderId))
+      .limit(1)
+      .for("update");
+    if (!locked) {
+      throw new Error("commander_required_for_vr");
+    }
+
+    const [current] = await db
+      .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
+      .from(schema.commanderSeasonVr)
+      .where(
+        and(
+          eq(schema.commanderSeasonVr.commanderId, input.commanderId),
+          eq(schema.commanderSeasonVr.seasonKey, input.seasonKey),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    const previousBaseVr = current?.highestBaseVr ?? null;
+
+    if (
+      activityInput &&
+      (!validateBaseVrForSeason(input.seasonKey, input.baseVr).ok ||
+        (previousBaseVr !== null &&
+          (input.baseVr <
+            maxAllowedDowngradeForSeason(input.seasonKey, previousBaseVr) ||
+            !shouldApplySeasonVrWrite({
+              incomingBaseVr: input.baseVr,
+              storedHighestBaseVr: previousBaseVr,
+              expectedPreviousBaseVr: expectedPrevious,
+            }))))
+    ) {
+      throw new VrSubmissionChangedError();
+    }
+    if (activityInput && previousBaseVr === input.baseVr) {
+      return false;
+    }
+
+    const instituteLevel =
+      input.instituteLevel ??
+      coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
+    const rows = await listSeasonVrRows(input.allianceId, input.seasonKey, db);
+    const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
+    const peerMaxLevel = peerMaxInstituteLevelExcludingMember(
+      rows,
+      input.ashedMemberId,
+      input.seasonKey,
+    );
+    const flagReason =
+      input.flagReason ??
+      (shouldAnomalyConfirm({
+        seasonKey: input.seasonKey,
+        proposedVr: input.baseVr,
+        proposedLevel: instituteLevel,
+        reporterCount: rows.length,
+        peerMax,
+        peerMaxLevel,
+      })
+        ? buildFlagReason(
+            input.seasonKey,
+            input.baseVr,
+            peerMax,
+            instituteLevel,
+            peerMaxLevel,
+          )
+        : null);
+
+    // Atomic conflict resolution: never let a stale lower write clobber a
+    // concurrent higher season high. Intentional downgrades apply only when the
+    // stored high still matches the caller's pre-read (see shouldApplySeasonVrWrite).
+    const applyIncoming = sql`
+    (${input.baseVr} >= ${schema.commanderSeasonVr.highestBaseVr})
+    OR (
+      ${expectedPrevious}::int IS NOT NULL
+      AND ${schema.commanderSeasonVr.highestBaseVr} = ${expectedPrevious}
+    )
+  `;
+
+    const [written] = await db
+      .insert(schema.commanderSeasonVr)
+      .values({
+        id: nanoid(),
+        commanderId: input.commanderId,
+        seasonKey: input.seasonKey,
         highestBaseVr: input.baseVr,
         instituteLevel,
         updatedByDiscordUserId: input.discordUserId ?? null,
         updatedByHqUserId: input.hqUserId ?? null,
-        updatedAt: now,
         flaggedAt: flagReason ? now : null,
         flagReason,
-      },
-    });
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.commanderSeasonVr.commanderId,
+          schema.commanderSeasonVr.seasonKey,
+        ],
+        set: {
+          highestBaseVr: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${input.baseVr}
+              ELSE ${schema.commanderSeasonVr.highestBaseVr}
+            END
+          `,
+          instituteLevel: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${instituteLevel}
+              ELSE ${schema.commanderSeasonVr.instituteLevel}
+            END
+          `,
+          updatedByDiscordUserId: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${input.discordUserId ?? null}
+              ELSE ${schema.commanderSeasonVr.updatedByDiscordUserId}
+            END
+          `,
+          updatedByHqUserId: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${input.hqUserId ?? null}
+              ELSE ${schema.commanderSeasonVr.updatedByHqUserId}
+            END
+          `,
+          updatedAt: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${now.toISOString()}::timestamptz
+              ELSE ${schema.commanderSeasonVr.updatedAt}
+            END
+          `,
+          flaggedAt: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${flagReason ? now.toISOString() : null}::timestamptz
+              ELSE ${schema.commanderSeasonVr.flaggedAt}
+            END
+          `,
+          flagReason: sql`
+            CASE
+              WHEN ${applyIncoming} THEN ${flagReason}
+              ELSE ${schema.commanderSeasonVr.flagReason}
+            END
+          `,
+        },
+      })
+      .returning({
+        highestBaseVr: schema.commanderSeasonVr.highestBaseVr,
+      });
 
-  if (input.eventSource && previousBaseVr !== input.baseVr) {
-    await db.insert(schema.commanderSeasonVrEvents).values({
-      id: nanoid(),
-      commanderId: input.commanderId,
-      seasonKey: input.seasonKey,
-      baseVr: input.baseVr,
-      instituteLevel,
-      previousBaseVr,
-      source: input.eventSource,
-      allianceId: input.allianceId,
-      reportedByHqUserId: input.hqUserId ?? null,
-      reportedByDiscordUserId: input.discordUserId ?? null,
-      createdAt: now,
-    });
-  }
+    if (activityInput && written?.highestBaseVr !== input.baseVr) {
+      throw new VrSubmissionChangedError();
+    }
+
+    const applied =
+      written?.highestBaseVr === input.baseVr &&
+      previousBaseVr !== input.baseVr;
+    if (input.eventSource && applied) {
+      const historyId = nanoid();
+      await db.insert(schema.commanderSeasonVrEvents).values({
+        id: historyId,
+        commanderId: input.commanderId,
+        seasonKey: input.seasonKey,
+        baseVr: input.baseVr,
+        instituteLevel,
+        previousBaseVr,
+        source: input.eventSource,
+        allianceId: input.allianceId,
+        reportedByHqUserId: input.hqUserId ?? null,
+        reportedByDiscordUserId: input.discordUserId ?? null,
+        createdAt: now,
+      });
+      if (activity) {
+        await appendActivityEvent(db, {
+          ...activity,
+          eventKey: "vr.submitted",
+          occurredAt: now,
+          source: { namespace: "commander-season-vr-events", key: historyId },
+          severity: "update",
+          payload: {
+            value: String(input.baseVr),
+            previousValue:
+              previousBaseVr === null ? null : String(previousBaseVr),
+          },
+        });
+      }
+    }
+    return applied;
+  });
 }
 
 export async function upsertMemberSeasonVr(input: {
@@ -912,14 +1211,15 @@ export async function upsertMemberSeasonVr(input: {
   flagReason?: string | null;
   eventSource?: VrEventSource;
   commanderId?: string | null;
-}): Promise<void> {
+  activity?: VrSubmissionActivity;
+}): Promise<boolean> {
   const commanderId =
     input.commanderId ??
     (await resolveCommanderIdForMember(input.allianceId, input.ashedMemberId));
   if (!commanderId) {
     throw new Error("commander_required_for_vr");
   }
-  await upsertCommanderSeasonVr({
+  return upsertCommanderSeasonVr({
     ...input,
     commanderId,
   });
@@ -1282,22 +1582,157 @@ export async function getCommanderByAshedMemberId(
   return row ?? null;
 }
 
+export class WeeklyPassPendingChangedError extends Error {
+  constructor() {
+    super("weekly_pass_pending_changed");
+    this.name = "WeeklyPassPendingChangedError";
+  }
+}
+
+export class WeeklyPassTargetChangedError extends Error {
+  constructor() {
+    super("weekly_pass_target_changed");
+    this.name = "WeeklyPassTargetChangedError";
+  }
+}
+
+export type WeeklyPassPending = Extract<
+  VrPendingState,
+  { kind: "weekly_pass_pick_character" }
+>;
+
+export type WeeklyPassActivity = {
+  identity: Exclude<ActivityIdentity, { kind: "automation" }>;
+  pending?: { expected: WeeklyPassPending; required: boolean; linkId: string };
+};
+
 export async function setWeeklyPass(input: {
   commanderId: string;
+  allianceId: string;
+  ashedMemberId: string;
   active: boolean;
   source: "self" | "officer";
-}): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-  await db
-    .update(schema.commanders)
-    .set({
-      weeklyPassActive: input.active,
-      weeklyPassSource: input.source,
-      weeklyPassUpdatedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(schema.commanders.id, input.commanderId));
+  activity: WeeklyPassActivity;
+}): Promise<boolean> {
+  return withActivityTransaction(async (tx) => {
+    const { identity, pending } = input.activity;
+    const eventKey = "member.weekly_pass_updated" as const;
+    if (
+      (identity.kind === "web" &&
+        identity.principal.currentAllianceId !== input.allianceId) ||
+      (input.source === "officer" &&
+        (identity.kind !== "web" ||
+          (!identity.principal.permissions.has("members:write") &&
+            !identity.principal.isPlatformMaintainer)))
+    ) {
+      throw new ActivityWriteError({
+        eventKey,
+        failureCategory: "validation",
+      });
+    }
+    const activity = await captureActivityContext(tx, {
+      eventKey,
+      identity,
+      alliance: { kind: "hq", id: input.allianceId },
+      actingMemberId: input.source === "self" ? input.ashedMemberId : null,
+      method: "manual",
+    });
+    if (
+      input.source === "self" &&
+      activity.actor.commanderId !== input.commanderId
+    ) {
+      throw new ActivityWriteError({
+        eventKey,
+        failureCategory: "validation",
+      });
+    }
+    if (pending) {
+      if (
+        identity.kind !== "discord" ||
+        (pending.required &&
+          (pending.expected.active !== input.active ||
+            !pending.expected.linkIds.includes(pending.linkId)))
+      ) {
+        throw new WeeklyPassPendingChangedError();
+      }
+      const [link] = await tx
+        .select({ id: schema.discordMemberLinks.id })
+        .from(schema.discordMemberLinks)
+        .where(
+          and(
+            eq(schema.discordMemberLinks.id, pending.linkId),
+            eq(schema.discordMemberLinks.discordUserId, identity.discordUserId),
+            eq(schema.discordMemberLinks.allianceId, input.allianceId),
+            eq(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+          ),
+        )
+        .limit(1)
+        .for("share");
+      if (!link) throw new WeeklyPassPendingChangedError();
+      const consumed = await tx
+        .delete(schema.discordBotPending)
+        .where(
+          and(
+            eq(schema.discordBotPending.discordUserId, identity.discordUserId),
+            eq(schema.discordBotPending.allianceId, input.allianceId),
+            gt(schema.discordBotPending.expiresAt, new Date()),
+            sql`${schema.discordBotPending.pendingJson} = ${JSON.stringify(pending.expected)}::jsonb`,
+          ),
+        )
+        .returning({ id: schema.discordBotPending.discordUserId });
+      if (pending.required && consumed.length === 0) {
+        throw new WeeklyPassPendingChangedError();
+      }
+    }
+    const [current] = await tx
+      .select({
+        active: schema.commanders.weeklyPassActive,
+        source: schema.commanders.weeklyPassSource,
+      })
+      .from(schema.commanders)
+      .innerJoin(
+        schema.commanderAllianceMemberships,
+        eq(
+          schema.commanderAllianceMemberships.commanderId,
+          schema.commanders.id,
+        ),
+      )
+      .where(
+        and(
+          eq(schema.commanders.id, input.commanderId),
+          eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+          eq(
+            schema.commanderAllianceMemberships.ashedMemberId,
+            input.ashedMemberId,
+          ),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!current) throw new WeeklyPassTargetChangedError();
+    if (current.active === input.active && current.source === input.source) {
+      return false;
+    }
+    const now = new Date();
+    await tx
+      .update(schema.commanders)
+      .set({
+        weeklyPassActive: input.active,
+        weeklyPassSource: input.source,
+        weeklyPassUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.commanders.id, input.commanderId));
+    await appendActivityEvent(tx, {
+      ...activity,
+      eventKey,
+      occurredAt: now,
+      source: { namespace: "commander-weekly-pass", key: nanoid() },
+      severity: "update",
+      payload: {},
+    });
+    return true;
+  });
 }
 
 export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string) {
@@ -1467,19 +1902,29 @@ export async function upsertDiscordHqLink(input: {
   discordUserId: string;
   hqUserId: string;
 }): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-  await db
-    .insert(schema.discordHqLinks)
-    .values({
+  await withActivityTransaction(async (tx) => {
+    await lockActivityIdentity(tx, {
       discordUserId: input.discordUserId,
-      hqUserId: input.hqUserId,
-      linkedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: schema.discordHqLinks.discordUserId,
-      set: { hqUserId: input.hqUserId, linkedAt: now },
+      hqUserIds: [input.hqUserId],
     });
+    const now = new Date();
+    await tx
+      .insert(schema.discordHqLinks)
+      .values({
+        discordUserId: input.discordUserId,
+        hqUserId: input.hqUserId,
+        linkedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: schema.discordHqLinks.discordUserId,
+        set: { hqUserId: input.hqUserId, linkedAt: now },
+      });
+    try {
+      await claimDiscordActivityOwnership(tx, input);
+    } catch (error) {
+      throw toActivityWriteError(error, "unknown");
+    }
+  });
 }
 
 export async function getHqUserById(hqUserId: string) {
@@ -1558,7 +2003,9 @@ export async function callerIsAllianceOfficerViaMemberLink(input: {
   discordUserId: string;
 }): Promise<boolean> {
   await ensureDiscordMemberLinksFromHqLazy(input);
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
   if (links.length === 0) {
     return false;
   }
@@ -1631,7 +2078,14 @@ export async function bindGuildAllianceForRegistration(input: {
   allianceId: string;
   discordUserId: string;
 }): Promise<{ ok: true } | { ok: false; reason: "guild_bound_to_other_alliance" }> {
+  const db = getDb();
   const existingAllianceId = await getGuildAllianceId(input.guildId);
+
+  // Idempotent: already bound to the requested alliance.
+  if (existingAllianceId === input.allianceId) {
+    return { ok: true };
+  }
+
   if (existingAllianceId && existingAllianceId !== input.allianceId) {
     const existingAuth = await callerCanRegisterGuildAlliance({
       allianceId: existingAllianceId,
@@ -1640,10 +2094,51 @@ export async function bindGuildAllianceForRegistration(input: {
     if (!canRebindGuildToDifferentAlliance(existingAuth)) {
       return { ok: false, reason: "guild_bound_to_other_alliance" };
     }
+
+    // CAS rebind: only move the guild if it is still bound to the alliance we
+    // authorized against. Blind upsert would let a concurrent binder steal the
+    // tenant after our auth check.
+    const updated = await db
+      .update(schema.discordGuildAlliances)
+      .set({ allianceId: input.allianceId, registeredAt: new Date() })
+      .where(
+        and(
+          eq(schema.discordGuildAlliances.guildId, input.guildId),
+          eq(schema.discordGuildAlliances.allianceId, existingAllianceId),
+        ),
+      )
+      .returning({ guildId: schema.discordGuildAlliances.guildId });
+
+    if (updated.length === 0) {
+      const current = await getGuildAllianceId(input.guildId);
+      if (current === input.allianceId) return { ok: true };
+      return { ok: false, reason: "guild_bound_to_other_alliance" };
+    }
+    return { ok: true };
   }
 
-  await upsertGuildAlliance(input.guildId, input.allianceId);
-  return { ok: true };
+  // Unbound guild: insert-only. Never onConflictDoUpdate — two concurrent
+  // `/link-alliance` calls for different alliances both used to read null and
+  // last-writer-wins, silently cross-wiring the Discord guild tenant.
+  const inserted = await db
+    .insert(schema.discordGuildAlliances)
+    .values({
+      guildId: input.guildId,
+      allianceId: input.allianceId,
+      registeredAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ guildId: schema.discordGuildAlliances.guildId });
+
+  if (inserted.length > 0) {
+    return { ok: true };
+  }
+
+  const current = await getGuildAllianceId(input.guildId);
+  if (current === input.allianceId) {
+    return { ok: true };
+  }
+  return { ok: false, reason: "guild_bound_to_other_alliance" };
 }
 
 export async function setGuildVrReportChannel(
@@ -2052,10 +2547,11 @@ export async function updateAllianceSeasonKey(
 
 export async function listDiscordLinksForUserAnyAlliance(discordUserId: string) {
   const db = getDb();
-  return db
+  const rows = await db
     .select()
     .from(schema.discordMemberLinks)
     .where(eq(schema.discordMemberLinks.discordUserId, discordUserId));
+  return hydrateDiscordMemberLinks(rows, { rematerializeFormer: false });
 }
 
 export async function callerIsAllianceOwner(input: {
@@ -2066,7 +2562,9 @@ export async function callerIsAllianceOwner(input: {
   if (!alliance) return false;
 
   await ensureDiscordMemberLinksFromHqLazy(input);
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+    rematerializeFormer: true,
+  });
 
   return ownerProvenByMemberLink({
     allianceExists: true,
@@ -2085,7 +2583,9 @@ export async function callerOwnsAllianceViaMemberLink(input: {
   await ensureDiscordMemberLinksFromHqLazy(input);
   const [alliance, links] = await Promise.all([
     getAllianceById(input.allianceId),
-    listDiscordLinksForUser(input.allianceId, input.discordUserId),
+    listDiscordLinksForUser(input.allianceId, input.discordUserId, {
+      rematerializeFormer: true,
+    }),
   ]);
   return ownerProvenByMemberLink({
     allianceExists: alliance != null,

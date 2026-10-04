@@ -18,8 +18,8 @@ export function parseOperatingMode(
 
 export async function getAllianceOperatingMode(
   allianceId: string,
+  db: ReturnType<typeof getDb> | import("@/lib/time-off/availability.server").AvailabilityTransaction = getDb(),
 ): Promise<AllianceOperatingMode> {
-  const db = getDb();
   const [row] = await db
     .select({ operatingMode: schema.alliances.operatingMode })
     .from(schema.alliances)

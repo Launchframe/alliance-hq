@@ -4,6 +4,9 @@ import {
   applyInteractiveMatches,
   buildInteractiveHqChoices,
   formatLastRankPowerLevel,
+  isLastRankUnranked,
+  lastRankMemberEligibleForCreate,
+  lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
   parseLastRankSectionRanks,
@@ -207,12 +210,13 @@ describe("matchLastRankMembersToHq cascade", () => {
     expect(result.matched[0].matchMethod).toBe("exact_previous");
   });
 
-  it("fuzzy-matches current names when exact miss", () => {
+  it("does not auto-match sole fuzzy current names (cron must not stamp ranks)", () => {
     const result = matchLastRankMembersToHq(
       [
         {
           ...lastRankMember,
           name: "Lil Belly",
+          allianceRank: 5,
         },
       ],
       [
@@ -220,15 +224,18 @@ describe("matchLastRankMembersToHq cascade", () => {
           commanderId: "c1",
           ashedMemberId: "m1",
           currentNames: ["LilBelly"],
+          hqAllianceRank: 3,
         }),
       ],
     );
-    expect(result.matched).toHaveLength(1);
-    expect(result.matched[0].matchMethod).toBe("fuzzy_current");
-    expect(result.matched[0].fuzzyScore).toBeGreaterThan(0.6);
+    expect(result.matched).toHaveLength(0);
+    expect(result.unmatched).toHaveLength(1);
+    expect(result.unmatched[0]?.status).toBe("unmatched");
+    expect(result.unmatched[0]?.suggestions[0]?.commanderId).toBe("c1");
+    expect(result.unmatched[0]?.suggestions[0]?.score).toBeGreaterThan(0.6);
   });
 
-  it("fuzzy-matches previous names after current fuzzy miss", () => {
+  it("does not auto-match sole fuzzy previous names", () => {
     const result = matchLastRankMembersToHq(
       [
         {
@@ -245,8 +252,32 @@ describe("matchLastRankMembersToHq cascade", () => {
         }),
       ],
     );
-    expect(result.matched).toHaveLength(1);
-    expect(result.matched[0].matchMethod).toBe("fuzzy_previous");
+    expect(result.matched).toHaveLength(0);
+    expect(result.unmatched[0]?.status).toBe("unmatched");
+    expect(result.unmatched[0]?.suggestions[0]?.commanderId).toBe("c1");
+  });
+
+  it("does not auto-match distinct near-miss names that would unlock R5 invites", () => {
+    // Mike↔Nike ≈ 0.75 — above LASTRANK_FUZZY_MATCH_MIN (0.6) but different people.
+    const result = matchLastRankMembersToHq(
+      [
+        {
+          ...lastRankMember,
+          name: "Nike",
+          allianceRank: 5,
+        },
+      ],
+      [
+        hqRow({
+          commanderId: "c-mike",
+          ashedMemberId: "m-mike",
+          currentNames: ["Mike"],
+          hqAllianceRank: 1,
+        }),
+      ],
+    );
+    expect(result.matched).toHaveLength(0);
+    expect(result.unmatched[0]?.suggestions[0]?.commanderId).toBe("c-mike");
   });
 
   it("leaves distant names unmatched with suggestions", () => {
@@ -417,5 +448,35 @@ describe("parseLastRankSyncMap", () => {
 describe("formatLastRankPowerLevel", () => {
   it("formats raw power as millions", () => {
     expect(formatLastRankPowerLevel(394409538)).toBe("394.4M");
+  });
+});
+
+describe("lastRankPlayerProfileUrl", () => {
+  it("builds the public profile path", () => {
+    expect(lastRankPlayerProfileUrl(193049)).toBe(
+      "https://lastrank.fun/p/193049",
+    );
+  });
+});
+
+describe("isLastRankUnranked", () => {
+  it("treats missing or out-of-band ranks as unranked", () => {
+    expect(isLastRankUnranked({ allianceRank: null })).toBe(true);
+    expect(isLastRankUnranked({ allianceRank: 0 })).toBe(true);
+    expect(isLastRankUnranked({ allianceRank: 6 })).toBe(true);
+    expect(isLastRankUnranked({ allianceRank: 1.5 })).toBe(true);
+  });
+
+  it("treats R1–R5 as ranked", () => {
+    expect(isLastRankUnranked({ allianceRank: 1 })).toBe(false);
+    expect(isLastRankUnranked({ allianceRank: 5 })).toBe(false);
+  });
+});
+
+describe("lastRankMemberEligibleForCreate", () => {
+  it("allows ranked members and rejects unranked leavers", () => {
+    expect(lastRankMemberEligibleForCreate({ allianceRank: 1 })).toBe(true);
+    expect(lastRankMemberEligibleForCreate({ allianceRank: 5 })).toBe(true);
+    expect(lastRankMemberEligibleForCreate({ allianceRank: null })).toBe(false);
   });
 });

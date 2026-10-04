@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 
 import { RegularEventsCalendar } from "@/components/regular-events/RegularEventsCalendar";
 import { allianceRegularEventsApiPath } from "@/lib/alliance/alliance-settings-path.shared";
@@ -59,6 +60,7 @@ export function AllianceRegularEventsSettings({
   showAnnouncementToggles = true,
 }: Props) {
   const t = useTranslations("settings.regularEvents");
+  const tPlan = useTranslations("plunderPlan");
   const [settings, setSettings] = useState<Payload | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadedTag, setLoadedTag] = useState<string | null>(null);
@@ -131,6 +133,7 @@ export function AllianceRegularEventsSettings({
 
   return (
     <section className="rounded-xl border border-hq-border bg-hq-surface p-5 space-y-4">
+      <Link href="/plunder-plan" className="inline-flex min-h-11 items-center text-hq-accent underline">{tPlan("title")}</Link>
       <div>
         <h2 className="font-medium">
           {filterEventKey ? t("scheduleTitle") : t("title")}

@@ -4,13 +4,18 @@ import { describe, expect, it } from "vitest";
 import {
   buildCharacterPickerButtons,
   buildLinkIdentityConfirmButtons,
+  buildTrainConfirmButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
+  discordDeferredUpdateResponse,
   discordMessageResponse,
   parseButtonCustomId,
+  parseModalCustomId,
+  parseModalTextInput,
   parseLinkSlashOptions,
+  parseResolvedTargetMessage,
   parseSlashOptionUser,
   parseVrSlashLevel,
   verifyDiscordInteractionRequest,
@@ -113,6 +118,18 @@ describe("discord interactions", () => {
       date: "2026-06-20",
       answer: "yes",
     });
+    expect(parseButtonCustomId("train:override:member-1:2026-06-20:yes")).toEqual({
+      kind: "train_override",
+      memberId: "member-1",
+      date: "2026-06-20",
+      answer: "yes",
+    });
+    expect(parseButtonCustomId("train:override:member-1:2026-06-20:no")).toEqual({
+      kind: "train_override",
+      memberId: "member-1",
+      date: "2026-06-20",
+      answer: "no",
+    });
     expect(parseButtonCustomId("whois:pick:member-1")).toEqual({
       kind: "whois_pick",
       memberId: "member-1",
@@ -121,6 +138,15 @@ describe("discord interactions", () => {
       kind: "whois_claim",
       memberId: "member-1",
     });
+    expect(parseButtonCustomId("note:attach:yes")).toEqual({
+      kind: "note_attach",
+      answer: "yes",
+    });
+    expect(parseButtonCustomId("note:pick:2")).toEqual({
+      kind: "note_pick",
+      index: 2,
+    });
+    expect(parseButtonCustomId("note:skip")).toEqual({ kind: "note_skip" });
     expect(parseButtonCustomId("other")).toBeNull();
   });
 
@@ -128,6 +154,28 @@ describe("discord interactions", () => {
     const components = buildLinkIdentityConfirmButtons({ yes: "Yes", no: "No" });
     expect(components[0]?.components).toHaveLength(2);
     expect(components[0]?.components[0]?.custom_id).toBe("link:confirm:yes");
+  });
+
+  it("builds identity confirm and eligibility-override train buttons", () => {
+    const identity = buildTrainConfirmButtons("member-1", "2026-06-20", {
+      yes: "Yes",
+      no: "No",
+    });
+    expect(identity[0]?.components[0]?.custom_id).toBe(
+      "train:confirm:member-1:2026-06-20:yes",
+    );
+    const override = buildTrainConfirmButtons(
+      "member-1",
+      "2026-06-20",
+      { yes: "Yes", no: "No" },
+      { eligibilityOverride: true },
+    );
+    expect(override[0]?.components[0]?.custom_id).toBe(
+      "train:override:member-1:2026-06-20:yes",
+    );
+    expect(override[0]?.components[1]?.custom_id).toBe(
+      "train:override:member-1:2026-06-20:no",
+    );
   });
 
   it("builds yes/no buttons for a proposed VR level", () => {
@@ -163,6 +211,10 @@ describe("discord interactions", () => {
     });
   });
 
+  it("defers modal submits with UPDATE_MESSAGE so they do not stack ephemerals", () => {
+    expect(discordDeferredUpdateResponse()).toEqual({ type: 6 });
+  });
+
   it("uses UPDATE_MESSAGE for component replies", () => {
     expect(discordComponentMessageResponse("hello").type).toBe(7);
   });
@@ -175,5 +227,74 @@ describe("discord interactions", () => {
     expect(discordMessageResponse("linked", undefined, { ephemeral: true }).data.flags).toBe(
       64,
     );
+  });
+});
+
+describe("parseResolvedTargetMessage", () => {
+  it("reads the target message from resolved.messages", () => {
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: {
+          name: "Translate",
+          type: 3,
+          target_id: "msg-1",
+          resolved: {
+            messages: {
+              "msg-1": { id: "msg-1", content: "olá", author: { id: "u1" } },
+            },
+          },
+        },
+      }),
+    ).toEqual({ id: "msg-1", content: "olá", authorIsBot: false });
+  });
+
+  it("flags bot-authored messages and tolerates missing content", () => {
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: {
+          name: "Translate",
+          type: 3,
+          target_id: "msg-2",
+          resolved: {
+            messages: { "msg-2": { author: { id: "bot", bot: true } } },
+          },
+        },
+      }),
+    ).toEqual({ id: "msg-2", content: "", authorIsBot: true });
+  });
+
+  it("returns null without a target or resolved entry", () => {
+    expect(parseResolvedTargetMessage({ type: 2, data: { name: "Translate" } })).toBeNull();
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: { name: "Translate", type: 3, target_id: "missing", resolved: {} },
+      }),
+    ).toBeNull();
+  });
+
+  it("parses note member modal fields", () => {
+    expect(parseModalCustomId("note:member-modal")).toBe("note:member-modal");
+    expect(parseModalCustomId("note:reason-modal")).toBe("note:reason-modal");
+    expect(parseModalCustomId("other")).toBeNull();
+    expect(
+      parseModalTextInput(
+        {
+          type: 5,
+          data: {
+            custom_id: "note:member-modal",
+            components: [
+              {
+                type: 1,
+                components: [{ type: 4, custom_id: "member", value: "Cookie" }],
+              },
+            ],
+          },
+        },
+        "member",
+      ),
+    ).toBe("Cookie");
   });
 });

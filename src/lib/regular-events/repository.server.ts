@@ -341,6 +341,36 @@ export async function markRegularEventOccurrenceAnnounced(
     .where(eq(schema.regularEventOccurrences.id, occurrenceId));
 }
 
+/** CAS claim before Discord post — returns false if another worker already claimed. */
+export async function claimRegularEventOccurrenceAnnounced(
+  occurrenceId: string,
+  at: Date,
+): Promise<boolean> {
+  const db = getDb();
+  const updated = await db
+    .update(schema.regularEventOccurrences)
+    .set({ discordAnnouncedAt: at })
+    .where(
+      and(
+        eq(schema.regularEventOccurrences.id, occurrenceId),
+        isNull(schema.regularEventOccurrences.discordAnnouncedAt),
+      ),
+    )
+    .returning({ id: schema.regularEventOccurrences.id });
+  return updated.length > 0;
+}
+
+/** Roll back a claim when every Discord post failed so the next cron can retry. */
+export async function clearRegularEventOccurrenceAnnounced(
+  occurrenceId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.regularEventOccurrences)
+    .set({ discordAnnouncedAt: null })
+    .where(eq(schema.regularEventOccurrences.id, occurrenceId));
+}
+
 export async function markRegularEventOccurrenceUploadReminded(
   occurrenceId: string,
   at: Date,
@@ -360,5 +390,33 @@ export async function markRegularEventOccurrenceScheduleReminded(
   await db
     .update(schema.regularEventOccurrences)
     .set({ scheduleRemindedAt: at })
+    .where(eq(schema.regularEventOccurrences.id, occurrenceId));
+}
+
+export async function claimRegularEventOccurrenceScheduleReminded(
+  occurrenceId: string,
+  at: Date,
+): Promise<boolean> {
+  const db = getDb();
+  const updated = await db
+    .update(schema.regularEventOccurrences)
+    .set({ scheduleRemindedAt: at })
+    .where(
+      and(
+        eq(schema.regularEventOccurrences.id, occurrenceId),
+        isNull(schema.regularEventOccurrences.scheduleRemindedAt),
+      ),
+    )
+    .returning({ id: schema.regularEventOccurrences.id });
+  return updated.length > 0;
+}
+
+export async function clearRegularEventOccurrenceScheduleReminded(
+  occurrenceId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.regularEventOccurrences)
+    .set({ scheduleRemindedAt: null })
     .where(eq(schema.regularEventOccurrences.id, occurrenceId));
 }

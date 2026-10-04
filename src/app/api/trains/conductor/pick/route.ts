@@ -21,7 +21,10 @@ function manualPickErrorStatus(error: unknown, message: string): number {
   return 400;
 }
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -60,6 +63,8 @@ export async function POST(request: Request) {
       memberName,
       allowEligibilityOverride: body.allowEligibilityOverride === true,
       allowSameGenerationReuse: body.allowSameGenerationReuse === true,
+      hqUserId: session.hqUserId,
+      sessionId: session.id,
     });
 
     return NextResponse.json({

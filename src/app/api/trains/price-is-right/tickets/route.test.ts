@@ -78,7 +78,7 @@ describe("price-is-right tickets GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "standard",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
     } as never);
 
     const res = await GET(
@@ -113,7 +113,7 @@ describe("price-is-right tickets GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "price_is_right",
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
     } as never);
     vi.mocked(loadPriceIsRightTicketSettings).mockResolvedValue({
       weightingEnabled: false,
@@ -172,7 +172,7 @@ describe("price-is-right tickets GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "price_is_right",
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
     } as never);
     vi.mocked(loadPriceIsRightTicketSettings).mockResolvedValue({
       weightingEnabled: true,
@@ -245,7 +245,7 @@ describe("price-is-right tickets GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "price_is_right",
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
     } as never);
     vi.mocked(loadPriceIsRightTicketSettings).mockResolvedValue({
       weightingEnabled: true,

@@ -1,25 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Info } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
 import { requestOpenAshedConnection } from "@/lib/connect/open-ashed-connection.shared";
-import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import {
+  useAccountTimezoneLabel,
+  useFormatRelativeAccountDateTime,
+} from "@/components/timezone/TimezoneProvider";
 import {
   RecordDetailCard,
   RecordDetailField,
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
 import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
-import {
-  isInFlightProcessingStatus,
-  videoJobLifecycleStage,
-} from "@/lib/video/video-lifecycle.shared";
+import { videoJobLifecycleStage } from "@/lib/video/video-lifecycle.shared";
 import {
   classifyVideoJobFailure,
   videoJobFailureReviewMessageKey,
 } from "@/lib/video/video-job-failure-classification.shared";
+import {
+  videoQueueFileIdentity,
+  videoQueueFrameProgress,
+  videoQueueTargetLabelKey,
+} from "@/lib/video/video-queue-display.shared";
 
 type Props = {
   initialJobs: AllianceQueueJob[];
@@ -50,6 +57,9 @@ export function VideoQueueClient({
   const tUpload = useTranslations("video");
   const tReview = useTranslations("videoReview");
   const tAdminJobs = useTranslations("admin.videoJobsPage");
+  const formatRelative = useFormatRelativeAccountDateTime();
+  const timezoneLabel = useAccountTimezoneLabel();
+  const uploadedColumnLabel = t("table.time", { zone: timezoneLabel });
   const router = useRouter();
   const [jobs, setJobs] = useState<AllianceQueueJob[]>(initialJobs);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
@@ -239,29 +249,19 @@ export function VideoQueueClient({
     return status;
   }
 
-  function progressDetail(job: AllianceQueueJob): string | null {
-    if (job.status === "pending_upload") {
-      if (job.uploadedFrameCount != null && job.frameCount != null) {
-        return `${job.uploadedFrameCount}/${job.frameCount}`;
-      }
-      return null;
+  function statusDetailMessage(job: AllianceQueueJob): string | null {
+    if (job.status !== "failed") return null;
+    const classification = classifyVideoJobFailure(job.errorMessage);
+    if (classification.audience === "needs_platform_attention") {
+      return t("needsAttentionPlatformHint");
     }
-    if (isInFlightProcessingStatus(job.status)) {
-      if (job.frameCount != null && job.uploadedFrameCount != null) {
-        return `${job.uploadedFrameCount}/${job.frameCount}`;
-      }
-      return null;
-    }
-    if (job.status === "failed") {
-      const classification = classifyVideoJobFailure(job.errorMessage);
-      if (classification.audience === "needs_platform_attention") {
-        return t("needsAttentionPlatformHint");
-      }
-      return tReview(
-        videoJobFailureReviewMessageKey(classification),
-      );
-    }
-    return null;
+    return tReview(videoJobFailureReviewMessageKey(classification));
+  }
+
+  function targetLabel(scoreTarget: string | null | undefined): string {
+    const key = videoQueueTargetLabelKey(scoreTarget);
+    if (!key) return scoreTarget ?? "—";
+    return t(`targets.${key}` as `targets.${typeof key}`);
   }
 
   const emptyMessage = t("empty");
@@ -326,23 +326,35 @@ export function VideoQueueClient({
         emptyMessage={emptyMessage}
         mobileCards={jobs.map((job) => (
           <RecordDetailCard key={job.id}>
-            <RecordDetailField label={t("table.time")}>
-              <FormattedDateTime value={job.createdAt} />
+            <RecordDetailField label={uploadedColumnLabel}>
+              {formatRelative(job.createdAt)}
             </RecordDetailField>
             <RecordDetailField label={tAdminJobs("statusFilter")}>
-              <StatusBadge status={job.status} label={statusLabel(job.status)} />
-              {progressDetail(job) ? (
-                <p className="mt-1 text-xs text-hq-fg-muted">{progressDetail(job)}</p>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusBadge status={job.status} label={statusLabel(job.status)} />
+                {videoQueueFrameProgress(job) ? (
+                  <span className="text-xs font-normal text-hq-fg-muted">
+                    {videoQueueFrameProgress(job)}
+                  </span>
+                ) : null}
+                {statusDetailMessage(job) ? (
+                  <StatusDetailHint
+                    detail={statusDetailMessage(job)!}
+                    ariaLabel={t("statusDetailAria")}
+                  />
+                ) : null}
+              </div>
             </RecordDetailField>
             <RecordDetailField label={t("table.uploadedBy")}>
               {job.enqueuedBy ?? "—"}
             </RecordDetailField>
             <RecordDetailField label={t("table.target")}>
-              {job.scoreTarget ?? "—"}
+              {targetLabel(job.scoreTarget)}
             </RecordDetailField>
             <RecordDetailField label={t("table.file")}>
-              <span className="wrap-break-word">{job.fileName ?? job.id}</span>
+              <span className="wrap-break-word">
+                {videoQueueFileIdentity(job)}
+              </span>
             </RecordDetailField>
             <RecordDetailField label={t("table.actions")}>
               <JobActions
@@ -365,39 +377,56 @@ export function VideoQueueClient({
           </RecordDetailCard>
         ))}
         desktopTable={
-          <div className="overflow-x-auto rounded-xl border border-hq-border">
-            <table className="min-w-full text-left text-sm">
+          <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-hq-border">
+            <table className="w-max min-w-full text-left text-sm">
               <thead className="bg-hq-surface text-hq-fg-muted">
                 <tr>
-                  <th className="px-4 py-2">{t("table.time")}</th>
-                  <th className="px-4 py-2">{tAdminJobs("statusFilter")}</th>
-                  <th className="px-4 py-2">{t("table.uploadedBy")}</th>
-                  <th className="px-4 py-2">{t("table.target")}</th>
-                  <th className="px-4 py-2">{t("table.file")}</th>
-                  <th className="px-4 py-2">{t("table.actions")}</th>
+                  <th className="px-4 py-2 font-medium">{uploadedColumnLabel}</th>
+                  <th className="px-4 py-2 font-medium">
+                    {tAdminJobs("statusFilter")}
+                  </th>
+                  <th className="px-4 py-2 font-medium">{t("table.uploadedBy")}</th>
+                  <th className="px-4 py-2 font-medium">{t("table.target")}</th>
+                  <th className="px-4 py-2 font-medium">{t("table.file")}</th>
+                  <th className="px-4 py-2 font-medium">{t("table.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {jobs.map((job) => (
                   <tr key={job.id} className="border-t border-hq-border">
                     <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
-                      <FormattedDateTime value={job.createdAt} />
+                      {formatRelative(job.createdAt)}
                     </td>
-                    <td className="px-4 py-2">
-                      <StatusBadge
-                        status={job.status}
-                        label={statusLabel(job.status)}
-                      />
-                      {progressDetail(job) ? (
-                        <p className="mt-1 max-w-xs truncate text-xs text-hq-fg-muted">
-                          {progressDetail(job)}
-                        </p>
-                      ) : null}
+                    <td className="whitespace-nowrap px-4 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge
+                          status={job.status}
+                          label={statusLabel(job.status)}
+                        />
+                        {videoQueueFrameProgress(job) ? (
+                          <span className="text-xs text-hq-fg-muted">
+                            {videoQueueFrameProgress(job)}
+                          </span>
+                        ) : null}
+                        {statusDetailMessage(job) ? (
+                          <StatusDetailHint
+                            detail={statusDetailMessage(job)!}
+                            ariaLabel={t("statusDetailAria")}
+                          />
+                        ) : null}
+                      </div>
                     </td>
-                    <td className="px-4 py-2">{job.enqueuedBy ?? "—"}</td>
-                    <td className="px-4 py-2">{job.scoreTarget ?? "—"}</td>
-                    <td className="max-w-xs truncate px-4 py-2">
-                      {job.fileName ?? job.id}
+                    <td
+                      className="max-w-[10rem] truncate px-4 py-2"
+                      title={job.enqueuedBy ?? undefined}
+                    >
+                      {job.enqueuedBy ?? "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2">
+                      {targetLabel(job.scoreTarget)}
+                    </td>
+                    <td className="max-w-[11rem] px-4 py-2 text-xs font-normal leading-snug wrap-break-word">
+                      {videoQueueFileIdentity(job)}
                     </td>
                     <td className="px-4 py-2">
                       <JobActions
@@ -424,6 +453,92 @@ export function VideoQueueClient({
           </div>
         }
       />
+    </div>
+  );
+}
+
+function StatusDetailHint({
+  detail,
+  ariaLabel,
+}: {
+  detail: string;
+  ariaLabel: string;
+}) {
+  const panelId = useId();
+  const descriptionId = useId();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const mounted = typeof document !== "undefined";
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    function onReposition() {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = 256;
+      const left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, window.innerWidth - width - 8),
+      );
+      setPanelPos({ top: rect.bottom + 6, left });
+    }
+    onReposition();
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative inline-flex shrink-0">
+      <button
+        type="button"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-describedby={descriptionId}
+        aria-label={ariaLabel}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <span id={descriptionId} className="sr-only">
+        {detail}
+      </span>
+      {mounted && open && panelPos
+        ? createPortal(
+            <div
+              ref={panelRef}
+              id={panelId}
+              role="status"
+              style={{ top: panelPos.top, left: panelPos.left }}
+              className="fixed z-50 w-64 max-w-[min(16rem,calc(100vw-1rem))] rounded-lg border border-hq-border bg-hq-surface p-2 text-left text-xs font-normal normal-case leading-snug text-hq-fg shadow-lg"
+            >
+              {detail}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

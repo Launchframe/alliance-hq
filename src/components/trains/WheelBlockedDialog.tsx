@@ -5,8 +5,9 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
-import type { PoolType, WeekTemplateType } from "@/lib/trains/types";
+import type { PoolType } from "@/lib/trains/types";
 import {
   resolveWheelBlockedReseedPoolType,
   shouldShowWheelBlockedLeadTimeLink,
@@ -21,7 +22,7 @@ type Props = {
   /** Used when the error payload omitted poolType (legacy / POOL_UNAVAILABLE). */
   fallbackPoolType?: PoolType | null;
   /** Day paint — suppresses reseed for Price Is Freight with-replacement. */
-  paintTemplate?: WeekTemplateType | string | null;
+  rule?: ConductorRule | null;
   /** Deep-link for VS score upload (vs-performance + recorded date). */
   uploadHref?: string;
   busy?: boolean;
@@ -156,7 +157,7 @@ export function WheelBlockedDialog({
   open,
   details,
   fallbackPoolType = null,
-  paintTemplate = null,
+  rule = null,
   uploadHref,
   busy = false,
   rosterSyncBusy = false,
@@ -181,7 +182,7 @@ export function WheelBlockedDialog({
   const reseedPoolType = resolveWheelBlockedReseedPoolType(
     details,
     fallbackPoolType,
-    { paintTemplate },
+    { rule },
   );
   const showReseed = reseedPoolType != null && onReseedAndRespin != null;
   const reseedLabelKey = wheelBlockedReseedLabelKey(details);

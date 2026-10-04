@@ -41,9 +41,6 @@ const ENTITY_OPS: EntityOp[] = [
   { entity: "Violation", method: "GET", permission: "members:read" },
   { entity: "Violation", method: "POST", permission: "members:write" },
   { entity: "Violation", method: "DELETE", permission: "members:write" },
-  { entity: "ExcusedRecord", method: "GET", permission: "members:read" },
-  { entity: "ExcusedRecord", method: "POST", permission: "members:write" },
-  { entity: "ExcusedRecord", method: "DELETE", permission: "members:write" },
 ];
 
 const FUNCTION_OPS: Array<{ name: string; permission: string }> = [

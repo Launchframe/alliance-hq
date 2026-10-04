@@ -6,8 +6,10 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import {
+  claimOpenMemberLinkHelpRequest,
   getMemberLinkHelpRequestById,
   resolveMemberLinkHelpRequest,
+  revertResolvedMemberLinkHelpClaim,
   satisfyHelpInboxItem,
 } from "@/lib/member-link/member-link-help-queue.server";
 import {
@@ -396,61 +398,82 @@ export async function linkMemberLinkHelpRequest(input: {
     };
   }
 
-  const displayName = row.gameUserName?.trim() || row.reportedName?.trim() || null;
-  if (displayName) {
-    await reconcileAllianceMemberForRosterLink({
-      allianceId: row.allianceId,
-      ashedMemberId: input.targetAshedMemberId,
-      gameUserName: displayName,
-      ashedConnection: null,
-    });
-  }
-
-  const linked = await linkHqMember({
-    allianceId: row.allianceId,
-    hqUserId: row.hqUserId,
-    ashedMemberId: input.targetAshedMemberId,
-    memberDisplayName: displayName,
-    gameUid: row.gameUid,
+  // Claim before link so a concurrent dismiss/other-target link cannot win
+  // the status write after linkHqMember rebinds the HQ user.
+  const claimed = await claimOpenMemberLinkHelpRequest({
+    requestId: input.requestId,
+    status: "resolved",
+    resolvedByHqUserId: input.resolvedByHqUserId,
+    linkedAshedMemberId: input.targetAshedMemberId,
   });
-
-  if (!linked.ok) {
-    const claimant = await loadClaimantContactForMember({
-      allianceId: row.allianceId,
-      ashedMemberId: input.targetAshedMemberId,
-    });
-    return {
-      ok: false,
-      reason: linked.reason,
-      claimant: claimant ?? undefined,
-    };
+  if (!claimed.ok) {
+    if (
+      claimed.request?.status === "resolved" &&
+      claimed.request.linkedAshedMemberId === input.targetAshedMemberId
+    ) {
+      return {
+        ok: true,
+        memberName: memberRow.currentName,
+      };
+    }
+    return { ok: false, reason: claimed.reason };
   }
+
+  const displayName = row.gameUserName?.trim() || row.reportedName?.trim() || null;
 
   try {
-    await maybeSetOwnerMemberExternalId({
+    if (displayName) {
+      await reconcileAllianceMemberForRosterLink({
+        allianceId: row.allianceId,
+        ashedMemberId: input.targetAshedMemberId,
+        gameUserName: displayName,
+        ashedConnection: null,
+      });
+    }
+
+    const linked = await linkHqMember({
       allianceId: row.allianceId,
       hqUserId: row.hqUserId,
       ashedMemberId: input.targetAshedMemberId,
+      memberDisplayName: displayName,
+      gameUid: row.gameUid,
     });
+
+    if (!linked.ok) {
+      await revertResolvedMemberLinkHelpClaim({
+        requestId: input.requestId,
+        resolvedByHqUserId: input.resolvedByHqUserId,
+      });
+      const claimant = await loadClaimantContactForMember({
+        allianceId: row.allianceId,
+        ashedMemberId: input.targetAshedMemberId,
+      });
+      return {
+        ok: false,
+        reason: linked.reason,
+        claimant: claimant ?? undefined,
+      };
+    }
+
+    try {
+      await maybeSetOwnerMemberExternalId({
+        allianceId: row.allianceId,
+        hqUserId: row.hqUserId,
+        ashedMemberId: input.targetAshedMemberId,
+      });
+    } catch (error) {
+      console.error("[member-link-help] owner externalId sync failed", error);
+    }
+
+    await syncPrimaryGameUidFromHqMemberLink(row.hqUserId, row.gameUid);
+    await saveHqMemberLinkPending(row.allianceId, row.hqUserId, null);
   } catch (error) {
-    console.error("[member-link-help] owner externalId sync failed", error);
-  }
-
-  await syncPrimaryGameUidFromHqMemberLink(row.hqUserId, row.gameUid);
-
-  await saveHqMemberLinkPending(row.allianceId, row.hqUserId, null);
-
-  const now = new Date();
-  await db
-    .update(schema.hqMemberLinkHelpRequests)
-    .set({
-      status: "resolved",
-      linkedAshedMemberId: input.targetAshedMemberId,
-      resolvedAt: now,
+    await revertResolvedMemberLinkHelpClaim({
+      requestId: input.requestId,
       resolvedByHqUserId: input.resolvedByHqUserId,
-      updatedAt: now,
-    })
-    .where(eq(schema.hqMemberLinkHelpRequests.id, input.requestId));
+    });
+    throw error;
+  }
 
   await satisfyHelpInboxItem(input.requestId);
 

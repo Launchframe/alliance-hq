@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -22,32 +22,18 @@ import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { viewerCanIssueLeadershipHybridInvite } from "@/lib/native-alliance/team-invites.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
+import { parseEventScoreMetadata } from "@/lib/members/commander-profile.shared";
 import {
   syncMemberCommendationsFromAshed,
   syncMemberViolationsFromAshed,
 } from "@/lib/members/member-discipline.server";
-import { syncMemberExcusedFromAshed } from "@/lib/time-off/excused-sync.server";
 import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 import { sessionCanGiftStoreBricks } from "@/lib/members/commander-donation.server";
+import { listPerformanceNotesForAshedMember } from "@/lib/performance-notes/repository.server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
-
-function parseEventMetadata(metadata: unknown): {
-  score: number | null;
-  rank: number | null;
-} {
-  if (!metadata || typeof metadata !== "object") {
-    return { score: null, rank: null };
-  }
-  const row = metadata as Record<string, unknown>;
-  const scoreRaw = row.score ?? row.total_score ?? row.points;
-  const rankRaw = row.rank ?? row.placement;
-  return {
-    score: typeof scoreRaw === "number" ? scoreRaw : null,
-    rank: typeof rankRaw === "number" ? rankRaw : null,
-  };
-}
 
 /** HQ user who linked this commander via name+UID — not alliance R5/officer RBAC. */
 async function viewerOwnsCommander(input: {
@@ -98,22 +84,18 @@ export async function loadCommanderProfile(
   if (!memberRow) return null;
 
   const db = getDb();
-  const [allianceRow] = await db
+  const [alliance] = await db
     .select({
       id: schema.alliances.id,
       tag: schema.alliances.tag,
       name: schema.alliances.name,
       slug: schema.alliances.slug,
-      ashedAllianceId: schema.alliances.ashedAllianceId,
     })
     .from(schema.alliances)
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
-  if (!allianceRow) return null;
-
-  // Internal-only field, not part of the client payload — see `alliance` below.
-  const { ashedAllianceId: ashedAllianceIdForSync, ...alliance } = allianceRow;
+  if (!alliance) return null;
 
   const operatingMode = await getAllianceOperatingMode(allianceId);
   const canSeeEmail = await sessionHasPermission(sessionId, "members:write");
@@ -270,6 +252,7 @@ export async function loadCommanderProfile(
     .select({
       eventId: schema.hqEvents.id,
       eventName: schema.hqEvents.name,
+      scoreTarget: schema.hqEvents.scoreTarget,
       metadata: schema.hqEventMembers.metadata,
       updatedAt: schema.hqEventMembers.updatedAt,
     })
@@ -306,7 +289,7 @@ export async function loadCommanderProfile(
   const connection =
     operatingMode === "ashed" ? await getAshedConnection(sessionId) : null;
   if (connection) {
-    const syncTasks = [
+    await Promise.all([
       syncMemberCommendationsFromAshed(
         connection,
         allianceId,
@@ -319,24 +302,7 @@ export async function loadCommanderProfile(
         ashedMemberId,
         memberRow.currentName,
       ),
-    ];
-    if (ashedAllianceIdForSync) {
-      syncTasks.push(
-        syncMemberExcusedFromAshed(
-          connection,
-          allianceId,
-          ashedAllianceIdForSync,
-          ashedMemberId,
-          memberRow.currentName,
-        ).catch((error) => {
-          console.error(
-            "[time-off] failed to sync excused records from Ashed",
-            error,
-          );
-        }),
-      );
-    }
-    await Promise.all(syncTasks);
+    ]);
   }
 
   const [commendationRows, violationRows] = await Promise.all([
@@ -368,10 +334,17 @@ export async function loadCommanderProfile(
         and(
           eq(schema.memberViolations.allianceId, allianceId),
           eq(schema.memberViolations.ashedMemberId, ashedMemberId),
+          isNull(schema.memberViolations.complianceEventId),
         ),
       )
       .orderBy(desc(schema.memberViolations.recordedDate)),
   ]);
+
+  const canProjectNotes = await sessionHasPermission(sessionId, "members:write");
+  const noteActor = canProjectNotes ? await getKnowledgeActorForSession(sessionId) : null;
+  const hqNotes = noteActor?.allianceId === allianceId
+    ? await listPerformanceNotesForAshedMember({ actor: noteActor, ashedMemberId })
+    : [];
 
   const ashedMember = allianceMemberRowToAshedMember(memberRow);
   const rankForDisplay =
@@ -460,13 +433,14 @@ export async function loadCommanderProfile(
       updatedAt: row.updatedAt.toISOString(),
     })),
     eventScores: eventScoreRows.map((row) => {
-      const parsed = parseEventMetadata(row.metadata);
+      const parsed = parseEventScoreMetadata(row.metadata, row.scoreTarget);
       return {
         eventId: row.eventId,
         eventName: row.eventName,
         boardKey: null,
         score: parsed.score,
         rank: parsed.rank,
+        frontlineStage: parsed.frontlineStage,
         updatedAt: row.updatedAt.toISOString(),
       };
     }),
@@ -508,6 +482,12 @@ export async function loadCommanderProfile(
       }
       return highlights;
     }),
+    hqNotes: hqNotes.map((note) => ({
+      id: note.id,
+      kind: note.kind,
+      body: note.body,
+      createdAt: note.createdAt,
+    })),
     operatingMode,
   };
 }

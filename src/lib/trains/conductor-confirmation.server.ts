@@ -1,6 +1,9 @@
 import "server-only";
 
-import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { lockAllianceAvailability, loadTimeOffAvailability } from "@/lib/time-off/availability.server";
+import { findCoverageConflicts, trainCoverageDuties } from "@/lib/time-off/coverage.server";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -13,7 +16,6 @@ import {
 } from "@/lib/trains/conductor-nomination-trigger.shared";
 import {
   lockConductorRecord,
-  upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getPoolSummary, releasePoolSelectionForDate } from "@/lib/trains/pool";
 import { rollForConductor } from "@/lib/trains/service";
@@ -25,9 +27,10 @@ import {
 import {
   resolveNominationTopBoard,
   scoreDateForTrainDay,
-  toDayMechanismConfig,
 } from "@/lib/trains/train-day-context.shared";
-import type { DayMechanismConfig } from "@/lib/trains/vs-score-scope.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { encodeLegacyConductorMechanism } from "@/lib/trains/rules/encode.shared";
+import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 
 export const CONFIRMATION_PRIMARY_WINDOW_MS = 15 * 60 * 1000;
@@ -82,22 +85,16 @@ async function loadRecord(allianceId: string, trainDate: string) {
 async function buildSuccessionSnapshot(input: {
   allianceId: string;
   trainDate: string;
-  mechanism: string | null | undefined;
-  conductorConfig: unknown;
-  paintTemplate?: string | null;
+  rule: ConductorRule | null;
   leadDays: number;
-  scoreDateDay?: DayMechanismConfig | null;
+  scoreDayRule?: ConductorRule | null;
   winner: { memberId: string; memberName: string };
 }): Promise<SuccessionSnapshotEntry[]> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
   const topBoard = resolveNominationTopBoard({
-    trainDate: input.trainDate,
-    trainDay: {
-      conductorMechanism: input.mechanism,
-      conductorConfig: input.conductorConfig,
-      paintTemplate: input.paintTemplate,
-    },
+    trainRule: input.rule,
     leadDays: input.leadDays,
-    scoreDateDay: input.scoreDateDay,
+    scoreDayRule: input.scoreDayRule,
   });
   if (topBoard?.kind === "vs") {
     const top = await fetchAllianceVsTopScorersForTrainDate(
@@ -107,7 +104,7 @@ async function buildSuccessionSnapshot(input: {
       input.leadDays,
     );
     if (top.length > 0) {
-      return top.map((c) => ({
+      return top.filter((c) => !awayMemberIds.has(c.memberId)).map((c) => ({
         memberId: c.memberId,
         memberName: c.memberName,
         rank: c.allianceRank ?? null,
@@ -115,14 +112,7 @@ async function buildSuccessionSnapshot(input: {
     }
   }
 
-  const poolType =
-    input.mechanism === "r4_sequence"
-      ? "r4_plus"
-      : input.mechanism === "heavy_hitter_lottery"
-        ? "heavy_hitter"
-        : input.mechanism === "r3_lottery"
-          ? "r3"
-          : null;
+  const poolType = conductorRulePoolType(input.rule);
 
   if (poolType) {
     const db = getDb();
@@ -139,6 +129,7 @@ async function buildSuccessionSnapshot(input: {
         and(
           eq(schema.conductorPoolEntries.allianceId, input.allianceId),
           eq(schema.conductorPoolEntries.poolType, poolType),
+          awayMemberIds.size > 0 ? notInArray(schema.conductorPoolEntries.memberId, [...awayMemberIds]) : undefined,
           isNull(schema.conductorPoolEntries.selectedAt),
         ),
       )
@@ -193,6 +184,10 @@ export async function nominateConductorForDate(input: {
   if (existing?.lockedAt) {
     return { ok: false, reason: "already_locked" };
   }
+  if (existing?.conductorMemberId) {
+    const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
+    if (awayMemberIds.has(existing.conductorMemberId)) return { ok: false, reason: "coverage_conflict", recordId: existing.id };
+  }
   const status = existing?.conductorNominationStatus;
   if (
     status === "pending_confirmation" ||
@@ -209,7 +204,7 @@ export async function nominateConductorForDate(input: {
     seasonKey: effectiveSeason.seasonKey,
     leadDays: alliance.trainConductorLeadTimeDays ?? 0,
   });
-  const { dayConfig, leadDays, scoreDateDay } = dayContext;
+  const { dayConfig, leadDays, scoreDayRule } = dayContext;
 
   let winner: { memberId: string; memberName: string; mechanism?: string | null };
   if (existing?.conductorMemberId && existing.conductorMemberName) {
@@ -236,49 +231,63 @@ export async function nominateConductorForDate(input: {
   const snapshot = await buildSuccessionSnapshot({
     allianceId: input.allianceId,
     trainDate: input.trainDate,
-    mechanism: winner.mechanism ?? dayConfig.conductorMechanism,
-    conductorConfig: dayConfig.conductorConfig,
-    paintTemplate: dayConfig.paintTemplate,
+    rule: dayConfig.conductorRule,
     leadDays,
-    scoreDateDay,
+    scoreDayRule,
     winner,
   });
 
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
+  if (awayMemberIds.has(winner.memberId)) return { ok: false, reason: "coverage_conflict" };
   const now = new Date();
   const deadline = new Date(now.getTime() + CONFIRMATION_PRIMARY_WINDOW_MS);
   const triggerMode = input.trigger.mode;
+  const rolledFresh =
+    !(existing?.conductorMemberId && existing.conductorMemberName);
+  const mechanism =
+    winner.mechanism ??
+    encodeLegacyConductorMechanism(dayConfig.conductorRule);
 
-  await upsertConductorDraft({
-    allianceId: input.allianceId,
-    date: input.trainDate,
+  // Single CAS write for conductor + nomination window. Do not upsert-then-mark:
+  // a loser overwrite between those steps can leave the winner's status on the
+  // loser's member (and the loser's pool release would free the assigned seat).
+  const nominationPatch = {
     conductorMemberId: winner.memberId,
     conductorMemberName: winner.memberName,
-    conductorMechanism:
-      winner.mechanism ?? dayConfig.conductorMechanism ?? null,
+    conductorMechanism: mechanism,
+    conductorNominationStatus: "pending_confirmation" as const,
+    nominationTrigger: triggerMode,
+    nominatedAt: now,
+    confirmationDeadlineAt: deadline,
+    successorAttempt: 0,
+    successionSnapshot: snapshot,
+    conductorConfirmedAt: null,
+    conductorConfirmedByHqUserId: null,
+    updatedAt: now,
+  };
+
+  const nomination = await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, input.allianceId), eq(schema.trainConductorRecords.date, input.trainDate))).for("update");
+    if (current && (current.lockedAt || current.updatedAt.getTime() !== existing?.updatedAt.getTime())) return { recordId: current.id, claimed: false, away: false };
+    const conflicts = await findCoverageConflicts(db, input.allianceId, [{ assignmentId: current?.id ?? `train:${input.trainDate}`, assignmentVersion: "nomination", dutyDate: input.trainDate, dutyRole: "conductor", memberId: winner.memberId, memberName: winner.memberName, lockedAt: null }]);
+    if (conflicts.length) return { recordId: current?.id, claimed: false, away: true };
+    if (current) {
+      const claimed = await db.update(schema.trainConductorRecords).set(nominationPatch)
+        .where(and(eq(schema.trainConductorRecords.id, current.id), isNull(schema.trainConductorRecords.lockedAt), or(isNull(schema.trainConductorRecords.conductorNominationStatus), eq(schema.trainConductorRecords.conductorNominationStatus, "awaiting_scores"))))
+        .returning({ id: schema.trainConductorRecords.id });
+      return { recordId: current.id, claimed: claimed.length > 0, away: false };
+    }
+    // Unique (alliance_id, date) — another nominator inserted first.
+    const claimed = await db.insert(schema.trainConductorRecords).values({ id: nanoid(), allianceId: input.allianceId, date: input.trainDate, ...nominationPatch }).onConflictDoNothing().returning({ id: schema.trainConductorRecords.id });
+    return { recordId: claimed[0]?.id, claimed: claimed.length > 0, away: false };
   });
-
-  const db = getDb();
-  await db
-    .update(schema.trainConductorRecords)
-    .set({
-      conductorNominationStatus: "pending_confirmation",
-      nominationTrigger: triggerMode,
-      nominatedAt: now,
-      confirmationDeadlineAt: deadline,
-      successorAttempt: 0,
-      successionSnapshot: snapshot,
-      conductorConfirmedAt: null,
-      conductorConfirmedByHqUserId: null,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(schema.trainConductorRecords.allianceId, input.allianceId),
-        eq(schema.trainConductorRecords.date, input.trainDate),
-      ),
-    );
-
-  const record = await loadRecord(input.allianceId, input.trainDate);
+  if (!nomination.claimed) {
+    if (rolledFresh) await releasePoolSelectionForDate(input.allianceId, input.trainDate, winner.memberId).catch(() => undefined);
+    if (nomination.away) return { ok: false, reason: "coverage_conflict" };
+    return { ok: true, recordId: nomination.recordId ?? (await loadRecord(input.allianceId, input.trainDate))?.id, reason: "already_nominated" };
+  }
+  const recordId = nomination.recordId;
 
   if (input.late && input.sessionId) {
     await writeAuditLog({
@@ -286,7 +295,7 @@ export async function nominateConductorForDate(input: {
       allianceId: input.allianceId,
       action: "trains.conductor_nomination_late",
       resourceType: "train_conductor_record",
-      resourceId: record?.id,
+      resourceId: recordId,
       metadata: {
         trainDate: input.trainDate,
         trigger: triggerMode,
@@ -295,7 +304,7 @@ export async function nominateConductorForDate(input: {
     });
   }
 
-  return { ok: true, recordId: record?.id };
+  return { ok: true, recordId };
 }
 
 export async function confirmConductorPlacement(input: {
@@ -326,7 +335,8 @@ export async function confirmConductorPlacement(input: {
   }
 
   const now = new Date();
-  await db
+  // CAS: confirmation tick must not win a promote/fallback after this SELECT.
+  const confirmed = await db
     .update(schema.trainConductorRecords)
     .set({
       conductorNominationStatus: "confirmed",
@@ -335,16 +345,36 @@ export async function confirmConductorPlacement(input: {
       confirmationDeadlineAt: null,
       updatedAt: now,
     })
-    .where(eq(schema.trainConductorRecords.id, input.recordId));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, input.recordId),
+        eq(schema.trainConductorRecords.allianceId, input.allianceId),
+        isNull(schema.trainConductorRecords.lockedAt),
+        or(
+          eq(
+            schema.trainConductorRecords.conductorNominationStatus,
+            "pending_confirmation",
+          ),
+          eq(schema.trainConductorRecords.conductorNominationStatus, "forfeited"),
+        ),
+      ),
+    )
+    .returning({ id: schema.trainConductorRecords.id });
+
+  if (confirmed.length === 0) {
+    return { ok: false, reason: "not_pending" };
+  }
 
   await writeAuditLog({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.officerHqUserId,
     action: "trains.conductor_confirmed",
+    severity: "routine",
     resourceType: "train_conductor_record",
     resourceId: input.recordId,
     metadata: {
+      permission: "trains:write",
       trainDate: row.date,
       memberId: row.conductorMemberId,
     },
@@ -357,48 +387,79 @@ async function promoteSuccessor(input: {
   allianceId: string;
   record: typeof schema.trainConductorRecords.$inferSelect;
   now: Date;
-}): Promise<boolean> {
+}): Promise<"promoted" | "exhausted" | "lost_race"> {
   const snapshot =
     (input.record.successionSnapshot as SuccessionSnapshotEntry[] | null) ??
     [];
-  const nextAttempt = (input.record.successorAttempt ?? 0) + 1;
-  if (nextAttempt > CONFIRMATION_MAX_SUCCESSORS) return false;
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (input.record.lockedAt || (input.record.conductorMemberId && awayMemberIds.has(input.record.conductorMemberId))) return "lost_race";
+  let nextAttempt = (input.record.successorAttempt ?? 0) + 1;
+  while (nextAttempt <= CONFIRMATION_MAX_SUCCESSORS && snapshot[nextAttempt] && awayMemberIds.has(snapshot[nextAttempt].memberId)) nextAttempt += 1;
+  if (nextAttempt > CONFIRMATION_MAX_SUCCESSORS) return "exhausted";
 
   const next = snapshot[nextAttempt];
-  if (!next) return false;
+  if (!next) return "exhausted";
 
-  if (input.record.conductorMemberId) {
-    await releasePoolSelectionForDate(
-      input.allianceId,
-      input.record.date,
-      input.record.conductorMemberId,
-    ).catch(() => undefined);
-  }
-
+  const previousMemberId = input.record.conductorMemberId;
   const deadline = new Date(
     input.now.getTime() + CONFIRMATION_SUCCESSOR_WINDOW_MS,
   );
-  const db = getDb();
-  await db
-    .update(schema.trainConductorRecords)
-    .set({
-      conductorMemberId: next.memberId,
-      conductorMemberName: next.memberName,
-      conductorNominationStatus: "pending_confirmation",
-      successorAttempt: nextAttempt,
-      confirmationDeadlineAt: deadline,
-      updatedAt: input.now,
-    })
-    .where(eq(schema.trainConductorRecords.id, input.record.id));
+  const promoted = await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.record.id), eq(schema.trainConductorRecords.allianceId, input.allianceId))).for("update");
+    if (!current || current.lockedAt || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (current.conductorNominationStatus !== "pending_confirmation") return [];
+    if ((current.successorAttempt ?? 0) !== (input.record.successorAttempt ?? 0)) return [];
+    const duties = [...trainCoverageDuties(current, "current"), ...trainCoverageDuties({ ...current, conductorMemberId: next.memberId, conductorMemberName: next.memberName }, "next")];
+    if ((await findCoverageConflicts(db, input.allianceId, duties)).length) return [];
+    // CAS before pool release: a concurrent officer confirm must win cleanly.
+    return db
+      .update(schema.trainConductorRecords)
+      .set({
+        conductorMemberId: next.memberId,
+        conductorMemberName: next.memberName,
+        conductorNominationStatus: "pending_confirmation",
+        successorAttempt: nextAttempt,
+        confirmationDeadlineAt: deadline,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          eq(schema.trainConductorRecords.id, input.record.id),
+          eq(
+            schema.trainConductorRecords.conductorNominationStatus,
+            "pending_confirmation",
+          ),
+          eq(
+            schema.trainConductorRecords.successorAttempt,
+            input.record.successorAttempt ?? 0,
+          ),
+          isNull(schema.trainConductorRecords.lockedAt),
+        ),
+      )
+      .returning({ id: schema.trainConductorRecords.id });
+  });
 
-  return true;
+  if (promoted.length === 0) return "lost_race";
+
+  if (previousMemberId && previousMemberId !== next.memberId) {
+    await releasePoolSelectionForDate(
+      input.allianceId,
+      input.record.date,
+      previousMemberId,
+    ).catch(() => undefined);
+  }
+
+  return "promoted";
 }
 
 async function assignR4Fallback(input: {
   allianceId: string;
   record: typeof schema.trainConductorRecords.$inferSelect;
   now: Date;
-}): Promise<void> {
+}): Promise<boolean> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (input.record.lockedAt || (input.record.conductorMemberId && awayMemberIds.has(input.record.conductorMemberId))) return false;
   const summary = await getPoolSummary(input.allianceId, "r4_plus");
   let memberId: string | null = null;
   let memberName: string | null = null;
@@ -415,6 +476,7 @@ async function assignR4Fallback(input: {
         and(
           eq(schema.conductorPoolEntries.allianceId, input.allianceId),
           eq(schema.conductorPoolEntries.poolType, "r4_plus"),
+          awayMemberIds.size > 0 ? notInArray(schema.conductorPoolEntries.memberId, [...awayMemberIds]) : undefined,
           isNull(schema.conductorPoolEntries.selectedAt),
         ),
       )
@@ -431,7 +493,7 @@ async function assignR4Fallback(input: {
   if (!memberId) {
     const roster = await listActiveAllianceMembersForPool(input.allianceId);
     const r4 = roster
-      .filter((m) => (m.allianceRank ?? 0) >= 4)
+      .filter((m) => (m.allianceRank ?? 0) >= 4 && !awayMemberIds.has(m.ashedMemberId))
       .sort((a, b) => (a.allianceRank ?? 99) - (b.allianceRank ?? 99));
     if (r4[0]) {
       memberId = r4[0].ashedMemberId;
@@ -439,33 +501,53 @@ async function assignR4Fallback(input: {
     }
   }
 
-  if (!memberId || !memberName) return;
+  if (!memberId || !memberName) return false;
+  const latest = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (latest.awayMemberIds.has(memberId) || (input.record.conductorMemberId && latest.awayMemberIds.has(input.record.conductorMemberId))) return false;
 
-  if (input.record.conductorMemberId) {
-    await releasePoolSelectionForDate(
-      input.allianceId,
-      input.record.date,
-      input.record.conductorMemberId,
-    ).catch(() => undefined);
-  }
-
-  await upsertConductorDraft({
-    allianceId: input.allianceId,
-    date: input.record.date,
-    conductorMemberId: memberId,
-    conductorMemberName: memberName,
-    conductorMechanism: "r4_sequence",
-  });
-
-  const db = getDb();
-  await db
+  const previousMemberId = input.record.conductorMemberId;
+  const selectedId = memberId;
+  const selectedName = memberName;
+  const fellBack = await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.record.id), eq(schema.trainConductorRecords.allianceId, input.allianceId))).for("update");
+    if (!current || current.lockedAt || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (current.conductorNominationStatus !== "pending_confirmation") return [];
+    const duties = [...trainCoverageDuties(current, "current"), ...trainCoverageDuties({ ...current, conductorMemberId: selectedId, conductorMemberName: selectedName }, "next")];
+    if ((await findCoverageConflicts(db, input.allianceId, duties)).length) return [];
+    // CAS: do not clobber a concurrent confirm/promote; assign R4 only while still pending.
+    return db
     .update(schema.trainConductorRecords)
     .set({
+      conductorMemberId: memberId,
+      conductorMemberName: memberName,
+      conductorMechanism: "r4_sequence",
       conductorNominationStatus: "fallback_r4",
       confirmationDeadlineAt: null,
       updatedAt: input.now,
     })
-    .where(eq(schema.trainConductorRecords.id, input.record.id));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, input.record.id),
+        eq(
+          schema.trainConductorRecords.conductorNominationStatus,
+          "pending_confirmation",
+        ),
+        isNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .returning({ id: schema.trainConductorRecords.id });
+  });
+
+  if (fellBack.length === 0) return false;
+
+  if (previousMemberId && previousMemberId !== memberId) {
+    await releasePoolSelectionForDate(
+      input.allianceId,
+      input.record.date,
+      previousMemberId,
+    ).catch(() => undefined);
+  }
 
   await writeAuditLog({
     sessionId: "system",
@@ -478,6 +560,7 @@ async function assignR4Fallback(input: {
       memberId,
     },
   });
+  return true;
 }
 
 /** Cron: expire confirmation windows, promote successors, R4 fallback, auto-lock. */
@@ -508,15 +591,16 @@ export async function processConductorConfirmationTick(): Promise<{
     );
 
   for (const record of pending) {
+    const { awayMemberIds } = await loadTimeOffAvailability(record.allianceId, record.date);
+    if (record.conductorMemberId && awayMemberIds.has(record.conductorMemberId)) continue;
     const nominatedAt = record.nominatedAt?.getTime() ?? now.getTime();
     const hardStop = nominatedAt + CONFIRMATION_HARD_STOP_MS;
     if (now.getTime() >= hardStop) {
-      await assignR4Fallback({
+      if (await assignR4Fallback({
         allianceId: record.allianceId,
         record,
         now,
-      });
-      fallbacks += 1;
+      })) fallbacks += 1;
       continue;
     }
 
@@ -525,16 +609,16 @@ export async function processConductorConfirmationTick(): Promise<{
       record,
       now,
     });
-    if (promoted) {
+    if (promoted === "promoted") {
       forfeits += 1;
-    } else {
-      await assignR4Fallback({
+    } else if (promoted === "exhausted") {
+      if (await assignR4Fallback({
         allianceId: record.allianceId,
         record,
         now,
-      });
-      fallbacks += 1;
+      })) fallbacks += 1;
     }
+    // lost_race: concurrent confirm/promote already moved the row — skip.
   }
 
   const lockable = await db
@@ -556,6 +640,8 @@ export async function processConductorConfirmationTick(): Promise<{
 
   for (const record of lockable) {
     if (!record.conductorMemberId) continue;
+    const { awayMemberIds } = await loadTimeOffAvailability(record.allianceId, record.date);
+    if (awayMemberIds.has(record.conductorMemberId)) continue;
     await lockConductorRecord(record.id, record.allianceId, null);
     autoLocks += 1;
   }
@@ -594,17 +680,12 @@ export async function maybeNominateConductorAfterVsUpload(input: {
       continue;
     }
     const scoreDate = scoreDateForTrainDay(day.date, leadDays);
-    const scoreDateRow = mergedByDate.get(scoreDate);
-    const scoreDateDay = scoreDateRow
-      ? toDayMechanismConfig(scoreDateRow)
-      : null;
+    const scoreDayRule = mergedByDate.get(scoreDate)?.conductorRule ?? null;
     const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: day.conductorMechanism,
-      paintTemplate: day.paintTemplate,
+      rule: day.conductorRule,
       trainDate: day.date,
       leadDays,
-      conductorConfig: day.conductorConfig,
-      scoreDateDay,
+      scoreDayRule,
     });
     if (trigger.mode !== "score_upload") continue;
     if (trigger.kind === "prior_day_vs" && trigger.scoreDate !== input.vsRecordedDate) {
@@ -657,14 +738,12 @@ export async function processScheduledConductorNominations(): Promise<{
       seasonKey: effectiveSeason.seasonKey,
       leadDays: alliance.trainConductorLeadTimeDays ?? 0,
     });
-    const { dayConfig, scoreDateDay } = dayContext;
+    const { dayConfig, scoreDayRule } = dayContext;
     const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: dayConfig.conductorMechanism,
-      paintTemplate: dayConfig.paintTemplate,
+      rule: dayConfig.conductorRule,
       trainDate: tomorrow,
       leadDays: dayContext.leadDays,
-      conductorConfig: dayConfig.conductorConfig,
-      scoreDateDay,
+      scoreDayRule,
     });
     if (trigger.mode !== "scheduled_reset") continue;
 

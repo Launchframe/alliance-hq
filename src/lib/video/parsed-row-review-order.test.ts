@@ -20,16 +20,34 @@ describe("reviewRowPrimarySortKey", () => {
     expect(reviewRowPrimarySortKey("alliance-star")).toBe("rank");
   });
 
+  it("uses the actual leaderboard rank for Frontline Breakthrough", () => {
+    expect(reviewRowPrimarySortKey("frontline-breakthrough")).toBe("rank");
+    const rows = [
+      { rank: 18, frameIndex: 3 },
+      { rank: 1, frameIndex: 0 },
+      { rank: 14, frameIndex: 2 },
+      { rank: 2, frameIndex: 1 },
+      { rank: 3, frameIndex: 4 },
+    ];
+    rows.sort((a, b) => compareParsedRowsForReview(a, b, "frontline-breakthrough"));
+    expect(rows.map((row) => row.rank)).toEqual([1, 2, 3, 14, 18]);
+  });
+
   it("returns null for linear score targets ordered by frameIndex", () => {
     expect(reviewRowPrimarySortKey("desert-storm")).toBeNull();
   });
 });
 
 describe("sortsInitialReviewByScoreDesc", () => {
-  it("is true only for desert-storm", () => {
+  it("is true for scoreboard targets that show a computed rank column", () => {
     expect(sortsInitialReviewByScoreDesc("desert-storm")).toBe(true);
-    expect(sortsInitialReviewByScoreDesc("canyon-storm")).toBe(false);
-    expect(sortsInitialReviewByScoreDesc("vs-performance")).toBe(false);
+    expect(sortsInitialReviewByScoreDesc("canyon-storm")).toBe(true);
+    expect(sortsInitialReviewByScoreDesc("vs-performance")).toBe(true);
+  });
+
+  it("is false for roster and podium targets", () => {
+    expect(sortsInitialReviewByScoreDesc("member-roster-video")).toBe(false);
+    expect(sortsInitialReviewByScoreDesc("alliance-star")).toBe(false);
   });
 });
 
@@ -69,7 +87,7 @@ describe("sortParsedRowsForInitialReview", () => {
     expect(sorted.map((row) => row.id)).toEqual(["b", "c", "a", "d"]);
   });
 
-  it("does not use score order for canyon-storm load", () => {
+  it("sorts canyon-storm by score descending on load", () => {
     const sorted = sortParsedRowsForInitialReview(
       [
         { id: "a", score: "100", rank: null, frameIndex: 2 },
@@ -78,6 +96,17 @@ describe("sortParsedRowsForInitialReview", () => {
       "canyon-storm",
     );
     expect(sorted.map((row) => row.id)).toEqual(["b", "a"]);
+  });
+
+  it("sorts vs-performance by score descending on load", () => {
+    const sorted = sortParsedRowsForInitialReview(
+      [
+        { id: "low", score: "9328000", frameIndex: 40 },
+        { id: "high", score: "18755850", frameIndex: 0 },
+      ],
+      "vs-performance",
+    );
+    expect(sorted.map((row) => row.id)).toEqual(["high", "low"]);
   });
 });
 

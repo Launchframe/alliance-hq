@@ -95,6 +95,37 @@ describe("parseTimeOffMessage", () => {
     expect(result.parsed.endDate).toBe("2026-08-14");
   });
 
+  it("parses a standalone weekday as one all-day date", () => {
+    expect(parseTimeOffMessage("Saturday", "2026-09-25")).toMatchObject({
+      ok: true,
+      parsed: { startDate: "2026-09-26", endDate: "2026-09-26" },
+    });
+    expect(parseTimeOffMessage("Saturday", "2026-09-26")).toMatchObject({
+      ok: true,
+      parsed: { startDate: "2026-09-26", endDate: "2026-09-26" },
+    });
+    expect(parseTimeOffMessage("next Saturday", "2026-09-26")).toMatchObject({
+      ok: true,
+      parsed: { startDate: "2026-10-03", endDate: "2026-10-03" },
+    });
+  });
+
+  it("parses weekday-to-weekday ranges before generic through-weekday", () => {
+    expect(
+      parseTimeOffMessage("this Saturday through Sunday", "2026-09-25"),
+    ).toMatchObject({
+      ok: true,
+      parsed: { startDate: "2026-09-26", endDate: "2026-09-27" },
+    });
+  });
+
+  it("keeps bare through-weekday starting today", () => {
+    expect(parseTimeOffMessage("through Sunday", "2026-09-25")).toMatchObject({
+      ok: true,
+      parsed: { startDate: "2026-09-25", endDate: "2026-09-27" },
+    });
+  });
+
   it("returns unrecognized for vague text", () => {
     const result = parseTimeOffMessage("maybe later", REF);
     expect(result.ok).toBe(false);

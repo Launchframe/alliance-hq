@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { PriceIsRightTicketDistributionChart } from "@/components/trains/PriceIsRightTicketDistributionChart";
+import { SearchablePaginatedMemberScoreList } from "@/components/trains/SearchablePaginatedMemberScoreList";
 import { Link } from "@/i18n/navigation";
 import {
   boardToChartPoints,
@@ -340,103 +341,30 @@ export function PriceIsRightTicketsPanel({
       </div>
 
       {(payload.missedFloor.length > 0 || (payload.aboveCliff?.length ?? 0) > 0) ? (
-        <div className="mt-6 border-t border-cyan-500/20 pt-5">
+        <div className="mt-6 space-y-6 border-t border-cyan-500/20 pt-5">
           {payload.missedFloor.length > 0 ? (
-          <>
-          <div className="flex flex-col gap-1">
-            <h4 className="text-sm font-semibold text-hq-fg">
-              {mode === "uniform"
-                ? t("missedFloor.titleUniform")
-                : t("missedFloor.title")}
-            </h4>
-            <p className="text-xs text-hq-fg-muted">
-              {mode === "uniform"
-                ? t("missedFloor.subtitleUniform")
-                : t("missedFloor.subtitle")}
-            </p>
-          </div>
-          <div
-            className="mt-3 overflow-x-auto rounded-lg border border-hq-border"
-            data-testid="price-is-right-missed-floor"
-          >
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-hq-canvas/80 text-xs uppercase tracking-wide text-hq-fg-muted">
-                <tr>
-                  <th className="px-3 py-2 font-medium">
-                    {t("missedFloor.member")}
-                  </th>
-                  <th className="px-3 py-2 font-medium">{t("missedFloor.vs")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payload.missedFloor.map((row) => (
-                  <tr
-                    key={row.memberId}
-                    className={`border-t border-hq-border/60 ${
-                      row.isViewer ? "bg-amber-500/10" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-2 font-medium text-hq-fg">
-                      {row.memberName}
-                    </td>
-                    <td className="px-3 py-2 text-hq-fg-muted">
-                      {formatPriceIsRightVsScore(row.priorDayVsScore)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          </>
+            <SearchablePaginatedMemberScoreList
+              rows={payload.missedFloor}
+              title={
+                mode === "uniform"
+                  ? t("missedFloor.titleUniform")
+                  : t("missedFloor.title")
+              }
+              subtitle={
+                mode === "uniform"
+                  ? t("missedFloor.subtitleUniform")
+                  : t("missedFloor.subtitle")
+              }
+              testId="price-is-right-missed-floor"
+            />
           ) : null}
           {(payload.aboveCliff?.length ?? 0) > 0 ? (
-            <>
-              <div className={`flex flex-col gap-1 ${payload.missedFloor.length > 0 ? "mt-6" : ""}`}>
-                <h4 className="text-sm font-semibold text-hq-fg">
-                  {t("aboveCliff.title")}
-                </h4>
-                <p className="text-xs text-hq-fg-muted">
-                  {t("aboveCliff.subtitle")}
-                </p>
-              </div>
-              <div
-                className="mt-3 overflow-x-auto rounded-lg border border-hq-border"
-                data-testid="price-is-right-above-cliff"
-              >
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-hq-canvas/80 text-xs uppercase tracking-wide text-hq-fg-muted">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">
-                        {t("missedFloor.member")}
-                      </th>
-                      <th className="px-3 py-2 font-medium">{t("missedFloor.vs")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payload.aboveCliff!.map((row) => (
-                      <tr
-                        key={row.memberId}
-                        className={`border-t border-hq-border/60 ${
-                          row.isViewer ? "bg-amber-500/10" : ""
-                        }`}
-                      >
-                        <td className="px-3 py-2 font-medium text-hq-fg">
-                          {row.memberName}
-                          {row.isViewer ? (
-                            <span className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-300">
-                              ({t("board.you")})
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2 text-hq-fg-muted">
-                          {formatPriceIsRightVsScore(row.priorDayVsScore)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+            <SearchablePaginatedMemberScoreList
+              rows={payload.aboveCliff!}
+              title={t("aboveCliff.title")}
+              subtitle={t("aboveCliff.subtitle")}
+              testId="price-is-right-above-cliff"
+            />
           ) : null}
         </div>
       ) : null}

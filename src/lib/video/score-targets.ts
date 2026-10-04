@@ -5,6 +5,7 @@ import {
   ROSTER_VIDEO_OCR_SCHEMA,
 } from "@/lib/members/ashed-member-record";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import { FRONTLINE_BREAKTHROUGH_OCR_SCHEMA } from "@/lib/video/frontline-breakthrough.shared";
 import type { VideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
 
 export type ScoreTargetGroup = "events" | "recurring" | "hq-native";
@@ -124,10 +125,9 @@ const STORM_SUBMIT_CONTEXT: SubmitContextField[] = [
 export const ALLIANCE_KILLS_VIDEO_SCORE_TARGET = "alliance-kills-video" as const;
 
 /**
- * Score targets whose review table shows a read-only `#` column (row position in
- * Read-only `#` leaderboard rank (score DESC, competition ties) for targets in
- * REVIEW_ROW_NUMBER_SCORE_TARGETS — matches in-game order even when table rows
- * follow video frame order.
+ * Score targets whose review table shows a read-only `#` leaderboard rank
+ * (score DESC, competition ties). Review tables for these targets also load
+ * highest-score first so the table order matches that rank column.
  */
 export const REVIEW_ROW_NUMBER_SCORE_TARGETS = [
   "vs-performance",
@@ -275,7 +275,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     labelKey: "frontlineBreakthrough",
     group: "hq-native",
     submitEntity: "SeasonalScore",
-    ocrSchema: ENTRIES_NUMBER_SCHEMA,
+    ocrSchema: FRONTLINE_BREAKTHROUGH_OCR_SCHEMA,
     enabled: true,
     leaderboardModel: "linear-full",
     eventEntity: "SeasonalEvent",
@@ -396,6 +396,10 @@ export function isAllianceKillsVideoTarget(id: string): boolean {
   return id === ALLIANCE_KILLS_VIDEO_SCORE_TARGET;
 }
 
+export function isFrontlineBreakthroughVideoTarget(id: string): boolean {
+  return id === "frontline-breakthrough";
+}
+
 export function isBankDepositSlipHistoryTarget(id: string): boolean {
   return id === BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET;
 }
@@ -429,6 +433,7 @@ export type ScoreTargetClientMeta = {
   /** Read-only `#` leaderboard rank by score (see REVIEW_ROW_NUMBER_SCORE_TARGETS). */
   showReviewRowNumber: boolean;
   showRankColumn: boolean;
+  showStageColumn: boolean;
   showTeamSelector: boolean;
   showRosterColumns: boolean;
   showScoreColumn: boolean;
@@ -457,7 +462,11 @@ export function toScoreTargetClientMeta(
     maxSubmitRows: target.maxSubmitRows,
     usesHqEvents: usesHqEventStore(target),
     showReviewRowNumber,
-    showRankColumn: showReviewRowNumber || showEditablePodiumRank,
+    showRankColumn:
+      showReviewRowNumber ||
+      showEditablePodiumRank ||
+      isFrontlineBreakthroughVideoTarget(target.id),
+    showStageColumn: isFrontlineBreakthroughVideoTarget(target.id),
     showTeamSelector: target.submitContext.includes("team"),
     showRosterColumns: isRoster,
     showScoreColumn: !isRoster && !isDepositSlip,

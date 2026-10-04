@@ -65,6 +65,7 @@ function applyExplicitLevel(
         proposedVr: value,
         ashedMemberId: input.ashedMemberId,
         ...(input.commanderId ? { commanderId: input.commanderId } : {}),
+        seasonKey,
       },
       action: { type: "none" },
       needsConfirmation: true,
@@ -87,7 +88,11 @@ function applyExplicitLevel(
 export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult {
   const { explicitLevel, seasonHigh, pending, translate: t, seasonKey } = input;
 
-  if (pending?.kind === "anomaly_confirm" && explicitLevel == null) {
+  if (
+    pending?.kind === "anomaly_confirm" &&
+    pending.seasonKey === seasonKey &&
+    explicitLevel == null
+  ) {
     return {
       reply: t("vr.stillWaiting", {
         level: instituteLevelLabel(seasonKey, pending.proposedVr),
@@ -137,6 +142,16 @@ export function processVrConfirmation(
   if (pending.kind !== "anomaly_confirm") {
     return {
       reply: t("errors.nothingPending"),
+      pending: null,
+      action: { type: "none" },
+    };
+  }
+  if (
+    pending.seasonKey !== seasonKey ||
+    !validateBaseVrForSeason(seasonKey, pending.proposedVr).ok
+  ) {
+    return {
+      reply: t("errors.noConfirm"),
       pending: null,
       action: { type: "none" },
     };

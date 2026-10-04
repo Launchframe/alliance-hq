@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { pickAvatarFromProviders } from "@/lib/profile/resolve-avatar";
+import {
+  needsLastWarAvatarRefresh,
+  pickAvatarFromProviders,
+} from "@/lib/profile/resolve-avatar";
 
 describe("pickAvatarFromProviders", () => {
   it("prefers Google over Discord and Last War", () => {
@@ -47,5 +50,47 @@ describe("pickAvatarFromProviders", () => {
       avatarUrl: null,
       avatarSource: null,
     });
+  });
+});
+
+describe("needsLastWarAvatarRefresh", () => {
+  const base = {
+    primaryGameUid: "1234567890121203",
+    avatarSource: "lastwar" as const,
+    avatarUrl: null as string | null,
+    avatarRefreshedAt: null as Date | null,
+  };
+
+  it("is false without a primary game UID", () => {
+    expect(
+      needsLastWarAvatarRefresh({ ...base, primaryGameUid: null }),
+    ).toBe(false);
+  });
+
+  it("is true when never refreshed (even with null avatarUrl)", () => {
+    expect(needsLastWarAvatarRefresh(base)).toBe(true);
+  });
+
+  it("is false within TTL after a failed lookup (null URL + refreshedAt)", () => {
+    expect(
+      needsLastWarAvatarRefresh({
+        ...base,
+        avatarUrl: null,
+        avatarRefreshedAt: new Date(),
+      }),
+    ).toBe(false);
+  });
+
+  it("is true when forceRefresh is set", () => {
+    expect(
+      needsLastWarAvatarRefresh(
+        {
+          ...base,
+          avatarUrl: null,
+          avatarRefreshedAt: new Date(),
+        },
+        { forceRefresh: true },
+      ),
+    ).toBe(true);
   });
 });

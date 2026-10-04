@@ -8,8 +8,6 @@ import {
 } from "@/lib/trains/game-time";
 import { getTrainWeekStart } from "@/lib/trains/train-week-calendar.shared";
 import { loadAllianceRow } from "@/lib/members/game-roster";
-import { resolveAnchorTemplateType } from "@/lib/trains/day-config-resolve.server";
-import type { WeekTemplateType } from "@/lib/trains/types";
 
 export type DashboardTrainStatus =
   | { state: "no_template"; weekStart: string }
@@ -17,13 +15,11 @@ export type DashboardTrainStatus =
       state: "awaiting_conductor";
       weekStart: string;
       today: string;
-      templateType: WeekTemplateType;
     }
   | {
       state: "in_progress";
       weekStart: string;
       today: string;
-      templateType: WeekTemplateType;
       conductorMemberName: string | null;
       vipMemberName: string | null;
       lockedAt: string | null;
@@ -44,10 +40,6 @@ export async function loadDashboardTrainStatus(
     effectiveSeason.seasonKey,
   );
 
-  const templateType: WeekTemplateType = scheduleRow
-    ? (scheduleRow.templateType as WeekTemplateType)
-    : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
-
   if (!scheduleRow) {
     return { state: "no_template", weekStart };
   }
@@ -65,7 +57,6 @@ export async function loadDashboardTrainStatus(
       state: "awaiting_conductor",
       weekStart,
       today,
-      templateType,
     };
   }
 
@@ -73,7 +64,6 @@ export async function loadDashboardTrainStatus(
     state: "in_progress",
     weekStart,
     today,
-    templateType,
     conductorMemberName: todayRecord.conductorMemberName,
     vipMemberName: todayRecord.vipMemberName,
     lockedAt: todayRecord.lockedAt?.toISOString() ?? null,

@@ -31,10 +31,6 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/lib/profile/resolve-avatar", () => ({
-  ensureHqUserAvatarFresh: vi.fn().mockResolvedValue(null),
-}));
-
 vi.mock("@/lib/rbac/ashed-session-membership", () => ({
   sessionHasConflictingAshedCredentialForHqUser: vi.fn().mockResolvedValue(false),
 }));

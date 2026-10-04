@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ManualPickEligibilityError,
   depletingManualPickErrorMessage,
+  discordEligibilityOverrideMessageKey,
   evaluateDepletingManualPick,
   isManualPickEligibilityError,
   officerConfirmedManualPickOverride,
@@ -48,6 +49,20 @@ describe("depletingManualPickErrorMessage", () => {
     );
     expect(depletingManualPickErrorMessage("not_in_pool")).toMatch(
       /not in the current conductor pool/i,
+    );
+  });
+});
+
+describe("discordEligibilityOverrideMessageKey", () => {
+  it("picks a reason-specific Discord confirm key", () => {
+    expect(discordEligibilityOverrideMessageKey("already_awarded")).toBe(
+      "train.confirmEligibilityOverrideAlreadyAwarded",
+    );
+    expect(discordEligibilityOverrideMessageKey("not_in_pool")).toBe(
+      "train.confirmEligibilityOverrideNotInPool",
+    );
+    expect(discordEligibilityOverrideMessageKey("rank_ineligible")).toBe(
+      "train.confirmEligibilityOverride",
     );
   });
 });

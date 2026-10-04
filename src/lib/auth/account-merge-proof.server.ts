@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, gt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { ActivityIdentityChangedError } from "@/lib/activity/ownership.server";
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import {
   AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS,
@@ -38,6 +39,7 @@ export class AccountMergeProofError extends Error {
       | "not_found"
       | "proof_expired"
       | "proof_required"
+      | "identity_changed"
       | MergeHqUsersError["code"],
   ) {
     super(message);
@@ -132,6 +134,9 @@ async function sendMergeProofCodeViaResend(input: {
 }
 
 function mapMergeError(error: unknown): never {
+  if (error instanceof ActivityIdentityChangedError) {
+    throw new AccountMergeProofError(error.message, "identity_changed");
+  }
   if (error instanceof MergeHqUsersError) {
     throw new AccountMergeProofError(error.message, error.code);
   }

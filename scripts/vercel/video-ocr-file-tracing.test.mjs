@@ -1,11 +1,30 @@
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 import {
   functionTraceBudgets,
+  ocrControlPlaneRoutes,
+  sharpNativeFileTracing,
+  tesseractFileTracing,
+  videoOcrFileTracingIncludes,
+  videoOcrFileTracingExcludes,
   videoOcrTracedRoutes,
 } from "./video-ocr-file-tracing.mjs";
 
+const picomatch = createRequire(import.meta.url)("next/dist/compiled/picomatch");
+const includesFor = (route) => new Set(Object.entries(videoOcrFileTracingIncludes).flatMap(([pattern, includes]) => picomatch(pattern, { dot: true, contains: true })(route) ? includes : []));
+
 describe("video OCR tracing — Phase 2a queue slim", () => {
+  it("isolates history OCR workers from history listing and review routes", () => {
+    for (const route of ["/api/internal/notes/process", "/api/notes/imports/[id]/process"]) {
+      expect(videoOcrTracedRoutes[route]).toBeDefined();
+      expect(functionTraceBudgets.find((row) => row.route === route)?.requireWorkerScript).toBe(true);
+    }
+    for (const route of ["/api/notes/imports", "/api/notes/imports/[id]"]) {
+      expect(videoOcrTracedRoutes[route]).toBeUndefined();
+      expect(functionTraceBudgets.find((row) => row.route === route)?.forbidPathSubstrings).toContain("tesseract.js/src");
+    }
+  });
   it("does not force OCR natives onto the queue cron route", () => {
     expect(videoOcrTracedRoutes["/api/internal/video-process/queue"]).toBeUndefined();
     expect(videoOcrTracedRoutes["/api/internal/video-process/[jobId]"]).toBeDefined();
@@ -27,6 +46,24 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
     );
   });
 
+  it("traces the VS video evidence OCR routes with the full worker stack", () => {
+    for (const route of [
+      "/api/tools/video-upload/[jobId]/vs-evidence/process",
+      "/api/internal/vs-video-evidence/[jobId]",
+    ]) {
+      expect(videoOcrTracedRoutes[route]).toBeDefined();
+      const budget = functionTraceBudgets.find((row) => row.route === route);
+      expect(budget, route).toBeDefined();
+      expect(budget.requireLibvips, route).toBe(true);
+      expect(budget.requireWorkerScript, route).toBe(true);
+      for (const asset of [...sharpNativeFileTracing, ...tesseractFileTracing]) {
+        expect(includesFor(route).has(asset), `${route} ${asset}`).toBe(true);
+      }
+    }
+    expect(videoOcrTracedRoutes["/api/tools/video-upload/[jobId]/vs-evidence"]).toBeUndefined();
+    expect(videoOcrTracedRoutes["/api/tools/video-upload/[jobId]/approve"]).toBeUndefined();
+  });
+
   it("requires tesseract worker-script + constants on Discord and THP OCR routes", () => {
     for (const route of [
       "/api/webhooks/discord/interactions",
@@ -39,5 +76,36 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
       }
       expect(budget.requireWorkerScript, route).toBe(true);
     }
+  });
+});
+
+describe("literal Next tracing routes", () => {
+  it("never bundles local private assets or worker runtimes", () => {
+    expect(videoOcrFileTracingExcludes).toEqual(expect.arrayContaining(["./.data/**/*", "./workers/ocr/**/*"]));
+    for (const budget of functionTraceBudgets) expect(budget.forbidPathSubstrings).toEqual(expect.arrayContaining([".data/"]));
+  });
+
+  it("keeps the control plane independent of compute runtimes", () => {
+    expect(ocrControlPlaneRoutes).toHaveLength(4);
+    for (const route of ocrControlPlaneRoutes) {
+      const budget = functionTraceBudgets.find((entry) => entry.route === route);
+      expect(budget.requireLibvips).toBe(true);
+      expect(budget.maxUncompressedBytes).toBeLessThanOrEqual(120 * 1024 ** 2);
+      expect(budget.forbidPathSubstrings).toEqual(expect.arrayContaining(["ffmpeg-static", "tesseract.js-core", "tesseract.js/src", "workers/ocr/"]));
+      expect(includesFor(route).size).toBe(0);
+    }
+  });
+
+  it("keeps every declared route's required native assets", () => {
+    for (const [route, assets] of Object.entries(videoOcrTracedRoutes)) {
+      expect([...includesFor(route)]).toEqual(expect.arrayContaining(assets));
+    }
+  });
+
+  it("does not mistake the o in ocr-media for the [jobId] character class", () => {
+    const media = includesFor("/api/internal/video-process/ocr-media/[taskId]");
+    expect([...media]).toEqual(expect.arrayContaining(sharpNativeFileTracing));
+    for (const asset of tesseractFileTracing) expect(media.has(asset)).toBe(false);
+    expect(includesFor("/api/internal/video-process/queue").size).toBe(0);
   });
 });

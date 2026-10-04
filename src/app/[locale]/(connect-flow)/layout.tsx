@@ -1,5 +1,6 @@
 import { ConnectPageFooter } from "@/components/ConnectPageFooter";
 import { ConnectSignOutLink } from "@/components/auth/ConnectSignOutLink";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ShellActivityBoundary } from "@/components/ashed-shell/ShellActivityBoundary";
 import { auth } from "@/lib/auth";
 
@@ -13,7 +14,14 @@ export default async function ConnectFlowLayout({
   return (
     <ShellActivityBoundary>
       <div className="flex min-h-screen flex-col bg-hq-canvas text-hq-fg">
-        <header className="flex justify-end px-4 pt-4">
+        <header
+          className={
+            session?.user
+              ? "flex items-start justify-between gap-3 px-4 pt-4"
+              : "flex items-start justify-end gap-3 px-4 pt-4"
+          }
+        >
+          <LanguageSwitcher />
           {session?.user ? <ConnectSignOutLink /> : null}
         </header>
         <div className="flex-1 px-4 py-10">{children}</div>

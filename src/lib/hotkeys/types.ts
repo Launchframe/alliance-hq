@@ -13,7 +13,12 @@ export type HotkeyCategory =
   | "trains"
   | "tools";
 
-export type HotkeyScope = "global" | "page:trains" | "admin-sequence";
+export type HotkeyScope =
+  | "global"
+  | "page:trains"
+  | "page:notes"
+  | "page:vs-performance"
+  | "admin-sequence";
 
 export type HotkeyActionKind =
   | "navigate"

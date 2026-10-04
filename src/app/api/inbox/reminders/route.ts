@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 import {
   dismissAllReminderItems,
@@ -17,7 +18,7 @@ export async function GET() {
 
   const session = sessionOrError;
   const ctx = await getRbacContext(session.id);
-  if (!ctx?.permissions.has("inbox:read")) {
+  if (!ctx || (!ctx.permissions.has("inbox:read") && !ctx.isPlatformMaintainer)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -28,6 +29,8 @@ export async function GET() {
 
   const items = await loadReminderInboxForUser({
     hqUserId: session.hqUserId,
+    principalHqUserId: ctx.hqUserId,
+    notesActor: await getKnowledgeActorForSession(session.id),
     allianceId,
     permissions: ctx.permissions,
     includeDismissed: false,
@@ -48,7 +51,7 @@ export async function POST(request: Request) {
 
   const session = sessionOrError;
   const ctx = await getRbacContext(session.id);
-  if (!ctx?.permissions.has("inbox:read")) {
+  if (!ctx || (!ctx.permissions.has("inbox:read") && !ctx.isPlatformMaintainer)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -62,6 +65,8 @@ export async function POST(request: Request) {
       session.hqUserId,
       session.currentAllianceId,
       ctx.permissions,
+      ctx.hqUserId,
+      await getKnowledgeActorForSession(session.id),
     );
     return NextResponse.json({ ok: true, dismissed });
   }

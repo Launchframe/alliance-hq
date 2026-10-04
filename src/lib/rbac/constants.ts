@@ -12,6 +12,14 @@ export type SystemRoleName = keyof typeof ROLE_IDS;
 
 /** HQ-native permissions beyond Ashed catalog */
 export const HQ_PERMISSIONS = [
+  { id: "notes:read", description: "Notes" },
+  { id: "notes:create", description: "Create notes" },
+  { id: "notes:publish", description: "Publish reviewed note snapshots" },
+  { id: "notes_boards:read", description: "Shared officer boards" },
+  { id: "notes_boards:write", description: "Edit shared officer boards" },
+  { id: "plunder_plan:read", description: "Plunder Plan" },
+  { id: "plunder_plan:self", description: "My Plunder Plans" },
+  { id: "plunder_plan:suggest", description: "Suggest a time" },
   { id: "hq:admin", description: "Platform maintainer — cross-alliance admin portal" },
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
@@ -26,9 +34,20 @@ export const HQ_PERMISSIONS = [
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
   { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
+  { id: "support_teams:read", description: "Support teams" },
+  { id: "support_teams:write", description: "Support teams" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
+  { id: "vs_compliance:read", description: "VS compliance" },
+  { id: "vs_compliance:manage", description: "Confirm in-game action" },
+  { id: "vs_compliance:settings", description: "VS membership minimums" },
+  { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
+  { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ] as const;
+
+export const VS_COMPLIANCE_READ_PERMISSION = "vs_compliance:read";
+export const VS_COMPLIANCE_MANAGE_PERMISSION = "vs_compliance:manage";
+export const VS_COMPLIANCE_SETTINGS_PERMISSION = "vs_compliance:settings";
 
 export const BATTLE_PLAN_READ_PERMISSION = "battle_plan:read";
 export const BATTLE_PLAN_WRITE_PERMISSION = "battle_plan:write";
@@ -38,6 +57,9 @@ export const BANK_WRITE_PERMISSION = "bank:write";
 
 export const TIME_OFF_READ_PERMISSION = "time_off:read";
 export const TIME_OFF_WRITE_PERMISSION = "time_off:write";
+
+export const OFFICER_INTEL_READ_PERMISSION = "officer_intel:read";
+export const OFFICER_INTEL_WRITE_PERMISSION = "officer_intel:write";
 
 export const TRAINS_WRITE_PERMISSION = "trains:write";
 

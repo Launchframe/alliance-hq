@@ -1,43 +1,6 @@
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
-import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
-import {
-  priorDayVsAppliesForTrainDate,
-  scoreDateDayUsesPriorDayVsScores,
-  type ScoreDateDayConfig,
-} from "@/lib/trains/vs-data-status.shared";
-import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
-
-function isTpiFWeekTemplate(
-  templateType: WeekTemplateType | string | null | undefined,
-): boolean {
-  return (
-    templateType === "price_is_right" ||
-    templateType === "price_is_right_weekdays"
-  );
-}
-
-function segmentLeaderboardKindForWeekTemplate(input: {
-  weekTemplateType?: WeekTemplateType | string | null;
-  trainDate?: string | null;
-  weekStart?: string | null;
-  conductorMechanism?: ConductorMechanismType | string | null | undefined;
-}): ScoreLeaderboardKind | null {
-  if (!isTpiFWeekTemplate(input.weekTemplateType)) return null;
-  if (!input.trainDate || !input.weekStart) return null;
-
-  const segmentPaint = resolvePaintTemplateForDay(
-    input.weekTemplateType as WeekTemplateType,
-    input.trainDate,
-    input.weekStart,
-  );
-  return resolveNativeScoreLeaderboardKind({
-    paintTemplate: segmentPaint,
-    conductorMechanism: input.conductorMechanism,
-  });
-}
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/rules/derive.shared";
+import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
 
 /** Discriminator for score-based rule podiums on the trains dashboard. */
 export type ScoreLeaderboardKind = "tpif" | "vs_push" | "donations";
@@ -63,77 +26,38 @@ export type ScoreLeaderboardPayload = {
 
 export const SCORE_LEADERBOARD_LIST_MAX = 10;
 
-function resolveNativeScoreLeaderboardKind(input: {
-  paintTemplate: WeekTemplateType | string | null | undefined;
-  conductorMechanism: ConductorMechanismType | string | null | undefined;
-}): ScoreLeaderboardKind | null {
-  if (usesPriceIsFreightConductorRoll(input.paintTemplate)) {
-    return "tpif";
-  }
-
-  const topBoard = resolveConductorTopNBoard(
-    input.conductorMechanism,
-    undefined,
-  );
-  if (topBoard?.kind === "vs") {
-    return "vs_push";
-  }
-
-  if (
-    input.paintTemplate === "vs_push_week" ||
-    input.paintTemplate === "vs_push_weekdays" ||
-    input.paintTemplate === "top_vs"
-  ) {
-    return "vs_push";
-  }
-
-  if (
-    input.paintTemplate === "donations_week" ||
-    input.conductorMechanism === "donations_top"
-  ) {
-    return "donations";
-  }
-
+function nativeKindForRule(
+  rule: ConductorRule | null | undefined,
+): ScoreLeaderboardKind | null {
+  if (!rule) return null;
+  if (conductorRuleUsesPriceIsFreightRoll(rule)) return "tpif";
+  if (rule.kind === "vs_top_n") return "vs_push";
+  if (rule.kind === "donations_top") return "donations";
   return null;
 }
 
+/**
+ * Which score podium a day shows. Under lead time a non-score day can still
+ * show the score day's podium, because that is the board its conductor came
+ * from.
+ */
 export function resolveScoreLeaderboardKind(input: {
-  paintTemplate: WeekTemplateType | string | null | undefined;
-  conductorMechanism: ConductorMechanismType | string | null | undefined;
+  rule: ConductorRule | null | undefined;
   trainDate?: string | null;
   leadDays?: number;
-  scoreDateDay?: ScoreDateDayConfig | null;
-  weekTemplateType?: WeekTemplateType | string | null;
-  weekStart?: string | null;
+  scoreDayRule?: ConductorRule | null;
 }): ScoreLeaderboardKind | null {
-  const segmentKind = segmentLeaderboardKindForWeekTemplate(input);
-  const native = resolveNativeScoreLeaderboardKind(input);
-  if (segmentKind === "tpif" || native === "tpif") {
-    return "tpif";
-  }
+  const native = nativeKindForRule(input.rule);
   if (native) return native;
 
   const leadDays = input.leadDays ?? 0;
-  if (leadDays <= 0 || !input.trainDate || !input.scoreDateDay) {
+  if (leadDays <= 0 || !input.trainDate || !input.scoreDayRule) {
     return null;
   }
   if (!priorDayVsAppliesForTrainDate(input.trainDate, leadDays)) {
     return null;
   }
-
-  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
-  if (!scoreDateDayUsesPriorDayVsScores(input.scoreDateDay, scoreDate)) {
-    return null;
-  }
-
-  return resolveNativeScoreLeaderboardKind({
-    paintTemplate: input.scoreDateDay.paintTemplate,
-    conductorMechanism: effectiveConductorMechanism(
-      input.scoreDateDay.conductorMechanism,
-      input.scoreDateDay.paintTemplate as WeekTemplateType | null,
-      scoreDate,
-    ),
-  });
+  return nativeKindForRule(input.scoreDayRule);
 }
 
 export function mapPriorDayVsToScoreEntries(

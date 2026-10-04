@@ -38,14 +38,14 @@ describe("resolveWheelBlockedReseedPoolType", () => {
       resolveWheelBlockedReseedPoolType(
         { code: "POOL_EMPTY", poolType: "r3" },
         null,
-        { paintTemplate: "price_is_right" },
+        { rule: { kind: "price_is_freight", board: "weekday" } },
       ),
     ).toBeNull();
     expect(
       resolveWheelBlockedReseedPoolType(
         { code: "POOL_EXHAUSTED", poolType: "r3" },
         null,
-        { paintTemplate: "takedown_week" },
+        { rule: { kind: "price_is_freight", board: "heavy_hitter" } },
       ),
     ).toBeNull();
   });

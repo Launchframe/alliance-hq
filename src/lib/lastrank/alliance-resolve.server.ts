@@ -107,11 +107,12 @@ export async function resolveHqAllianceForLastRankSync(input: {
     if (choice !== "create") {
       return { allianceId: choice, created: false };
     }
-  } else if (fuzzyUnique.length === 1 && !input.alliancePrompt) {
-    return { allianceId: fuzzyUnique[0].id, created: false };
-  } else if (fuzzyUnique.length > 1 && !input.alliancePrompt) {
+  } else if (fuzzyUnique.length > 0 && !input.alliancePrompt) {
+    // Cron / non-interactive must not auto-bind a Levenshtein near-miss
+    // (e.g. LFgo → LFg0 at 0.75). That silently writes ranks/THP into the
+    // wrong HQ alliance. Require an exact tag or an interactive choice.
     throw new Error(
-      `Tag ${input.target.tag} on server ${input.target.gameServerNumber} fuzzy-matches multiple HQ alliances: ${fuzzyUnique.map((r) => r.tag).join(", ")}. Re-run with --interactive.`,
+      `No exact HQ tag match for ${input.target.tag} on server ${input.target.gameServerNumber}; fuzzy candidates: ${fuzzyUnique.map((r) => r.tag).join(", ")}. Re-run with --interactive or fix the HQ tag.`,
     );
   }
 

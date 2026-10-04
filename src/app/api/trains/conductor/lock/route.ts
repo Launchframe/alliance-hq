@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
+import { lockConductorWithBoarding as lockConductorRecord } from "@/lib/trains/boarding.server";
 import { normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
+import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   getConductorRecord,
-  lockConductorRecord,
+  restampConductorRules,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
-import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import {
+  encodeLegacyConductorMechanism,
+  encodeLegacyVipMechanism,
+} from "@/lib/trains/rules/encode.shared";
+import { conductorRuleChanged } from "@/lib/trains/conductor-mechanism.shared";
+import { parseConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
+import { getMemberRankAsOf, resolveMemberAllianceRankAsOf } from "@/lib/trains/rank-history";
 import { maybeAnnounceTrainReady } from "@/lib/trains/discord-bot.server";
 import {
   getServerCalendarDate,
@@ -23,7 +34,10 @@ import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -49,8 +63,13 @@ export async function POST(request: Request) {
     const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
       .seasonKey;
     let record = await getConductorRecord(ctx.allianceId, date, seasonKey);
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
 
-    if (body.memberId && body.memberName) {
+    if (body.memberId && body.memberName && record?.conductorMemberId !== body.memberId) {
       const rankEvent = await getMemberRankAsOf(
         ctx.allianceId,
         body.memberId,
@@ -63,7 +82,48 @@ export async function POST(request: Request) {
         conductorMemberId: body.memberId,
         conductorMemberName: body.memberName,
         conductorRankEventId: rankEvent?.id ?? null,
+        conductorRule: dayConfig.conductorRule,
+        vipRule: dayConfig.vipRule,
+        conductorMechanism: encodeLegacyConductorMechanism(
+          dayConfig.conductorRule,
+        ),
+        vipMechanism: encodeLegacyVipMechanism(dayConfig.vipRule),
+        dayConfigId: dayConfig.dayConfigId,
       });
+    } else if (
+      record?.conductorMemberId &&
+      conductorRuleChanged(
+        parseConductorRule(record.conductorRule),
+        dayConfig.conductorRule,
+      )
+    ) {
+      const roster = await loadActiveAlliancePoolMembers({
+        allianceId: ctx.allianceId,
+      });
+      const resolved = await resolveMemberAllianceRankAsOf(
+        ctx.allianceId,
+        record.conductorMemberId,
+        date,
+      );
+      const keep = shouldKeepAssignedConductorOnPaint({
+        ruleChanged: true,
+        memberId: record.conductorMemberId,
+        onRoster: roster.some(
+          (member) => member.ashedMemberId === record!.conductorMemberId,
+        ),
+        allianceRank: resolved.rank,
+        nextRule: dayConfig.conductorRule,
+      });
+      if (keep) {
+        const restamped = await restampConductorRules({
+          allianceId: ctx.allianceId,
+          date,
+          seasonKey,
+          conductorRule: dayConfig.conductorRule,
+          vipRule: dayConfig.vipRule,
+        });
+        if (restamped) record = restamped;
+      }
     }
 
     if (!record) {
@@ -118,6 +178,22 @@ export async function POST(request: Request) {
         locale: normalizeDiscordBotLocale(body.locale),
       });
     }
+
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.conductor_lock",
+      severity: "routine",
+      resourceType: "train_conductor_record",
+      resourceId: locked.id,
+      resourceName: locked.conductorMemberName,
+      metadata: {
+        date,
+        conductorMemberId: locked.conductorMemberId,
+        announced: body.announce !== false,
+      },
+    });
 
     return NextResponse.json({ record: locked, poolsRefreshed });
   } catch (error) {

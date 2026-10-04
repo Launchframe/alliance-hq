@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type ConductorPickMemberHint = {
   relativeLastConducted: string;
@@ -14,6 +14,7 @@ type RosterMember = {
 
 type Props = {
   open: boolean;
+  error?: string | null;
   members: RosterMember[];
   memberHints?: Record<string, ConductorPickMemberHint>;
   hintsLoading?: boolean;
@@ -43,6 +44,7 @@ type Props = {
 
 export function ConductorPickModal({
   open,
+  error,
   members,
   memberHints,
   hintsLoading = false,
@@ -62,6 +64,8 @@ export function ConductorPickModal({
   onClose,
   onPick,
 }: Props) {
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guardianIsVip, setGuardianIsVip] = useState(false);
@@ -199,6 +203,7 @@ export function ConductorPickModal({
           </p>
         ) : null}
 
+        {error ? <p role="alert" ref={errorRef} className="px-4 py-2 text-sm text-hq-warning">{error}</p> : null}
         <div className="flex flex-col-reverse gap-2 border-t border-hq-border p-3 sm:flex-row sm:justify-end">
           <button
             type="button"

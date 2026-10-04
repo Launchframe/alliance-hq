@@ -64,7 +64,8 @@ export async function POST(request: Request) {
                   error.code === "discord_conflict" ||
                   error.code === "ashed_identity_conflict" ||
                   error.code === "platform_maintainer" ||
-                  error.code === "nothing_to_merge"
+                  error.code === "nothing_to_merge" ||
+                  error.code === "identity_changed"
                 ? 409
                 : 400;
       return NextResponse.json({ error: error.code }, { status });

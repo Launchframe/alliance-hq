@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
  * Guards the dual-write ordering invariant: Ashed HTTP must not run inside an
  * open DB transaction (rollback after Ashed success orphans/duplicates members
  * or permanently diverges names).
+ *
+ * Also guards lock hygiene: session advisory locks that span Ashed HTTP must
+ * use a dedicated connection helper — never pooled `pg_advisory_lock(hashtext)`.
  */
 describe("scoreboard Ashed dual-write source invariant", () => {
   it("does not invoke Ashed create/rename helpers inside db.transaction callbacks", () => {
@@ -41,5 +44,18 @@ describe("scoreboard Ashed dual-write source invariant", () => {
     // Positive controls: helpers still exist outside transactions.
     expect(source).toContain("createAshedMember(");
     expect(source).toContain("syncMemberNameToAshed(");
+  });
+
+  it("serializes create with dedicated withScoreboardMemberCreateLock (not pooled session lock)", () => {
+    const source = readFileSync(
+      new URL("./scoreboard-member-actions.server.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain(
+      'from "@/lib/members/scoreboard-member-create-lock.server"',
+    );
+    expect(source).toContain("withScoreboardMemberCreateLock");
+    expect(source).not.toMatch(/pg_advisory_lock\(hashtext/);
+    expect(source).not.toMatch(/pg_advisory_unlock\(hashtext/);
   });
 });

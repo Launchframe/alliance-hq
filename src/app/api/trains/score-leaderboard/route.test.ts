@@ -87,8 +87,7 @@ describe("score-leaderboard GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "economy_week",
-      conductorMechanism: "r3_lottery",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
     } as never);
 
     const res = await GET(
@@ -114,8 +113,7 @@ describe("score-leaderboard GET", () => {
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(loadAllianceTrainLeadTimeDays).mockResolvedValue(0);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "vs_push_weekdays",
-      conductorMechanism: "vs_top_10",
+      conductorRule: { kind: "vs_top_n", topN: 10 },
     } as never);
     const { loadScoreLeaderboard } = await import(
       "@/lib/trains/score-leaderboard.server"
@@ -149,8 +147,7 @@ describe("score-leaderboard GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "vs_push_weekdays",
-      conductorMechanism: "vs_top_10",
+      conductorRule: { kind: "vs_top_n", topN: 10 },
     } as never);
     vi.mocked(loadScoreLeaderboard).mockResolvedValue({
       kind: "vs_push",
@@ -201,12 +198,10 @@ describe("score-leaderboard GET", () => {
     vi.mocked(loadAllianceTrainLeadTimeDays).mockResolvedValueOnce(1);
     vi.mocked(resolveRollDayConfig)
       .mockResolvedValueOnce({
-        paintTemplate: "vs_push_week_lead_time",
-        conductorMechanism: "custom",
+        conductorRule: null,
       } as never)
       .mockResolvedValueOnce({
-        paintTemplate: "vs_push_weekdays",
-        conductorMechanism: "vs_top_10",
+        conductorRule: { kind: "vs_top_n", topN: 10 },
       } as never);
     vi.mocked(loadScoreLeaderboard).mockResolvedValue({
       kind: "vs_push",
@@ -242,8 +237,7 @@ describe("score-leaderboard GET", () => {
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
-      paintTemplate: "donations_week",
-      conductorMechanism: "donations_top",
+      conductorRule: { kind: "donations_top" },
     } as never);
     vi.mocked(loadScoreLeaderboard).mockResolvedValue({
       kind: "donations",

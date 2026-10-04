@@ -34,20 +34,34 @@ Target (required — one of):
   Env fallbacks: LASTRANK_SYNC_SERVER + LASTRANK_SYNC_TAG, or LASTRANK_ALLIANCE_ID
 
 Flags:
-  --apply             Write matches (stats, ranks, profile) and create/retire when prompted
-  --create-all        With --apply: auto-create every remaining unmatched LastRank member
-                      (first pass for a new/thin alliance). Ambiguous rows are still skipped.
-                      Requires --apply.
+  --apply             Write matches (stats, ranks, profile) and create/retire when flagged
+  --create-all        With --apply: create every unmatched ranked LastRank member (Ashed+HQ when linked)
+                      Ambiguous and unranked (leaver) rows are skipped. Requires --apply.
+  --retire-all        With --apply: mark every excess HQ active (not on LastRank) as former
+                      (Ashed status + HQ). Requires --apply.
   --interactive       TTY prompts: map unmatched names, pick fuzzy alliance, retire leavers
+                      Prints LastRank profile URL; unranked rows hint leavers (blank = skip).
                       Name prompt: number = HQ choice, C = create one member, blank = skip
+                      Mapping always saves lastrank_public_id; --apply also renames HQ/Ashed.
+  --ashed-connection-key <key>
+                      Upsert alliance bot Ashed credential (with --apply, or with
+                      --save-ashed-credential on dry-run). Never logged.
+                      Env: LASTRANK_ASHED_CONNECTION_KEY
+  --save-ashed-credential
+                      Persist --ashed-connection-key even without --apply
+  --hq-only           Never dual-write to Ashed (HQ DB only). Use on Neon clones.
   -h, --help          Show this help and exit
 
+Every run prints a roster diff (excess HQ / missing from HQ / ambiguous) before writes.
+
 Examples:
-  # Dry-run match report
+  # Dry-run: see excess leavers and missing joins
   npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo
 
-  # First pass: create all unmatched members into HQ
-  npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag BigD --apply --create-all
+  # Fix transfer overshoot + missing joins (Ashed dual-write when bot JWT present)
+  npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo \\
+    --ashed-connection-key "$ASHED_CONNECTION_KEY" \\
+    --apply --create-all --retire-all
 
   # Interactive map + write
   npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo --apply --interactive
@@ -80,6 +94,8 @@ function createTtyPrompts(): {
   interactivePrompt: (ctx: {
     lastRankName: string;
     publicId: number;
+    profileUrl: string;
+    unranked: boolean;
     suggestions: Array<{ name: string; score: number }>;
     remainingHqNames: string[];
   }) => Promise<
@@ -133,6 +149,12 @@ function createTtyPrompts(): {
       console.error(
         `No auto-match for LastRank canon "${ctx.lastRankName}" (public_id=${ctx.publicId}).`,
       );
+      console.error(`  Profile: ${ctx.profileUrl}`);
+      if (ctx.unranked) {
+        console.error(
+          "  Unranked on LastRank — often a recent leaver still listed; leave blank to skip (do not create).",
+        );
+      }
       console.error("HQ roster choices:");
       if (choices.length === 0) {
         console.error("  (roster empty — no existing HQ members to pick)");
@@ -145,11 +167,15 @@ function createTtyPrompts(): {
           console.error(`  ${i + 1}. ${choice.name}${score}`);
         }
       }
+      if (!ctx.unranked) {
+        console.error(
+          `  C. Create new HQ member + commander from LastRank ("${ctx.lastRankName}")`,
+        );
+      }
       console.error(
-        `  C. Create new HQ member + commander from LastRank ("${ctx.lastRankName}")`,
-      );
-      console.error(
-        "Enter a number, C to create, type an HQ roster name, or leave blank to skip.",
+        ctx.unranked
+          ? "Enter a number, type an HQ roster name, or leave blank to skip."
+          : "Enter a number, C to create, type an HQ roster name, or leave blank to skip.",
       );
       const answer = await rl.question("> ");
       return resolveInteractiveHqNameAnswer(answer, choices);
@@ -211,10 +237,26 @@ async function main() {
 
   const apply = process.argv.includes("--apply");
   const createAll = process.argv.includes("--create-all");
+  const retireAll = process.argv.includes("--retire-all");
   const wantInteractive = process.argv.includes("--interactive");
+  const saveAshedCredential = process.argv.includes("--save-ashed-credential");
+  const hqOnly = process.argv.includes("--hq-only");
+  const ashedConnectionKey =
+    arg("--ashed-connection-key") ??
+    process.env.LASTRANK_ASHED_CONNECTION_KEY ??
+    undefined;
 
   if (createAll && !apply) {
     throw new Error("--create-all requires --apply (creates HQ members + commanders).");
+  }
+  if (retireAll && !apply) {
+    throw new Error("--retire-all requires --apply (marks excess HQ members former).");
+  }
+  if (saveAshedCredential && !ashedConnectionKey?.trim()) {
+    throw new Error("--save-ashed-credential requires --ashed-connection-key or LASTRANK_ASHED_CONNECTION_KEY.");
+  }
+  if (hqOnly && ashedConnectionKey?.trim()) {
+    throw new Error("Do not pass --ashed-connection-key with --hq-only.");
   }
 
   const lastrankAllianceId = arg("--id") ?? process.env.LASTRANK_ALLIANCE_ID;
@@ -234,6 +276,9 @@ async function main() {
   const { syncLastRankAlliance } = await import(
     "@/lib/lastrank/sync-alliance.server"
   );
+  const { formatLastRankRosterDiffText } = await import(
+    "@/lib/lastrank/roster-diff.shared"
+  );
 
   const tty = wantInteractive ? createTtyPrompts() : null;
 
@@ -242,10 +287,31 @@ async function main() {
       target,
       apply,
       createAllUnmatched: createAll,
+      retireAllUnmatched: retireAll,
+      ashedConnectionKey: hqOnly ? undefined : ashedConnectionKey,
+      saveAshedCredential: hqOnly ? false : saveAshedCredential,
+      hqOnly,
       interactivePrompt: tty?.interactivePrompt,
       alliancePrompt: tty?.alliancePrompt,
-      retirePrompt: apply ? tty?.retirePrompt : undefined,
+      retirePrompt:
+        apply && !retireAll && wantInteractive ? tty?.retirePrompt : undefined,
     });
+
+    console.error(
+      formatLastRankRosterDiffText({
+        tag: result.tag,
+        gameServerNumber: result.gameServerNumber,
+        diff: result.rosterDiff,
+      }),
+    );
+    if (result.ashedCredentialSaved) {
+      console.error("Ashed bot credential: saved.");
+    }
+    console.error(
+      result.ashedDualWrite
+        ? "Ashed dual-write: available."
+        : "Ashed dual-write: unavailable (native or missing bot credential).",
+    );
 
     console.log(
       JSON.stringify(
@@ -256,6 +322,9 @@ async function main() {
           hqAllianceId: result.hqAllianceId,
           allianceCreated: result.allianceCreated,
           lastRankCount: result.lastRankCount,
+          rosterDiff: result.rosterDiff,
+          ashedCredentialSaved: result.ashedCredentialSaved,
+          ashedDualWrite: result.ashedDualWrite,
           matched: result.match.matched.length,
           unmatched: result.match.unmatched.filter(
             (r) => r.status === "unmatched",

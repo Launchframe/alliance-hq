@@ -5,6 +5,8 @@ import {
   getValidDiscordBotInstallSession,
 } from "@/lib/vr/bot-install-session.server";
 import { completeGuildRegistrationForInstall } from "@/lib/vr/complete-guild-install.server";
+import { allianceTagsEqual, isTagEligible } from "@/lib/vr/bot-setup";
+import { getAllianceById } from "@/lib/vr/repository";
 
 export type ProcessDiscordInstallCompleteResult =
   | { ok: true; tag: string; allianceId: string }
@@ -15,6 +17,8 @@ export type ProcessDiscordInstallCompleteResult =
         | "expired_session"
         | "session_user_mismatch"
         | "missing_alliance"
+        | "tag_not_eligible"
+        | "tag_alliance_mismatch"
         | "not_owner"
         | "no_credentials"
         | "no_hq_link"
@@ -48,10 +52,28 @@ export async function processDiscordInstallComplete(input: {
     return { ok: false, reason: "missing_alliance" };
   }
 
+  const alliance = await getAllianceById(allianceId);
+  if (!alliance) {
+    return { ok: false, reason: "missing_alliance" };
+  }
+  const allianceTag = alliance.tag?.trim() || "";
+  if (!allianceTag) {
+    return { ok: false, reason: "missing_alliance" };
+  }
+  if (!isTagEligible(allianceTag)) {
+    return { ok: false, reason: "tag_not_eligible" };
+  }
+  if (
+    session.allianceTag &&
+    !allianceTagsEqual(allianceTag, session.allianceTag)
+  ) {
+    return { ok: false, reason: "tag_alliance_mismatch" };
+  }
+
   const registration = await completeGuildRegistrationForInstall({
     guildId,
     discordUserId: session.discordUserId,
-    allianceId,
+    allianceId: alliance.id,
   });
 
   if (!registration.ok) {

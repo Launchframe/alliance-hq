@@ -51,6 +51,8 @@ During the mismatch window, normal page/API requests may fail session lookups; S
 
 **LISTEN must use the direct Neon host.** PgBouncer transaction pooling (`*-pooler.*.neon.tech`) cannot keep a session-scoped `LISTEN` subscription open. The SSE listen clients resolve `DATABASE_URL_UNPOOLED` / `POSTGRES_URL_NON_POOLING` via `getListenDatabaseUrl()` and only fall back to `DATABASE_URL` when those are unset. One-shot `pg_notify` still works through the shared query pool. If live video progress bars stay frozen until reload, confirm Production has an unpooled URL and that it does **not** contain `-pooler`.
 
+**Warm instances after rotation:** `getSqlClient()` keeps a module singleton until the instance is recycled (~10 minutes on Vercel). Code resets that pool on **`28P01`** (`withPostgresAuthRecovery` on session load and health checks) and when `DATABASE_URL` changes at read time — but you still need step 3 (redeploy) so `process.env.DATABASE_URL` updates on every instance.
+
 **Not load-related:** `28P01` is always an auth/credential problem, not connection pool exhaustion.
 
 ### 2b. R2 — bucket CORS for browser uploads

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { lockConductorsForDates } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
@@ -8,7 +9,10 @@ import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -34,6 +38,19 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       dates,
       lockedByHqUserId: await resolveTrainActorHqUserId(session.id),
+    });
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.conductor_lock_batch",
+      severity: "routine",
+      resourceType: "train_conductor_record",
+      resourceId: `${ctx.allianceId}:batch`,
+      metadata: {
+        dates,
+        lockedCount: records.length,
+      },
     });
     return NextResponse.json({ records, poolsRefreshed });
   } catch (error) {

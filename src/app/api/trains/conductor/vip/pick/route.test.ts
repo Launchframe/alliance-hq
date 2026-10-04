@@ -39,6 +39,10 @@ vi.mock("@/lib/trains/service", () => ({
   getServerCalendarDate: vi.fn().mockReturnValue("2026-07-27"),
 }));
 
+vi.mock("@/lib/bff/officer-action-audit.server", () => ({
+  writeTrainsOfficerAudit: vi.fn().mockResolvedValue(undefined),
+}));
+
 const BASE_BODY = {
   date: "2026-07-27",
   memberId: "m-alice",
@@ -50,7 +54,7 @@ describe("VIP pick is an open roster assign", () => {
     vi.clearAllMocks();
   });
 
-  async function setupLockedDay(vipMechanism: string) {
+  async function setupLockedDay(vipRule: unknown) {
     const { getConductorRecord, assignVipOnLockedConductor } = await import(
       "@/lib/trains/repository"
     );
@@ -65,9 +69,7 @@ describe("VIP pick is an open roster assign", () => {
     } as never);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
       dayConfigId: "day-1",
-      vipMechanism,
-      vipConfig: { eventKey: "capitol_war", topN: 10 },
-      paintTemplate: "r4_event_vip",
+      vipRule,
     } as never);
     vi.mocked(assignVipOnLockedConductor).mockResolvedValue({
       lockedAt: new Date("2026-07-27T12:00:00Z"),
@@ -78,9 +80,11 @@ describe("VIP pick is an open roster assign", () => {
   }
 
   it("assigns any member on an event_top_x VIP day without touching pools", async () => {
-    const { assignVipOnLockedConductor } = await setupLockedDay(
-      "event_top_x_lottery",
-    );
+    const { assignVipOnLockedConductor } = await setupLockedDay({
+      kind: "event_top_x",
+      eventKey: "capitol_war",
+      topN: 10,
+    });
 
     const res = await POST(
       new Request("http://localhost/api/trains/conductor/vip/pick", {
@@ -97,15 +101,13 @@ describe("VIP pick is an open roster assign", () => {
         date: "2026-07-27",
         vipMemberId: "m-alice",
         vipMemberName: "Alice",
-        vipMechanism: "event_top_x_lottery",
+        vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       }),
     );
   });
 
   it("assigns on conductor_pick VIP days", async () => {
-    const { assignVipOnLockedConductor } = await setupLockedDay(
-      "conductor_pick",
-    );
+    const { assignVipOnLockedConductor } = await setupLockedDay(null);
 
     const res = await POST(
       new Request("http://localhost/api/trains/conductor/vip/pick", {
@@ -140,7 +142,7 @@ describe("VIP pick is an open roster assign", () => {
   });
 
   it("rejects VIP pick when the day has no VIP", async () => {
-    await setupLockedDay("none");
+    await setupLockedDay({ kind: "none" });
 
     const res = await POST(
       new Request("http://localhost/api/trains/conductor/vip/pick", {

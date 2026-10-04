@@ -102,3 +102,18 @@ export function hasConflictingDiscordGameUidClaim(input: {
     )
   );
 }
+
+/**
+ * Discord already occupies this roster seat (`ashed_member_id`) for a Discord
+ * user that is not this HQ account. UID-based guards do not catch the case
+ * where Discord linked commander C with UID 111 and an HQ claim later binds
+ * the same seat with UID 222 — unique indexes are per table / per UID.
+ */
+export function hasConflictingDiscordAshedMemberOccupancy(input: {
+  hqUserId: string;
+  discordOccupants: Array<{ hqUserId: string | null }>;
+}): boolean {
+  return input.discordOccupants.some(
+    (occupant) => occupant.hqUserId !== input.hqUserId,
+  );
+}

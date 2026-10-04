@@ -5,6 +5,9 @@ export type VideoReviewDraftRow = {
   ocrName: string;
   score: string | null;
   rank: number | null;
+  frontlineStage?: number | null;
+  frontlineStageRaw?: string;
+  frontlineRankRaw?: string;
   rosterRankRaw?: string | null;
   allianceRank?: number | null;
   allianceRankTitle?: string | null;

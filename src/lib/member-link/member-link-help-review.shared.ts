@@ -4,7 +4,8 @@ export type MemberLinkClaimConflictReason =
   /** Legacy help rows only — claim confirm no longer emits server_mismatch. */
   | "server_mismatch"
   | "target_mismatch"
-  | "discord_hq_unlinked";
+  | "discord_hq_unlinked"
+  | "lookup_honor_system";
 
 export type HelpRequestClaimContact = {
   email: string | null;

@@ -5,6 +5,7 @@ import {
   isAutomaticTopNBoard,
   isVrTopScopeUnlocked,
   resolveConductorTopNBoard,
+  resolveDayPaintApplyTopN,
   vrReportersRequiredForTopN,
 } from "@/lib/trains/conductor-top-n.shared";
 
@@ -77,6 +78,36 @@ describe("paint defaults", () => {
   it("defaults Top VS to 10 and Top VR to 3", () => {
     expect(defaultTopNForPaintTemplate("top_vs")).toBe(10);
     expect(defaultTopNForPaintTemplate("top_vr")).toBe(3);
+  });
+
+  it("keeps the current Top VS scope when re-applying the same day rule", () => {
+    expect(
+      resolveDayPaintApplyTopN({
+        template: "top_vs",
+        currentTemplate: "top_vs",
+        currentTopN: 5,
+      }),
+    ).toBe(5);
+  });
+
+  it("defaults Top 10 when applying Top VS from another rule", () => {
+    expect(
+      resolveDayPaintApplyTopN({
+        template: "top_vs",
+        currentTemplate: "economy_week",
+        currentTopN: 5,
+      }),
+    ).toBe(10);
+  });
+
+  it("does not send topN for non-scope day rules", () => {
+    expect(
+      resolveDayPaintApplyTopN({
+        template: "economy_week",
+        currentTemplate: "top_vs",
+        currentTopN: 10,
+      }),
+    ).toBeUndefined();
   });
 
   it("marks topN 1 as automatic", () => {

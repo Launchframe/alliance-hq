@@ -3,52 +3,58 @@ import { describe, expect, it } from "vitest";
 import { resolveConductorNominationTrigger } from "@/lib/trains/conductor-nomination-trigger.shared";
 
 describe("resolveConductorNominationTrigger", () => {
-  it("marks Wed VS top-1 with lead=1 as score_upload on Monday scores", () => {
+  it("marks a Wednesday VS board with lead 1 as score_upload on Monday scores", () => {
     // 2026-06-10 = Wed; lead 1 → scoreDate = Mon 2026-06-08
-    const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: "vs_high_score",
-      paintTemplate: "vs_push_weekdays",
-      trainDate: "2026-06-10",
-      leadDays: 1,
-    });
-    expect(trigger).toEqual({
+    expect(
+      resolveConductorNominationTrigger({
+        rule: { kind: "vs_top_n", topN: 1 },
+        trainDate: "2026-06-10",
+        leadDays: 1,
+      }),
+    ).toEqual({
       mode: "score_upload",
       kind: "prior_day_vs",
       scoreDate: "2026-06-08",
     });
   });
 
-  it("marks economy week R3 as scheduled_reset", () => {
-    const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "economy_week",
-      trainDate: "2026-06-11",
-      leadDays: 1,
-    });
-    expect(trigger).toEqual({
-      mode: "scheduled_reset",
-      anchor: "day_before_train",
-    });
+  it("marks the R3 wheel as scheduled_reset", () => {
+    expect(
+      resolveConductorNominationTrigger({
+        rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+        trainDate: "2026-06-11",
+        leadDays: 1,
+      }),
+    ).toEqual({ mode: "scheduled_reset", anchor: "day_before_train" });
   });
 
-  it("marks r3_recognition as manual", () => {
-    const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: "r3_lottery",
-      paintTemplate: "r3_recognition",
-      trainDate: "2026-06-11",
-    });
-    expect(trigger).toEqual({ mode: "manual" });
+  it("marks the manual R3 award as manual", () => {
+    expect(
+      resolveConductorNominationTrigger({
+        rule: { kind: "rank_pool", pool: "r3", draw: "manual" },
+        trainDate: "2026-06-11",
+      }),
+    ).toEqual({ mode: "manual" });
   });
 
-  it("inherits score_upload from score reference day under lead time", () => {
-    const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: "r4_sequence",
-      paintTemplate: "r4_train_week",
-      trainDate: "2026-06-14",
-      leadDays: 1,
-      scoreDateDay: { conductorMechanism: "vs_top_10" },
-    });
-    expect(trigger).toEqual({
+  it("marks free choice as manual", () => {
+    expect(
+      resolveConductorNominationTrigger({
+        rule: null,
+        trainDate: "2026-06-11",
+      }),
+    ).toEqual({ mode: "manual" });
+  });
+
+  it("inherits score_upload from the score reference day under lead time", () => {
+    expect(
+      resolveConductorNominationTrigger({
+        rule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+        trainDate: "2026-06-14",
+        leadDays: 1,
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
+      }),
+    ).toEqual({
       mode: "score_upload",
       kind: "prior_day_vs",
       scoreDate: "2026-06-12",

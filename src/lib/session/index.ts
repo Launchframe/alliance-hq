@@ -18,7 +18,7 @@ import {
 import { touchLinkedDeviceAccess } from "@/lib/credential-pairing/linked-devices";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import type { ParsedConnection } from "@/lib/connectionString";
-import { getDb, schema } from "@/lib/db";
+import { getDb, schema, withPostgresAuthRecovery } from "@/lib/db";
 import type { AshedCredential, Session } from "@/lib/db/schema";
 import {
   buildAshedConnectionMeta,
@@ -31,6 +31,7 @@ import { sessionHasHqMemberLink } from "@/lib/member-link/repository.server";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
+import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
 import {
   rbacAllowsAshedConnect,
   sessionHasActiveMembership,
@@ -69,20 +70,22 @@ export async function readSessionId(): Promise<string | undefined> {
 }
 
 export async function loadSession(sessionId: string): Promise<Session | null> {
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(schema.sessions)
-    .where(eq(schema.sessions.id, sessionId))
-    .limit(1);
+  return withPostgresAuthRecovery(async () => {
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId))
+      .limit(1);
 
-  if (!row || row.expiresAt <= new Date()) {
-    return null;
-  }
+    if (!row || row.expiresAt <= new Date()) {
+      return null;
+    }
 
-  void touchLinkedDeviceAccess(sessionId);
+    void touchLinkedDeviceAccess(sessionId);
 
-  return row;
+    return row;
+  });
 }
 
 /** For Server Components — redirects to bootstrap if no valid session. */
@@ -107,13 +110,15 @@ export async function bootstrapSessionResponse(
   const id = nanoid(32);
   const expiresAt = sessionExpiry();
   const now = new Date();
-  const db = getDb();
 
-  await db.insert(schema.sessions).values({
-    id,
-    createdAt: now,
-    updatedAt: now,
-    expiresAt,
+  await withPostgresAuthRecovery(async () => {
+    const db = getDb();
+    await db.insert(schema.sessions).values({
+      id,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt,
+    });
   });
 
   const target = redirectTo.startsWith("/")
@@ -170,12 +175,14 @@ export async function getOrCreateSession(): Promise<Session> {
   const expiresAt = sessionExpiry();
   const now = new Date();
 
-  const db = getDb();
-  await db.insert(schema.sessions).values({
-    id,
-    createdAt: now,
-    updatedAt: now,
-    expiresAt,
+  await withPostgresAuthRecovery(async () => {
+    const db = getDb();
+    await db.insert(schema.sessions).values({
+      id,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt,
+    });
   });
 
   const cookieStore = await cookies();
@@ -572,6 +579,22 @@ export async function getSessionStateFor(
   const timezone = await getAccountTimezoneIdForHqUser(effectiveHqUserId);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const rbac = await getRbacContext(session.id);
+  // One avatar refresh per page/session bootstrap — not on every RBAC poll.
+  let avatarUrl = rbac?.avatarUrl ?? null;
+  if (rbac && effectiveHqUserId) {
+    const db = getDb();
+    const [user] = await db
+      .select()
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, effectiveHqUserId))
+      .limit(1);
+    if (user) {
+      avatarUrl = await ensureHqUserAvatarFresh(
+        user,
+        session.currentAllianceId,
+      );
+    }
+  }
   const hasAppAccess = await sessionHasAppAccess(session);
   const isNativeMembership = await sessionHasNativeMembership(session);
   const hasActiveMembership = await sessionHasActiveMembership(session);
@@ -660,7 +683,7 @@ export async function getSessionStateFor(
           isAshedConnectAllowed,
           email: rbac.email,
           displayName: rbac.displayName,
-          avatarUrl: rbac.avatarUrl,
+          avatarUrl,
         }
       : null,
   };

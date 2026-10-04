@@ -11,6 +11,7 @@ import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
+import { extractFrontlineEntries } from "@/lib/video/frontline-breakthrough.shared";
 import {
   extractEntries,
   mergeOcrResults,
@@ -29,6 +30,7 @@ export type OcrFrameTiming = {
 
 export type OcrAllFramesResult = {
   entries: OcrEntry[];
+  observations?: OcrEntry[];
   frameTimings: OcrFrameTiming[];
   concurrency: number;
 };
@@ -76,7 +78,10 @@ export async function ocrFrameBuffer(
     const extractMs = Date.now() - extractStarted;
     timer?.logStep("ashed.extract", extractMs, { frameIndex });
 
-    const entries = extractEntries(result);
+    const entries =
+      target.id === "frontline-breakthrough"
+        ? extractFrontlineEntries(result)
+        : extractEntries(result);
     timer?.logStep("ashed.frame", uploadMs + extractMs, {
       frameIndex,
       uploadMs,
@@ -228,7 +233,11 @@ export async function ocrAllFrames(
     });
 
   return {
-    entries: mergeOcrResults(batches),
+    entries:
+      target.id === "frontline-breakthrough"
+        ? batches.flat()
+        : mergeOcrResults(batches),
+    observations: batches.flat(),
     frameTimings,
     concurrency,
   };

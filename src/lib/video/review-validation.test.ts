@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
+  liveScoreConflictRowIds,
 } from "@/lib/video/review-validation";
 
 describe("findDuplicateMemberAssignments", () => {
@@ -47,5 +48,107 @@ describe("duplicateMemberRowIds", () => {
       { memberId: "m1", memberName: "Freddy", rowIds: ["r1", "r2"] },
     ]);
     expect([...ids]).toEqual(["r1", "r2"]);
+  });
+});
+
+describe("liveScoreConflictRowIds", () => {
+  it("flags same-member rows with different scores", () => {
+    const ids = liveScoreConflictRowIds([
+      { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+      { id: "r2", memberId: "m1", ocrName: "Freddy", score: "200" },
+    ]);
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("clears when only one row remains for the member", () => {
+    expect(
+      liveScoreConflictRowIds([
+        { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it("clears when same-member scores become equal (duplicate-member instead)", () => {
+    expect(
+      liveScoreConflictRowIds([
+        { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+        { id: "r2", memberId: "m1", ocrName: "Freddy", score: "100" },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it("flags unmatched OCR-name siblings with different scores", () => {
+    const ids = liveScoreConflictRowIds([
+      { id: "r1", memberId: null, ocrName: "Freddy", score: "100" },
+      { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+    ]);
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("does not flag different members who share an OCR name", () => {
+    expect(
+      liveScoreConflictRowIds([
+        { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+        { id: "r2", memberId: "m2", ocrName: "Freddy", score: "200" },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it("treats comma-formatted scores as equal", () => {
+    expect(
+      liveScoreConflictRowIds([
+        { id: "r1", memberId: "m1", ocrName: "Freddy", score: "1,000" },
+        { id: "r2", memberId: "m1", ocrName: "Freddy", score: "1000" },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it("groups unmatched decorated names using the alliance tag", () => {
+    const ids = liveScoreConflictRowIds(
+      [
+        { id: "r1", memberId: null, ocrName: "[LFgo]Freddy", score: "100" },
+        { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+      ],
+      "LFgo",
+    );
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("skips unmatched rows whose sanitized OCR name is empty", () => {
+    expect(
+      liveScoreConflictRowIds([
+        { id: "r1", memberId: null, ocrName: "   ", score: "100" },
+        { id: "r2", memberId: null, ocrName: "", score: "200" },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it("keeps the conflict when one same-name sibling is matched and one is not", () => {
+    const ids = liveScoreConflictRowIds([
+      { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+      { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+    ]);
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("does not join an unmatched leftover when two members share that OCR name", () => {
+    expect(
+      liveScoreConflictRowIds([
+        { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+        { id: "r2", memberId: "m2", ocrName: "Freddy", score: "200" },
+        { id: "r3", memberId: null, ocrName: "Freddy", score: "300" },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it("joins a decorated matched name to an unmatched leftover via alliance tag", () => {
+    const ids = liveScoreConflictRowIds(
+      [
+        { id: "r1", memberId: "m1", ocrName: "[LFgo]Freddy", score: "100" },
+        { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+      ],
+      "LFgo",
+    );
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
   });
 });

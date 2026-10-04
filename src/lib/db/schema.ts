@@ -1,10 +1,15 @@
 import {
   bigint,
+  bigserial,
   boolean,
+  customType,
   doublePrecision,
+  foreignKey,
+  check,
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   real,
@@ -13,6 +18,513 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+import { isNull, sql } from "drizzle-orm";
+import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
+import type { NoteFields } from "@/lib/notes/workspace.shared";
+import type { IntakeResult } from "@/lib/notes/intake.shared";
+import type { CaptureDraftState, CaptureProvenance } from "@/lib/notes/drafts.shared";
+import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
+import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
+import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
+import type { PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
+import type { OcrCase, OcrDataset, OcrSplit, OcrTarget } from "@/lib/ocr/benchmark/types.shared";
+import type { OcrRunManifest } from "@/lib/ocr/learning/observations.shared";
+import type { OcrFeedbackPayload } from "@/lib/ocr/learning/feedback.shared";
+import type { OcrMediaPolicy, OcrMediaTaskState, OcrMediaObjectState, OcrMediaUpload } from "@/lib/ocr/learning/media.shared";
+import type { PipelineDefinition, WorkerJobInput, WorkerJobState, WorkerPolicy } from "@/lib/ocr/learning/control.shared";
+import type { WorkerInferenceResult, WorkerTrainingResult } from "@/lib/ocr/learning/worker.shared";
+import type { ActivityPayload } from "@/lib/activity/catalog.shared";
+
+export const ocrWorkerPolicies = pgTable("ocr_worker_policies", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull().default(1),
+  policy: jsonb("policy").$type<WorkerPolicy>().notNull(),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ocrModelVersions = pgTable("ocr_model_versions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  definition: jsonb("definition").$type<PipelineDefinition>().notNull(),
+  trainingJobId: text("training_job_id").unique(),
+  datasetId: text("dataset_id").references(() => ocrDatasetVersions.id),
+  artifactId: text("artifact_id"),
+  state: text("state").$type<"candidate" | "revoked">().notNull().default("candidate"),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("ocr_model_scope_idx").on(table.allianceId, table.scoreTarget)]);
+
+export const ocrWorkerJobs = pgTable("ocr_worker_jobs", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  kind: text("kind").$type<"train" | "evaluate">().notNull(),
+  datasetId: text("dataset_id").notNull().references(() => ocrDatasetVersions.id),
+  pipelineId: text("pipeline_id").references(() => ocrModelVersions.id),
+  requestId: text("request_id").notNull(),
+  requestHash: text("request_hash").notNull(),
+  input: jsonb("input").$type<WorkerJobInput>().notNull(),
+  inputHash: text("input_hash").notNull(),
+  policyRevision: integer("policy_revision").notNull(),
+  policySnapshot: jsonb("policy_snapshot").$type<WorkerPolicy>().notNull(),
+  state: text("state").$type<WorkerJobState>().notNull().default("queued"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  result: jsonb("result").$type<WorkerInferenceResult | WorkerTrainingResult>(),
+  metrics: jsonb("metrics").$type<Record<string, unknown>>(),
+  resultHash: text("result_hash"),
+  errorCode: text("error_code"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("ocr_worker_request_unique").on(table.allianceId, table.requestId), index("ocr_worker_queue_idx").on(table.state, table.leaseExpiresAt)]);
+
+export const ocrWorkerAttempts = pgTable("ocr_worker_attempts", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull().references(() => ocrWorkerJobs.id),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  attempt: integer("attempt").notNull(),
+  workerCodeHash: text("worker_code_hash").notNull(),
+  reservedSeconds: integer("reserved_seconds").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (table) => [unique("ocr_worker_attempt_unique").on(table.jobId, table.attempt), index("ocr_worker_budget_idx").on(table.allianceId, table.startedAt)]);
+
+export const ocrWorkerArtifacts = pgTable("ocr_worker_artifacts", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull().references(() => ocrWorkerJobs.id),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  attempt: integer("attempt").notNull(),
+  bytes: bigint("bytes", { mode: "number" }).notNull(),
+  sha256: text("sha256").notNull(),
+  manifestText: text("manifest_text").notNull(),
+  manifestHash: text("manifest_hash").notNull(),
+  stagingKey: text("staging_key").notNull().unique(),
+  sealedKey: text("sealed_key").notNull().unique(),
+  state: text("state").$type<"reserved" | "sealed" | "deleted">().notNull().default("reserved"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("ocr_worker_artifact_quota_idx").on(table.allianceId, table.state)]);
+
+export const ocrMediaPolicies = pgTable("ocr_media_policies", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull().default(1),
+  policy: jsonb("policy").$type<OcrMediaPolicy>().notNull(),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ocrMediaTasks = pgTable("ocr_media_tasks", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  sourceRunId: text("source_run_id").references(() => ocrPipelineRuns.id, { onDelete: "set null" }),
+  requestId: text("request_id").notNull(),
+  requestHash: text("request_hash").notNull(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").$type<OcrMediaUpload["contentType"]>().notNull(),
+  expectedBytes: bigint("expected_bytes", { mode: "number" }).notNull(),
+  expectedSha256: text("expected_sha256").notNull(),
+  stagingKey: text("staging_key").notNull(),
+  sourceKey: text("source_key").notNull(),
+  uploadId: text("upload_id"),
+  policyRevision: integer("policy_revision").notNull(),
+  policySnapshot: jsonb("policy_snapshot").$type<OcrMediaPolicy>().notNull(),
+  state: text("state").$type<OcrMediaTaskState>().notNull().default("uploading"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  errorCode: text("error_code"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("ocr_media_request_unique").on(table.allianceId, table.requestId),
+  index("ocr_media_queue_idx").on(table.state, table.leaseExpiresAt),
+]);
+
+export const ocrMediaObjects = pgTable("ocr_media_objects", {
+  storageKey: text("storage_key").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  taskId: text("task_id").notNull().references(() => ocrMediaTasks.id),
+  kind: text("kind").$type<"staging" | "source" | "frame">().notNull(),
+  reservedBytes: bigint("reserved_bytes", { mode: "number" }).notNull(),
+  sha256: text("sha256"),
+  state: text("state").$type<OcrMediaObjectState>().notNull().default("reserved"),
+  deleteAfter: timestamp("delete_after", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("ocr_media_quota_idx").on(table.allianceId, table.state), index("ocr_media_expiry_idx").on(table.deleteAfter)]);
+
+export const ocrPipelineRuns = pgTable("ocr_pipeline_runs", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull(),
+  parseSessionId: text("parse_session_id").notNull().unique(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  engine: text("engine").notNull(),
+  synthetic: boolean("synthetic").notNull().default(false),
+  sourceSha256: text("source_sha256"),
+  manifest: jsonb("manifest").$type<OcrRunManifest>().notNull(),
+  manifestHash: text("manifest_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("ocr_runs_job_idx").on(table.allianceId, table.jobId)]);
+
+export const ocrFeedbackEvents = pgTable("ocr_feedback_events", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull(),
+  parseSessionId: text("parse_session_id").notNull(),
+  runId: text("run_id").references(() => ocrPipelineRuns.id, { onDelete: "set null" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  kind: text("kind").$type<"submit" | "discard" | "rating" | "survey">().notNull(),
+  requestKey: text("request_key").notNull(),
+  requestDigest: text("request_digest").notNull(),
+  status: text("status").$type<"pending" | "confirmed" | "failed">().notNull(),
+  payload: jsonb("payload").$type<OcrFeedbackPayload | Record<string, unknown>>().notNull(),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+}, (table) => [
+  unique("ocr_feedback_request_unique").on(table.allianceId, table.jobId, table.parseSessionId, table.kind, table.requestKey),
+  index("ocr_feedback_pending_idx").on(table.status, table.createdAt),
+]);
+
+export const ocrLearningCases = pgTable("ocr_learning_cases", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  sourceJobId: text("source_job_id"),
+  sourceStorageKey: text("source_storage_key").notNull(),
+  sourceSha256: text("source_sha256").notNull(),
+  sourceBytes: bigint("source_bytes", { mode: "number" }).notNull(),
+  fileName: text("file_name").notNull(),
+  recordingGroupId: text("recording_group_id").notNull(),
+  state: text("state").$type<OcrCase["state"]>().notNull().default("candidate"),
+  pairing: text("pairing").$type<OcrCase["pairing"]>().notNull().default("unmatched"),
+  labelRevision: integer("label_revision").notNull().default(0),
+  snapshot: jsonb("snapshot").$type<OcrCase>().notNull(),
+  snapshotHash: text("snapshot_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("ocr_cases_scope_idx").on(table.allianceId, table.scoreTarget, table.state),
+  index("ocr_cases_source_idx").on(table.allianceId, table.sourceSha256),
+  index("ocr_cases_expiry_idx").on(table.expiresAt),
+]);
+
+export const ocrLearningCaseRevisions = pgTable("ocr_learning_case_revisions", {
+  caseId: text("case_id").notNull().references(() => ocrLearningCases.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  snapshot: jsonb("snapshot").$type<OcrCase>().notNull(),
+  snapshotHash: text("snapshot_hash").notNull(),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.caseId, table.revision] })]);
+
+export const ocrDatasetVersions = pgTable("ocr_dataset_versions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  manifest: jsonb("manifest").$type<OcrDataset>().notNull(),
+  manifestHash: text("manifest_hash").notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("ocr_dataset_manifest_unique").on(table.allianceId, table.manifestHash)]);
+
+export const ocrDatasetPartitions = pgTable("ocr_dataset_partitions", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  fingerprint: text("fingerprint").notNull(),
+  split: text("split").$type<OcrSplit>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.fingerprint] })]);
+
+import type { CalendarEvent, CalendarSource } from "@/lib/calendar/types.shared";
+
+export const trainBoardingWindows = pgTable("train_boarding_windows", {
+  recordId: text("record_id").primaryKey().references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("pending"),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  basis: text("basis"),
+  observedAt: timestamp("observed_at", { withTimezone: true }),
+  remainingSeconds: integer("remaining_seconds"),
+  version: integer("version").notNull().default(1),
+  requestId: text("request_id"),
+  requestHash: text("request_hash"),
+  actorId: text("actor_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("train_boarding_alliance_idx").on(t.allianceId, t.status)]);
+
+export const trainBoardingPrompts = pgTable("train_boarding_prompts", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recordId: text("record_id").notNull().references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").$type<{ clockToken: string; version: number; serverNow: string; observedAt?: number; countdown?: string | null }>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const calendarPreferences = pgTable("calendar_preferences", {
+  hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),
+  alerts: jsonb("alerts").$type<number[]>().notNull().default([]),
+  locale: text("locale").notNull().default("en-US"),
+  timezone: text("timezone").notNull().default("UTC"),
+  version: integer("version").notNull().default(1),
+});
+
+export const calendarAccounts = pgTable("calendar_accounts", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().unique().references(() => hqUsers.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  email: text("email").notNull(),
+  refreshToken: text("refresh_token"),
+  accessToken: text("access_token"),
+  refreshLeaseToken: text("refresh_lease_token"),
+  refreshLeaseUntil: timestamp("refresh_lease_until", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  status: text("status").notNull().default("connected"),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const calendarOauthStates = pgTable("calendar_oauth_states", {
+  hash: text("hash").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const calendarTargets = pgTable("calendar_targets", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  sources: jsonb("sources").$type<CalendarSource[]>().notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  generation: integer("generation").notNull().default(1),
+  scanCursor: integer("scan_cursor").notNull().default(0),
+  creationUncertain: boolean("creation_uncertain").notNull().default(false),
+  feedHash: text("feed_hash").unique(),
+  feedSecret: text("feed_secret"),
+  remoteCalendarId: text("remote_calendar_id"),
+  accountId: text("account_id").references(() => calendarAccounts.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending"),
+  cleanup: boolean("cleanup").notNull().default(false),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextSyncAt: timestamp("next_sync_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastFetchAt: timestamp("last_fetch_at", { withTimezone: true }),
+  failureCount: integer("failure_count").notNull().default(0),
+}, (t) => [unique("calendar_target_owner_alliance_provider").on(t.hqUserId, t.allianceId, t.provider), index("calendar_target_due_idx").on(t.provider, t.nextSyncAt)]);
+
+export const calendarEntries = pgTable("calendar_entries", {
+  targetId: text("target_id").notNull().references(() => calendarTargets.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  uid: text("uid").notNull(),
+  payload: jsonb("payload").$type<CalendarEvent>().notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  revision: integer("revision").notNull().default(1),
+  cancelled: boolean("cancelled").notNull().default(false),
+  remoteId: text("remote_id"),
+  remoteGeneration: integer("remote_generation").notNull().default(0),
+  appliedRevision: integer("applied_revision").notNull().default(0),
+  uncertain: boolean("uncertain").notNull().default(false),
+  remoteConfirmed: boolean("remote_confirmed").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.targetId, t.key] }), index("calendar_entry_work_idx").on(t.targetId, t.cancelled, t.updatedAt)]);
+
+export const plunderPlans = pgTable("plunder_plans", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  memberId: text("member_id"),
+  membershipKey: text("membership_key"),
+  kind: text("kind").$type<"plan" | "suggestion">().notNull(),
+  schedule: jsonb("schedule").$type<PlanSchedule>().notNull(),
+  sourceId: text("source_id"),
+  scheduleVersion: integer("schedule_version").notNull().default(1),
+  version: integer("version").notNull().default(1),
+  active: boolean("active").notNull().default(true),
+  removed: boolean("removed").notNull().default(false),
+  reminder: boolean("reminder").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("plunder_plans_alliance_idx").on(table.allianceId, table.removed)]);
+
+export const plunderPlanExceptions = pgTable("plunder_plan_exceptions", {
+  planId: text("plan_id").notNull().references(() => plunderPlans.id, { onDelete: "cascade" }),
+  date: text("date").notNull(),
+  scheduleVersion: integer("schedule_version").notNull(),
+}, (table) => [primaryKey({ columns: [table.planId, table.date, table.scheduleVersion] })]);
+
+export const plunderPlanColors = pgTable("plunder_plan_colors", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalId: text("principal_id").notNull(),
+  color: text("color").notNull(),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.principalId] })]);
+
+export const plunderPlanState = pgTable("plunder_plan_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  nextTickAt: timestamp("next_tick_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("plunder_plan_tick_due_idx").on(table.nextTickAt)]);
+
+export const plunderPlanIntents = pgTable("plunder_plan_intents", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  actorId: text("actor_id").notNull(),
+  requestId: text("request_id").notNull(),
+  requestHash: text("request_hash").notNull(),
+  result: jsonb("result").$type<{ id?: string; version: number }>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.actorId, table.requestId] })]);
+
+export const plunderPlanInteractions = pgTable("plunder_plan_interactions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").$type<Record<string, unknown>>().notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const plunderPlanDigestSettings = pgTable("plunder_plan_digest_settings", {
+  guildId: text("guild_id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  timeSt: text("time_st").notNull(),
+  locale: text("locale").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  version: integer("version").notNull().default(1),
+});
+
+export const plunderPlanDeliveries = pgTable("plunder_plan_deliveries", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<"reminder" | "digest">().notNull(),
+  recipientId: text("recipient_id").notNull(),
+  occurrenceKey: text("occurrence_key").notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  status: text("status").$type<"pending" | "leased" | "posting" | "sent" | "cancelled" | "uncertain">().notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  messageId: text("message_id"),
+}, (table) => [unique("plunder_plan_delivery_unique").on(table.allianceId, table.kind, table.recipientId, table.occurrenceKey), index("plunder_plan_delivery_due_idx").on(table.status, table.dueAt)]);
+
+export const teamWorkItems = pgTable("team_work_items", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  sourceKey: text("source_key").notNull(),
+  sourceVersion: text("source_version").notNull(),
+  kind: text("kind").$type<"time_off" | "coverage" | "vs">().notNull(),
+  memberId: text("member_id").notNull(),
+  stint: text("stint").notNull(),
+  teamId: text("team_id"),
+  assigneeId: text("assignee_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  requiredPermission: text("required_permission").notNull(),
+  detail: jsonb("detail").$type<TeamWorkDetail>().notNull(),
+  href: text("href").notNull(),
+  version: integer("version").notNull().default(1),
+  open: boolean("open").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("team_work_source_unique").on(table.allianceId, table.sourceKey), index("team_work_assignee_idx").on(table.allianceId, table.assigneeId, table.open)]);
+
+export const teamWorkDigests = pgTable("team_work_digests", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recipientId: text("recipient_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  status: text("status").$type<"pending" | "leased" | "posting" | "uncertain" | "sent" | "cancelled">().notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  discordUserId: text("discord_user_id"),
+  channelId: text("channel_id"),
+  messageId: text("message_id"),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("team_work_digest_day_unique").on(table.allianceId, table.recipientId, table.day), index("team_work_delivery_due_idx").on(table.status, table.nextAttemptAt)]);
+
+export const teamWorkState = pgTable("team_work_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  lastError: text("last_error"),
+});
+
+const vector1536 = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(1536)";
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value) {
+    const raw = String(value).replace(/^\[/, "").replace(/\]$/, "");
+    if (!raw) return [];
+    return raw.split(",").map(Number);
+  },
+});
+
+export const supportTeamBoards = pgTable("support_team_boards", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  published: boolean("published").notNull().default(false),
+  construction: jsonb("construction").$type<SupportBoard["construction"]>(),
+});
+
+export const supportTeamFields = pgTable("support_team_fields", {
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  value: jsonb("value").$type<SupportValue>(),
+  version: integer("version").notNull(),
+  actionId: text("action_id").notNull(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.key] })]);
+
+export const supportTeamEvents = pgTable("support_team_events", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  principalId: text("principal_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  requestHash: text("request_hash").notNull(),
+  boardVersion: integer("board_version").notNull(),
+  event: jsonb("event").$type<SupportEvent>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("support_team_events_intent_unique").on(table.allianceId, table.principalId, table.idempotencyKey),
+  unique("support_team_events_version_unique").on(table.allianceId, table.boardVersion),
+]);
+
+export const supportTeamReversals = pgTable("support_team_reversals", {
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull().references(() => supportTeamEvents.id),
+  reversalId: text("reversal_id").notNull().references(() => supportTeamEvents.id),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.actionId, table.reversalId] })]);
+
+export const supportTeamPreferences = pgTable("support_team_preferences", {
+  hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  display: jsonb("display").$type<SupportDisplayPreferences>().notNull(),
+});
 
 export const alliances = pgTable("alliances", {
   id: text("id").primaryKey(),
@@ -90,6 +602,10 @@ export const alliances = pgTable("alliances", {
   trainConductorLeadTimeDays: integer("train_conductor_lead_time_days")
     .notNull()
     .default(0),
+  trainTopScoreMinRank: integer("train_top_score_min_rank").notNull().default(3),
+  trainTopScoreIncludesR4Plus: integer("train_top_score_includes_r4_plus")
+    .notNull()
+    .default(1),
   /**
    * When 1, auto-nominate conductors and require R4 confirmation before lock.
    * Defaults off; settings may enable when lead time > 0.
@@ -671,6 +1187,7 @@ export const videoJobs = pgTable("video_jobs", {
   ratedByHqUserId: text("rated_by_hq_user_id").references(() => hqUsers.id, {
     onDelete: "set null",
   }),
+  ocrFeedbackReceiptId: text("ocr_feedback_receipt_id"),
   /** First time an officer opened the review UI for this job (idempotent). */
   reviewOpenedAt: timestamp("review_opened_at", { withTimezone: true }),
   /** Officer review latency: submit/discard time − reviewOpenedAt (ms). */
@@ -751,6 +1268,75 @@ export const allianceVideoProcessors = pgTable(
       table.hqUserId,
     ),
   }),
+);
+
+export const videoVsEvidence = pgTable(
+  "video_vs_evidence",
+  {
+    scopeKey: text("scope_key").primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => videoJobs.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    recordedDate: text("recorded_date").notNull(),
+    period: text("period").$type<"daily" | "weekly">().notNull().default("daily"),
+    version: integer("version").notNull().default(1),
+    imageVersion: integer("image_version").notNull().default(0),
+    requestedKind: text("requested_kind")
+      .$type<import("@/lib/vs-performance/video-evidence.shared").VsVideoRequestedKind>()
+      .notNull()
+      .default("auto"),
+    status: text("status")
+      .$type<import("@/lib/vs-performance/video-evidence.shared").VsVideoEvidenceStatus>()
+      .notNull()
+      .default("none"),
+    fileName: text("file_name"),
+    contentType: text("content_type"),
+    fileSize: integer("file_size"),
+    uploadKey: text("upload_key"),
+    storageKey: text("storage_key"),
+    imageSha256: text("image_sha256"),
+    candidate: jsonb("candidate").$type<import("@/lib/vs-performance/vs-capture.shared").VsCaptureCandidate | null>(),
+    draft: jsonb("draft").$type<import("@/lib/vs-performance/video-evidence.shared").VsVideoDraft | null>(),
+    errorCode: text("error_code"),
+    appliedImageVersion: integer("applied_image_version"),
+    leaseToken: text("lease_token"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    uploadedByHqUserId: text("uploaded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("video_vs_evidence_alliance_idx").on(table.allianceId),
+    index("video_vs_evidence_pending_idx").on(table.status, table.leaseExpiresAt),
+    unique("video_vs_evidence_scope_alliance_unique").on(table.scopeKey, table.allianceId),
+    check("video_vs_evidence_period_check", sql`${table.period} in ('daily', 'weekly')`),
+    check("video_vs_evidence_status_check", sql`${table.status} in ('none','uploading','queued','running','needs_type','ready','failed')`),
+    check("video_vs_evidence_kind_check", sql`${table.requestedKind} in ('auto','daily_totals','weekly_overview')`),
+    check("video_vs_evidence_versions_check", sql`${table.version} > 0 and ${table.imageVersion} >= 0`),
+  ],
+);
+
+export const videoVsEvidenceReceipts = pgTable(
+  "video_vs_evidence_receipts",
+  {
+    scopeKey: text("scope_key").notNull(),
+    allianceId: text("alliance_id").notNull(),
+    requestId: text("request_id").notNull(),
+    digest: text("digest").notNull(),
+    result: jsonb("result").$type<import("@/lib/vs-performance/video-evidence-submit.server").VsVideoMatchSaveResult>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.scopeKey, table.requestId] }),
+    foreignKey({
+      columns: [table.scopeKey, table.allianceId],
+      foreignColumns: [videoVsEvidence.scopeKey, videoVsEvidence.allianceId],
+    }).onDelete("cascade"),
+  ],
 );
 
 export const videoFrames = pgTable("video_frames", {
@@ -910,6 +1496,7 @@ export const parsedRows = pgTable("parsed_rows", {
   ocrName: text("ocr_name").notNull(),
   score: text("score"),
   rank: integer("rank"),
+  frontlineStage: integer("frontline_stage"),
   rosterRankRaw: text("roster_rank_raw"),
   allianceRank: integer("alliance_rank"),
   allianceRankTitle: text("alliance_rank_title"),
@@ -949,6 +1536,148 @@ export const scrollProfiles = pgTable("scroll_profiles", {
     .notNull(),
 });
 
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: text("id").primaryKey(),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    eventKey: text("event_key").notNull(),
+    feature: text("feature").notNull(),
+    kind: text("kind").notNull(),
+    occurredAt: timestamp("occurred_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    recordedAt: timestamp("recorded_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .notNull()
+      .defaultNow(),
+    allianceId: text("alliance_id"),
+    actorKind: text("actor_kind").notNull(),
+    originalHqUserId: text("original_hq_user_id"),
+    originalDiscordUserId: text("original_discord_user_id"),
+    personalOwnerHqUserId: text("personal_owner_hq_user_id"),
+    actorCommanderId: text("actor_commander_id"),
+    actorDisplayName: text("actor_display_name"),
+    actorHqRole: text("actor_hq_role"),
+    actorGameRank: text("actor_game_rank"),
+    serverNumber: text("server_number"),
+    allianceTag: text("alliance_tag"),
+    allianceName: text("alliance_name"),
+    channel: text("channel"),
+    method: text("method"),
+    severity: text("severity").notNull(),
+    visibilityClass: text("visibility_class").notNull(),
+    resourceKind: text("resource_kind"),
+    resourceId: text("resource_id"),
+    payload: jsonb("payload").$type<ActivityPayload>().notNull(),
+    sourceNamespace: text("source_namespace").notNull(),
+    sourceKey: text("source_key").notNull(),
+    contentHash: text("content_hash").notNull(),
+    historical: boolean("historical").notNull().default(false),
+    historicalCurrentLabels: boolean("historical_current_labels")
+      .notNull()
+      .default(false),
+  },
+  (table) => [
+    index("activity_global_order_idx").on(
+      table.occurredAt.desc(),
+      table.id.desc(),
+    ),
+    index("activity_alliance_order_idx").on(
+      table.allianceId,
+      table.occurredAt.desc(),
+      table.id.desc(),
+    ),
+    index("activity_personal_order_idx").on(
+      table.personalOwnerHqUserId,
+      table.occurredAt.desc(),
+      table.id.desc(),
+    ),
+    index("activity_discord_owner_idx").on(
+      table.originalDiscordUserId,
+      table.personalOwnerHqUserId,
+    ),
+    unique("activity_source_unique").on(
+      table.sourceNamespace,
+      table.sourceKey,
+    ),
+    check(
+      "activity_events_schema_version_check",
+      sql`${table.schemaVersion} = 1`,
+    ),
+    check("activity_events_kind_check", sql`${table.kind} in ('change', 'usage')`),
+    check(
+      "activity_events_visibility_check",
+      sql`${table.visibilityClass} in ('alliance', 'private', 'platform')`,
+    ),
+    check(
+      "activity_events_actor_kind_check",
+      sql`${table.actorKind} in ('hq', 'discord', 'automation', 'unknown')`,
+    ),
+    check(
+      "activity_events_channel_check",
+      sql`${table.channel} is null or ${table.channel} in ('web', 'discord', 'integration', 'automation')`,
+    ),
+    check(
+      "activity_events_method_check",
+      sql`${table.method} is null or ${table.method} in ('manual', 'screenshot', 'video', 'import', 'sync', 'wheel')`,
+    ),
+    check(
+      "activity_events_severity_check",
+      sql`${table.severity} in ('routine', 'update', 'override')`,
+    ),
+    check(
+      "activity_events_role_check",
+      sql`${table.actorHqRole} is null or ${table.actorHqRole} in ('owner', 'maintainer', 'officer', 'data_entry', 'member', 'viewer')`,
+    ),
+    check(
+      "activity_events_rank_check",
+      sql`${table.actorGameRank} is null or ${table.actorGameRank} in ('R1', 'R2', 'R3', 'R4', 'R5')`,
+    ),
+    check(
+      "activity_events_alliance_required_check",
+      sql`${table.visibilityClass} <> 'alliance' or ${table.allianceId} is not null`,
+    ),
+    check(
+      "activity_events_private_resource_check",
+      sql`${table.visibilityClass} <> 'private' or ${table.resourceId} is null`,
+    ),
+  ],
+);
+
+export type ActivityEventRecord = typeof activityEvents.$inferSelect;
+
+export const activityOwnershipAliases = pgTable(
+  "activity_ownership_aliases",
+  {
+    originalHqUserId: text("original_hq_user_id").primaryKey(),
+    personalOwnerHqUserId: text("personal_owner_hq_user_id").notNull(),
+  },
+  (table) => [
+    index("activity_ownership_alias_owner_idx").on(
+      table.personalOwnerHqUserId,
+    ),
+    check(
+      "activity_ownership_alias_not_self",
+      sql`${table.originalHqUserId} <> ${table.personalOwnerHqUserId}`,
+    ),
+  ],
+);
+
+export const activityUsageDedupe = pgTable("activity_usage_dedupe", {
+  key: text("key").primaryKey(),
+  lastEmittedAt: timestamp("last_emitted_at", {
+    withTimezone: true,
+    mode: "string",
+  }).notNull(),
+  eventId: text("event_id").notNull(),
+});
+
+export type ActivityUsageDedupeRecord = typeof activityUsageDedupe.$inferSelect;
+
 export const auditLog = pgTable("audit_log", {
   id: text("id").primaryKey(),
   sessionId: text("session_id"),
@@ -959,6 +1688,8 @@ export const auditLog = pgTable("audit_log", {
   resourceName: text("resource_name"),
   resourceId: text("resource_id"),
   metadata: jsonb("metadata"),
+  /** routine | update | override — officer-gated writes; default update for legacy rows */
+  severity: text("severity").notNull().default("update"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1615,6 +2346,8 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   r4ChannelId: text("r4_channel_id"),
   vsAnnouncementsChannelId: text("vs_announcements_channel_id"),
   bankingChannelId: text("banking_channel_id"),
+  /** Message context-menu translation (Apps → Translate) for this guild. */
+  translationEnabled: boolean("translation_enabled").notNull().default(true),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1648,10 +2381,31 @@ export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
 export const discordUserPrefs = pgTable("discord_user_prefs", {
   discordUserId: text("discord_user_id").primaryKey(),
   locale: text("locale").notNull().default("en-US"),
+  /** Preferred target language for message translation (Google v2 code, e.g. `pt`). */
+  translationLanguage: text("translation_language"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/** Short-lived cache for Apps → Translate so repeat lookups skip the provider. */
+export const discordMessageTranslations = pgTable(
+  "discord_message_translations",
+  {
+    messageId: text("message_id").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    /** SHA-256 of the source content — invalidates the cache when a message is edited. */
+    contentHash: text("content_hash").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.messageId, table.targetLanguage] }),
+  ],
+);
 
 /** Short-lived one-time nonces for the /discord/authorize HQ web redirect. */
 export const discordAuthNonces = pgTable("discord_auth_nonces", {
@@ -1908,6 +2662,8 @@ export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
 export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
 export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
+export type DiscordMessageTranslation =
+  typeof discordMessageTranslations.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
 export type VideoHygieneEvent = typeof videoHygieneEvents.$inferSelect;
 
@@ -2623,6 +3379,85 @@ export const memberAllianceRankEvents = pgTable(
   },
 );
 
+/**
+ * Rejectable prompts when in-game rank crosses into/out of R4 vs HQ officer role.
+ * One open nudge per (alliance, member, kind).
+ */
+export const memberRoleNudges = pgTable(
+  "member_role_nudges",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind").notNull(),
+    fromRank: integer("from_rank"),
+    toRank: integer("to_rank"),
+    rankEventId: text("rank_event_id").references(
+      () => memberAllianceRankEvents.id,
+      { onDelete: "set null" },
+    ),
+    status: text("status").notNull().default("open"),
+    resolvedByHqUserId: text("resolved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("member_role_nudges_open_unique")
+      .on(table.allianceId, table.ashedMemberId, table.kind)
+      .where(sql`${table.status} = 'open'`),
+    index("member_role_nudges_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Append-only HQ RBAC role change history for an alliance membership. */
+export const allianceMembershipRoleEvents = pgTable(
+  "alliance_membership_role_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    fromRoleId: text("from_role_id").references(() => roles.id, {
+      onDelete: "set null",
+    }),
+    toRoleId: text("to_role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "restrict" }),
+    source: text("source").notNull(),
+    actorHqUserId: text("actor_hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    nudgeId: text("nudge_id").references(() => memberRoleNudges.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("alliance_membership_role_events_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
 const memberStatEventColumns = {
   id: text("id").primaryKey(),
   allianceId: text("alliance_id")
@@ -2709,6 +3544,7 @@ export const memberViolations = pgTable("member_violations", {
   notes: text("notes"),
   recordedDate: text("recorded_date"),
   ashedViolationId: text("ashed_violation_id"),
+  complianceEventId: text("compliance_event_id").unique(),
   expungedAt: timestamp("expunged_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -2718,6 +3554,81 @@ export const memberViolations = pgTable("member_violations", {
     .notNull(),
 });
 
+/**
+ * Reusable week templates: seven calendar-weekday slots, each a day rule.
+ *
+ * `alliance_id IS NULL` is an HQ preset — shared by every alliance, never
+ * deleted, hidden per alliance through `train_rule_template_archives`.
+ * Alliance-authored rows soft-delete with `archived_at` so days already
+ * painted from them keep resolving.
+ */
+export const trainRuleTemplates = pgTable(
+  "train_rule_templates",
+  {
+    id: text("id").primaryKey(),
+    /** Null for HQ presets. */
+    allianceId: text("alliance_id").references(() => alliances.id, {
+      onDelete: "cascade",
+    }),
+    /** Set for HQ presets only; the i18n key for name and description. */
+    presetKey: text("preset_key").unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** `Record<WeekdayKey, DayRules>` — exactly seven Mon–Sun slots. */
+    days: jsonb("days").notNull(),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    /** Set when this row was copied from another alliance's shared template. */
+    sourceTemplateId: text("source_template_id"),
+    /** sha256 of the normalized share code. Null when not shared. */
+    shareCodeHash: text("share_code_hash").unique(),
+    /** Last four characters, so officers can recognize a code they sent. */
+    shareCodeHint: text("share_code_hint"),
+    sharedAt: timestamp("shared_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("train_rule_templates_alliance_name_unique")
+      .on(table.allianceId, table.name)
+      .where(isNull(table.archivedAt)),
+  ],
+);
+
+/** Per-alliance hide of an HQ preset. Presets themselves are never deleted. */
+export const trainRuleTemplateArchives = pgTable(
+  "train_rule_template_archives",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => trainRuleTemplates.id, { onDelete: "cascade" }),
+    archivedByHqUserId: text("archived_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_rule_template_archives_unique").on(
+      table.allianceId,
+      table.templateId,
+    ),
+  ],
+);
+
 export const trainWeekSchedules = pgTable(
   "train_week_schedules",
   {
@@ -2725,9 +3636,16 @@ export const trainWeekSchedules = pgTable(
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
+    /**
+     * Monday of the calendar week. Normalized in the repository so an
+     * alliance's display week-start preference can never repoint a schedule.
+     */
     weekStart: text("week_start").notNull(),
     seasonKey: text("season_key"),
-    templateType: text("template_type").notNull(),
+    /** Week preset applied to this week; null when days were painted ad hoc. */
+    templateId: text("template_id").references(() => trainRuleTemplates.id, {
+      onDelete: "set null",
+    }),
     notes: text("notes"),
     isPivot: integer("is_pivot").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -2757,10 +3675,15 @@ export const trainDayConfigs = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     date: text("date").notNull(),
-    conductorMechanism: text("conductor_mechanism").notNull(),
-    conductorConfig: jsonb("conductor_config"),
-    vipMechanism: text("vip_mechanism"),
-    vipConfig: jsonb("vip_config"),
+    /** `ConductorRule | null` — null is free choice, not "unset". */
+    conductorRule: jsonb("conductor_rule"),
+    /** `VipRule | null` — null is the conductor's free pick. */
+    vipRule: jsonb("vip_rule"),
+    /** Which template painted this day. Provenance only — never a draw input. */
+    sourceTemplateId: text("source_template_id").references(
+      () => trainRuleTemplates.id,
+      { onDelete: "set null" },
+    ),
     isOverride: integer("is_override").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -2796,8 +3719,15 @@ export const trainConductorRecords = pgTable(
       { onDelete: "set null" },
     ),
     guardianIsVip: integer("guardian_is_vip").notNull().default(0),
+    /**
+     * Permanent history of the mechanism strings this ritual ran under.
+     * Retained after the rule migration — new code reads `conductorRule` /
+     * `vipRule`, but past conductors must stay auditable as recorded.
+     */
     conductorMechanism: text("conductor_mechanism"),
     vipMechanism: text("vip_mechanism"),
+    conductorRule: jsonb("conductor_rule"),
+    vipRule: jsonb("vip_rule"),
     dayConfigId: text("day_config_id").references(() => trainDayConfigs.id, {
       onDelete: "set null",
     }),
@@ -2808,6 +3738,22 @@ export const trainConductorRecords = pgTable(
       () => hqUsers.id,
       { onDelete: "set null" },
     ),
+    /**
+     * 1 when an officer confirmed a manual-pick eligibility override
+     * (already awarded this generation, not in pool, or rank-ineligible).
+     */
+    conductorEligibilityOverridden: integer(
+      "conductor_eligibility_overridden",
+    )
+      .notNull()
+      .default(0),
+    conductorEligibilityOverriddenAt: timestamp(
+      "conductor_eligibility_overridden_at",
+      { withTimezone: true },
+    ),
+    conductorEligibilityOverriddenByHqUserId: text(
+      "conductor_eligibility_overridden_by_hq_user_id",
+    ).references(() => hqUsers.id, { onDelete: "set null" }),
     /**
      * awaiting_scores | pending_confirmation | confirmed | forfeited | fallback_r4
      */
@@ -3100,6 +4046,9 @@ export type HqAllianceJoinCodeRedemption =
   typeof hqAllianceJoinCodeRedemptions.$inferSelect;
 export type MemberAllianceRankEvent =
   typeof memberAllianceRankEvents.$inferSelect;
+export type MemberRoleNudge = typeof memberRoleNudges.$inferSelect;
+export type AllianceMembershipRoleEvent =
+  typeof allianceMembershipRoleEvents.$inferSelect;
 export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;
 export type TrainDayConfig = typeof trainDayConfigs.$inferSelect;
 export type TrainConductorRecord = typeof trainConductorRecords.$inferSelect;
@@ -3936,10 +4885,6 @@ export const memberTimeOff = pgTable(
     entryKind: text("entry_kind").notNull().default("planned"),
     /** discord | web | officer */
     source: text("source").notNull(),
-    /** vs | donation | all — mirrors Ashed ExcusedRecord.record_type ("all" = both). */
-    activityScope: text("activity_scope").notNull().default("all"),
-    /** Ashed ExcusedRecord id(s) this row was synced from/pushed to (1 for vs/donation, 2 for all). */
-    ashedExcusedIds: jsonb("ashed_excused_ids").$type<string[]>(),
     createdByHqUserId: text("created_by_hq_user_id").references(
       () => hqUsers.id,
       { onDelete: "set null" },
@@ -3947,6 +4892,11 @@ export const memberTimeOff = pgTable(
     createdByDiscordUserId: text("created_by_discord_user_id"),
     version: integer("version").notNull().default(0),
     globalAbsence: boolean("global_absence").notNull().default(false),
+    activityScope: text("activity_scope").notNull().default("all"),
+    syncStatus: text("sync_status").notNull().default("local"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    noticeVerified: boolean("notice_verified").notNull().default(true),
+    privateNotesOwned: boolean("private_notes_owned").notNull().default(false),
     requestKey: text("request_key").unique(),
     requestHash: text("request_hash"),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
@@ -3982,10 +4932,12 @@ export const memberTimeOffRevisions = pgTable(
       entryKind: "planned" | "officer_marked" | "unexpected";
       globalAbsence: boolean;
       cancelled: boolean;
+      activityScope?: "vs" | "donation" | "all";
     }>().notNull(),
     recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
     recordedByDiscordUserId: text("recorded_by_discord_user_id"),
     recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     unique("member_time_off_revisions_entry_version_unique").on(table.entryId, table.version),
@@ -4001,6 +4953,56 @@ export const timeOffDiscordInteractions = pgTable("time_off_discord_interactions
   state: jsonb("state").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, (table) => [index("time_off_discord_interactions_expires_idx").on(table.expiresAt)]);
+
+export const timeOffSyncBindings = pgTable("time_off_sync_bindings", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  entryId: text("entry_id").notNull().references(() => memberTimeOff.id, { onDelete: "restrict" }),
+  recordType: text("record_type").$type<"vs" | "donation">().notNull(),
+  origin: text("origin").$type<"hq" | "ashed">().notNull(),
+  remoteId: text("remote_id"),
+  appId: text("app_id"),
+  upstreamAllianceId: text("upstream_alliance_id"),
+  remoteSnapshot: jsonb("remote_snapshot").$type<import("../time-off/excused-sync.shared").ExcusedRecord>(),
+  status: text("status").notNull().default("pending"),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+}, (table) => [
+  unique("time_off_sync_bindings_entry_type_unique").on(table.entryId, table.recordType),
+  unique("time_off_sync_bindings_remote_unique").on(table.allianceId, table.remoteId),
+]);
+
+export const timeOffSyncJobs = pgTable("time_off_sync_jobs", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  bindingId: text("binding_id").notNull().references(() => timeOffSyncBindings.id, { onDelete: "restrict" }),
+  entryVersion: integer("entry_version").notNull(),
+  desired: jsonb("desired").$type<import("../time-off/excused-sync.shared").DesiredExcusedRecord | null>(),
+  state: text("state").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  createdRemoteId: text("created_remote_id"),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("time_off_sync_jobs_version_unique").on(table.bindingId, table.entryVersion)]);
+
+export const timeOffSyncTombstones = pgTable("time_off_sync_tombstones", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  appId: text("app_id").notNull(),
+  remoteId: text("remote_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("time_off_sync_tombstones_remote_unique").on(table.allianceId, table.appId, table.remoteId)]);
+
+export const timeOffSyncState = pgTable("time_off_sync_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  requestedSeq: integer("requested_seq").notNull().default(0),
+  processedSeq: integer("processed_seq").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextPollAt: timestamp("next_poll_at", { withTimezone: true }).defaultNow().notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  snapshot: jsonb("snapshot").$type<import("../time-off/excused-sync.shared").ExcusedRecord[]>().notNull().default([]),
+});
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
 
@@ -4065,3 +5067,923 @@ export const vsScoreSyncScopes = pgTable("vs_score_sync_scopes", {
   managedMemberIds: jsonb("managed_member_ids").$type<string[]>().notNull().default([]),
   managedScores: jsonb("managed_scores").$type<Record<string, { previous: number | null; desired: number | null }>>().notNull().default({}),
 }, (table) => [unique("vs_score_sync_scopes_key_unique").on(table.allianceId, table.period, table.recordedDate)]);
+
+export const vsCompliancePolicies = pgTable("vs_compliance_policies", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  effectiveWeek: text("effective_week").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  dailyTarget: bigint("daily_target", { mode: "number" }).notNull().default(7_200_000),
+  weeklyMinimum: bigint("weekly_minimum", { mode: "number" }),
+  leewayPct: integer("leeway_pct").notNull().default(0),
+  preset: text("preset").$type<"rank_aware" | "consecutive">().notNull().default("rank_aware"),
+  removalThreshold: integer("removal_threshold").notNull().default(3),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("vs_compliance_policies_alliance_version_unique").on(table.allianceId, table.version),
+  index("vs_compliance_policies_alliance_week_idx").on(table.allianceId, table.effectiveWeek),
+]);
+
+export const vsComplianceState = pgTable("vs_compliance_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  inputVersion: bigint("input_version", { mode: "number" }).notNull().default(0),
+  requestedFrom: text("requested_from"),
+  processedThrough: text("processed_through"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  lastError: text("last_error"),
+});
+
+export const vsComplianceEvaluations = pgTable("vs_compliance_evaluations", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  weekEnding: text("week_ending").notNull(),
+  input: jsonb("input").$type<import("../vs-compliance/types.shared").VsComplianceWeek>().notNull(),
+  evaluation: jsonb("evaluation").$type<import("../vs-compliance/types.shared").VsComplianceEvaluation>().notNull(),
+  memberSnapshot: jsonb("member_snapshot").$type<import("../vs-compliance/types.shared").VsComplianceMember>().notNull(),
+  remoteEvidence: jsonb("remote_evidence").$type<import("../vs-scores/evidence.shared").VsEvidence[]>().notNull().default([]),
+  remoteVerifiedAt: timestamp("remote_verified_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_evaluations_member_week_unique").on(table.allianceId, table.memberId, table.weekEnding)]);
+
+export const vsComplianceActions = pgTable("vs_compliance_actions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull().references(() => vsComplianceEvaluations.id, { onDelete: "restrict" }),
+  memberId: text("member_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  requestId: text("request_id").notNull(),
+  requestDigest: text("request_digest").notNull(),
+  kind: text("kind").$type<"waive" | "demote" | "remove">().notNull(),
+  expectedRank: integer("expected_rank"),
+  targetRank: integer("target_rank"),
+  evaluationBasis: text("evaluation_basis").notNull(),
+  memberSnapshot: jsonb("member_snapshot").$type<import("../vs-compliance/types.shared").VsComplianceMember>().notNull(),
+  reason: text("reason"),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_actions_request_unique").on(table.allianceId, table.actorId, table.requestId)]);
+
+export const vsComplianceSyncJobs = pgTable("vs_compliance_sync_jobs", {
+  actionId: text("action_id").primaryKey().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  status: text("status").$type<"local" | "pending" | "synced" | "failed" | "credentials_required">().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  supersededBy: text("superseded_by"),
+});
+
+export const vsComplianceRosterGuards = pgTable("vs_compliance_roster_guards", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  actionId: text("action_id").notNull().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  rank: integer("rank"),
+  status: text("status").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.memberId] })]);
+
+export const vsComplianceReviews = pgTable("vs_compliance_reviews", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  evaluationBasis: text("evaluation_basis").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_reviews_basis_unique").on(table.actionId, table.evaluationBasis)]);
+
+// ---------------------------------------------------------------------------
+// Officer intelligence — chat ingestion
+// ---------------------------------------------------------------------------
+
+export const officerChatSessions = pgTable(
+  "officer_chat_sessions",
+  {
+    id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    channelLabel: text("channel_label"),
+    sessionAt: timestamp("session_at", { withTimezone: true }),
+    /** draft | imported */
+    status: text("status").notNull().default("draft"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("officer_chat_sessions_resource_unique").on(table.resourceId),
+    unique("officer_chat_sessions_source_identity_unique").on(table.id, table.allianceId, table.resourceId),
+    foreignKey({ name: "officer_chat_sessions_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+    index("officer_chat_sessions_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerChatSessionImages = pgTable(
+  "officer_chat_session_images",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    sequenceOrder: integer("sequence_order").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_session_images_session_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatMessages = pgTable(
+  "officer_chat_messages",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    senderAllianceTag: text("sender_alliance_tag"),
+    senderName: text("sender_name"),
+    senderLevel: integer("sender_level"),
+    senderVipLevel: integer("sender_vip_level"),
+    originalText: text("original_text").notNull(),
+    inGameTranslatedText: text("in_game_translated_text"),
+    localeText: text("locale_text").notNull(),
+    localeCode: text("locale_code").notNull(),
+    isReply: boolean("is_reply").notNull().default(false),
+    replyToName: text("reply_to_name"),
+    sequenceOrder: integer("sequence_order").notNull(),
+    sourceImageIndex: integer("source_image_index"),
+    sourceLocator: text("source_locator"),
+    externalMessageId: text("external_message_id"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    historyIncluded: boolean("history_included").notNull().default(true),
+    historyReviewed: boolean("history_reviewed").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_chat_messages_source_locator_unique").on(table.sessionId, table.sourceLocator),
+    index("officer_chat_messages_search_idx").using("gin", sql`notes_search_vector(${table.originalText})`),
+    index("officer_chat_messages_session_order_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatTranslations = pgTable(
+  "officer_chat_translations",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    contentHash: text("content_hash").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_chat_translations_alliance_hash_lang_idx").on(
+      table.allianceId,
+      table.contentHash,
+      table.targetLanguage,
+    ),
+  ],
+);
+
+export const officerMeetingNotes = pgTable(
+  "officer_meeting_notes",
+  {
+    id: text("id").primaryKey(),
+    canonicalNoteId: text("canonical_note_id").notNull().default(sql`NULL`),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    summary: text("summary").notNull(),
+    keyDecisions: jsonb("key_decisions")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    openQuestions: jsonb("open_questions")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /** draft | approved */
+    status: text("status").notNull().default("draft"),
+    synthesizedByHqUserId: text("synthesized_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    approvedByHqUserId: text("approved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    modelId: text("model_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("officer_meeting_notes_resource_unique").on(table.resourceId),
+    uniqueIndex("officer_meeting_notes_canonical_unique").on(table.canonicalNoteId),
+    foreignKey({ name: "officer_meeting_notes_canonical_fk", columns: [table.canonicalNoteId, table.allianceId, table.resourceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId, performanceNotes.resourceId] }).onDelete("restrict"),
+    foreignKey({ name: "officer_meeting_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+    uniqueIndex("officer_meeting_notes_session_idx").on(table.sessionId),
+    index("officer_meeting_notes_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerActionItems = pgTable(
+  "officer_action_items",
+  {
+    id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
+    sourceNoteId: text("source_note_id"),
+    assigneeHqUserId: text("assignee_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    intakeProvenance: jsonb("intake_provenance").$type<CaptureProvenance>(),
+    captureKey: text("capture_key"),
+    actionKey: text("action_key"),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    noteId: text("note_id")
+      .references(() => officerMeetingNotes.id, { onDelete: "set null" }),
+    sessionId: text("session_id")
+      .references(() => officerChatSessions.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** open | in_progress | done | cancelled */
+    status: text("status").notNull().default("open"),
+    /** low | normal | high */
+    priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
+    assigneeAllianceMemberId: text("assignee_alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
+    assigneeNameRaw: text("assignee_name_raw"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    dueHint: text("due_hint"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_action_items_alliance_status_due_idx").on(
+      table.allianceId,
+      table.status,
+      table.dueAt,
+    ),
+    index("officer_action_items_note_idx").on(table.noteId),
+    index("officer_action_items_source_idx").on(table.sourceNoteId),
+    index("officer_action_items_search_idx").using("gin", sql`notes_search_vector(${table.title} || E'\n' || coalesce(${table.description}, ''))`),
+    unique("officer_action_items_resource_unique").on(table.resourceId),
+    unique("officer_action_items_id_alliance_unique").on(table.id, table.allianceId),
+    unique("officer_action_items_capture_unique").on(table.captureKey, table.actionKey),
+    foreignKey({ name: "officer_action_items_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+    check("officer_action_items_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
+    foreignKey({ name: "officer_action_items_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  ],
+);
+
+export const officerIntelChunks = pgTable(
+  "officer_intel_chunks",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** approved_note | action_item */
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    sessionId: text("session_id").references(() => officerChatSessions.id, {
+      onDelete: "cascade",
+    }),
+    localeCode: text("locale_code").notNull(),
+    chunkText: text("chunk_text").notNull(),
+    resourceId: text("resource_id"), indexJobId: text("index_job_id"), chunkIndex: integer("chunk_index"),
+    contentVersion: integer("content_version"), accessVersion: integer("access_version"), approvalVersion: integer("approval_version"), consentVersion: integer("consent_version"),
+    contentHash: text("content_hash"), embeddingModel: text("embedding_model"), embeddingDimensions: integer("embedding_dimensions"), formatVersion: integer("format_version"),
+    evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeReference[]>(),
+    embedding: vector1536("embedding"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_intel_chunks_job_chunk_unique").on(table.indexJobId, table.chunkIndex),
+    foreignKey({ name: "officer_intel_chunks_index_job_fk", columns: [table.indexJobId, table.allianceId, table.resourceId], foreignColumns: [knowledgeIndexJobs.id, knowledgeIndexJobs.allianceId, knowledgeIndexJobs.resourceId] }).onDelete("restrict"),
+    index("officer_intel_chunks_alliance_source_idx").on(
+      table.allianceId,
+      table.sourceType,
+      table.sourceId,
+    ),
+  ],
+);
+
+export const officerIntelThreads = pgTable(
+  "officer_intel_threads",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    knowledgeVersion: integer("knowledge_version").notNull().default(0),
+    version: integer("version").notNull().default(1), activeJobId: text("active_job_id"),
+    runningSummary: text("running_summary"),
+    turnCount: integer("turn_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_threads_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerIntelThreadMessages = pgTable(
+  "officer_intel_thread_messages",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => officerIntelThreads.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** user | assistant */
+    role: text("role").notNull(),
+    content: text("content").notNull(),
+    citationsJson: jsonb("citations_json").$type<unknown>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_thread_messages_thread_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type OfficerChatSession = typeof officerChatSessions.$inferSelect;
+export type OfficerChatSessionImage =
+  typeof officerChatSessionImages.$inferSelect;
+export type OfficerChatMessage = typeof officerChatMessages.$inferSelect;
+export type OfficerChatTranslation = typeof officerChatTranslations.$inferSelect;
+export type OfficerMeetingNote = typeof officerMeetingNotes.$inferSelect;
+export type OfficerActionItem = typeof officerActionItems.$inferSelect;
+export type OfficerIntelChunk = typeof officerIntelChunks.$inferSelect;
+export type OfficerIntelThread = typeof officerIntelThreads.$inferSelect;
+export type OfficerIntelThreadMessage =
+  typeof officerIntelThreadMessages.$inferSelect;
+
+export const knowledgeResources = pgTable("knowledge_resources", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<KnowledgeResourceKind>().notNull(),
+  entityId: text("entity_id").notNull(),
+  ownershipState: text("ownership_state").$type<KnowledgeOwnershipState>().notNull().default("unresolved"),
+  ownerHqUserId: text("owner_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  ownerDiscordUserId: text("owner_discord_user_id"),
+  ownerBoundAt: timestamp("owner_bound_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  accessVersion: integer("access_version").notNull().default(1),
+  intakeAiAllowed: boolean("intake_ai_allowed").notNull().default(false),
+  knowledgeAiAllowed: boolean("knowledge_ai_allowed").notNull().default(false),
+  contentVersion: integer("content_version").notNull().default(1),
+  knowledgeApprovedVersion: integer("knowledge_approved_version"),
+  knowledgeApprovalVersion: integer("knowledge_approval_version").notNull().default(0),
+  knowledgeConsentVersion: integer("knowledge_consent_version").notNull().default(0),
+  knowledgeApprovedAt: timestamp("knowledge_approved_at", { withTimezone: true }),
+  knowledgeApprovedByHqUserId: text("knowledge_approved_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("knowledge_resources_id_alliance_unique").on(table.id, table.allianceId),
+  unique("knowledge_resources_entity_unique").on(table.allianceId, table.kind, table.entityId),
+  index("knowledge_resources_owner_idx").on(table.allianceId, table.ownerHqUserId),
+  index("knowledge_resources_discord_owner_idx").on(table.ownerDiscordUserId, table.ownershipState),
+  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board', 'draft')`),
+  check("knowledge_resources_ownership_check", sql`${table.ownershipState} in ('hq', 'discord', 'unresolved')`),
+  check("knowledge_resources_version_check", sql`${table.version} > 0 and ${table.accessVersion} > 0`),
+]);
+
+export const knowledgeResourceGrants = pgTable("knowledge_resource_grants", {
+  id: text("id").primaryKey(),
+  resourceId: text("resource_id").notNull(),
+  allianceId: text("alliance_id").notNull(),
+  subjectKind: text("subject_kind").$type<KnowledgeGrant["subjectKind"]>().notNull(),
+  subjectId: text("subject_id").notNull(),
+  role: text("role").$type<KnowledgeGrant["role"]>().notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ name: "knowledge_resource_grants_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("cascade"),
+  unique("knowledge_resource_grants_subject_unique").on(table.resourceId, table.subjectKind, table.subjectId),
+  index("knowledge_resource_grants_subject_idx").on(table.allianceId, table.subjectKind, table.subjectId),
+  check("knowledge_resource_grants_subject_check", sql`${table.subjectKind} in ('user', 'officers', 'board')`),
+  check("knowledge_resource_grants_role_check", sql`${table.role} in ('read', 'edit')`),
+]);
+
+/** HQ-native officer notes — not Ashed member_commendations / hq_commendations. */
+export const performanceNotes = pgTable(
+  "performance_notes",
+  {
+    id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** commendation | violation | note */
+    kind: text("kind").notNull(),
+    /** batch | thought */
+    intakeMode: text("intake_mode").notNull(),
+    title: text("title").notNull().default(""),
+    priorityMode: text("priority_mode").$type<"manual" | "auto">().notNull().default("manual"),
+    intakeProvenance: jsonb("intake_provenance").$type<CaptureProvenance>(),
+    priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
+    labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    notebook: text("notebook"),
+    journalDate: text("journal_date"),
+    inbox: boolean("inbox").notNull().default(true),
+    excludedMemberIds: jsonb("excluded_member_ids").$type<string[]>().notNull().default([]),
+    body: text("body").notNull(),
+    documentType: text("document_type").$type<import("@/lib/notes/workspace.shared").NoteDocumentType>().notNull().default("note"),
+    keyDecisions: jsonb("key_decisions").$type<string[]>().notNull().default([]),
+    openQuestions: jsonb("open_questions").$type<string[]>().notNull().default([]),
+    /** discord | web */
+    source: text("source").notNull(),
+    createdByDiscordUserId: text("created_by_discord_user_id"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    expungedAt: timestamp("expunged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("performance_notes_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+    index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
+    uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
+    uniqueIndex("performance_notes_identity_unique").on(table.id, table.allianceId, table.resourceId),
+    index("performance_notes_search_idx").using("gin", sql`notes_search_vector(notes_document_text(${table.title}, ${table.body}, ${table.keyDecisions}, ${table.openQuestions}))`),
+    check("performance_notes_document_type_check", sql`${table.documentType} in ('note', 'journal', 'meeting', 'reference')`),
+    unique("performance_notes_id_alliance_unique").on(table.id, table.allianceId),
+    check("performance_notes_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
+    foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("cascade"),
+  ],
+);
+
+export const performanceNoteMembers = pgTable(
+  "performance_note_members",
+  {
+    id: text("id").primaryKey(),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => performanceNotes.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    allianceMemberId: text("alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberNameRaw: text("member_name_raw").notNull(),
+    origin: text("origin").$type<"manual" | "detected">().notNull().default("manual"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("performance_note_members_note_idx").on(table.noteId),
+    index("performance_note_members_alliance_ashed_idx").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+    uniqueIndex("performance_note_members_note_ashed_unique").on(
+      table.noteId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+export const knowledgeNoteRevisions = pgTable("knowledge_note_revisions", {
+  id: text("id").primaryKey(),
+  noteId: text("note_id").notNull().references(() => performanceNotes.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  snapshot: jsonb("snapshot").$type<NoteFields & { archived: boolean; intakeProvenance?: CaptureProvenance | null }>().notNull(),
+  editedByHqUserId: text("edited_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  editedAt: timestamp("edited_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_note_revisions_version_unique").on(table.noteId, table.version)]);
+
+export const knowledgeBoards = pgTable("knowledge_boards", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  resourceId: text("resource_id").notNull(), name: text("name").notNull(), version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("knowledge_boards_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_boards_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_boards_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeBoardItems = pgTable("knowledge_board_items", {
+  boardId: text("board_id").notNull(), taskId: text("task_id").notNull(), allianceId: text("alliance_id").notNull(),
+  grantId: text("grant_id").notNull().references(() => knowledgeResourceGrants.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(), sharedByHqUserId: text("shared_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.boardId, table.taskId] }), index("knowledge_board_items_task_idx").on(table.taskId),
+  unique("knowledge_board_items_grant_unique").on(table.grantId),
+  foreignKey({ name: "knowledge_board_items_board_alliance_fk", columns: [table.boardId, table.allianceId], foreignColumns: [knowledgeBoards.id, knowledgeBoards.allianceId] }).onDelete("cascade"),
+  foreignKey({ name: "knowledge_board_items_task_alliance_fk", columns: [table.taskId, table.allianceId], foreignColumns: [officerActionItems.id, officerActionItems.allianceId] }).onDelete("cascade"),
+]);
+
+export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; resourceId?: string; jobId?: string; publicationId?: string; version?: number }>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
+
+export const knowledgeHistoryImports = pgTable("knowledge_history_imports", {
+  id: text("id").primaryKey().references(() => officerChatSessions.id, { onDelete: "restrict" }), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
+  kind: text("kind").$type<import("@/lib/notes/imports.shared").HistoryImportKind>().notNull(),
+  state: text("state").$type<import("@/lib/notes/imports.shared").HistoryImportState>().notNull().default("uploading"),
+  sourceHash: text("source_hash").notNull(), formatVersion: integer("format_version").notNull().default(1), locale: text("locale").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_history_imports_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_history_imports_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_history_imports_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_history_imports_source_fk", columns: [table.id, table.allianceId, table.resourceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId, officerChatSessions.resourceId] }).onDelete("restrict"),
+  index("knowledge_history_imports_hash_idx").on(table.allianceId, table.sourceHash),
+  index("knowledge_history_imports_page_idx").on(table.allianceId, table.updatedAt.desc(), table.id.desc()),
+]);
+
+export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
+  id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(),
+  name: text("name").notNull(), contentType: text("content_type").notNull(), size: integer("size").notNull(), sha256: text("sha256").notNull(), position: integer("position").notNull(),
+  stagingKey: text("staging_key").notNull(), sealedKey: text("sealed_key"), sealedAt: timestamp("sealed_at", { withTimezone: true }),
+}, (table) => [unique("knowledge_history_assets_position_unique").on(table.importId, table.position),
+  foreignKey({ name: "knowledge_history_assets_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeProcessingJobs = pgTable("knowledge_processing_jobs", {
+  id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  sourceVersion: integer("source_version").notNull(), accessVersion: integer("access_version").notNull(),
+  state: text("state").$type<import("@/lib/notes/imports.shared").HistoryJobState>().notNull().default("pending"),
+  cursor: integer("cursor").notNull().default(0), attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"),
+  leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_processing_jobs_import_unique").on(table.importId), index("knowledge_processing_jobs_claim_idx").on(table.state, table.availableAt),
+  foreignKey({ name: "knowledge_processing_jobs_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeIndexJobs = pgTable("knowledge_index_jobs", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  contentVersion: integer("content_version").notNull(), accessVersion: integer("access_version").notNull(), approvalVersion: integer("approval_version").notNull(), consentVersion: integer("consent_version").notNull(),
+  model: text("model").notNull(), dimensions: integer("dimensions").notNull().default(1536), formatVersion: integer("format_version").notNull().default(1),
+  state: text("state").$type<import("@/lib/notes/knowledge.shared").KnowledgeJobState>().notNull().default("pending"), cursor: integer("cursor").notNull().default(0), totalChunks: integer("total_chunks"), manifestHash: text("manifest_hash"),
+  attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"), leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_index_jobs_identity_unique").on(table.id, table.allianceId, table.resourceId),
+  unique("knowledge_index_jobs_generation_unique").on(table.resourceId, table.contentVersion, table.accessVersion, table.approvalVersion, table.consentVersion, table.model, table.formatVersion),
+  foreignKey({ name: "knowledge_index_jobs_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  index("knowledge_index_jobs_claim_idx").on(table.state, table.availableAt),
+]);
+
+export const knowledgeAiUsage = pgTable("knowledge_ai_usage", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }), principalKey: text("principal_key").notNull(),
+  operation: text("operation").$type<"index" | "query" | "generate">().notNull(), inputChars: integer("input_chars").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("knowledge_ai_usage_principal_idx").on(table.principalKey, table.createdAt)]);
+
+export const knowledgePublications = pgTable("knowledge_publications", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), noteId: text("note_id").notNull(), resourceId: text("resource_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  sourceVersion: integer("source_version").notNull(), snapshotVersion: integer("snapshot_version").notNull(), version: integer("version").notNull().default(1),
+  title: text("title").notNull(), body: text("body").notNull(), locale: text("locale").notNull(), state: text("state").$type<"draft" | "published" | "revoked">().notNull().default("draft"),
+  tokenHash: text("token_hash"), tokenCipher: text("token_cipher"), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), publishedAt: timestamp("published_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_publications_snapshot_unique").on(table.resourceId, table.snapshotVersion), uniqueIndex("knowledge_publications_token_unique").on(table.tokenHash),
+  foreignKey({ name: "knowledge_publications_note_fk", columns: [table.noteId, table.allianceId, table.resourceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId, performanceNotes.resourceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeGenerationJobs = pgTable("knowledge_generation_jobs", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), requesterId: text("requester_id").notNull(), sessionId: text("session_id").notNull(),
+  kind: text("kind").$type<import("@/lib/notes/generation.shared").GenerationKind>().notNull(), locale: text("locale").notNull(), model: text("model").notNull(), question: text("question").notNull().default(""),
+  evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeEvidence[]>().notNull(), inputIds: jsonb("input_ids").$type<string[]>().notNull(), context: jsonb("context").$type<Array<{ question: string; answer: string }>>().notNull().default([]),
+  review: jsonb("review").$type<import("@/lib/notes/generation.shared").GenerationReview>(),
+  parts: jsonb("parts").$type<import("@/lib/notes/generation.shared").GenerationPart[]>().notNull().default([]), state: text("state").$type<"pending" | "running" | "ready" | "accepted" | "cancelled" | "failed">().notNull().default("pending"),
+  version: integer("version").notNull().default(1), cursor: integer("cursor").notNull().default(0), attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"), leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  threadId: text("thread_id"), threadVersion: integer("thread_version"), noteId: text("note_id"),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_generation_resource_unique").on(table.resourceId), unique("knowledge_generation_identity_unique").on(table.id, table.allianceId),
+  foreignKey({ name: "knowledge_generation_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_generation_note_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+]);
+export const knowledgeGeneratedDocuments = pgTable("knowledge_generated_documents", {
+  noteId: text("note_id").primaryKey(), allianceId: text("alliance_id").notNull(), jobId: text("job_id").notNull().unique(), kind: text("kind").notNull(), locale: text("locale").notNull(), evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeEvidence[]>().notNull(),
+}, (table) => [foreignKey({ name: "knowledge_generated_document_note_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"), foreignKey({ name: "knowledge_generated_document_job_fk", columns: [table.jobId, table.allianceId], foreignColumns: [knowledgeGenerationJobs.id, knowledgeGenerationJobs.allianceId] }).onDelete("restrict")]);
+
+export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
+  source: text("source").$type<"web" | "discord">().notNull(),
+  sourceNoteId: text("source_note_id"), sourceVersion: integer("source_version"),
+  state: jsonb("state").$type<CaptureDraftState>(), stateHash: text("state_hash").notNull(),
+  status: text("status").$type<"open" | "committed">().notNull().default("open"),
+  noteId: text("note_id").references(() => performanceNotes.id, { onDelete: "restrict" }),
+  taskIds: jsonb("task_ids").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_capture_drafts_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_capture_drafts_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_capture_drafts_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_capture_drafts_note_alliance_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+  index("knowledge_capture_drafts_alliance_updated_idx").on(table.allianceId, table.updatedAt),
+]);
+
+export const knowledgeWorkspacePreferences = pgTable("knowledge_workspace_preferences", {
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  state: jsonb("state").$type<import("@/lib/notes/workspace.shared").NoteWorkspaceState>().notNull(),
+  version: integer("version").notNull().default(0), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.hqUserId, table.allianceId] }), check("knowledge_workspace_preferences_version_check", sql`${table.version} >= 0`)]);
+
+export const knowledgeIntakePreferences = pgTable("knowledge_intake_preferences", {
+  principalKey: text("principal_key").primaryKey(), enabled: boolean("enabled").notNull().default(false),
+  version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const knowledgeIntakeAnalyses = pgTable("knowledge_intake_analyses", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalKey: text("principal_key").notNull(), requestHash: text("request_hash").notNull(),
+  state: text("state").$type<"pending" | "complete" | "failed">().notNull(),
+  result: jsonb("result").$type<IntakeResult>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (table) => [index("knowledge_intake_analyses_rate_idx").on(table.principalKey, table.createdAt)]);
+
+export const vsWeekPlans = pgTable("vs_week_plans", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  weekStart: text("week_start").notNull(),
+  platform: text("platform").$type<import("@/lib/vs-performance/weekly-plan.shared").VsPlatform>().notNull(),
+  days: jsonb("days").$type<import("@/lib/vs-performance/weekly-plan.shared").VsPlanDay[]>().notNull(),
+  leadDays: integer("lead_days").notNull().default(0),
+  appliedMeta: jsonb("applied_meta").$type<{
+    appliedAt: string | null;
+    leadDays: number;
+    rules: Record<string, import("@/lib/trains/rules/catalog.shared").ConductorRule | null>;
+  }>(),
+  version: integer("version").notNull().default(1),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("vs_week_plans_alliance_week_unique").on(table.allianceId, table.weekStart),
+  check("vs_week_plans_lead_days_check", sql`${table.leadDays} between 0 and 7`),
+  check("vs_week_plans_version_check", sql`${table.version} > 0`),
+  check("vs_week_plans_week_start_monday_check", sql`extract(isodow from ${table.weekStart}::date) = 1`),
+]);
+
+export const vsStrategyPreferences = pgTable("vs_strategy_preferences", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  pushDefaults: jsonb("push_defaults").$type<import("@/lib/vs-performance/weekly-plan.shared").VsPushDefaults>().notNull(),
+  version: integer("version").notNull().default(1),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check("vs_strategy_preferences_version_check", sql`${table.version} > 0`),
+]);
+
+export const vsMatchups = pgTable("vs_matchups", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  weekStart: text("week_start").notNull(),
+  opponentName: text("opponent_name"),
+  opponentTag: text("opponent_tag"),
+  externalOpponentId: text("external_opponent_id"),
+  externalCompetitionId: text("external_competition_id"),
+  opponentServer: integer("opponent_server"),
+  opponentDailyScores: jsonb("opponent_daily_scores").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentScores>().notNull().default([null, null, null, null, null, null]),
+  weekOutcome: text("week_outcome").$type<import("@/lib/vs-performance/opponent-info.shared").VsWeekOutcome>().notNull().default("pending"),
+  opponentInfoOwnedFields: jsonb("opponent_info_owned_fields").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentField[]>().notNull().default([]),
+  reportedOurPoints: integer("reported_our_points"),
+  reportedOpponentPoints: integer("reported_opponent_points"),
+  reportedPointsAt: timestamp("reported_points_at", { withTimezone: true }),
+  identitySource: text("identity_source").$type<"hq_manual" | "ashed_import">().notNull().default("hq_manual"),
+  version: integer("version").notNull().default(1),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("vs_matchups_alliance_week_unique").on(table.allianceId, table.weekStart),
+  unique("vs_matchups_id_alliance_unique").on(table.id, table.allianceId),
+  check("vs_matchups_week_start_monday_check", sql`extract(isodow from ${table.weekStart}::date) = 1`),
+  check("vs_matchups_version_check", sql`${table.version} > 0`),
+  check("vs_matchups_identity_source_check", sql`${table.identitySource} in ('hq_manual', 'ashed_import')`),
+  check("vs_matchups_week_outcome_check", sql`${table.weekOutcome} in ('pending', 'win', 'loss')`),
+  check("vs_matchups_opponent_scores_check", sql`jsonb_typeof(${table.opponentDailyScores}) = 'array' and jsonb_array_length(${table.opponentDailyScores}) = 6 and (${table.opponentDailyScores}->0 is null or jsonb_typeof(${table.opponentDailyScores}->0) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->0) = 'string' and (${table.opponentDailyScores}->>0) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->1 is null or jsonb_typeof(${table.opponentDailyScores}->1) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->1) = 'string' and (${table.opponentDailyScores}->>1) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->2 is null or jsonb_typeof(${table.opponentDailyScores}->2) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->2) = 'string' and (${table.opponentDailyScores}->>2) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->3 is null or jsonb_typeof(${table.opponentDailyScores}->3) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->3) = 'string' and (${table.opponentDailyScores}->>3) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->4 is null or jsonb_typeof(${table.opponentDailyScores}->4) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->4) = 'string' and (${table.opponentDailyScores}->>4) ~ '^(0|[1-9][0-9]{0,29})$')) and (${table.opponentDailyScores}->5 is null or jsonb_typeof(${table.opponentDailyScores}->5) = 'null' or (jsonb_typeof(${table.opponentDailyScores}->5) = 'string' and (${table.opponentDailyScores}->>5) ~ '^(0|[1-9][0-9]{0,29})$'))`),
+  check("vs_matchups_reported_points_check", sql`(${table.reportedOurPoints} is null) = (${table.reportedOpponentPoints} is null) and (${table.reportedOurPoints} is null or (${table.reportedOurPoints} between 0 and 13 and ${table.reportedOpponentPoints} between 0 and 13 and ${table.reportedOurPoints} + ${table.reportedOpponentPoints} <= 13))`),
+  check("vs_matchups_owned_fields_check", sql`jsonb_typeof(${table.opponentInfoOwnedFields}) = 'array' and ${table.opponentInfoOwnedFields} <@ '["day:1","day:2","day:3","day:4","day:5","day:6","opponentName","opponentServer","opponentTag","weekOutcome"]'::jsonb`),
+]);
+
+export const vsMatchDayResults = pgTable("vs_match_day_results", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  matchupId: text("matchup_id").notNull(),
+  recordedDate: text("recorded_date").notNull(),
+  ourScore: numeric("our_score", { precision: 30, scale: 0 }),
+  opponentScore: numeric("opponent_score", { precision: 30, scale: 0 }),
+  outcome: text("outcome").$type<import("@/lib/vs-performance/match-results.shared").VsOutcome>().notNull().default("pending"),
+  finality: text("finality").$type<import("@/lib/vs-performance/match-results.shared").VsFinality>().notNull().default("unconfirmed"),
+  source: text("source").$type<import("@/lib/vs-performance/match-results.shared").VsResultSource>().notNull().default("hq_manual"),
+  sourceRef: text("source_ref"),
+  sourceRevision: text("source_revision"),
+  hqConfirmed: integer("hq_confirmed").notNull().default(0),
+  version: integer("version").notNull().default(1),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.matchupId, table.allianceId],
+    foreignColumns: [vsMatchups.id, vsMatchups.allianceId],
+    name: "vs_match_day_results_matchup_alliance_fk",
+  }).onDelete("cascade"),
+  unique("vs_match_day_results_matchup_date_unique").on(table.matchupId, table.recordedDate),
+  index("vs_match_day_results_alliance_idx").on(table.allianceId, table.recordedDate),
+  check("vs_match_day_results_scores_paired_check", sql`(${table.ourScore} is null) = (${table.opponentScore} is null)`),
+  check("vs_match_day_results_scores_nonnegative_check", sql`${table.ourScore} >= 0 and ${table.opponentScore} >= 0`),
+  check("vs_match_day_results_outcome_check", sql`${table.outcome} in ('pending', 'won', 'lost')`),
+  check("vs_match_day_results_finality_check", sql`${table.finality} in ('unconfirmed', 'final')`),
+  check("vs_match_day_results_source_check", sql`${table.source} in ('hq_manual', 'ashed_import', 'reviewed_upload')`),
+  check("vs_match_day_results_version_check", sql`${table.version} > 0`),
+  check("vs_match_day_results_recorded_weekday_check", sql`extract(isodow from ${table.recordedDate}::date) between 1 and 6`),
+]);
+
+export const vsMatchObservations = pgTable("vs_match_observations", {
+  id: text("id").primaryKey(),
+  sequence: bigserial("sequence", { mode: "bigint" }).notNull(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  matchupId: text("matchup_id").notNull(),
+  recordedDate: text("recorded_date"),
+  source: text("source").$type<import("@/lib/vs-performance/match-results.shared").VsResultSource>().notNull(),
+  sourceRef: text("source_ref"),
+  sourceRevision: text("source_revision"),
+  requestId: text("request_id").notNull(),
+  contentHash: text("content_hash").notNull(),
+  snapshot: jsonb("snapshot").$type<import("@/lib/vs-performance/match-results.shared").VsNormalizedResult | import("@/lib/vs-performance/match-results.shared").VsIdentitySnapshot>().notNull(),
+  nativeVersion: integer("native_version").notNull().default(0),
+  disposition: text("disposition").$type<"applied" | "conflict" | "reviewed_keep_hq" | "reviewed_use_ashed" | "superseded">().notNull().default("applied"),
+  observedAt: timestamp("observed_at", { withTimezone: true }).defaultNow().notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+  actorHqUserId: text("actor_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+}, (table) => [
+  foreignKey({
+    columns: [table.matchupId, table.allianceId],
+    foreignColumns: [vsMatchups.id, vsMatchups.allianceId],
+    name: "vs_match_observations_matchup_alliance_fk",
+  }).onDelete("cascade"),
+  unique("vs_match_observations_request_unique").on(table.matchupId, table.recordedDate, table.requestId),
+  uniqueIndex("vs_match_observations_sequence_unique").on(table.sequence),
+  index("vs_match_observations_matchup_idx").on(table.matchupId, table.recordedDate),
+  check("vs_match_observations_source_check", sql`${table.source} in ('hq_manual', 'ashed_import', 'reviewed_upload')`),
+  check("vs_match_observations_disposition_check", sql`${table.disposition} in ('applied', 'conflict', 'reviewed_keep_hq', 'reviewed_use_ashed', 'superseded')`),
+  check("vs_match_observations_recorded_weekday_check", sql`${table.recordedDate} is null or extract(isodow from ${table.recordedDate}::date) between 1 and 6`),
+]);
+
+export const vsMatchupAshedSync = pgTable("vs_matchup_ashed_sync", {
+  matchupId: text("matchup_id").notNull(),
+  allianceId: text("alliance_id").notNull(),
+  baselineSnapshot: jsonb("baseline_snapshot").$type<import("@/lib/vs-performance/opponent-info.shared").AshedOpponentSnapshot | null>(),
+  observedSnapshot: jsonb("observed_snapshot").$type<import("@/lib/vs-performance/opponent-info.shared").AshedOpponentSnapshot | null>(),
+  dirtyFields: jsonb("dirty_fields").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentField[]>().notNull().default([]),
+  conflictFields: jsonb("conflict_fields").$type<import("@/lib/vs-performance/opponent-info.shared").VsOpponentField[]>().notNull().default([]),
+  requestedVersion: integer("requested_version").notNull().default(0),
+  processedVersion: integer("processed_version").notNull().default(0),
+  status: text("status").$type<import("@/lib/vs-performance/weekly-view.shared").VsMatchupSyncStatus>().notNull().default("idle"),
+  errorCode: text("error_code"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.matchupId, table.allianceId], name: "vs_matchup_ashed_sync_pk" }),
+  foreignKey({
+    columns: [table.matchupId, table.allianceId],
+    foreignColumns: [vsMatchups.id, vsMatchups.allianceId],
+    name: "vs_matchup_ashed_sync_matchup_alliance_fk",
+  }).onDelete("cascade"),
+  index("vs_matchup_ashed_sync_alliance_idx").on(table.allianceId),
+  check("vs_matchup_ashed_sync_status_check", sql`${table.status} in ('idle', 'pending', 'synced', 'conflict', 'credentials_required', 'failed', 'uncertain')`),
+  check("vs_matchup_ashed_sync_dirty_fields_check", sql`jsonb_typeof(${table.dirtyFields}) = 'array' and ${table.dirtyFields} <@ '["day:1","day:2","day:3","day:4","day:5","day:6","opponentName","opponentServer","opponentTag","weekOutcome"]'::jsonb`),
+  check("vs_matchup_ashed_sync_conflict_fields_check", sql`jsonb_typeof(${table.conflictFields}) = 'array' and ${table.conflictFields} <@ '["day:1","day:2","day:3","day:4","day:5","day:6","opponentName","opponentServer","opponentTag","weekOutcome"]'::jsonb`),
+  check("vs_matchup_ashed_sync_versions_check", sql`${table.requestedVersion} >= 0 and ${table.processedVersion} >= 0`),
+]);
+
+export const vsCaptureReviews = pgTable("vs_capture_reviews", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  kind: text("kind").$type<import("@/lib/vs-performance/vs-capture.shared").VsCaptureKind>().notNull(),
+  imageSha256: text("image_sha256").notNull(),
+  candidate: jsonb("candidate").$type<import("@/lib/vs-performance/vs-capture.shared").VsCaptureCandidate>().notNull(),
+  status: text("status").$type<"review" | "complete">().notNull().default("review"),
+  version: integer("version").notNull().default(1),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedRequestId: text("completed_request_id"),
+  completedBodyHash: text("completed_body_hash"),
+  completedResult: jsonb("completed_result").$type<Record<string, unknown> | null>(),
+}, (table) => [
+  index("vs_capture_reviews_alliance_idx").on(table.allianceId, table.createdAt),
+  index("vs_capture_reviews_expires_idx").on(table.expiresAt),
+  check("vs_capture_reviews_kind_check", sql`${table.kind} in ('weekly_overview', 'daily_totals')`),
+  check("vs_capture_reviews_status_check", sql`${table.status} in ('review', 'complete')`),
+  check("vs_capture_reviews_version_check", sql`${table.version} > 0`),
+]);
+
+export type PerformanceNote = typeof performanceNotes.$inferSelect;
+export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;

@@ -639,7 +639,9 @@ export async function createHqMemberLink(
   const now = new Date();
   const id = nanoid(16);
   const ashedMemberId = input.ashedMemberId ?? `e2e-member-${nanoid(12)}`;
-  const gameUid = input.gameUid ?? `12345678901203`;
+  // hq_member_links has a unique (alliance_id, game_uid) constraint — never
+  // reuse a fixed default across actors in the same alliance fixture.
+  const gameUid = input.gameUid ?? `1${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 15);
   const memberDisplayName = input.memberDisplayName ?? "E2E Commander";
 
   await sql`

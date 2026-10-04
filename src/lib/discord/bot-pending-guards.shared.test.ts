@@ -73,6 +73,36 @@ describe("bot pending guards", () => {
     ).toBe(true);
   });
 
+  it("accepts commander-only VR anomaly pending", () => {
+    expect(
+      isVrAnomalyConfirmPending({
+        kind: "anomaly_confirm",
+        proposedVr: 4200,
+        commanderId: "cmd-1",
+        seasonKey: "1",
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects VR anomaly pending without any identity", () => {
+    expect(
+      isVrAnomalyConfirmPending({
+        kind: "anomaly_confirm",
+        proposedVr: 4200,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects kills anomaly pending mistaken for VR", () => {
+    expect(
+      isVrAnomalyConfirmPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 150_000,
+        commanderId: "cmd-1",
+      }),
+    ).toBe(false);
+  });
+
   it("rejects THP anomaly pending mistaken for VR", () => {
     expect(
       isVrAnomalyConfirmPending({

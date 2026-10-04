@@ -5,7 +5,9 @@ import { and, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability } from "./availability.server";
 import { isTimeOffEntryKind, serializeTimeOffEntry } from "./api.shared";
+import { enqueueTimeOffSync } from "./excused-outbox.server";
 import {
   canManageTimeOffEntry,
   parseTimeOffDraft,
@@ -22,8 +24,8 @@ export type TimeOffActor = TimeOffViewer & {
   allianceId: string;
   hqUserId?: string | null;
   discordUserId?: string | null;
-  sessionId?: string | null;
   refresh?: () => Promise<TimeOffActor>;
+  locale?: string;
 };
 
 function assertActor(actor: TimeOffActor) {
@@ -56,7 +58,7 @@ async function loadRosterMember(tx: Transaction, actor: TimeOffActor, draft: Tim
   return member;
 }
 
-async function appendRevision(tx: Transaction, actor: TimeOffActor, row: Entry) {
+export async function appendTimeOffRevision(tx: Transaction, actor: TimeOffActor, row: Entry, options: { enqueue?: boolean; recordedAt?: Date } = {}) {
   if (!isTimeOffEntryKind(row.entryKind)) throw new TimeOffError("forbidden", 403);
   await tx.insert(schema.memberTimeOffRevisions).values({
     id: nanoid(),
@@ -69,11 +71,13 @@ async function appendRevision(tx: Transaction, actor: TimeOffActor, row: Entry) 
       entryKind: row.entryKind,
       globalAbsence: row.globalAbsence,
       cancelled: row.cancelledAt != null,
+      activityScope: row.activityScope === "vs" || row.activityScope === "donation" ? row.activityScope : "all",
     },
     recordedByHqUserId: actor.hqUserId ?? null,
     recordedByDiscordUserId: actor.discordUserId ?? null,
-    recordedAt: row.updatedAt,
+    recordedAt: options.recordedAt ?? row.updatedAt,
   });
+  if (options.enqueue !== false) row.syncStatus = await enqueueTimeOffSync(tx, row, actor.locale);
 }
 
 async function loadLockedEntry(tx: Transaction, actor: TimeOffActor, id: string, version: unknown) {
@@ -94,6 +98,7 @@ function serializeForActor(row: Entry, actor: TimeOffActor) {
 export async function previewTimeOff(actor: TimeOffActor, body: unknown) {
   const draft = parseTimeOffDraft(body);
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     const member = await loadRosterMember(tx, actor, draft);
     return { ...draft, memberName: member.name };
   });
@@ -108,6 +113,7 @@ export async function createTimeOff(actor: TimeOffActor, body: unknown, requestI
   const requestKey = createHash("sha256").update(JSON.stringify([actor.allianceId, actor.discordUserId ? "discord" : "hq", actor.discordUserId ?? actor.hqUserId, requestId])).digest("hex");
   const requestHash = createHash("sha256").update(JSON.stringify(draft)).digest("hex");
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestKey}, 0))`);
     const [existing] = await tx.select().from(schema.memberTimeOff).where(eq(schema.memberTimeOff.requestKey, requestKey)).limit(1);
     if (existing) {
@@ -124,6 +130,9 @@ export async function createTimeOff(actor: TimeOffActor, body: unknown, requestI
       memberName: member.name,
       availability: "full_away",
       globalAbsence: true,
+      activityScope: "all",
+      noticeVerified: true,
+      privateNotesOwned: true,
       version: 1,
       source: actor.discordUserId ? "discord" : actor.canManageOthers ? "officer" : "web",
       createdByHqUserId: actor.hqUserId ?? null,
@@ -133,7 +142,7 @@ export async function createTimeOff(actor: TimeOffActor, body: unknown, requestI
       createdAt: now,
       updatedAt: now,
     }).returning();
-    await appendRevision(tx, actor, row!);
+    await appendTimeOffRevision(tx, actor, row!);
     return serializeForActor(row!, actor);
   });
 }
@@ -142,6 +151,7 @@ export async function updateTimeOff(actor: TimeOffActor, id: string, body: unkno
   actor = await refreshActor(actor);
   const draft = parseTimeOffDraft(body);
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     const locked = await loadLockedEntry(tx, actor, id, version);
     const existing = locked.entry;
     actor = locked.actor;
@@ -153,10 +163,13 @@ export async function updateTimeOff(actor: TimeOffActor, id: string, body: unkno
       memberName: member.name,
       availability: "full_away",
       globalAbsence: true,
+      activityScope: "all",
+      noticeVerified: true,
+      privateNotesOwned: true,
       version: existing.version + 1,
       updatedAt: new Date(),
     }).where(eq(schema.memberTimeOff.id, existing.id)).returning();
-    await appendRevision(tx, actor, row!);
+    await appendTimeOffRevision(tx, actor, row!);
     return serializeForActor(row!, actor);
   });
 }
@@ -164,6 +177,7 @@ export async function updateTimeOff(actor: TimeOffActor, id: string, body: unkno
 export async function cancelTimeOff(actor: TimeOffActor, id: string, version: unknown) {
   actor = await refreshActor(actor);
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     const locked = await loadLockedEntry(tx, actor, id, version);
     const existing = locked.entry;
     actor = locked.actor;
@@ -174,7 +188,7 @@ export async function cancelTimeOff(actor: TimeOffActor, id: string, version: un
       updatedAt: now,
       version: existing.version + 1,
     }).where(eq(schema.memberTimeOff.id, existing.id)).returning();
-    await appendRevision(tx, actor, row!);
+    await appendTimeOffRevision(tx, actor, row!);
     return serializeForActor(row!, actor);
   });
 }

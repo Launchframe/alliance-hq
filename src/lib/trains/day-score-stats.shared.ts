@@ -4,9 +4,9 @@
  * members who can win under the day's rule.
  */
 
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   classifyVsDataNeed,
-  type ScoreDateDayConfig,
   type TrainsVsDataStatus,
   type TrainsVsDataStatusKind,
 } from "@/lib/trains/vs-data-status.shared";
@@ -87,11 +87,10 @@ export function buildTrainDayScoreStats(input: {
 
 /** Whether this day should show score stats in the UI. */
 export function dayNeedsScoreStats(input: {
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
+  rule: ConductorRule | null;
   trainDate?: string | null;
   leadDays?: number;
-  scoreDateDay?: ScoreDateDayConfig | null;
+  scoreDayRule?: ConductorRule | null;
 }): boolean {
   return classifyVsDataNeed(input).kind !== "none";
 }

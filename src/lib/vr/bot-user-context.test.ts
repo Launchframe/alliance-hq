@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { pickHelpMessageKey, formatHelpReply } from "@/lib/vr/bot-user-context";
 import type { DiscordBotUserContext } from "@/lib/vr/bot-user-context";
 
@@ -180,5 +181,21 @@ describe("formatHelpReply", () => {
     } finally {
       process.env.NEXT_PUBLIC_APP_URL = prev;
     }
+  });
+
+  it("lists note commands in owner and DM help copy", () => {
+    const t = createDiscordTranslator("en-US");
+    const dm = formatHelpReply(t, "help.dmGeneral", ctx({ guildId: null }), "en-US");
+    expect(dm).toContain("/commend");
+    expect(dm).toContain("/violation");
+    expect(dm).toContain("/note");
+    const owner = formatHelpReply(
+      t,
+      "help.ownerReady",
+      ctx({ isOwner: true, memberLinkCount: 1 }),
+      "en-US",
+    );
+    expect(owner).toContain("/commend");
+    expect(owner).toContain("/note");
   });
 });

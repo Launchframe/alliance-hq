@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { writeAuditLog } from "@/lib/bff/audit";
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
@@ -58,17 +58,21 @@ export async function POST(request: Request) {
       seasonKey,
     );
 
-    await writeAuditLog({
+    await writeTrainsOfficerAudit({
       sessionId: session.id,
       allianceId: ctx.allianceId,
-      hqUserId: session.hqUserId ?? undefined,
+      hqUserId: session.hqUserId,
       action: "trains.conductor_clear",
+      severity: "update",
       resourceType: "train_conductor_record",
       resourceId: record.id,
-      resourceName: record.conductorMemberName ?? undefined,
+      resourceName: record.conductorMemberName,
       metadata: {
         date,
-        conductorMemberId: record.conductorMemberId,
+        previousMemberId: record.conductorMemberId,
+        previousMemberName: record.conductorMemberName,
+        overwritten: true,
+        source: "clear",
       },
     });
 

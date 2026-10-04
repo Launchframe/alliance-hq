@@ -3,10 +3,42 @@ import "server-only";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { toActivityWriteError } from "@/lib/activity/errors.server";
+import {
+  ActivityIdentityChangedError,
+  claimDiscordActivityOwnership,
+  lockActivityIdentity,
+  lockActivityMergeOwners,
+  remapActivityOwnership,
+} from "@/lib/activity/ownership.server";
+import { withActivityTransaction } from "@/lib/activity/writer.server";
+import type { ActivityTransaction } from "@/lib/activity/writer.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { revokeAshedMembershipsForHqUser } from "@/lib/ashed/rebind-session";
 import { getDb, schema } from "@/lib/db";
+import { remapKnowledgeUser } from "@/lib/notes/resources.server";
 import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
+import {
+  shouldUpgradeSystemRole,
+  systemRoleNameForId,
+} from "@/lib/rbac/system-roles";
+
+/** Prefer the higher system role when both accounts already belong to an alliance. */
+export function preferredMembershipRoleId(
+  canonicalRoleId: string,
+  sourceRoleId: string,
+): string {
+  const canonicalName = systemRoleNameForId(canonicalRoleId);
+  const sourceName = systemRoleNameForId(sourceRoleId);
+  if (
+    canonicalName &&
+    sourceName &&
+    shouldUpgradeSystemRole(canonicalName, sourceName)
+  ) {
+    return sourceRoleId;
+  }
+  return canonicalRoleId;
+}
 
 export type MergeHqUsersErrorCode =
   | "source_not_found"
@@ -298,35 +330,134 @@ export async function mergeHqUsersIntoCanonical(input: {
 
   const canonicalId = input.canonicalHqUserId.trim();
   const sourceId = input.sourceHqUserId.trim();
-  const db = getDb();
   const now = new Date();
 
   const movedAllianceIds = preview.alliances.map((row) => row.allianceId);
 
-  await db.transaction(async (tx) => {
-    await revokeAshedMembershipsForHqUser(sourceId);
+  const mergeWork = async (tx: ActivityTransaction) => {
+    const loadDiscordLinks = () =>
+      tx
+        .select({
+          discordUserId: schema.discordHqLinks.discordUserId,
+          hqUserId: schema.discordHqLinks.hqUserId,
+        })
+        .from(schema.discordHqLinks)
+        .where(
+          inArray(schema.discordHqLinks.hqUserId, [
+            sourceId,
+            canonicalId,
+          ]),
+        );
+    const sortLinkPairs = (
+      rows: { discordUserId: string; hqUserId: string }[],
+    ) =>
+      rows
+        .map((row) => `${row.discordUserId}:${row.hqUserId}`)
+        .sort();
+
+    const beforeLinks = await loadDiscordLinks();
+    for (const id of [
+      ...new Set(beforeLinks.map((row) => row.discordUserId)),
+    ].sort()) {
+      await lockActivityIdentity(tx, { discordUserId: id });
+    }
+    try {
+      await lockActivityMergeOwners(tx, sourceId, canonicalId);
+    } catch (error) {
+      if (error instanceof ActivityIdentityChangedError) {
+        throw error;
+      }
+      throw toActivityWriteError(error, "account.merged");
+    }
+    const afterLinks = await loadDiscordLinks();
+    if (
+      sortLinkPairs(beforeLinks).join("\n") !==
+      sortLinkPairs(afterLinks).join("\n")
+    ) {
+      throw new ActivityIdentityChangedError();
+    }
+    if (
+      new Set(afterLinks.map((row) => row.discordUserId)).size > 1
+    ) {
+      throw new MergeHqUsersError(
+        "Both accounts are linked to different Discord users.",
+        "discord_conflict",
+      );
+    }
+
+    const userRows = await tx
+      .select({
+        id: schema.hqUsers.id,
+        isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer,
+        ashedUserId: schema.hqUsers.ashedUserId,
+      })
+      .from(schema.hqUsers)
+      .where(inArray(schema.hqUsers.id, [sourceId, canonicalId]))
+      .orderBy(schema.hqUsers.id)
+      .for("update");
+    const canonicalUser = userRows.find((row) => row.id === canonicalId);
+    const sourceUser = userRows.find((row) => row.id === sourceId);
+    if (!sourceUser || !canonicalUser) {
+      throw new MergeHqUsersError(
+        "Source account not found.",
+        "source_not_found",
+      );
+    }
+    if (canonicalUser.isPlatformMaintainer || sourceUser.isPlatformMaintainer) {
+      throw new MergeHqUsersError(
+        "Platform maintainer accounts cannot be merged here.",
+        "platform_maintainer",
+      );
+    }
+    if (
+      canonicalUser.ashedUserId &&
+      sourceUser.ashedUserId &&
+      canonicalUser.ashedUserId !== sourceUser.ashedUserId
+    ) {
+      throw new MergeHqUsersError(
+        "These accounts are linked to different Ashed identities.",
+        "ashed_identity_conflict",
+      );
+    }
+
+    await revokeAshedMembershipsForHqUser(sourceId, undefined, tx);
 
     const canonicalMemberships = await tx
       .select({
+        id: schema.allianceMemberships.id,
         allianceId: schema.allianceMemberships.allianceId,
+        roleId: schema.allianceMemberships.roleId,
       })
       .from(schema.allianceMemberships)
       .where(eq(schema.allianceMemberships.hqUserId, canonicalId));
 
-    const canonicalAllianceIds = new Set(
-      canonicalMemberships.map((row) => row.allianceId),
+    const canonicalMembershipByAlliance = new Map(
+      canonicalMemberships.map((row) => [row.allianceId, row]),
     );
 
     const sourceMemberships = await tx
       .select({
         id: schema.allianceMemberships.id,
         allianceId: schema.allianceMemberships.allianceId,
+        roleId: schema.allianceMemberships.roleId,
       })
       .from(schema.allianceMemberships)
       .where(eq(schema.allianceMemberships.hqUserId, sourceId));
 
     for (const membership of sourceMemberships) {
-      if (canonicalAllianceIds.has(membership.allianceId)) {
+      const existing = canonicalMembershipByAlliance.get(membership.allianceId);
+      if (existing) {
+        const roleId = preferredMembershipRoleId(
+          existing.roleId,
+          membership.roleId,
+        );
+        if (roleId !== existing.roleId) {
+          await tx
+            .update(schema.allianceMemberships)
+            .set({ roleId, updatedAt: now })
+            .where(eq(schema.allianceMemberships.id, existing.id));
+          existing.roleId = roleId;
+        }
         await tx
           .delete(schema.allianceMemberships)
           .where(eq(schema.allianceMemberships.id, membership.id));
@@ -335,6 +466,11 @@ export async function mergeHqUsersIntoCanonical(input: {
           .update(schema.allianceMemberships)
           .set({ hqUserId: canonicalId, updatedAt: now })
           .where(eq(schema.allianceMemberships.id, membership.id));
+        canonicalMembershipByAlliance.set(membership.allianceId, {
+          id: membership.id,
+          allianceId: membership.allianceId,
+          roleId: membership.roleId,
+        });
       }
     }
 
@@ -491,6 +627,17 @@ export async function mergeHqUsersIntoCanonical(input: {
         .update(schema.discordHqLinks)
         .set({ hqUserId: canonicalId })
         .where(eq(schema.discordHqLinks.discordUserId, sourceDiscord.discordUserId));
+      try {
+        await claimDiscordActivityOwnership(tx, {
+          discordUserId: sourceDiscord.discordUserId,
+          hqUserId: canonicalId,
+        });
+      } catch (error) {
+        if (error instanceof ActivityIdentityChangedError) {
+          throw error;
+        }
+        throw toActivityWriteError(error, "account.merged");
+      }
     }
 
     const sourcePending = await tx
@@ -558,27 +705,149 @@ export async function mergeHqUsersIntoCanonical(input: {
         ),
       );
 
+    // Remap cascade-owned rows before deleting the source user. Without this,
+    // passkeys, EUR subscriptions, tip links, donation receipts, and inbox
+    // dismissals are wiped by ON DELETE CASCADE on hq_users.
+    await tx
+      .update(schema.hqAuthenticators)
+      .set({ hqUserId: canonicalId })
+      .where(eq(schema.hqAuthenticators.hqUserId, sourceId));
+
+    const sourceEurSubs = await tx
+      .select({
+        id: schema.eurUserSubscriptions.id,
+        allianceId: schema.eurUserSubscriptions.allianceId,
+        scoreTarget: schema.eurUserSubscriptions.scoreTarget,
+      })
+      .from(schema.eurUserSubscriptions)
+      .where(eq(schema.eurUserSubscriptions.hqUserId, sourceId));
+
+    for (const sub of sourceEurSubs) {
+      const [conflict] = await tx
+        .select({ id: schema.eurUserSubscriptions.id })
+        .from(schema.eurUserSubscriptions)
+        .where(
+          and(
+            eq(schema.eurUserSubscriptions.hqUserId, canonicalId),
+            eq(schema.eurUserSubscriptions.allianceId, sub.allianceId),
+            eq(schema.eurUserSubscriptions.scoreTarget, sub.scoreTarget),
+          ),
+        )
+        .limit(1);
+      if (conflict) {
+        await tx
+          .delete(schema.eurUserSubscriptions)
+          .where(eq(schema.eurUserSubscriptions.id, sub.id));
+      } else {
+        await tx
+          .update(schema.eurUserSubscriptions)
+          .set({ hqUserId: canonicalId, updatedAt: now })
+          .where(eq(schema.eurUserSubscriptions.id, sub.id));
+      }
+    }
+
+    const sourceDismissals = await tx
+      .select({
+        id: schema.inboxReminderDismissals.id,
+        itemId: schema.inboxReminderDismissals.itemId,
+      })
+      .from(schema.inboxReminderDismissals)
+      .where(eq(schema.inboxReminderDismissals.hqUserId, sourceId));
+
+    for (const dismissal of sourceDismissals) {
+      const [conflict] = await tx
+        .select({ id: schema.inboxReminderDismissals.id })
+        .from(schema.inboxReminderDismissals)
+        .where(
+          and(
+            eq(schema.inboxReminderDismissals.hqUserId, canonicalId),
+            eq(schema.inboxReminderDismissals.itemId, dismissal.itemId),
+          ),
+        )
+        .limit(1);
+      if (conflict) {
+        await tx
+          .delete(schema.inboxReminderDismissals)
+          .where(eq(schema.inboxReminderDismissals.id, dismissal.id));
+      } else {
+        await tx
+          .update(schema.inboxReminderDismissals)
+          .set({ hqUserId: canonicalId })
+          .where(eq(schema.inboxReminderDismissals.id, dismissal.id));
+      }
+    }
+
+    await tx
+      .update(schema.commanderStoreDonationReceipts)
+      .set({ donorHqUserId: canonicalId, updatedAt: now })
+      .where(eq(schema.commanderStoreDonationReceipts.donorHqUserId, sourceId));
+
+    await tx
+      .update(schema.commanderStoreTipLinks)
+      .set({ ownerHqUserId: canonicalId })
+      .where(eq(schema.commanderStoreTipLinks.ownerHqUserId, sourceId));
+
     const [canonicalRow] = await tx
-      .select({ ashedUserId: schema.hqUsers.ashedUserId })
+      .select({
+        ashedUserId: schema.hqUsers.ashedUserId,
+        passwordHash: schema.hqUsers.passwordHash,
+      })
       .from(schema.hqUsers)
       .where(eq(schema.hqUsers.id, canonicalId))
       .limit(1);
 
     const [sourceRow] = await tx
-      .select({ ashedUserId: schema.hqUsers.ashedUserId })
+      .select({
+        ashedUserId: schema.hqUsers.ashedUserId,
+        passwordHash: schema.hqUsers.passwordHash,
+      })
       .from(schema.hqUsers)
       .where(eq(schema.hqUsers.id, sourceId))
       .limit(1);
 
+    const userPatch: {
+      ashedUserId?: string;
+      passwordHash?: string;
+      updatedAt: Date;
+    } = { updatedAt: now };
+
     if (!canonicalRow?.ashedUserId && sourceRow?.ashedUserId) {
+      userPatch.ashedUserId = sourceRow.ashedUserId;
+    }
+    if (!canonicalRow?.passwordHash && sourceRow?.passwordHash) {
+      userPatch.passwordHash = sourceRow.passwordHash;
+    }
+
+    if (userPatch.ashedUserId !== undefined || userPatch.passwordHash !== undefined) {
       await tx
         .update(schema.hqUsers)
-        .set({ ashedUserId: sourceRow.ashedUserId, updatedAt: now })
+        .set(userPatch)
         .where(eq(schema.hqUsers.id, canonicalId));
     }
 
+    try {
+      await remapActivityOwnership(tx, sourceId, canonicalId);
+    } catch (error) {
+      if (error instanceof ActivityIdentityChangedError) {
+        throw error;
+      }
+      throw toActivityWriteError(error, "account.merged");
+    }
+
+    await remapKnowledgeUser(tx, sourceId, canonicalId);
     await tx.delete(schema.hqUsers).where(eq(schema.hqUsers.id, sourceId));
-  });
+  };
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await withActivityTransaction(mergeWork);
+      break;
+    } catch (error) {
+      if (!(error instanceof ActivityIdentityChangedError) || attempt === 2) {
+        throw error;
+      }
+    }
+  }
 
   const discordLink = await loadDiscordHqLink(canonicalId);
   if (discordLink) {

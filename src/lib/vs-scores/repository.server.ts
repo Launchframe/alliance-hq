@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
 import { computeQualityScore } from "@/lib/video/quality-score";
+import { recordConfirmedReview } from "@/lib/ocr/learning/feedback.server";
 import { evaluateVsWeek, parseVsScore, validateVsPeriod, vsWeekEndingDate, VsEvidenceError, type VsPeriod } from "./evidence.shared";
 
 export type VsTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -108,17 +109,25 @@ async function currentSyncStatus(tx: VsTransaction, allianceId: string, recorded
   return scope?.status === "synced" && scope.processedVersion === scope.requestedVersion ? "synced" : "pending";
 }
 
-export async function commitReviewedVsScores(input: {
+export type VsScoreCommitInput = {
   allianceId: string; hqUserId: string; jobId: string; parseSessionId: string | null;
   recordedDate: string; period: VsPeriod; expectedRevision?: number; requestId: string; rows: VsReviewRow[];
-}) {
+  automaticDeletedIds?: readonly string[]; humanDeletesKnown?: boolean;
+  additionalDigest?: unknown;
+};
+
+export async function commitReviewedVsScores(input: VsScoreCommitInput) {
+  return getDb().transaction((tx) => commitReviewedVsScoresTx(tx, input));
+}
+
+export async function commitReviewedVsScoresTx(tx: VsTransaction, input: VsScoreCommitInput) {
   if (!input.hqUserId) throw new VsEvidenceError("forbidden", 403);
   if (!validateVsPeriod(input.recordedDate, input.period)) throw new VsEvidenceError("invalid_period");
   if (!Array.isArray(input.rows) || !input.rows.length || input.rows.length > 300 || typeof input.requestId !== "string" || input.requestId.length < 8 || input.requestId.length > 100) throw new VsEvidenceError("invalid_rows");
   const active = input.rows.filter((row) => !row.deleted).map((row) => ({ ...row, scoreValue: parseVsScore(row.score) }));
   if (!active.length || active.some((row) => !row.memberId) || new Set(active.map((row) => row.memberId)).size !== active.length || new Set(input.rows.map((row) => row.id)).size !== input.rows.length) throw new VsEvidenceError("invalid_rows");
-  const digest = createHash("sha256").update(JSON.stringify([input.recordedDate, input.period, active.map((row) => [row.id, row.memberId, row.scoreValue, row.rank ?? null]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), input.rows.filter((row) => row.deleted).map((row) => row.id).sort()])).digest("hex");
-  return getDb().transaction(async (tx) => {
+  const digest = createHash("sha256").update(JSON.stringify([input.recordedDate, input.period, active.map((row) => [row.id, row.memberId, row.scoreValue, row.rank ?? null]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))), input.rows.filter((row) => row.deleted).map((row) => row.id).sort(), ...(input.additionalDigest === undefined ? [] : [input.additionalDigest])])).digest("hex");
+  {
     await lockAlliance(tx, input.allianceId);
     const [alliance] = await tx.select().from(schema.alliances).where(eq(schema.alliances.id, input.allianceId)).limit(1);
     const [job] = await tx.select().from(schema.videoJobs).where(eq(schema.videoJobs.id, input.jobId)).limit(1).for("update");
@@ -133,11 +142,11 @@ export async function commitReviewedVsScores(input: {
     const [receipt] = await tx.select().from(schema.vsScoreSubmissions).where(and(eq(schema.vsScoreSubmissions.allianceId, input.allianceId), eq(schema.vsScoreSubmissions.sourceJobId, input.jobId), eq(schema.vsScoreSubmissions.requestId, input.requestId))).limit(1);
     if (receipt) {
       if (receipt.digest !== digest || receipt.revision !== revision) throw new VsEvidenceError("stale", 409);
-      return { submitted: receipt.rowCount, batchId: receipt.batchId, vsRevision: receipt.revision, syncStatus: await currentSyncStatus(tx, input.allianceId, input.recordedDate, input.period, alliance.operatingMode === "ashed" && !!alliance.ashedAllianceId) };
+      return { replayed: true, submitted: receipt.rowCount, batchId: receipt.batchId, vsRevision: receipt.revision, syncStatus: await currentSyncStatus(tx, input.allianceId, input.recordedDate, input.period, alliance.operatingMode === "ashed" && !!alliance.ashedAllianceId) };
     }
     if (meta.vsRequestId === input.requestId) {
       if (meta.vsDigest !== digest) throw new VsEvidenceError("stale", 409);
-      return { submitted: previous!.rowCount, batchId: previous!.id, vsRevision: revision, syncStatus: await currentSyncStatus(tx, input.allianceId, input.recordedDate, input.period, alliance.operatingMode === "ashed" && !!alliance.ashedAllianceId) };
+      return { replayed: true, submitted: previous!.rowCount, batchId: previous!.id, vsRevision: revision, syncStatus: await currentSyncStatus(tx, input.allianceId, input.recordedDate, input.period, alliance.operatingMode === "ashed" && !!alliance.ashedAllianceId) };
     }
     if (revision > 0 && input.expectedRevision == null) throw new VsEvidenceError("stale", 409);
     if (input.expectedRevision != null && input.expectedRevision !== revision) throw new VsEvidenceError("stale", 409);
@@ -177,12 +186,22 @@ export async function commitReviewedVsScores(input: {
     }
     const metrics = { rowsSaved: active.length, rowsEdited, rowsDeleted: input.rows.filter((row) => row.deleted).length, rowsAdded: active.filter((row) => originals.get(row.id)?.manuallyAdded === 1).length };
     const quality = computeQualityScore({ ...metrics, status: "complete" });
-    await tx.update(schema.videoJobs).set({ status: "complete", recordedDate: input.recordedDate, updatedAt: now, ...buildReviewOutcomePatch({ reviewOpenedAt: job.reviewOpenedAt, endedAt: now, ...metrics, qualityScore: quality.qualityScore, qualityBucket: quality.qualityBucket }) }).where(eq(schema.videoJobs.id, input.jobId));
+    let ocrFeedbackId: string | null = null;
+    try {
+      ocrFeedbackId = await recordConfirmedReview(tx, {
+        allianceId: input.allianceId, jobId: input.jobId, parseSessionId: input.parseSessionId, scoreTarget: "vs-performance", hqUserId: input.hqUserId,
+        requestId: input.requestId, currentRows: parsed, automaticDeletedIds: input.automaticDeletedIds, humanDeletesKnown: input.humanDeletesKnown, recordedDate: input.recordedDate, period: input.period,
+        submittedRows: input.rows.map((row) => ({ ...row, memberName: row.memberId ? names.get(row.memberId) ?? null : null, score: row.deleted ? String(row.score ?? "") : String(parseVsScore(row.score)) })),
+      });
+    } catch (feedbackError) {
+      console.error("[vs-scores] recordConfirmedReview failed; VS commit will continue without feedback receipt", feedbackError);
+    }
+    await tx.update(schema.videoJobs).set({ status: "complete", ocrFeedbackReceiptId: ocrFeedbackId, recordedDate: input.recordedDate, updatedAt: now, ...buildReviewOutcomePatch({ reviewOpenedAt: job.reviewOpenedAt, endedAt: now, ...metrics, qualityScore: quality.qualityScore, qualityBucket: quality.qualityBucket }) }).where(eq(schema.videoJobs.id, input.jobId));
     await tx.update(schema.parseSessions).set({ status: "submitted", updatedAt: now }).where(eq(schema.parseSessions.id, input.parseSessionId));
     await tx.insert(schema.auditLog).values({ id: nanoid(), allianceId: input.allianceId, hqUserId: input.hqUserId, action: "vs.evidence.submit", resourceType: "video_job", resourceId: input.jobId, metadata: { batchId, revision: revision + 1, recordedDate: input.recordedDate, period: input.period, count: active.length } });
     await tx.insert(schema.vsScoreSubmissions).values({ id: nanoid(), allianceId: input.allianceId, sourceJobId: input.jobId, requestId: input.requestId, digest, batchId, revision: revision + 1, rowCount: active.length });
-    return { submitted: active.length, batchId, vsRevision: revision + 1, syncStatus: context.mirror ? "pending" : "local" };
-  });
+    return { replayed: false, submitted: active.length, batchId, vsRevision: revision + 1, syncStatus: context.mirror ? "pending" : "local" };
+  }
 }
 
 export async function listVsHeads(allianceId: string, input: { recordedDate?: string; dates?: string[]; period?: VsPeriod; batchId?: string; rawOnly?: boolean } = {}) {

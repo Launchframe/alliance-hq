@@ -5,12 +5,17 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
+import { assertE2eDatabaseUrl } from "./e2e-database-url-guard.mjs";
 import { getDatabaseUrlFromProcessEnv } from "./lib/database-url.mjs";
 
-config({ path: ".env" });
-config({ path: ".env.local" });
-if (process.env.NODE_ENV !== "production") {
-  config({ path: ".env.development.local" });
+if (process.env.HQ_E2E_ISOLATED !== "1") {
+  config({ path: ".env" });
+  config({ path: ".env.local" });
+  if (process.env.NODE_ENV !== "production") {
+    config({ path: ".env.development.local" });
+  }
+} else {
+  assertE2eDatabaseUrl(getDatabaseUrlFromProcessEnv());
 }
 
 /** Journal tag → on-disk SQL file (drizzle-kit names vs hand-renamed journal tags). */

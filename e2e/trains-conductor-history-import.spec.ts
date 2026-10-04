@@ -88,7 +88,7 @@ async function setupHistoryImportOfficer(
     },
     data: {
       weekStart: schedule.weekStart,
-      templateType: "vs_push_week",
+      templateId: "tmpl_preset_vs_push_week",
     },
   });
   expect(createWeekRes.ok(), await createWeekRes.text()).toBeTruthy();

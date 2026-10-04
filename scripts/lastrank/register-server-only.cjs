@@ -24,6 +24,7 @@ function resolveServerOnlyEmpty() {
 }
 
 const emptyJs = resolveServerOnlyEmpty();
+const navigationStub = path.join(__dirname, "next-navigation-stub.cjs");
 const original = Module._resolveFilename;
 Module._resolveFilename = function resolveServerOnly(
   request,
@@ -33,6 +34,10 @@ Module._resolveFilename = function resolveServerOnly(
 ) {
   if (request === "server-only") {
     return emptyJs;
+  }
+  // commander-identity → session imports next/navigation; stub for tsx CLI.
+  if (request === "next/navigation") {
+    return navigationStub;
   }
   return original.call(this, request, parent, isMain, options);
 };
