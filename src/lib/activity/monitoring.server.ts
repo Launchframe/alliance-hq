@@ -153,7 +153,7 @@ export async function dispatchActivityBlockedAlert(
           t("activity.alert.environment", { environment }),
           t("activity.alert.failure", { failure: error.failureCategory }),
           t("activity.alert.incident", { incident }),
-          t("activity.alert.logReference", { incidentId: error.incidentId }),
+          t("activity.alert.logReference", { incidentId: incident }),
           t("activity.alert.window", { window: windowStart }),
           t("activity.alert.nextStep"),
         ];
