@@ -43,7 +43,9 @@ export async function buildVsDailyAnnouncementPreview(input: {
   let reminderLines: string[] | undefined;
 
   if (isCalculatorDay(targetVsDay)) {
-    earnPointLines = topEarnPointLinesForDay(targetVsDay, catalog);
+    earnPointLines = topEarnPointLinesForDay(targetVsDay, catalog, {
+      locale,
+    });
   } else if (targetVsDay === 6) {
     // Buster Day (Saturday): no earn-points catalog. Reminder is computed
     // against targetDate (the announcement's Saturday), not `today` (the cron

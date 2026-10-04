@@ -1,6 +1,7 @@
 import type { VsCalculatorDayNumber } from "@/lib/vs-calculator/vs-calendar.shared";
 import type { VsPointsByDay } from "@/lib/vs-calculator/catalog-seed.shared";
 import { pointsForCatalogDay } from "@/lib/vs-calculator/catalog-seed.shared";
+import { tVsAnnouncement } from "@/lib/vs-calculator/vs-announcements-i18n.shared";
 
 export type VsInventoryQuantities = Record<string, number>;
 
@@ -48,8 +49,10 @@ export function catalogDefsForDay(
 export function topEarnPointLinesForDay(
   day: VsCalculatorDayNumber,
   defs: VsCatalogItemDef[],
-  limit = 5,
+  options?: { limit?: number; locale?: "en-US" | "pt-BR" },
 ): string[] {
+  const limit = options?.limit ?? 5;
+  const locale = options?.locale ?? "en-US";
   return catalogDefsForDay(day, defs)
     .map((def) => ({
       name: def.displayName,
@@ -57,12 +60,20 @@ export function topEarnPointLinesForDay(
     }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
     .slice(0, limit)
-    .map((row) => `${row.name} — ${formatVsPoints(row.points)} pts each`);
+    .map((row) =>
+      tVsAnnouncement(locale, "earnPointLine", {
+        name: row.name,
+        points: formatVsPoints(row.points, locale),
+      }),
+    );
 }
 
-export function formatVsPoints(value: number): string {
+export function formatVsPoints(
+  value: number,
+  locale: string = "en-US",
+): string {
   if (Number.isInteger(value)) {
-    return value.toLocaleString("en-US");
+    return value.toLocaleString(locale);
   }
-  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return value.toLocaleString(locale, { maximumFractionDigits: 2 });
 }

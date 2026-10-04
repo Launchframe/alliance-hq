@@ -5,6 +5,7 @@ import {
   catalogDefsForDay,
   lineScoreForItem,
   sumCapacityForDay,
+  topEarnPointLinesForDay,
 } from "@/lib/vs-calculator/capacity.shared";
 
 const defs = VS_CATALOG_SEED_ITEMS.map((item) => ({
@@ -43,5 +44,16 @@ describe("catalogDefsForDay", () => {
     const day1 = catalogDefsForDay(1, defs);
     expect(day1.some((d) => d.slug === "train_unit_lv6")).toBe(false);
     expect(day1.some((d) => d.slug === "drone_part")).toBe(true);
+  });
+});
+
+describe("topEarnPointLinesForDay", () => {
+  it("localizes earn-point lines for pt-BR", () => {
+    const lines = topEarnPointLinesForDay(1, defs, {
+      locale: "pt-BR",
+      limit: 1,
+    });
+    expect(lines[0]).toContain("pts cada");
+    expect(lines[0]).toContain("Radar intel");
   });
 });

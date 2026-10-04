@@ -79,7 +79,10 @@ export async function putCommanderVsInventory(input: {
   hqUserId: string;
   reason?: VsInventoryEventReason;
 }): Promise<VsInventoryQuantities> {
-  const sanitized = sanitizeQuantities(input.quantities);
+  const allowedSlugs = new Set(
+    (await listActiveVsCatalogDefs()).map((def) => def.slug),
+  );
+  const sanitized = sanitizeQuantities(input.quantities, allowedSlugs);
   const db = getDb();
   const existing = await getCommanderVsInventory(input.commanderId);
   const now = new Date();
@@ -145,7 +148,7 @@ export async function clearCommanderVsInventoryItem(input: {
     commanderId: input.commanderId,
     quantities: next,
     hqUserId: input.hqUserId,
-    reason: "vs_burn",
+    reason: "clear",
   });
 }
 
@@ -157,12 +160,15 @@ export async function loadShinyWeekdaysForAlliance(
 
 function sanitizeQuantities(
   quantities: VsInventoryQuantities,
+  allowedSlugs?: Set<string>,
 ): VsInventoryQuantities {
   const out: VsInventoryQuantities = {};
   for (const [slug, raw] of Object.entries(quantities)) {
+    const trimmed = slug.trim();
+    if (!trimmed || (allowedSlugs && !allowedSlugs.has(trimmed))) continue;
     const qty = Math.floor(Number(raw));
-    if (!slug.trim() || !Number.isFinite(qty) || qty <= 0) continue;
-    out[slug] = qty;
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    out[trimmed] = qty;
   }
   return out;
 }
