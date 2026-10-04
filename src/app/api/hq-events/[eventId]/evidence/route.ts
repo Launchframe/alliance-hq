@@ -60,11 +60,8 @@ export async function GET(request: Request, { params }: Props) {
       return NextResponse.json({ error: "event_not_found" }, { status: 404 });
     }
     return NextResponse.json(evidence);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "evidence_load_failed" },
-      { status: 500 },
-    );
+  } catch {
+    return NextResponse.json({ error: "evidence_load_failed" }, { status: 500 });
   }
 }
 

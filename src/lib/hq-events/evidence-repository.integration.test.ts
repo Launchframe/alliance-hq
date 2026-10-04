@@ -364,6 +364,30 @@ describe.skipIf(process.env.EVENT_EVIDENCE_DB_TEST !== "1")(
         ),
       ).rejects.toMatchObject({ code: "wrong_tenant_remote_row" });
 
+      base44JsonMock.mockResolvedValueOnce([
+        {
+          id: "r1",
+          member_id: "m1",
+          score: 10,
+          event_id: remoteEventId,
+          hq_event_id: "other-hq-event",
+        },
+      ]);
+      await expect(
+        importAshedEventEvidence(
+          actor,
+          connection,
+          {
+            eventId,
+            remoteEventId,
+            requestId: `req-${nanoid(8)}`,
+            submitEntity: "SeasonalEventScore",
+            classification: { kind: "real" },
+          },
+          { ashedAllianceId: "ashed-1" },
+        ),
+      ).rejects.toMatchObject({ code: "wrong_tenant_remote_row" });
+
       // Unconfirmed → staged, no observations, no results.
       base44JsonMock.mockResolvedValueOnce([
         { id: "r1", member_id: "m1", member_name: "P1", score: 2000, event_id: remoteEventId },

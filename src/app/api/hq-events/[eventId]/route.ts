@@ -63,10 +63,7 @@ export async function GET(request: Request, { params }: Props) {
       boards: evidence?.boards ?? [],
       resultsCount: evidence?.results.length ?? 0,
     });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "event_load_failed" },
-      { status: 500 },
-    );
+  } catch {
+    return NextResponse.json({ error: "event_load_failed" }, { status: 500 });
   }
 }

@@ -99,6 +99,7 @@ function validateRemoteRows(input: {
   rows: RawAshedScoreRow[];
   ashedAllianceId: string;
   remoteEventId: string;
+  hqEventId: string;
   submitEntity: string;
 }): RawAshedScoreRow[] {
   for (const row of input.rows) {
@@ -108,10 +109,9 @@ function validateRemoteRows(input: {
     if (row.event_id != null && row.event_id !== input.remoteEventId) {
       throw new AshedImportError("wrong_tenant_remote_row");
     }
-    if (row.hq_event_id != null) {
+    if (row.hq_event_id != null && row.hq_event_id !== input.hqEventId) {
       // Rows stamped with an HQ event id must point at this occurrence.
-      // (A foreign HQ id is a cross-tenant leak.)
-      if (!row.id) throw new AshedImportError("invalid_remote_row");
+      throw new AshedImportError("wrong_tenant_remote_row");
     }
     if (row.member_id == null || row.member_id === "") {
       throw new AshedImportError("invalid_remote_row");
@@ -259,6 +259,7 @@ export async function importAshedEventEvidence(
     rows,
     ashedAllianceId: options.ashedAllianceId,
     remoteEventId: input.remoteEventId,
+    hqEventId: event.id,
     submitEntity: input.submitEntity,
   });
 
