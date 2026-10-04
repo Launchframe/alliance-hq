@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 
 import { nanoid } from "nanoid";
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 
 import {
   addCalendarDays,
@@ -1137,6 +1142,34 @@ test.describe("VS weekly planner UI", () => {
     await expect(page.getByTestId("weekly-vs-plan").locator("visible=true")).toBeVisible();
   });
 
+  async function clientNavigateVsWeek(page: Page, week: string) {
+    await page.evaluate((targetWeek) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", targetWeek);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }, week);
+  }
+
+  async function waitForVsWeekClientFetch(
+    page: Page,
+    week: string,
+    readCalls: () => number,
+    timeoutMs = 30_000,
+  ) {
+    await expect
+      .poll(
+        async () => {
+          if (readCalls() === 0) {
+            await clientNavigateVsWeek(page, week);
+          }
+          return readCalls();
+        },
+        { timeout: timeoutMs },
+      )
+      .toBeGreaterThan(0);
+  }
+
   async function attachSecondAlliance(sessionId: string, hqUserId: string) {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
@@ -1301,27 +1334,18 @@ test.describe("VS weekly planner UI", () => {
         body: JSON.stringify(aPayload),
       });
     });
+    await page.goto("/en-US/vs-performance");
+    await expect(page.getByText("Foe Alliance").first()).toBeVisible();
     await page.route(
       (url) => url.search.includes("_rsc="),
       () => new Promise(() => {}),
     );
-    await page.goto("/en-US/vs-performance");
-    await expect(page.getByText("Foe Alliance").first()).toBeVisible();
-    await page.evaluate((week) => {
-      const url = new URL(window.location.href);
-      url.searchParams.set("week", week);
-      window.history.pushState({}, "", `${url.pathname}${url.search}`);
-    }, nextWeek);
-    await expect.poll(() => apiCalls, { timeout: 30_000 }).toBe(1);
+    await waitForVsWeekClientFetch(page, nextWeek, () => apiCalls);
     await attachSecondAlliance(
       scenario.officer.sessionId,
       scenario.officer.hqUserId,
     );
-    await page.evaluate((week) => {
-      const url = new URL(window.location.href);
-      url.searchParams.set("week", week);
-      window.history.pushState({}, "", `${url.pathname}${url.search}`);
-    }, currentWeek);
+    await clientNavigateVsWeek(page, currentWeek);
     const lateResponse = page.waitForResponse((res) =>
       res.url().includes(`weekStart=${nextWeek}`),
     );
