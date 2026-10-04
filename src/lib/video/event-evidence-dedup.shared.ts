@@ -52,6 +52,10 @@ export type WarzoneDedupResult = {
    * the same way conflicts are.
    */
   reviewFlags: string[];
+  /** Leaderboard sightings dropped for carrying a foreign alliance tag. */
+  tagFilteredRows: number;
+  /** Whether the job's own alliance tag was read on any leaderboard row. */
+  ownTagObserved: boolean;
 };
 
 /**
@@ -138,6 +142,28 @@ export function dedupeWarzoneEvidence(
   const pollClusters: Cluster[] = [];
   const order: WarzoneParsedRow[] = [];
 
+  // Foreign-tag filtering happens here — after seeing every frame — rather
+  // than in the per-frame parser: a stored tag can be stale or mismatch the
+  // in-game rendering, and dropping a correctly-read member is silent data
+  // loss. Only when the own tag is actually observed on some leaderboard
+  // row do other tags count as foreign; otherwise every row is kept and
+  // roster matching/review sorts it out.
+  const ownTag =
+    options?.allianceTag?.replace(/[\[\]]/g, "").toUpperCase() ?? null;
+  let ownTagObserved = false;
+  if (ownTag != null) {
+    ownTagObserved = frames.some(
+      (fr) =>
+        fr.frame.kind === "leaderboard" &&
+        fr.frame.entries.some(
+          (entry) =>
+            entry.allianceTag != null &&
+            entry.allianceTag.replace(/[\[\]]/g, "").toUpperCase() === ownTag,
+        ),
+    );
+  }
+  let tagFilteredRows = 0;
+
   /**
    * Prefer the cleaner variant: a plausible ≥3-char first token beats a
    * glyph-prefix one, then fewer noise tokens, then more name characters.
@@ -220,6 +246,14 @@ export function dedupeWarzoneEvidence(
     const mismatch = frameResult.formatMismatch;
     if (frame.kind === "leaderboard") {
       for (const entry of frame.entries) {
+        // A row carrying a confidently-read foreign tag is not our member —
+        // but only once the own tag was observed somewhere in the job.
+        const entryTag =
+          entry.allianceTag?.replace(/[\[\]]/g, "").toUpperCase() ?? null;
+        if (ownTag != null && ownTagObserved && entryTag != null && entryTag !== ownTag) {
+          tagFilteredRows++;
+          continue;
+        }
         // A name-only sighting (no score, rank, or tag) carries no
         // syncable evidence — it is card-splitting noise.
         if (
@@ -493,5 +527,7 @@ export function dedupeWarzoneEvidence(
     conflicts,
     pollConflicts,
     reviewFlags: [...reviewFlags],
+    tagFilteredRows,
+    ownTagObserved,
   };
 }

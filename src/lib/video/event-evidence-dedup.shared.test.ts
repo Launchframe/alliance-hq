@@ -259,3 +259,76 @@ describe("dedupeWarzoneEvidence fragment merging", () => {
     }
   });
 });
+
+describe("dedupeWarzoneEvidence foreign-tag filtering", () => {
+  const lbTag = (
+    name: string,
+    score: string | null,
+    tag: string | null,
+  ): {
+    name: string;
+    allianceTag: string | null;
+    actualScore: string | null;
+    observedRank: number | null;
+    crop: null;
+  } => ({ name, allianceTag: tag, actualScore: score, observedRank: null, crop: null });
+
+  it("drops foreign-tag rows only when the own tag was observed", () => {
+    const result = dedupeWarzoneEvidence(
+      [
+        frameResult({
+          kind: "leaderboard",
+          entries: [
+            lbTag("CAIPIRA", "15421010", "LFgo"),
+            lbTag("Enemy Two", "9000000", "FOE"),
+            lbTag("NoTag Member", "8000000", null),
+          ],
+        }),
+      ],
+      { allianceTag: "LFgo" },
+    );
+    expect(result.ownTagObserved).toBe(true);
+    expect(result.tagFilteredRows).toBe(1);
+    expect(result.rows.map((r) => r.ocrName)).toEqual([
+      "CAIPIRA",
+      "NoTag Member",
+    ]);
+  });
+
+  it("keeps every row when the own tag is never observed (stored tag stale)", () => {
+    const result = dedupeWarzoneEvidence(
+      [
+        frameResult({
+          kind: "leaderboard",
+          entries: [
+            lbTag("CAIPIRA", "15421010", "LFgo"),
+            lbTag("Freddy", "11808745", "LFgo"),
+          ],
+        }),
+      ],
+      { allianceTag: "WZSM" },
+    );
+    expect(result.ownTagObserved).toBe(false);
+    expect(result.tagFilteredRows).toBe(0);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it("keeps every row when no own tag is configured", () => {
+    const result = dedupeWarzoneEvidence(
+      [
+        frameResult({
+          kind: "leaderboard",
+          entries: [
+            lbTag("CAIPIRA", "15421010", "LFgo"),
+            lbTag("Enemy Two", "9000000", "FOE"),
+          ],
+        }),
+      ],
+      { allianceTag: null },
+    );
+    expect(result.ownTagObserved).toBe(false);
+    expect(result.tagFilteredRows).toBe(0);
+    expect(result.rows).toHaveLength(2);
+  });
+});
+

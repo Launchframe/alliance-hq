@@ -435,17 +435,15 @@ export function parseWarzoneLeaderboardLines(
     }
   }
 
-  // Foreign-tag filtering: a row carrying a different alliance tag is not
-  // our member — drop it. Tag-less rows stay (reviewer decides).
-  const own = candidates.filter(
-    (row) => row.tag == null || ownTag == null || row.tag.toUpperCase() === ownTag,
-  );
+  // Foreign-tag rows are NOT dropped here — dedupeWarzoneEvidence filters
+  // them only when the own tag was actually observed in the job, so a stale
+  // stored tag can never silently discard correctly-read members.
 
   // Pinned self-row dedup: the same (name, score) tuple appearing twice —
   // the lower copy is the pinned duplicate.
   const seen = new Set<string>();
   const entries: WarzoneLeaderboardEntry[] = [];
-  for (const row of own) {
+  for (const row of candidates) {
     const key = `${row.name.toLowerCase()}|${row.score ?? "?"}`;
     if (row.pinned && seen.has(key)) continue;
     seen.add(key);
@@ -961,12 +959,11 @@ async function parseLeaderboardFromCards(
     });
   }
 
-  // A row carrying a different alliance tag is not our member.
-  const own = entries.filter(
-    (row) => row.allianceTag == null || ownTag == null || row.allianceTag.toUpperCase() === ownTag,
-  );
-  flagNonMonotonicLeaderboard(own);
-  return own;
+  // Foreign-tag rows are NOT dropped here — a single frame cannot tell
+  // whether the tag or the stored own tag is wrong. dedupeWarzoneEvidence
+  // sees every frame and filters once it knows the own tag was observed.
+  flagNonMonotonicLeaderboard(entries);
+  return entries;
 }
 
 const POLL_HEADER_NAME_NOISE =

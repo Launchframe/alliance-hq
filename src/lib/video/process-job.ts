@@ -309,6 +309,8 @@ export async function processVideoJob(
   let denseFrameCount: number | null = null;
   let framesSkipped: number | null = null;
   let totalRawOcrRows: number | null = null;
+  let tagFilteredRows: number | null = null;
+  let ownTagObserved: boolean | null = null;
   let learningEntries: OcrEntry[] = [];
   let learningSourceSha256: string | null = null;
   let learningSourceKind: "original_video" | "playback_archive" | "unknown" = "unknown";
@@ -881,6 +883,8 @@ export async function processVideoJob(
       );
       const deduped = dedupeWarzoneEvidence(warzoneFrames, { allianceTag });
       rowCount = deduped.rows.length;
+      tagFilteredRows = deduped.tagFilteredRows;
+      ownTagObserved = deduped.ownTagObserved;
       unresolvedConflicts = [
         ...deduped.conflicts,
         ...deduped.pollConflicts,
@@ -1404,6 +1408,8 @@ export async function processVideoJob(
       denseFrameCount: denseFrameCount ?? null,
       framesSkipped: framesSkipped ?? null,
       totalRawOcrRows,
+      tagFilteredRows,
+      ownTagObserved,
     };
 
     // More deposit-slip OCR chunks remain — requeued for cron; next slice resumes
