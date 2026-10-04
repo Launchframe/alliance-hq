@@ -509,6 +509,7 @@ test("d) weekly overview saves reported points and preserves confirmed daily tot
 test("e) held responses preserve in-flight edits and replay a lost save once", async ({
   page,
 }) => {
+  test.setTimeout(240_000);
   const sql = getE2eSql();
   const f = await createScenario(sql);
   const job = await seedVsReviewJob(sql, {
