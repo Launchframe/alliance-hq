@@ -229,19 +229,24 @@ export function dedupeWarzoneEvidence(
         ) {
           continue;
         }
+        // Rank is informational only — a rank inconsistency nulls the
+        // rank but never flags the row for review.
+        const rankOnly =
+          entry.reviewReason === "rank_not_increasing" ||
+          entry.reviewReason === "rank_disagreement";
         const row: WarzoneParsedRow = {
           ocrName: entry.name,
           kind: "leaderboard",
           pollOption: null,
           realScore: entry.actualScore,
-          observedRank: entry.observedRank,
+          observedRank: rankOnly ? null : entry.observedRank,
           frameIndex: frameResult.frameIndex,
           videoTimestampSeconds: frameResult.videoTimestampSeconds,
           crop: entry.crop,
           formatMismatch: mismatch,
           unresolvedOption: false,
-          reviewReason: entry.reviewReason ?? null,
-          needsReview: entry.reviewReason != null,
+          reviewReason: rankOnly ? null : (entry.reviewReason ?? null),
+          needsReview: !rankOnly && entry.reviewReason != null,
         };
         const unknownName = entry.name === "?" || !entry.name.trim();
         // "?" rows key on their score so same-score sightings merge but
@@ -383,6 +388,7 @@ export function dedupeWarzoneEvidence(
       conflicts.push(cluster.displayName);
       for (const list of byScore.values()) {
         list[0]!.needsReview = true;
+        list[0]!.reviewReason = list[0]!.reviewReason ?? "score_conflict";
       }
     }
     // Rows whose score never read merge into the largest scored group —
@@ -407,9 +413,9 @@ export function dedupeWarzoneEvidence(
       const ranks = new Set(list.map((row) => row.observedRank ?? -1));
       const kept = list[0]!;
       if (ranks.size > 1) {
+        // Rank disagreement is informational — drop the rank, keep the
+        // row unflagged.
         kept.observedRank = null;
-        kept.needsReview = true;
-        kept.reviewReason = kept.reviewReason ?? "rank_disagreement";
       }
       kept.ocrName = cluster.displayName;
       const reason = list.find((row) => row.reviewReason)?.reviewReason;

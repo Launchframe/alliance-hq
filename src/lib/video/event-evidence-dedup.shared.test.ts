@@ -218,6 +218,35 @@ describe("dedupeWarzoneEvidence fragment merging", () => {
     expect(rows[0]!.observedRank).toBeNull();
   });
 
+  it("nulls a rank-only inconsistency without flagging the row", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [
+          {
+            name: "Richie",
+            allianceTag: "LFgo",
+            actualScore: "7938672",
+            observedRank: 4,
+            crop: null,
+            reviewReason: "rank_not_increasing",
+          },
+        ],
+      }),
+      frameResult(
+        {
+          kind: "leaderboard",
+          entries: [lb("Richie", "7938672", 77)],
+        },
+        1,
+      ),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.observedRank).toBeNull();
+    expect(rows[0]!.needsReview).toBe(false);
+    expect(rows[0]!.reviewReason).toBeNull();
+  });
+
   it("flags two distinct names claiming the same score", () => {
     const { rows } = dedupeWarzoneEvidence([
       frameResult({ kind: "leaderboard", entries: [lb("Anytime KO", "8664604")] }),
