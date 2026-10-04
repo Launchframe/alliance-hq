@@ -880,7 +880,11 @@ export async function processVideoJob(
       );
       const deduped = dedupeWarzoneEvidence(warzoneFrames, { allianceTag });
       rowCount = deduped.rows.length;
-      unresolvedConflicts = [...deduped.conflicts, ...deduped.pollConflicts];
+      unresolvedConflicts = [
+        ...deduped.conflicts,
+        ...deduped.pollConflicts,
+        ...deduped.reviewFlags,
+      ];
 
       const members = await timer.measureStep("hq.list_members", () =>
         loadMembersForApiContext({
@@ -948,11 +952,11 @@ export async function processVideoJob(
             memberName: match.memberName,
             matchConfidence: match.confidence,
             matchMethod: match.matchMethod,
-            scoreConflict: conflictKeys.has(
-              sanitizedNameKey(row.ocrName, allianceTag),
-            )
-              ? 1
-              : 0,
+            scoreConflict:
+              row.needsReview ||
+              conflictKeys.has(sanitizedNameKey(row.ocrName, allianceTag))
+                ? 1
+                : 0,
             frameIndex: row.frameIndex,
             eventEvidence: {
               kind: row.kind,
@@ -962,6 +966,7 @@ export async function processVideoJob(
               videoTimestampSeconds: row.videoTimestampSeconds,
               formatMismatch: row.formatMismatch,
               unresolvedOption: row.unresolvedOption,
+              reviewReason: row.reviewReason,
             },
             deleted: 0,
             edited: 0,

@@ -116,3 +116,117 @@ describe("dedupeWarzoneEvidence", () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe("dedupeWarzoneEvidence fragment merging", () => {
+  const lb = (
+    name: string,
+    score: string | null,
+    rank: number | null = null,
+  ): {
+    name: string;
+    allianceTag: string | null;
+    actualScore: string | null;
+    observedRank: number | null;
+    crop: null;
+  } => ({
+    name,
+    allianceTag: "LFgo",
+    actualScore: score,
+    observedRank: rank,
+    crop: null,
+  });
+
+  it("merges name fragments sharing one score into a single row", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({ kind: "leaderboard", entries: [lb("2Bogs", "78091")] }),
+      frameResult(
+        { kind: "leaderboard", entries: [lb("TIEq c2Bogs", "78091")] },
+        1,
+      ),
+      frameResult({ kind: "leaderboard", entries: [lb("Bogs pe", "78091")] }, 2),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.realScore).toBe("78091");
+  });
+
+  it("merges a long-name two-edit misread on leaderboard rows", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [lb("orhsorbsorhs", "10158126")],
+      }),
+      frameResult(
+        { kind: "leaderboard", entries: [lb("orbsorbsorbs", null, 46)] },
+        1,
+      ),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.realScore).toBe("10158126");
+    expect(rows[0]!.observedRank).toBe(46);
+  });
+
+  it("absorbs a ? row onto the named cluster carrying its score", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({ kind: "leaderboard", entries: [lb("?", "9574146")] }),
+      frameResult(
+        { kind: "leaderboard", entries: [lb("STIHCH", "9574146")] },
+        1,
+      ),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.ocrName).toBe("STIHCH");
+    expect(rows[0]!.realScore).toBe("9574146");
+  });
+
+  it("drops name-only sightings that carry no score, rank, or tag", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [
+          {
+            name: "BEES",
+            allianceTag: null,
+            actualScore: null,
+            observedRank: null,
+            crop: null,
+          },
+          lb("ST1tCH", "9574146", 54),
+        ],
+      }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.ocrName).toBe("ST1tCH");
+  });
+
+  it("never emits a rank on a review-flagged row", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [
+          {
+            name: "CRAZYNHO",
+            allianceTag: "LFgo",
+            actualScore: "1405985",
+            observedRank: 7,
+            crop: null,
+            reviewReason: "score_not_monotonic",
+          },
+        ],
+      }),
+    ]);
+    expect(rows[0]!.needsReview).toBe(true);
+    expect(rows[0]!.observedRank).toBeNull();
+  });
+
+  it("flags two distinct names claiming the same score", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({ kind: "leaderboard", entries: [lb("Anytime KO", "8664604")] }),
+      frameResult({ kind: "leaderboard", entries: [lb("res MIN", "8664604")] }, 1),
+    ]);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.needsReview).toBe(true);
+      expect(row.reviewReason).toBe("duplicate_score");
+    }
+  });
+});

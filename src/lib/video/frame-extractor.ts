@@ -164,6 +164,23 @@ export function buildSceneSelectFilter(
   return `select='${triggers.join("+")}'`;
 }
 
+/**
+ * Fps used when scene detection fails or yields almost nothing: sample
+ * denser than the configured baseline (~4 fps for short clips) so
+ * fast-scrolled rows are not skipped, bounded to `cap` total frames.
+ */
+export function fallbackSampleFpsForDuration(
+  sampleFps: number,
+  videoDurationSeconds: number | null,
+  cap = 60,
+): number {
+  const target = 4;
+  if (videoDurationSeconds == null || videoDurationSeconds <= 0) {
+    return Math.max(sampleFps, target);
+  }
+  return Math.max(sampleFps, Math.min(target, cap / videoDurationSeconds));
+}
+
 /** Frame interval for periodic sampling at a target fps given source fps. */
 export function supplementFrameIntervalForFps(
   videoFps: number | null,
@@ -444,6 +461,7 @@ export async function extractLeaderboardFrames(
 
   let mode: FrameExtractMode = config.mode === "fps" ? "fps" : "scene";
   let lastStderr = "";
+  let effectiveSampleFps = sampleFps;
 
   // If config requests fps-only mode, skip scene detection entirely
   if (config.mode === "fps") {
@@ -501,16 +519,21 @@ export async function extractLeaderboardFrames(
       });
 
       const fallbackStarted = Date.now();
+      const denseFallbackFps = fallbackSampleFpsForDuration(
+        sampleFps,
+        videoDurationSeconds,
+      );
+      effectiveSampleFps = denseFallbackFps;
       try {
         const fallback = await runFfmpegExtract(
           ffmpeg,
           videoPath,
           pattern,
-          `fps=${sampleFps}`,
+          `fps=${denseFallbackFps}`,
         );
         lastStderr = fallback.stderr;
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
-          fps: sampleFps,
+          fps: denseFallbackFps,
           reason: "scene_detect_error",
           frameCount: (await listExtractedFrameFiles(tmpDir)).length,
         });
@@ -560,7 +583,7 @@ export async function extractLeaderboardFrames(
     rawFrames,
     lastStderr,
     mode,
-    sampleFps,
+    effectiveSampleFps,
   );
 
   if (mode === "scene") {
@@ -578,17 +601,29 @@ export async function extractLeaderboardFrames(
       mergedFrameCount: frames.length,
     });
 
-    // Fall back to fps when scene motion + bookends still yield almost nothing.
-    if (frames.length <= 1) {
+    // Fall back to fps when scene motion + bookends still yield almost
+    // nothing — or, for short clips, fewer than ~2 frames per second,
+    // which misses members on a fast scroll.
+    if (
+      frames.length <= 1 ||
+      (videoDurationSeconds != null &&
+        videoDurationSeconds <= 30 &&
+        frames.length < videoDurationSeconds * 2)
+    ) {
       mode = "fps";
       const fallbackStarted = Date.now();
+      const denseFallbackFps = fallbackSampleFpsForDuration(
+        sampleFps,
+        videoDurationSeconds,
+      );
+      effectiveSampleFps = denseFallbackFps;
       await fs.rm(tmpDir, { recursive: true, force: true });
       await fs.mkdir(tmpDir, { recursive: true });
       const fallback = await runFfmpegExtract(
         ffmpeg,
         videoPath,
         pattern,
-        `fps=${sampleFps}`,
+        `fps=${denseFallbackFps}`,
       );
       lastStderr = fallback.stderr;
       const fallbackFiles = await listExtractedFrameFiles(tmpDir);
@@ -602,7 +637,7 @@ export async function extractLeaderboardFrames(
         fallbackRaw,
         lastStderr,
         mode,
-        sampleFps,
+        effectiveSampleFps,
       );
       logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
         fps: sampleFps,

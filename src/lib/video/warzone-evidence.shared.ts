@@ -75,6 +75,11 @@ export type WarzoneLeaderboardEntry = {
   crop: WarzoneCropRegion | null;
   /** True for the green pinned "self" row duplicated at the bottom. */
   pinned?: boolean;
+  /**
+   * Consistency flag (e.g. `score_not_monotonic`) — the row stays in the
+   * result but must be review-required rather than silently accepted.
+   */
+  reviewReason?: string | null;
 };
 
 /** One poll row — name only; the option is carried per frame. */
@@ -156,6 +161,8 @@ export const warzoneReviewRowSchema = z.object({
   videoTimestampSeconds: z.number().nullable().optional(),
   /** True when the detected layout contradicted the manual format choice. */
   formatMismatch: z.boolean().optional(),
+  /** Consistency flag carried into review (e.g. `score_not_monotonic`). */
+  reviewReason: z.string().nullable().optional(),
 });
 
 export type WarzoneReviewRow = z.infer<typeof warzoneReviewRowSchema>;

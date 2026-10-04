@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectPollOption,
   detectWarzoneLayout,
+  flagNonMonotonicLeaderboard,
   parseWarzoneExtractResult,
   parseWarzoneFrameLines,
   parseWarzoneLeaderboardLines,
@@ -321,5 +322,70 @@ describe("parseWarzoneExtractResult (Ashed provider contract)", () => {
       kind: "unknown",
       reason: "unrecognized_layout",
     });
+  });
+});
+
+describe("flagNonMonotonicLeaderboard", () => {
+  const row = (
+    top: number,
+    score: string | null,
+    rank: number | null,
+  ): Parameters<typeof flagNonMonotonicLeaderboard>[0][number] => ({
+    name: "M",
+    allianceTag: null,
+    actualScore: score,
+    observedRank: rank,
+    crop: { left: 0, top, width: 100, height: 10 },
+  });
+
+  it("flags a score that rises down the table", () => {
+    const entries = [row(0, "1000", null), row(20, "2000", null)];
+    flagNonMonotonicLeaderboard(entries);
+    expect(entries[0]!.reviewReason).toBe("score_not_monotonic");
+    expect(entries[1]!.reviewReason).toBe("score_not_monotonic");
+  });
+
+  it("flags a rank below the running maximum even across unreadable rows", () => {
+    const entries = [
+      row(0, null, 54),
+      row(20, null, null),
+      row(40, null, 7),
+      row(60, null, 87),
+    ];
+    flagNonMonotonicLeaderboard(entries);
+    expect(entries[2]!.reviewReason).toBe("rank_not_increasing");
+    expect(entries[0]!.reviewReason).toBeUndefined();
+    expect(entries[3]!.reviewReason).toBeUndefined();
+  });
+
+  it("flags a top-of-list rank that contradicts the majority ordering", () => {
+    // Truncated read: 52 → 28 sits above 5x/8x ranks and disagrees with
+    // more than half of its peers.
+    const entries = [
+      row(0, null, 28),
+      row(20, null, 5),
+      row(40, null, 54),
+      row(60, null, 4),
+      row(80, null, 7),
+      row(100, null, 87),
+    ];
+    flagNonMonotonicLeaderboard(entries);
+    expect(entries[0]!.reviewReason).toBe("rank_not_increasing");
+    expect(entries[3]!.reviewReason).toBe("rank_not_increasing");
+    expect(entries[4]!.reviewReason).toBe("rank_not_increasing");
+    expect(entries[2]!.reviewReason).toBeUndefined();
+    expect(entries[5]!.reviewReason).toBeUndefined();
+  });
+
+  it("flags a score truncated far below the column's digit count", () => {
+    const entries = [
+      row(0, "9620844", null),
+      row(20, "9574146", null),
+      row(40, "7882603", null),
+      row(60, "78091", null),
+    ];
+    flagNonMonotonicLeaderboard(entries);
+    expect(entries[3]!.reviewReason).toBe("score_digit_anomaly");
+    expect(entries[0]!.reviewReason).toBeUndefined();
   });
 });
