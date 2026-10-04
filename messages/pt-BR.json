@@ -8400,7 +8400,6 @@
     "importIncomplete": "A importação está incompleta. Estes resultados ainda não podem ser marcados como prontos.",
     "changedEventReview": "Mudar o evento limpa as seleções de evidência não salvas. Continuar?",
     "actionFailed": "Não foi possível concluir esta ação. Seus resultados salvos não foram alterados.",
-    "permissionRequired": "Você não tem permissão para alterar os resultados deste evento.",
     "emptyCatalog": "Ainda não há eventos.",
     "importFromAshed": "Importar do Ashed",
     "batches": "Lotes de evidência",

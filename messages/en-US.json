@@ -8400,7 +8400,6 @@
     "importIncomplete": "The import is incomplete. These results cannot be marked ready yet.",
     "changedEventReview": "Changing the event clears unsaved evidence selections. Continue?",
     "actionFailed": "Could not complete this action. Your saved results are unchanged.",
-    "permissionRequired": "You do not have permission to change these event results.",
     "emptyCatalog": "No events yet.",
     "importFromAshed": "Import from Ashed",
     "batches": "Evidence batches",

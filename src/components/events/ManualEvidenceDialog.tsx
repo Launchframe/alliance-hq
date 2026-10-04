@@ -40,6 +40,7 @@ export function ManualEvidenceDialog({
   const t = useTranslations("eventEvidence");
   const tTrains = useTranslations("trains.wheel");
   const tMembers = useTranslations("members");
+  const tVsErrors = useTranslations("vsPerformance.errors");
   const tActions = useTranslations("vsPerformance.actions");
 
   const [roster, setRoster] = useState<AshedMember[] | null>(null);
@@ -123,7 +124,7 @@ export function ManualEvidenceDialog({
       if (!res.ok) {
         setError(
           res.status === 403
-            ? t("permissionRequired")
+            ? tVsErrors("forbidden")
             : t("actionFailed"),
         );
         return;

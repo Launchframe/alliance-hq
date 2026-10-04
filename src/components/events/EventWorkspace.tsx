@@ -104,6 +104,7 @@ export function EventWorkspace({
   const tVideo = useTranslations("videoReview");
   const tCommon = useTranslations("common");
   const tActions = useTranslations("vsPerformance.actions");
+  const tVsErrors = useTranslations("vsPerformance.errors");
   const locale = useLocale();
 
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -150,7 +151,7 @@ export function EventWorkspace({
       .catch((e) =>
         setError(
           e?.message === "Forbidden"
-            ? t("permissionRequired")
+            ? tVsErrors("forbidden")
             : t("actionFailed"),
         ),
       );
@@ -266,7 +267,7 @@ export function EventWorkspace({
       if (!res.ok) {
         setError(
           res.status === 403
-            ? t("permissionRequired")
+            ? tVsErrors("forbidden")
             : t("actionFailed"),
         );
         return;
