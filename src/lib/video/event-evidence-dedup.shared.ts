@@ -487,6 +487,31 @@ export function dedupeWarzoneEvidence(
       row.observedRank = null;
     }
   }
+  // observedRank is informational only: the in-game board is top-100 and a
+  // member's global rank cannot be smaller than their 1-based position
+  // among our scored rows (unlisted members ahead of them only raise that
+  // bound). Anything outside is OCR noise — null it, never flag the row.
+  const scoredRows = finalRows
+    .filter((row) => row.kind === "leaderboard" && row.realScore != null)
+    .sort((a, b) => {
+      const ai = BigInt(a.realScore!);
+      const bi = BigInt(b.realScore!);
+      return ai === bi ? 0 : ai > bi ? -1 : 1;
+    });
+  const positionByRow = new Map<WarzoneParsedRow, number>();
+  scoredRows.forEach((row, i) => positionByRow.set(row, i + 1));
+  for (const row of finalRows) {
+    if (row.kind !== "leaderboard" || row.observedRank == null) continue;
+    const position = positionByRow.get(row) ?? scoredRows.length;
+    if (
+      row.observedRank < 1 ||
+      row.observedRank > 100 ||
+      row.observedRank < position
+    ) {
+      row.observedRank = null;
+    }
+  }
+
   for (const row of finalRows) {
     if (row.reviewReason) {
       reviewFlags.add(

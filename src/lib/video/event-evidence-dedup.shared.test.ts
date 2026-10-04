@@ -332,3 +332,60 @@ describe("dedupeWarzoneEvidence foreign-tag filtering", () => {
   });
 });
 
+describe("dedupeWarzoneEvidence implausible ranks", () => {
+  const lb = (
+    name: string,
+    score: string | null,
+    rank: number | null = null,
+  ): {
+    name: string;
+    allianceTag: string | null;
+    actualScore: string | null;
+    observedRank: number | null;
+    crop: null;
+  } => ({ name, allianceTag: "LFgo", actualScore: score, observedRank: rank, crop: null });
+
+  it("nulls a rank above the in-game top-100 without flagging", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [lb("Bat Pig", "7605222", 817)],
+      }),
+    ]);
+    expect(rows[0]!.observedRank).toBeNull();
+    expect(rows[0]!.needsReview).toBe(false);
+  });
+
+  it("nulls a rank below the member's position among our scored rows", () => {
+    const entries = [
+      lb("P1", "100", null),
+      lb("P2", "90", null),
+      lb("P3", "80", null),
+      lb("P4", "70", null),
+      lb("P5", "60", null),
+      lb("P6", "50", null),
+      lb("P7", "40", null),
+      lb("XxxTwiztedxxX", "30", 2),
+    ];
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({ kind: "leaderboard", entries }),
+    ]);
+    const row = rows.find((r) => r.ocrName === "XxxTwiztedxxX")!;
+    expect(row.observedRank).toBeNull();
+    expect(row.needsReview).toBe(false);
+  });
+
+  it("keeps a plausible rank", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [
+          lb("P1", "100", null),
+          lb("DENIZ 1", "90", 12),
+        ],
+      }),
+    ]);
+    const row = rows.find((r) => r.ocrName === "DENIZ 1")!;
+    expect(row.observedRank).toBe(12);
+  });
+});
