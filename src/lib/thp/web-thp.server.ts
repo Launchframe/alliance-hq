@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { ActivityPrincipal } from "@/lib/activity/access.server";
+import { ActivityWriteError } from "@/lib/activity/errors.server";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { isThpConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
@@ -21,19 +23,53 @@ import {
   getHqThpPending,
   listAllianceCommanderThpRows,
   saveHqThpPending,
+  ThpPendingChangedError,
   upsertCommanderThp,
 } from "@/lib/thp/repository";
 import type { ThpPendingState } from "@/lib/thp/types";
 
-export async function handleWebThpCommand(input: {
+type WebThpCommandInput = {
   allianceId: string;
   hqUserId: string;
+  principal: ActivityPrincipal;
   locale: string;
   total?: number | null;
   breakdown?: ThpBreakdown | null;
   confirm?: "yes" | "no" | null;
   screenshotBuffer?: Buffer | null;
-}): Promise<MyThpPostResponse | { code: "member_link_required" }> {
+};
+
+export async function handleWebThpCommand(
+  input: WebThpCommandInput,
+): Promise<MyThpPostResponse | { code: "member_link_required" }> {
+  const translate = createDiscordTranslator(
+    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+  );
+  try {
+    return await executeWebThpCommand(input);
+  } catch (error) {
+    if (error instanceof ThpPendingChangedError) {
+      return { status: "error", message: translate("errors.noConfirm") };
+    }
+    if (error instanceof ActivityWriteError) {
+      return {
+        status: "error",
+        message: translate("activity.saveBlocked"),
+      };
+    }
+    throw error;
+  }
+}
+
+async function executeWebThpCommand(
+  input: WebThpCommandInput,
+): Promise<MyThpPostResponse | { code: "member_link_required" }> {
+  if (
+    input.principal.hqUserId !== input.hqUserId ||
+    input.principal.currentAllianceId !== input.allianceId
+  ) {
+    return { code: "member_link_required" };
+  }
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   if (!link) {
     return { code: "member_link_required" };
@@ -58,6 +94,7 @@ export async function handleWebThpCommand(input: {
       commanderId,
       ashedMemberId: link.ashedMemberId,
       memberName: link.memberDisplayName ?? link.ashedMemberId,
+      principal: input.principal,
       answer: input.confirm,
       translate,
     });
@@ -134,8 +171,6 @@ export async function handleWebThpCommand(input: {
     ? processThpOcrResult(commandInput)
     : processThpCommand(commandInput);
 
-  await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
-
   if (result.action.type === "set_thp") {
     await upsertCommanderThp({
       commanderId,
@@ -146,14 +181,22 @@ export async function handleWebThpCommand(input: {
       memberName: link.memberDisplayName ?? link.ashedMemberId,
       source: input.screenshotBuffer ? "screenshot_ocr" : "web",
       hqUserId: input.hqUserId,
+      activity: {
+        identity: { kind: "web", principal: input.principal },
+        method: input.screenshotBuffer ? "screenshot" : "manual",
+        ...(pending
+          ? { pending: { expected: pending, required: false } }
+          : {}),
+      },
     });
-    await saveHqThpPending(input.allianceId, input.hqUserId, null);
     return {
       status: "set_thp",
       message: result.reply,
       newThp: result.action.total,
     };
   }
+
+  await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
 
   if (result.needsConfirmation && result.proposedTotal != null) {
     return {
@@ -176,6 +219,7 @@ async function handleWebThpConfirm(input: {
   commanderId: string;
   ashedMemberId: string;
   memberName: string;
+  principal: ActivityPrincipal;
   answer: "yes" | "no";
   translate: ReturnType<typeof createDiscordTranslator>;
 }): Promise<MyThpPostResponse> {
@@ -215,7 +259,6 @@ async function handleWebThpConfirm(input: {
     previousUpdatedAt: commander?.thpUpdatedAt ?? null,
     commanderName: input.memberName,
   });
-  await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
 
   if (result.action.type === "set_thp") {
     await upsertCommanderThp({
@@ -227,6 +270,11 @@ async function handleWebThpConfirm(input: {
       memberName: input.memberName,
       source: pending.kind === "ocr_confirm" ? "screenshot_ocr" : "web",
       hqUserId: input.hqUserId,
+      activity: {
+        identity: { kind: "web", principal: input.principal },
+        method: pending.kind === "ocr_confirm" ? "screenshot" : "manual",
+        pending: { expected: pending, required: true },
+      },
     });
     return {
       status: "set_thp",
@@ -234,6 +282,8 @@ async function handleWebThpConfirm(input: {
       newThp: result.action.total,
     };
   }
+
+  await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
 
   return {
     status: input.answer === "no" ? "anomaly_rejected" : "error",

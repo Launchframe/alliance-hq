@@ -10,4 +10,8 @@ describe("Discord ICU messages", () => {
   it("preserves the approved ordinary interpolation wording", () => {
     expect(createDiscordTranslator("en-US")("performanceNotes.savedAskAttach", { url: "/notes/example" })).toBe("Would you like to link this note to an alliance member? Your note is private, and linking members will not cause the note to be shared. /notes/example");
   });
+  it("serves the approved activity.saveBlocked copy in both locales", () => {
+    expect(createDiscordTranslator("en-US")("activity.saveBlocked")).toBe("Your change wasn’t saved. Please try again.");
+    expect(createDiscordTranslator("pt-BR")("activity.saveBlocked")).toBe("Sua alteração não foi salva. Tente novamente.");
+  });
 });
