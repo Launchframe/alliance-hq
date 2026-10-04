@@ -36,8 +36,8 @@ async function gotoEvents(
 test("owner creates an event via the Add event form", async ({ page }) => {
   const sql = getE2eSql();
   const f = await createNativeFrontlineScenario(sql);
-  // The form is gated on hq:events:write — only the owner/maintainer roles
-  // carry it; plain officers do not.
+  // The form is gated on hq:events:write — owner/maintainer/officer carry
+  // it; members and viewers do not.
   await gotoEvents(page, f.owner);
 
   await page.getByTestId("events-add-event-toggle").click();
@@ -54,6 +54,13 @@ test("owner creates an event via the Add event form", async ({ page }) => {
   await expect(page.getByText(/E2E Warzone/)).toBeVisible({
     timeout: 15_000,
   });
+});
+
+test("officer sees the Add event control", async ({ page }) => {
+  const sql = getE2eSql();
+  const f = await createNativeFrontlineScenario(sql);
+  await gotoEvents(page, f.officer);
+  await expect(page.getByTestId("events-add-event-toggle")).toBeVisible();
 });
 
 test("view-only member cannot see the Add event control", async ({ page }) => {
