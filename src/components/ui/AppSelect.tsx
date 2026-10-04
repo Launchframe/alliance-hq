@@ -53,6 +53,7 @@ type Props = {
   retainFocusOnSelect?: boolean;
   searchPlaceholder?: string;
   noSearchResultsLabel?: string;
+  onSearchQueryChange?: (query: string) => void;
   /** When searchable, omit the empty-value option while a query is typed. */
   hideEmptyOptionWhileSearching?: boolean;
   id?: string;
@@ -99,6 +100,7 @@ export function AppSelect({
   retainFocusOnSelect = false,
   searchPlaceholder = "Search…",
   noSearchResultsLabel = "No matches.",
+  onSearchQueryChange,
   hideEmptyOptionWhileSearching = false,
   id,
   name,
@@ -212,6 +214,10 @@ export function AppSelect({
       }
     };
   }, []);
+
+  React.useEffect(() => {
+    onSearchQueryChange?.(searchQuery);
+  }, [onSearchQueryChange, searchQuery]);
 
   React.useEffect(() => {
     if (!open || !searchable || useCombobox) return;
