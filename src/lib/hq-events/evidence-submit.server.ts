@@ -255,7 +255,12 @@ export async function submitEventEvidenceFromVideoJob(params: {
     await db
       .update(schema.videoJobs)
       .set({ status: "complete", updatedAt: endedAt })
-      .where(and(eq(schema.videoJobs.id, job.id), eq(schema.videoJobs.status, "review")));
+      .where(
+        and(
+          eq(schema.videoJobs.id, job.id),
+          inArray(schema.videoJobs.status, ["review", "submitting"]),
+        ),
+      );
     await emitVideoJobStatus({
       ...videoJobStatusOwnerFields(job),
       jobId: job.id,

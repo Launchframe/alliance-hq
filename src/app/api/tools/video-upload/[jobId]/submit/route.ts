@@ -374,6 +374,22 @@ export async function POST(request: Request, { params }: Props) {
     if (scoreTargetId === "vs-performance") return submitVsReview({ sessionId: session.id, hqUserId: session.hqUserId ?? null, job, body, automaticDeletedIds });
 
     if (isWarzoneEvidenceTarget(scoreTargetId)) {
+      const claim = await claimVideoJobForSubmit(db, jobId, job.status);
+      if (!claim.ok) {
+        return NextResponse.json(
+          { error: claim.error, status: claim.jobStatus },
+          { status: claim.httpStatus },
+        );
+      }
+      advancedToSubmitting = true;
+      await emitVideoJobStatus({
+        ...videoJobStatusOwnerFields(job),
+        jobId,
+        status: "submitting",
+        fileName: job.fileName,
+        scoreTarget: scoreTargetId,
+        errorMessage: null,
+      });
       try {
         const { receipt, rowCount } = await submitEventEvidenceFromVideoJob({
           session,
