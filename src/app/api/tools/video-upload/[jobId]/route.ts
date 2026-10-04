@@ -38,6 +38,7 @@ import {
   isMemberRosterVideoTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
+import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
@@ -116,6 +117,8 @@ export async function GET(_request: Request, { params }: Props) {
       dedupeFlag: boolean;
       deleted: number;
       manuallyAdded: number;
+      /** Warzone event-evidence review contract (kind/option/crop/frame). */
+      eventEvidence: unknown;
     }> = [];
 
     if (job.parseSessionId) {
@@ -200,6 +203,7 @@ export async function GET(_request: Request, { params }: Props) {
           dedupeFlag: Boolean(r.dedupeClusterId),
           deleted: r.deleted,
           manuallyAdded: r.manuallyAdded,
+          eventEvidence: r.eventEvidence ?? null,
         })),
         scoreTargetId,
       );
@@ -376,6 +380,9 @@ export async function GET(_request: Request, { params }: Props) {
         boardKey: job.boardKey,
         commendationId: job.commendationId,
         hqEventId: job.hqEventId,
+        ...(isWarzoneEvidenceTarget(scoreTargetId)
+          ? { eventContext: job.eventContext ?? null }
+          : {}),
         frameCount: job.frameCount,
         errorMessage: job.errorMessage,
         parseSessionId: job.parseSessionId,

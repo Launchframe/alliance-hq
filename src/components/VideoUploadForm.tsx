@@ -57,6 +57,20 @@ import {
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
 } from "@/lib/video/score-targets";
+import {
+  isWarzoneEvidenceTarget,
+  WARZONE_EVIDENCE_AUTO_TARGET,
+  WARZONE_LEADERBOARD_TARGET,
+  WARZONE_POLL_TARGET,
+  type EventUploadContext,
+  type WarzoneEvidenceTargetId,
+} from "@/lib/video/warzone-evidence.shared";
+import {
+  EMPTY_EVENT_SOURCE_SELECTION,
+  EventSourcePicker,
+  type EventSourceSelection,
+} from "@/components/events/EventSourcePicker";
+import type { EventBoardDto } from "@/lib/hq-events/workspace.shared";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -125,6 +139,12 @@ type Props = {
   contextBoardKey?: string | null;
   /** Pre-filled VS / event recorded date from deep-links (YYYY-MM-DD). */
   contextRecordedDate?: string | null;
+  /** HQ event binding from the event workspace's uploadEvidence link. */
+  contextEvent?: {
+    eventId: string;
+    target: string;
+    seriesId: string | null;
+  } | null;
   /** After save, resume this same-origin path (e.g. trains hub). */
   contextReturnTo?: string | null;
   allianceTag?: string | null;
@@ -163,6 +183,7 @@ export function VideoUploadForm({
   contextBankId = null,
   contextBoardKey = null,
   contextRecordedDate = null,
+  contextEvent = null,
   contextReturnTo = null,
   allianceTag = null,
   allianceName = null,
@@ -195,7 +216,26 @@ export function VideoUploadForm({
     },
   ]);
   const [file, setFile] = useState<File | null>(null);
-  const [scoreTarget, setScoreTarget] = useState(contextScoreTarget ?? "");
+  const [scoreTarget, setScoreTarget] = useState(
+    contextScoreTarget ??
+      (contextEvent ? WARZONE_EVIDENCE_AUTO_TARGET : ""),
+  );
+  const [eventSelection, setEventSelection] = useState<EventSourceSelection>(
+    () => ({
+      ...EMPTY_EVENT_SOURCE_SELECTION,
+      target: (contextEvent?.target ?? "") as EventSourceSelection["target"],
+      seriesId: contextEvent?.seriesId ?? "",
+      eventId: contextEvent?.eventId ?? "",
+    }),
+  );
+  const [eventFiles, setEventFiles] = useState<File[]>([]);
+  const [eventBoards, setEventBoards] = useState<{
+    eventId: string;
+    boards: EventBoardDto[];
+  } | null>(null);
+  const [eventUploads, setEventUploads] = useState<
+    { name: string; status: "uploading" | "queued" | "failed"; error?: string }[]
+  >([]);
   const [boardKey, setBoardKey] = useState(contextBoardKey ?? "");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
@@ -233,6 +273,8 @@ export function VideoUploadForm({
     string | null
   >(null);
   const isVsTarget = scoreTarget === "vs-performance";
+  const isEventTarget = isWarzoneEvidenceTarget(scoreTarget);
+  const tEvent = useTranslations("eventEvidence");
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [vsDate, setVsDate] = useState<string>(() =>
     contextRecordedDate &&
@@ -328,9 +370,46 @@ export function VideoUploadForm({
 
   const selectedTarget = scoreTargets.find((t) => t.id === scoreTarget);
   const needsBoardPicker =
-    selectedTarget?.leaderboardModel === "multi-board";
+    !isEventTarget && selectedTarget?.leaderboardModel === "multi-board";
   const effectiveBoardKey =
     boardKey || selectedTarget?.boardTypes?.[0] || "";
+
+  // Event-evidence mode: resolve the occurrence's boards so a single-board
+  // event binds its board without a redundant select.
+  useEffect(() => {
+    if (!isEventTarget || !eventSelection.eventId) return;
+    const eventId = eventSelection.eventId;
+    let cancelled = false;
+    fetch(`/api/hq-events/${eventId}`, { cache: "no-store" })
+      .then(async (res) => {
+        const body = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(body?.error ?? "load_failed");
+        return body;
+      })
+      .then((body) => {
+        if (!cancelled) {
+          setEventBoards({ eventId, boards: body?.boards ?? [] });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEventBoards({ eventId, boards: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEventTarget, eventSelection.eventId]);
+
+  const eventBoardOptions =
+    eventBoards && eventBoards.eventId === eventSelection.eventId
+      ? eventBoards.boards
+      : [];
+  const resolvedEventBoardId =
+    eventSelection.boardId ||
+    (eventBoardOptions.length === 1 ? eventBoardOptions[0].id : "");
+  const eventContext: EventUploadContext | null =
+    eventSelection.eventId && resolvedEventBoardId
+      ? { eventId: eventSelection.eventId, boardId: resolvedEventBoardId }
+      : null;
 
   const uploadBankId = useMemo(() => {
     if (contextBankId) return contextBankId;
@@ -378,8 +457,115 @@ export function VideoUploadForm({
     router.replace(qs ? `/tools/video-upload?${qs}` : "/tools/video-upload");
   }
 
+  const MAX_EVENT_FILES = 20;
+
+  function isImageFile(candidate: File): boolean {
+    return (
+      candidate.type.startsWith("image/") ||
+      /\.(png|jpe?g)$/i.test(candidate.name)
+    );
+  }
+
+  async function handleEventSubmit() {
+    if (!eventContext) {
+      setError(tEvent("chooseEvent"));
+      return;
+    }
+    if (eventFiles.length === 0) {
+      setError(t("chooseFileFirst"));
+      return;
+    }
+    if (!uploadConfig) {
+      setError(tc("uploadFailed"));
+      return;
+    }
+    for (const candidate of eventFiles) {
+      if (
+        !isImageFile(candidate) &&
+        fileExceedsUploadLimit(candidate.size, uploadConfig)
+      ) {
+        setError(
+          t("fileTooLarge", {
+            size: formatBytes(candidate.size),
+            maxSize:
+              maxUploadLabel ?? formatBytes(uploadConfig.maxUploadBytes),
+          }),
+        );
+        return;
+      }
+    }
+
+    setUploading(true);
+    setError(null);
+    setSuccess(null);
+    const files = eventFiles;
+    setEventFiles([]);
+    setEventUploads(
+      files.map((candidate) => ({
+        name: candidate.name,
+        status: "uploading" as const,
+      })),
+    );
+
+    let firstJobId: string | null = null;
+    const queue = files.map((candidate, index) => ({ candidate, index }));
+    const worker = async () => {
+      let item: (typeof queue)[number] | undefined;
+      while ((item = queue.shift())) {
+        const { candidate, index } = item;
+        try {
+          const data = await uploadVideoFile({
+            file: candidate,
+            scoreTarget,
+            mediaKind: isImageFile(candidate) ? "image" : "video",
+            eventContext,
+            uploadConfig,
+          });
+          firstJobId ??= data.jobId;
+          setEventUploads((rows) =>
+            rows.map((row, rowIndex) =>
+              rowIndex === index ? { ...row, status: "queued" } : row,
+            ),
+          );
+        } catch (err) {
+          setEventUploads((rows) =>
+            rows.map((row, rowIndex) =>
+              rowIndex === index
+                ? {
+                    ...row,
+                    status: "failed",
+                    error:
+                      err instanceof Error ? err.message : "upload_failed",
+                  }
+                : row,
+            ),
+          );
+        }
+      }
+    };
+    // One job per source with bounded concurrent uploads.
+    await Promise.all([worker(), worker()]);
+
+    setUploading(false);
+    if (firstJobId) {
+      if (canProcess) {
+        setProcessPromptJobId(firstJobId);
+        persistProcessJobQuery(firstJobId);
+      } else {
+        setSuccess(t("queuedSuccess"));
+        setAwaitingPromptJobId(firstJobId);
+        setAwaitingDialogFileName(files[0]?.name ?? null);
+        persistAwaitingJobQuery(firstJobId);
+      }
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isEventTarget) {
+      await handleEventSubmit();
+      return;
+    }
     if (!scoreTarget) {
       setError(t("chooseScoreTargetFirst"));
       return;
@@ -514,7 +700,8 @@ export function VideoUploadForm({
   }
 
   const showFileStep = Boolean(scoreTarget);
-  const showUploadControls = Boolean(file) || uploading;
+  const showUploadControls =
+    Boolean(isEventTarget ? eventFiles.length > 0 : file) || uploading;
   const { awaitingApproval, other: otherRecentJobs } =
     partitionRecentUploadJobs(visibleJobs);
   const awaitingJobs = awaitingApproval.filter(
@@ -692,6 +879,42 @@ export function VideoUploadForm({
           </p>
         </label>
 
+        {isEventTarget ? (
+          <div className="mt-4 space-y-3">
+            <EventSourcePicker
+              value={eventSelection}
+              onChange={setEventSelection}
+              disabled={uploading}
+            />
+            <label className="block">
+              <span className="mb-2 block text-sm text-hq-fg-muted">
+                {tEvent("evidenceSource")}
+              </span>
+              <AppSelect
+                value={scoreTarget}
+                onChange={(next) =>
+                  setScoreTarget(next as WarzoneEvidenceTargetId)
+                }
+                aria-label={tEvent("evidenceSource")}
+                options={[
+                  {
+                    value: WARZONE_EVIDENCE_AUTO_TARGET,
+                    label: tEvent("autoDetect"),
+                  },
+                  {
+                    value: WARZONE_LEADERBOARD_TARGET,
+                    label: tEvent("leaderboardEvidence"),
+                  },
+                  {
+                    value: WARZONE_POLL_TARGET,
+                    label: tEvent("pollResponses"),
+                  },
+                ]}
+              />
+            </label>
+          </div>
+        ) : null}
+
         <VideoHygieneCoachBanner scoreTarget={scoreTarget || null} />
 
         {needsBoardPicker ? (
@@ -711,7 +934,69 @@ export function VideoUploadForm({
           </label>
         ) : null}
 
-        {showFileStep ? (
+        {showFileStep && isEventTarget ? (
+        <div className="mt-4 block">
+          <span className="mb-2 block text-sm text-hq-fg-muted">
+            {t("fileLabel")}
+          </span>
+          <input
+            type="file"
+            multiple
+            accept="video/mp4,video/quicktime,video/webm,video/*,image/png,image/jpeg"
+            onChange={(e) =>
+              setEventFiles(
+                Array.from(e.target.files ?? []).slice(0, MAX_EVENT_FILES),
+              )
+            }
+            className="block w-full max-w-full text-sm text-hq-fg-muted file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-hq-success file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
+          />
+          <p className="mt-2 text-xs text-hq-fg-muted">
+            {tEvent("uploadHint")}
+          </p>
+          {eventFiles.length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {eventFiles.map((candidate, index) => (
+                <li
+                  key={`${candidate.name}-${index}`}
+                  className="break-all text-sm"
+                >
+                  {t("selectedFile", {
+                    name: candidate.name,
+                    size: formatBytes(candidate.size),
+                  })}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {eventUploads.length > 0 ? (
+            <ul className="mt-2 space-y-1" aria-live="polite">
+              {eventUploads.map((row, index) => (
+                <li
+                  key={`${row.name}-${index}`}
+                  className="flex items-center justify-between gap-2 break-all text-sm"
+                >
+                  <span className="min-w-0 truncate">{row.name}</span>
+                  <span
+                    className={
+                      row.status === "failed"
+                        ? "text-xs text-hq-danger"
+                        : row.status === "queued"
+                          ? "text-xs text-hq-green"
+                          : "text-xs text-hq-fg-muted"
+                    }
+                  >
+                    {row.status === "uploading"
+                      ? t("uploading")
+                      : row.status === "queued"
+                        ? statusLabel(t, "queued")
+                        : row.error ?? tEvent("actionFailed")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+        ) : showFileStep ? (
         <label className="mt-4 block">
           <span className="mb-2 block text-sm text-hq-fg-muted">
             {t("fileLabel")}
@@ -853,7 +1138,13 @@ export function VideoUploadForm({
 
         <button
           type="submit"
-          disabled={uploading || !file || fileTooLarge || !uploadConfig}
+          disabled={
+            uploading ||
+            !uploadConfig ||
+            (isEventTarget
+              ? eventFiles.length === 0 || !eventContext
+              : !file || fileTooLarge)
+          }
           className="mt-4 w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50 sm:w-auto"
         >
           {uploading ? t("uploading") : t("uploadButton")}

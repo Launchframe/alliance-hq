@@ -20,6 +20,18 @@ import { finalizeVideoUploadEnqueue } from "@/lib/video/finalize-video-upload";
 import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip-upload-bank-id.server";
 import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
 import { vsVideoContextSchema } from "@/lib/vs-performance/video-evidence.shared";
+import {
+  EVENT_IMAGE_MAX_BYTES,
+  looksLikeImageUpload,
+  normalizeEventImage,
+  ImageMediaError,
+} from "@/lib/video/image-media.server";
+import {
+  EventUploadContextError,
+  resolveEventUploadContext,
+} from "@/lib/video/event-upload-context.server";
+import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 
 export async function POST(request: Request) {
   try {
@@ -61,11 +73,60 @@ export async function POST(request: Request) {
     const hqEventId = formData.get("hqEventId");
     const bankIdRaw = formData.get("bankId");
     const vsContextRaw = formData.get("vsContext");
+    const mediaKindRaw = formData.get("mediaKind");
+    const eventContextRaw = formData.get("eventContext");
     const target = getScoreTarget(scoreTarget);
     if (!target?.enabled) {
       return NextResponse.json(
         { error: "Score target is not available yet." },
         { status: 400 },
+      );
+    }
+
+    const mediaKind = mediaKindRaw === "image" ? "image" : "video";
+    if (
+      mediaKindRaw != null &&
+      mediaKindRaw !== "video" &&
+      mediaKindRaw !== "image"
+    ) {
+      return NextResponse.json(
+        { error: "invalid", code: "invalid_media_kind" },
+        { status: 400 },
+      );
+    }
+    if (mediaKind === "image" && !isWarzoneEvidenceTarget(scoreTarget)) {
+      return NextResponse.json(
+        { error: "invalid", code: "image_not_supported" },
+        { status: 400 },
+      );
+    }
+
+    let eventContext: unknown = null;
+    if (eventContextRaw != null) {
+      try {
+        eventContext = JSON.parse(String(eventContextRaw));
+      } catch {
+        return NextResponse.json(
+          { error: "invalid", code: "invalid_event_context" },
+          { status: 400 },
+        );
+      }
+    }
+    const resolvedEventContext = await resolveEventUploadContext({
+      allianceId: resolveSessionAllianceId(session),
+      scoreTarget,
+      eventContext,
+    }).catch((error: unknown) => {
+      if (error instanceof EventUploadContextError) return error;
+      throw error;
+    });
+    if (resolvedEventContext instanceof EventUploadContextError) {
+      const code = resolvedEventContext.code;
+      return NextResponse.json(
+        { error: code, code },
+        {
+          status: code === "event_not_found" || code === "board_not_found" ? 404 : 400,
+        },
       );
     }
 
@@ -104,7 +165,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > getMaxVideoUploadBytes()) {
+    if (mediaKind === "image") {
+      if (!looksLikeImageUpload(file.name, file.type || null)) {
+        return NextResponse.json(
+          { error: "invalid", code: "unsupported_image_format" },
+          { status: 400 },
+        );
+      }
+      if (file.size > EVENT_IMAGE_MAX_BYTES) {
+        return NextResponse.json(
+          { error: "invalid", code: "image_too_large" },
+          { status: 400 },
+        );
+      }
+    } else if (file.size > getMaxVideoUploadBytes()) {
       return NextResponse.json(
         {
           error: `Video must be under ${getMaxVideoUploadMb()} MB.`,
@@ -117,6 +191,18 @@ export async function POST(request: Request) {
     const jobId = nanoid(16);
     const storageKey = videoStorageKey(jobId, file.name);
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (mediaKind === "image") {
+      try {
+        await normalizeEventImage(buffer);
+      } catch (error) {
+        const code =
+          error instanceof ImageMediaError ? error.code : "invalid_image";
+        return NextResponse.json(
+          { error: "invalid", code },
+          { status: 400 },
+        );
+      }
+    }
     await putObject(storageKey, buffer);
 
     const bankId = await resolveDepositSlipUploadBankId(
@@ -139,6 +225,8 @@ export async function POST(request: Request) {
       enqueuedByHqUserId: session.hqUserId,
       bankId,
       vsContext,
+      mediaKind,
+      eventContext: resolvedEventContext,
     });
 
     return NextResponse.json({

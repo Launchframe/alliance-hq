@@ -9,6 +9,7 @@ import { resolveAdaptedPrimaryExtraction } from "@/lib/video/video-hygiene-adapt
 import { scheduleVideoPendingApprovalAnnouncement } from "@/lib/video/pending-approval-discord.server";
 import { defaultVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
 import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
+import type { EventUploadContext } from "@/lib/video/warzone-evidence.shared";
 
 export type FinalizeVideoUploadInput = {
   sessionId: string;
@@ -24,6 +25,9 @@ export type FinalizeVideoUploadInput = {
   enqueuedByHqUserId: string | null;
   bankId?: string | null;
   vsContext?: VsVideoContext;
+  /** "image" for event-evidence still uploads (single normalized frame). */
+  mediaKind?: "video" | "image";
+  eventContext?: EventUploadContext | null;
 };
 
 /**
@@ -68,6 +72,7 @@ export async function finalizeVideoUploadEnqueue(
     scoreTarget: input.scoreTarget,
     boardKey: input.boardKey,
     hqEventId: input.hqEventId,
+    eventContext: input.eventContext ?? null,
     primaryJobId: input.jobId,
     selectedJobId: input.jobId,
     accuracyJobId: null,
@@ -89,11 +94,12 @@ export async function finalizeVideoUploadEnqueue(
     scoreTarget: input.scoreTarget,
     boardKey: input.boardKey,
     hqEventId: input.hqEventId,
+    eventContext: input.eventContext ?? null,
     storageKey: input.storageKey,
     allianceId: input.allianceId,
     bankId: input.bankId ?? null,
     enqueuedByHqUserId: input.enqueuedByHqUserId,
-    ingestMethod: "video",
+    ingestMethod: input.mediaKind ?? "video",
     ...(input.scoreTarget === "vs-performance"
       ? {
           recordedDate:

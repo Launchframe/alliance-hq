@@ -1,4 +1,5 @@
 import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
+import type { EventUploadContext } from "@/lib/video/warzone-evidence.shared";
 
 export type UploadConfig = {
   mode: "r2" | "direct";
@@ -52,6 +53,10 @@ export async function uploadVideoFile(options: {
   hqEventId?: string;
   bankId?: string | null;
   vsContext?: VsVideoContext;
+  /** "image" for event-evidence still uploads (PNG/JPEG). */
+  mediaKind?: "video" | "image";
+  /** Typed event binding for event-evidence uploads. */
+  eventContext?: EventUploadContext | null;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
@@ -69,6 +74,10 @@ export async function uploadVideoFile(options: {
     if (boardKey) formData.set("boardKey", boardKey);
     if (options.hqEventId) formData.set("hqEventId", options.hqEventId);
     if (options.bankId) formData.set("bankId", options.bankId);
+    if (options.mediaKind) formData.set("mediaKind", options.mediaKind);
+    if (options.eventContext) {
+      formData.set("eventContext", JSON.stringify(options.eventContext));
+    }
     if (vsContext) {
       formData.set("vsContext", JSON.stringify(vsContext));
     }
@@ -105,6 +114,8 @@ export async function uploadVideoFile(options: {
       hqEventId: options.hqEventId ?? null,
       bankId: options.bankId ?? null,
       vsContext: vsContext ?? null,
+      mediaKind: options.mediaKind ?? "video",
+      eventContext: options.eventContext ?? null,
     }),
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   mockOcrScoreFrames: vi.fn(), base44ListMembers: vi.fn(),
   listAllianceMembers: vi.fn(), emitVideoJobStatus: vi.fn(),
   maybeEnqueueShadowPass: vi.fn(), maybeEnqueueShadowPassEarly: vi.fn(),
+  getObject: vi.fn(), normalizeEventImage: vi.fn(),
+  ocrWarzoneNativeFrames: vi.fn(),
 }));
 vi.mock("@/lib/db", async () => ({
   schema: await import("@/lib/db/schema"),
@@ -40,7 +42,17 @@ vi.mock("@/lib/video/run-deposit-slip-ocr-phase.server", () => ({}));
 vi.mock("@/lib/video/resolve-job-video-storage", () => ({ resolveJobVideoStorageKey: vi.fn().mockResolvedValue("videos/test/source.mp4") }));
 vi.mock("@/lib/storage", () => ({
   streamObjectToFile: vi.fn().mockResolvedValue(10), putObject: vi.fn(),
+  getObject: mocks.getObject,
   frameStorageKey: () => "videos/test/frame.jpg", prefersLocalStorage: () => false, r2Configured: () => false,
+}));
+vi.mock("@/lib/video/image-media.server", () => ({
+  normalizeEventImage: mocks.normalizeEventImage,
+  validateEventImageBytes: () => "png",
+  looksLikeImageUpload: () => true,
+}));
+vi.mock("@/lib/video/ocr-warzone-native", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/video/ocr-warzone-native")>()),
+  ocrWarzoneNativeFrames: mocks.ocrWarzoneNativeFrames,
 }));
 vi.mock("node:fs/promises", () => ({ default: { unlink: vi.fn().mockResolvedValue(undefined) } }));
 vi.mock("@/lib/video/frame-extractor", () => ({
@@ -215,5 +227,96 @@ describe("processVideoJob native Frontline Breakthrough", () => {
       score: "2670",
       frontlineStage: 5,
     }));
+  });
+});
+
+describe("processVideoJob Warzone evidence image ingest", () => {
+  const warzoneJob = {
+    ...job,
+    id: "warzone-image-job",
+    scoreTarget: "warzone-evidence",
+    ingestMethod: "image",
+    fileName: "shot.png",
+    storageKey: "videos/test/source.png",
+  };
+
+  beforeEach(() => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    mocks.selectLimit.mockReset();
+    mocks.selectLimit
+      .mockResolvedValue([{ tag: "HQ" }])
+      .mockResolvedValueOnce([warzoneJob]);
+    mocks.getObject.mockResolvedValue(Buffer.from("png-bytes"));
+    mocks.normalizeEventImage.mockResolvedValue({
+      buffer: Buffer.from("normalized"),
+      width: 1800,
+      height: 2400,
+    });
+    mocks.ocrWarzoneNativeFrames.mockResolvedValue({
+      warzoneFrames: [
+        {
+          frameIndex: 0,
+          videoTimestampSeconds: null,
+          frame: {
+            kind: "leaderboard",
+            entries: [
+              {
+                name: "Alpha",
+                allianceTag: "HQ",
+                actualScore: "1234",
+                observedRank: 7,
+                crop: null,
+              },
+            ],
+          },
+          safeCrop: { left: 0, top: 0, width: 1, height: 0.5 },
+          formatMismatch: false,
+        },
+      ],
+      entries: [
+        { name: "Alpha", score: "1234", rank: 7, _sourceFrameIndex: 0 },
+      ],
+      observations: [],
+      frameTimings: [
+        { frameIndex: 0, ms: 1, uploadMs: 0, extractMs: 1, entryCount: 1, error: null, rawResult: null },
+      ],
+      concurrency: 1,
+    });
+  });
+
+  it("normalizes one frame, skips ffmpeg/archive, and persists event-evidence rows", async () => {
+    const { extractLeaderboardFrames } = await import(
+      "@/lib/video/frame-extractor"
+    );
+    const result = await processVideoJob(warzoneJob.id);
+
+    expect(mocks.getObject).toHaveBeenCalledWith("videos/test/source.mp4");
+    expect(mocks.normalizeEventImage).toHaveBeenCalledOnce();
+    expect(vi.mocked(extractLeaderboardFrames)).not.toHaveBeenCalled();
+    expect(mocks.ocrWarzoneNativeFrames).toHaveBeenCalledOnce();
+    expect(mocks.ocrAllFrames).not.toHaveBeenCalled();
+    expect(result.rowCount).toBe(1);
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memberId: "member-alpha",
+        score: "1234",
+        rank: 7,
+        frameIndex: 0,
+        eventEvidence: expect.objectContaining({ kind: "leaderboard" }),
+      }),
+    );
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "review" }),
+    );
+  });
+
+  it("produces unresolved review rows instead of mock scores when OCR is unavailable", async () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "mock");
+    vi.stubEnv("VIDEO_OCR_ALLOW_NONPROD", "true");
+    const result = await processVideoJob(warzoneJob.id);
+    expect(result.rowCount).toBe(0);
+    expect(mocks.ocrWarzoneNativeFrames).not.toHaveBeenCalled();
+    expect(mocks.ocrAllFrames).not.toHaveBeenCalled();
+    expect(mocks.mockOcrScoreFrames).not.toHaveBeenCalled();
   });
 });

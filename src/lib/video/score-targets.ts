@@ -7,6 +7,12 @@ import {
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { FRONTLINE_BREAKTHROUGH_OCR_SCHEMA } from "@/lib/video/frontline-breakthrough.shared";
 import type { VideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
+import {
+  isWarzoneEvidenceTarget,
+  WARZONE_EVIDENCE_AUTO_TARGET,
+  WARZONE_LEADERBOARD_TARGET,
+  WARZONE_POLL_TARGET,
+} from "@/lib/video/warzone-evidence.shared";
 
 export type ScoreTargetGroup = "events" | "recurring" | "hq-native";
 
@@ -94,6 +100,37 @@ const ENTRIES_NUMBER_SCHEMA = {
     },
   },
   required: ["entries"],
+};
+
+/**
+ * Event-specific extraction schema for the Ashed OCR engine on Warzone
+ * evidence targets. The remote model returns the same frame contract the
+ * native parser produces; `parseWarzoneExtractResult` maps it onto
+ * `WarzoneFrame` for the shared review/save pipeline.
+ */
+const WARZONE_EVIDENCE_OCR_SCHEMA = {
+  type: "object",
+  properties: {
+    layout: {
+      type: "string",
+      enum: ["leaderboard", "poll", "unknown"],
+    },
+    pollOption: { type: ["number", "null"] },
+    entries: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          allianceTag: { type: ["string", "null"] },
+          score: { type: ["string", "null"] },
+          observedRank: { type: ["number", "null"] },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  required: ["layout", "entries"],
 };
 
 const ENTRIES_RANK_SCHEMA = {
@@ -321,6 +358,51 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     inHouseOcrAccuracy: "none",
   },
   {
+    /** Warzone event evidence — auto-detect layout per frame. */
+    id: WARZONE_EVIDENCE_AUTO_TARGET,
+    labelKey: "warzoneEvidence",
+    group: "hq-native",
+    submitEntity: "",
+    ocrSchema: WARZONE_EVIDENCE_OCR_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: "EventSeries",
+    submitMethod: "row-post",
+    submitContext: ["hqEventId"],
+    inHouseOcrAccuracy: "mid",
+  },
+  {
+    /** Warzone event evidence — reviewer asserts RANKING leaderboard frames. */
+    id: WARZONE_LEADERBOARD_TARGET,
+    labelKey: "warzoneLeaderboard",
+    group: "hq-native",
+    submitEntity: "",
+    ocrSchema: WARZONE_EVIDENCE_OCR_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: "EventSeries",
+    submitMethod: "row-post",
+    submitContext: ["hqEventId"],
+    inHouseOcrAccuracy: "mid",
+  },
+  {
+    /** Warzone event evidence — reviewer asserts poll-response frames. */
+    id: WARZONE_POLL_TARGET,
+    labelKey: "warzonePoll",
+    group: "hq-native",
+    submitEntity: "",
+    ocrSchema: WARZONE_EVIDENCE_OCR_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: "EventSeries",
+    submitMethod: "row-post",
+    submitContext: ["hqEventId"],
+    inHouseOcrAccuracy: "mid",
+  },
+  {
     id: MEMBER_ROSTER_VIDEO_SCORE_TARGET,
     labelKey: "memberRosterVideo",
     group: "hq-native",
@@ -416,7 +498,8 @@ export function isNativeOnlyVideoTarget(id: string): boolean {
 export function isHqOnlySubmitTarget(target: ScoreTargetDef): boolean {
   return (
     isMemberRosterVideoTarget(target.id) ||
-    isBankDepositSlipHistoryTarget(target.id)
+    isBankDepositSlipHistoryTarget(target.id) ||
+    isWarzoneEvidenceTarget(target.id)
   );
 }
 
@@ -441,6 +524,8 @@ export type ScoreTargetClientMeta = {
   showBankSelector: boolean;
   /** Desert Storm Event View opponent + outcome (not Canyon Storm). */
   showMatchOutcome: boolean;
+  /** Warzone evidence targets use the dedicated event review surface. */
+  showEventEvidence: boolean;
 };
 
 export function toScoreTargetClientMeta(
@@ -473,5 +558,6 @@ export function toScoreTargetClientMeta(
     showDepositSlipColumns: isDepositSlip,
     showBankSelector: target.submitContext.includes("bankId"),
     showMatchOutcome: isDesertStormVideoTarget(target.id),
+    showEventEvidence: isWarzoneEvidenceTarget(target.id),
   };
 }

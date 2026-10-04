@@ -57,6 +57,7 @@ import {
   isMemberRosterVideoTarget,
   usesHqEventStore,
 } from "@/lib/video/score-targets";
+import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import {
   normalizeFrontlineScore,
@@ -108,6 +109,10 @@ import { isDesertStormVideoTarget } from "@/lib/video/score-targets";
 import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-match-header.shared";
 import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
 import { submitVsReview, vsEvidenceErrorResponse } from "@/lib/vs-scores/submit.server";
+import {
+  eventEvidenceSubmitErrorResponse,
+  submitEventEvidenceFromVideoJob,
+} from "@/lib/hq-events/evidence-submit.server";
 import { VsEvidenceError, parseVsScore } from "@/lib/vs-scores/evidence.shared";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { prepareReviewFeedback, confirmReviewFeedback } from "@/lib/ocr/learning/feedback.server";
@@ -332,7 +337,8 @@ export async function POST(request: Request, { params }: Props) {
     if (
       !isMemberRosterVideoTarget(scoreTargetId) &&
       !isBankDepositSlipHistoryTarget(scoreTargetId) &&
-      !isFrontlineTarget
+      !isFrontlineTarget &&
+      !isWarzoneEvidenceTarget(scoreTargetId)
     ) {
       const scoreGhostDiscardIds = scoreGhostRowIdsToDiscard(
         findScoreGhostClusters(
@@ -366,6 +372,25 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     if (scoreTargetId === "vs-performance") return submitVsReview({ sessionId: session.id, hqUserId: session.hqUserId ?? null, job, body, automaticDeletedIds });
+
+    if (isWarzoneEvidenceTarget(scoreTargetId)) {
+      try {
+        const { receipt, rowCount } = await submitEventEvidenceFromVideoJob({
+          session,
+          job,
+          body,
+        });
+        return NextResponse.json({
+          ok: true,
+          submitted: rowCount,
+          eventEvidence: receipt,
+        });
+      } catch (error) {
+        const mapped = eventEvidenceSubmitErrorResponse(error);
+        if (mapped) return mapped;
+        throw error;
+      }
+    }
 
     if (isMemberRosterVideoTarget(scoreTargetId)) {
       const ctx = await getRbacContext(session.id);

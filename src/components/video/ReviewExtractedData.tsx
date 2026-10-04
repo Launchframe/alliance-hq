@@ -51,6 +51,8 @@ import {
   isFrontlineBreakthroughVideoTarget,
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
+import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
+import { EventEvidenceReview } from "@/components/video/EventEvidenceReview";
 import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";
 import {
   defaultVsPerformanceRecordedDate,
@@ -3304,6 +3306,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   // shell header instead of floating with a padded gap that pushes controls
   // below the fold.
   const stickyPreviewOpen = showTopPreview || showSidePreview;
+
+  if (isWarzoneEvidenceTarget(scoreTargetMeta?.id)) {
+    return <EventEvidenceReview jobId={jobId} />;
+  }
 
   return (
     <div

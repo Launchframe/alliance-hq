@@ -23,6 +23,16 @@ import {
 } from "@/lib/video/recent-upload-jobs.shared";
 import { isSurveyComplete, surveyRowToPayload } from "@/lib/video/survey";
 import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
+import {
+  EVENT_TARGETS,
+  type EventTarget,
+} from "@/lib/hq-events/event-types.shared";
+
+function asEventTarget(value: string | null | undefined): EventTarget | null {
+  return value && (EVENT_TARGETS as readonly string[]).includes(value)
+    ? (value as EventTarget)
+    : null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +47,7 @@ type Props = {
     boardKey?: string;
     recordedDate?: string;
     returnTo?: string;
+    eventId?: string;
   }>;
 };
 
@@ -76,6 +87,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
     boardKey: boardKeyParam,
     recordedDate: recordedDateParam,
     returnTo: returnToParam,
+    eventId: eventIdParam,
   } = await searchParams;
   const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
   const contextBankId = parseVideoUploadBankIdParam(bankIdParam);
@@ -85,8 +97,44 @@ export default async function VideoUploadPage({ searchParams }: Props) {
   );
   const contextRecordedDate = parseVideoUploadRecordedDateParam(recordedDateParam);
   const contextReturnTo = parseVideoUploadReturnToParam(returnToParam);
+  const contextEventIdParam =
+    typeof eventIdParam === "string" && eventIdParam.trim()
+      ? eventIdParam.trim()
+      : null;
   const session = await requirePageSession();
   const db = getDb();
+  const sessionAllianceId = session.currentAllianceId ?? session.allianceId;
+  const contextEvent = contextEventIdParam
+    ? (
+        await db
+          .select({
+            id: schema.hqEvents.id,
+            eventFamily: schema.hqEvents.eventFamily,
+            scoreTarget: schema.hqEvents.scoreTarget,
+            seriesId: schema.hqEvents.seriesId,
+          })
+          .from(schema.hqEvents)
+          .where(
+            and(
+              eq(schema.hqEvents.id, contextEventIdParam),
+              eq(schema.hqEvents.allianceId, sessionAllianceId ?? ""),
+            ),
+          )
+          .limit(1)
+      )[0]
+    : undefined;
+  const contextEventSelection =
+    contextEvent &&
+    (asEventTarget(contextEvent.eventFamily) ??
+      asEventTarget(contextEvent.scoreTarget))
+      ? {
+          eventId: contextEvent.id,
+          target:
+            asEventTarget(contextEvent.eventFamily) ??
+            asEventTarget(contextEvent.scoreTarget)!,
+          seriesId: contextEvent.seriesId ?? null,
+        }
+      : null;
   const [rows, memberName, canProcess, ashedConnection] = await Promise.all([
     db
       .select()
@@ -198,6 +246,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       contextBankId={contextBankId}
       contextBoardKey={contextBoardKey}
       contextRecordedDate={contextRecordedDate}
+      contextEvent={contextEventSelection}
       contextReturnTo={contextReturnTo}
       allianceTag={allianceTag}
       allianceName={allianceName}

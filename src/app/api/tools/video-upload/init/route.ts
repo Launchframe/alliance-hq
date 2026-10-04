@@ -12,6 +12,7 @@ import {
 } from "@/lib/storage/r2";
 import { videoStorageKey } from "@/lib/storage";
 import { requireApiSession } from "@/lib/session";
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getScoreTarget } from "@/lib/video/score-targets";
 import {
   getMaxVideoUploadBytes,
@@ -26,6 +27,15 @@ import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip
 import { defaultVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
 import { initializeVsVideoEvidence } from "@/lib/vs-performance/video-evidence.server";
 import { vsVideoContextSchema } from "@/lib/vs-performance/video-evidence.shared";
+import {
+  EVENT_IMAGE_MAX_BYTES,
+  looksLikeImageUpload,
+} from "@/lib/video/image-media.server";
+import {
+  EventUploadContextError,
+  resolveEventUploadContext,
+} from "@/lib/video/event-upload-context.server";
+import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +48,8 @@ type InitBody = {
   hqEventId?: string | null;
   bankId?: string | null;
   vsContext?: unknown;
+  mediaKind?: string;
+  eventContext?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -77,6 +89,50 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Score target is not available yet." },
         { status: 400 },
+      );
+    }
+
+    // Strict media kind: default video; images are event-evidence only.
+    const mediaKind = body.mediaKind === "image" ? "image" : "video";
+    if (body.mediaKind != null && body.mediaKind !== "video" && body.mediaKind !== "image") {
+      return NextResponse.json(
+        { error: "invalid", code: "invalid_media_kind" },
+        { status: 400 },
+      );
+    }
+    if (mediaKind === "image") {
+      if (!isWarzoneEvidenceTarget(scoreTarget)) {
+        return NextResponse.json(
+          { error: "invalid", code: "image_not_supported" },
+          { status: 400 },
+        );
+      }
+      if (!looksLikeImageUpload(fileName, body.contentType)) {
+        return NextResponse.json(
+          { error: "invalid", code: "unsupported_image_format" },
+          { status: 400 },
+        );
+      }
+      if (fileSize > EVENT_IMAGE_MAX_BYTES) {
+        return NextResponse.json(
+          { error: "invalid", code: "image_too_large" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const eventContext = await resolveEventUploadContext({
+      allianceId: resolveSessionAllianceId(session),
+      scoreTarget,
+      eventContext: body.eventContext,
+    }).catch((error: unknown) => {
+      if (error instanceof EventUploadContextError) return error;
+      throw error;
+    });
+    if (eventContext instanceof EventUploadContextError) {
+      return NextResponse.json(
+        { error: eventContext.code, code: eventContext.code },
+        { status: eventContext.code === "event_not_found" || eventContext.code === "board_not_found" ? 404 : 400 },
       );
     }
 
@@ -135,6 +191,7 @@ export async function POST(request: Request) {
       scoreTarget,
       boardKey: boardKeyStr,
       hqEventId: hqEventIdStr,
+      eventContext: eventContext ?? null,
       primaryJobId: null,
       selectedJobId: null,
       accuracyJobId: null,
@@ -156,12 +213,13 @@ export async function POST(request: Request) {
       scoreTarget,
       boardKey: boardKeyStr,
       hqEventId: hqEventIdStr,
+      eventContext: eventContext ?? null,
       storageKey,
       allianceId: session.currentAllianceId,
       bankId,
       ...(vsRecordedDate ? { recordedDate: vsRecordedDate } : {}),
       enqueuedByHqUserId: session.hqUserId,
-      ingestMethod: "video",
+      ingestMethod: mediaKind,
       frameCount: null,
       uploadedFrameCount: 0,
       groupId,

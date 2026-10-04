@@ -627,7 +627,9 @@ export async function extractLeaderboardFrames(
 }
 
 export async function cleanupFrameTempDir(frames: ExtractedFrame[]) {
-  if (frames.length === 0) return;
+  // Image-ingest frames carry no temp files (empty filePath) — nothing to
+  // clean. Never resolve dirname("") → "." and remove the working tree.
+  if (frames.length === 0 || !frames[0]!.filePath) return;
   const dir = path.dirname(frames[0]!.filePath);
   await fs.rm(dir, { recursive: true, force: true });
 }
