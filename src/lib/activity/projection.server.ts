@@ -189,7 +189,7 @@ export function projectActivityRecord(
     throw invalidRecord();
   }
 
-  return {
+  const item: ActivityFeedItem = {
     id: row.id,
     occurredAt: row.occurredAt,
     eventKey: row.eventKey,
@@ -207,4 +207,15 @@ export function projectActivityRecord(
     historical: row.historical,
     historicalCurrentLabels: row.historicalCurrentLabels,
   };
+
+  if (scope === "global" && row.visibilityClass === "private") {
+    return {
+      ...item,
+      values: {},
+      details: {},
+      actor: null,
+    };
+  }
+
+  return item;
 }

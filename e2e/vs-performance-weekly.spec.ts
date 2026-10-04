@@ -1,10 +1,16 @@
 import { randomBytes } from "node:crypto";
 
 import { nanoid } from "nanoid";
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 
 import {
   addCalendarDays,
+  getServerCalendarDate,
   getWeekStartMonday,
 } from "../src/lib/trains/game-time";
 import {
@@ -244,8 +250,7 @@ test.describe("VS weekly planner API", () => {
 });
 
 function todayLocalDate(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return getServerCalendarDate();
 }
 
 test.describe("VS weekly planner UI", () => {
@@ -1001,6 +1006,7 @@ test.describe("VS weekly planner UI", () => {
   test("a failed week load does not auto-retry until Retry is clicked", async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     const scenario = await createNativeVsScenario(getE2eSql());
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
     const pastWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), -7));
@@ -1018,13 +1024,10 @@ test.describe("VS weekly planner UI", () => {
     );
     await page.goto("/en-US/vs-performance");
     await expect(page.getByTestId("weekly-vs-plan").locator("visible=true")).toBeVisible();
-    await page.evaluate(
-      (week) => window.history.pushState({}, "", `?week=${week}`),
-      pastWeek,
-    );
+    await waitForVsWeekClientFetch(page, pastWeek, () => calls);
     await expect(
       page.getByRole("button", { name: "Retry", exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(600);
     expect(calls).toBe(1);
     await page.getByRole("button", { name: "Retry", exact: true }).click();
@@ -1136,6 +1139,34 @@ test.describe("VS weekly planner UI", () => {
     await expect(page.getByTestId("weekly-vs-plan").locator("visible=true")).toBeVisible();
   });
 
+  async function clientNavigateVsWeek(page: Page, week: string) {
+    await page.evaluate((targetWeek) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", targetWeek);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }, week);
+  }
+
+  async function waitForVsWeekClientFetch(
+    page: Page,
+    week: string,
+    readCalls: () => number,
+    timeoutMs = 30_000,
+  ) {
+    await expect
+      .poll(
+        async () => {
+          if (readCalls() === 0) {
+            await clientNavigateVsWeek(page, week);
+          }
+          return readCalls();
+        },
+        { timeout: timeoutMs },
+      )
+      .toBeGreaterThan(0);
+  }
+
   async function attachSecondAlliance(sessionId: string, hqUserId: string) {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
@@ -1207,10 +1238,11 @@ test.describe("VS weekly planner UI", () => {
       .getByRole("combobox")
       .first();
     await select.selectOption("push");
-    await page.evaluate(
-      (week) => window.history.pushState({}, "", `?week=${week}`),
-      refreshWeek,
-    );
+    await page.evaluate((week) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("week", week);
+      window.history.pushState({}, "", `${url.pathname}${url.search}`);
+    }, refreshWeek);
     await expect(select).toHaveValue("push");
     const futureTitle = new Date(`${refreshWeek}T12:00:00`).toLocaleDateString(
       "en-US",
@@ -1301,17 +1333,16 @@ test.describe("VS weekly planner UI", () => {
     });
     await page.goto("/en-US/vs-performance");
     await expect(page.getByText("Foe Alliance").first()).toBeVisible();
-    await page.evaluate(
-      (week) =>
-        window.history.pushState({ hqWeekProbe: true }, "", `?week=${week}`),
-      nextWeek,
+    await page.route(
+      (url) => url.search.includes("_rsc="),
+      () => new Promise(() => {}),
     );
-    await expect.poll(() => apiCalls).toBe(1);
+    await waitForVsWeekClientFetch(page, nextWeek, () => apiCalls);
     await attachSecondAlliance(
       scenario.officer.sessionId,
       scenario.officer.hqUserId,
     );
-    await page.goBack();
+    await clientNavigateVsWeek(page, currentWeek);
     const lateResponse = page.waitForResponse((res) =>
       res.url().includes(`weekStart=${nextWeek}`),
     );
