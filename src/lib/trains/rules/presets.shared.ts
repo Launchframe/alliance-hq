@@ -43,10 +43,23 @@ export function weekdayKeyForDate(date: string): WeekdayKey {
   return weekdayKeyForDow(getServerDayOfWeek(date));
 }
 
+/**
+ * Portable event slot: an unbound Warzone Top 10 intent. Occurrence, series
+ * and board stay empty — applying the preset leaves the day visibly unbound
+ * until an officer picks an occurrence in the event picker.
+ */
 const DEFAULT_EVENT_VIP: VipRule = {
-  kind: "event_top_x",
-  eventKey: "capitol_war",
+  kind: "event_scores",
+  source: {
+    target: "warzone-duel",
+    seriesId: null,
+    occurrenceId: null,
+    boardKey: null,
+    teamScope: null,
+  },
+  eligibility: "scored",
   topN: 10,
+  fallback: "none",
 };
 
 const VS_TOP_1: ConductorRule = { kind: "vs_top_n", topN: 1 };

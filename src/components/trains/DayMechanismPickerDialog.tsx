@@ -21,6 +21,7 @@ import {
 import { validateConductorRuleOnDate } from "@/lib/trains/rules/derive.shared";
 import {
   DAY_RULE_PALETTE,
+  paletteEntryOpensEventPicker,
   paletteEntryRequiresScope,
   paletteIdForRule,
   ruleForPaletteSelection,
@@ -51,6 +52,8 @@ type Props = {
   onSelect: (patch: DayRulePatch) => void;
   /** Prefill occurrence when arriving from the event workspace. */
   initialEventId?: string | null;
+  /** Open straight into the event rule picker for this role. */
+  initialEventRole?: "conductor" | "vip" | null;
 };
 
 export function DayMechanismPickerDialog({
@@ -66,6 +69,7 @@ export function DayMechanismPickerDialog({
   onClose,
   onSelect,
   initialEventId = null,
+  initialEventRole = null,
 }: Props) {
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
@@ -81,7 +85,7 @@ export function DayMechanismPickerDialog({
   >(null);
   const [eventPickerRole, setEventPickerRole] = useState<
     "conductor" | "vip" | null
-  >(null);
+  >(initialEventRole);
   const [weightingBusy, setWeightingBusy] = useState(false);
 
   async function setDrawMode(nextWeightingEnabled: boolean) {
@@ -104,6 +108,9 @@ export function DayMechanismPickerDialog({
     !validateConductorRuleOnDate(selected, date, leadDays).ok;
 
   function labelFor(paletteId: DayRulePaletteId): string {
+    if (paletteEntryOpensEventPicker(paletteId)) {
+      return tEventEvidence("title");
+    }
     const rule = ruleForPaletteSelection(
       paletteId,
       paletteId === selectedPaletteId ? scopeForRule(selected) : null,
@@ -269,6 +276,10 @@ export function DayMechanismPickerDialog({
                                 );
                                 return;
                               }
+                              if (paletteEntryOpensEventPicker(entry.id)) {
+                                setEventPickerRole("conductor");
+                                return;
+                              }
                               setSelected(ruleForPaletteSelection(entry.id));
                             }}
                             className="w-full text-left disabled:opacity-50"
@@ -344,34 +355,26 @@ export function DayMechanismPickerDialog({
                         </div>
                       );
                     })}
+                  </div>
+                  {selected?.kind === "event_top_x" ? (
                     <div
-                      className={`rounded-lg border px-3 py-3 transition-colors ${
-                        selected?.kind === "event_scores"
-                          ? "border-cyan-500/50 bg-cyan-500/10"
-                          : "border-transparent hover:bg-hq-canvas"
-                      }`}
+                      className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                      data-testid="trains-day-rule-legacy-event"
                     >
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        {tEventEvidence("eventNotSelected")}
+                      </p>
                       <button
                         type="button"
-                        role="option"
-                        aria-selected={selected?.kind === "event_scores"}
                         disabled={disabled}
-                        data-testid="trains-day-rule-row-event_scores"
+                        data-testid="trains-day-rule-legacy-event-configure"
                         onClick={() => setEventPickerRole("conductor")}
-                        className="w-full text-left disabled:opacity-50"
+                        className="mt-1.5 rounded-md border border-hq-border px-2.5 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
                       >
-                        <RulePaletteOptionLabel
-                          paletteId="event_scores"
-                          label={tEventEvidence("title")}
-                        />
-                        {selected?.kind === "event_scores" ? (
-                          <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
-                            {tEventEvidence("chooseOccurrenceHint")}
-                          </p>
-                        ) : null}
+                        {tEventEvidence("chooseEvent")}
                       </button>
                     </div>
-                  </div>
+                  ) : null}
                 </>
               ) : null}
 
@@ -429,6 +432,25 @@ export function DayMechanismPickerDialog({
                       </button>
                     </div>
                   </div>
+                  {selectedVip?.kind === "event_top_x" ? (
+                    <div
+                      className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                      data-testid="trains-day-vip-legacy-event"
+                    >
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        {tEventEvidence("eventNotSelected")}
+                      </p>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        data-testid="trains-day-vip-legacy-event-configure"
+                        onClick={() => setEventPickerRole("vip")}
+                        className="mt-1.5 rounded-md border border-hq-border px-2.5 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
+                      >
+                        {tEventEvidence("chooseEvent")}
+                      </button>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
             </div>

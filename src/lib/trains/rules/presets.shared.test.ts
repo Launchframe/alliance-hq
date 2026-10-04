@@ -55,9 +55,17 @@ describe("vs_push_week", () => {
         draw: "wheel",
       });
       expect(week[day].vipRule).toEqual({
-        kind: "event_top_x",
-        eventKey: "capitol_war",
+        kind: "event_scores",
+        source: {
+          target: "warzone-duel",
+          seriesId: null,
+          occurrenceId: null,
+          boardKey: null,
+          teamScope: null,
+        },
+        eligibility: "scored",
         topN: 10,
+        fallback: "none",
       });
     }
   });

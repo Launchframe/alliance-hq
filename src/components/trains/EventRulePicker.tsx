@@ -44,6 +44,12 @@ type Props = {
   /** Prefill this occurrence (e.g. /trains?eventId=). */
   initialEventId?: string | null;
   disabled?: boolean;
+  /**
+   * `template` captures a family/series intent with policy and scope — the
+   * occurrence is always null and applying a template leaves the day
+   * visibly unbound until an officer chooses an event.
+   */
+  mode?: "day" | "template";
   /** Warzone defaults action paints both roles in one apply. */
   onApplyBoth?: (patch: {
     conductorRule: EventScoresRule;
@@ -90,6 +96,7 @@ export function EventRulePicker({
   initialRule = null,
   initialEventId = null,
   disabled = false,
+  mode = "day",
   onApplyBoth,
   onApply,
   onBack,
@@ -179,15 +186,25 @@ export function EventRulePicker({
     : false;
   const isWarzone = selection.target === "warzone-duel";
 
+  const templateMode = mode === "template";
+
   const rule = useMemo((): EventScoresRule | null => {
-    if (!selection.target || !selection.eventId) return null;
+    if (!selection.target) return null;
+    if (!templateMode && !selection.eventId) return null;
     if (teamScoped && !selection.teamScope) return null;
     const boards = detail?.eventId === selection.eventId ? detail.boards : [];
-    if (!teamScoped && boards.length > 1 && !selection.boardId) return null;
-    const boardKey = teamScoped
-      ? null
-      : (boards.find((board) => board.id === selection.boardId)?.boardKey ??
-        null);
+    if (
+      !templateMode &&
+      !teamScoped &&
+      boards.length > 1 &&
+      !selection.boardId
+    )
+      return null;
+    const boardKey =
+      teamScoped || templateMode
+        ? null
+        : (boards.find((board) => board.id === selection.boardId)?.boardKey ??
+          null);
     const participants =
       isWarzone && role === "vip" && policy === "participants";
     return {
@@ -195,7 +212,7 @@ export function EventRulePicker({
       source: {
         target: selection.target as EventTarget,
         seriesId: selection.seriesId || null,
-        occurrenceId: selection.eventId,
+        occurrenceId: templateMode ? null : selection.eventId,
         boardKey,
         teamScope: teamScoped
           ? (selection.teamScope as "A" | "B" | "both")
@@ -211,12 +228,22 @@ export function EventRulePicker({
           ? "confirmed_poll_yes"
           : "none",
     };
-  }, [selection, teamScoped, isWarzone, role, policy, topN, allowFallback, detail]);
+  }, [
+    selection,
+    teamScoped,
+    isWarzone,
+    role,
+    policy,
+    topN,
+    allowFallback,
+    detail,
+    templateMode,
+  ]);
 
   // Live preview of the proposed rule (no mutation server-side).
   const ruleJson = rule ? JSON.stringify(rule) : null;
   useEffect(() => {
-    if (!ruleJson) return;
+    if (!ruleJson || templateMode) return;
     let cancelled = false;
     const frame = requestAnimationFrame(() => {
       setPreviewState("loading");
@@ -247,7 +274,7 @@ export function EventRulePicker({
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-  }, [ruleJson, date, role]);
+  }, [ruleJson, date, role, templateMode]);
 
   const eligibility = rule ? (preview?.eligibility ?? null) : null;
   const showPreviewStatus = rule != null;
@@ -293,9 +320,10 @@ export function EventRulePicker({
         value={selection}
         onChange={setSelection}
         disabled={disabled}
+        templateMode={templateMode}
       />
 
-      {selection.eventId ? (
+      {selection.eventId || (templateMode && selection.target) ? (
         <div className="space-y-3">
           <div className="space-y-2">
             <p className="text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted">

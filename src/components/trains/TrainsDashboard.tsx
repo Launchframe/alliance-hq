@@ -126,6 +126,7 @@ import {
 import {
   DAY_RULE_PALETTE,
   defaultScopeForPaletteId,
+  paletteEntryOpensEventPicker,
   paletteIdForRule,
   ruleForPaletteSelection,
   scopeForRule,
@@ -353,6 +354,28 @@ export function TrainsDashboard({
     useState<ConductorWheelSharePreview | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [dayMechanismPickerOpen, setDayMechanismPickerOpen] = useState(false);
+  const [dayMechanismPickerEventRole, setDayMechanismPickerEventRole] =
+    useState<"conductor" | "vip" | null>(null);
+  const [dayMechanismPickerDate, setDayMechanismPickerDate] = useState<
+    string | null
+  >(null);
+
+  // Event results entries on every paint surface funnel here — the shared
+  // event rule picker inside the day mechanism dialog, on one apply path.
+  const openEventRuleConfig = useCallback(
+    (date: string, role: "conductor" | "vip" = "conductor") => {
+      selectDate(date);
+      setDayMechanismPickerDate(date);
+      setDayMechanismPickerEventRole(role);
+      setDayMechanismPickerOpen(true);
+    },
+    [
+      selectDate,
+      setDayMechanismPickerDate,
+      setDayMechanismPickerEventRole,
+      setDayMechanismPickerOpen,
+    ],
+  );
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateId: string;
     weekStart: string;
@@ -2089,6 +2112,15 @@ export function TrainsDashboard({
         (entry, index) =>
           registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
             if (!data.canManageTrains) return;
+            // The event entry never paints a bare rule — it opens the same
+            // event configuration the other surfaces use.
+            if (paletteEntryOpensEventPicker(entry.id)) {
+              openEventRuleConfig(
+                dayMechanismPickerTargetDate(selectedDate),
+                "conductor",
+              );
+              return;
+            }
             const current = selectedDayConfig?.conductorRule ?? null;
             const keptScope =
               paletteIdForRule(current) === entry.id
@@ -2112,6 +2144,7 @@ export function TrainsDashboard({
     goToToday,
     handleScheduleViewChange,
     lockConductor,
+    openEventRuleConfig,
     openPoolDetails,
     paintDates,
     registerPageHandler,
@@ -2489,7 +2522,12 @@ export function TrainsDashboard({
 
   const eventRuleSummary = useCallback(
     (rule: ConductorRule | VipRule | null): string | null => {
+      // Legacy event_top_x and unbound event_scores days surface the same
+      // "choose the event" state on every cell.
+      if (rule?.kind === "event_top_x") return tEventEvidence("eventNotSelected");
       if (rule?.kind !== "event_scores") return null;
+      if (!rule.source.occurrenceId)
+        return tEventEvidence("eventNotSelected");
       const occurrence = rule.source.occurrenceId
         ? eventRuleOccurrenceNames[rule.source.occurrenceId]
         : null;
@@ -3160,6 +3198,7 @@ export function TrainsDashboard({
               ruleTextLabels={ruleTextLabels}
               ruleLabels={ruleLabels}
               eventRuleSummary={eventRuleSummary}
+              onConfigureEvent={(date) => openEventRuleConfig(date, "conductor")}
               canPaintDays={data.canManageTrains}
               isDatePaintable={(date) =>
                 data.canPaintPastDays ||
@@ -3221,6 +3260,8 @@ export function TrainsDashboard({
                 void paintDates(dates, { conductorRule: rule });
               }}
               monthToolbar={{
+                onConfigureEvent: (date) =>
+                  openEventRuleConfig(date, "conductor"),
                 today: data.today,
                 canUnlock: Boolean(
                   [
@@ -3375,6 +3416,12 @@ export function TrainsDashboard({
               <>
               <TrainsGuidedConductorFlow
                 conductorRule={selectedConductorRule}
+                onConfigureEvent={() =>
+                  openEventRuleConfig(
+                    dayMechanismPickerTargetDate(selectedDate),
+                    "conductor",
+                  )
+                }
                 eventEvidence={
                   selectedConductorRule?.kind === "event_scores"
                     ? (eventEvidenceGateState?.ruleKey === eventRuleKey
@@ -4115,7 +4162,12 @@ export function TrainsDashboard({
         uploadHref={guidedVideoUploadHref}
         rule={selectedConductorRule}
         eventHref={eventRuleOccurrenceHref}
-        onConfigureEvent={() => setDayMechanismPickerOpen(true)}
+        onConfigureEvent={() =>
+          openEventRuleConfig(
+            dayMechanismPickerTargetDate(selectedDate),
+            wheelBlockedRole === "vip" ? "vip" : "conductor",
+          )
+        }
         fallbackPoolType={
           wheelBlockedRole === "vip" &&
           isPoolSpinSource(selectedVipSpinSource)
@@ -4186,23 +4238,35 @@ export function TrainsDashboard({
       <DayMechanismPickerDialog
         key={
           dayMechanismPickerOpen
-            ? `day-mechanism-picker:open:${conductorRuleIdentity(selectedConductorRule)}:${dayMechanismPickerTargetDate(selectedDate)}`
+            ? `day-mechanism-picker:open:${conductorRuleIdentity(selectedConductorRule)}:${dayMechanismPickerTargetDate(dayMechanismPickerDate ?? selectedDate)}`
             : "day-mechanism-picker:closed"
         }
         open={dayMechanismPickerOpen}
         currentRule={selectedConductorRule}
         currentVipRule={selectedVipRule}
         leadDays={data.trainConductorLeadTimeDays}
-        date={dayMechanismPickerTargetDate(selectedDate)}
+        date={dayMechanismPickerTargetDate(
+          dayMechanismPickerDate ?? selectedDate,
+        )}
+        initialEventRole={dayMechanismPickerEventRole}
         vrReporterCount={data.vrReporterCount}
         disabled={!data.canManageTrains}
         weightingEnabled={data.priceIsRightWeightingEnabled}
         onWeightingEnabledChange={handleWeightingEnabledChange}
-        onClose={() => setDayMechanismPickerOpen(false)}
+        onClose={() => {
+          setDayMechanismPickerOpen(false);
+          setDayMechanismPickerEventRole(null);
+          setDayMechanismPickerDate(null);
+        }}
         initialEventId={initialEventId}
         onSelect={(patch) => {
           setDayMechanismPickerOpen(false);
-          void paintDates([dayMechanismPickerTargetDate(selectedDate)], patch);
+          setDayMechanismPickerEventRole(null);
+          const target = dayMechanismPickerTargetDate(
+            dayMechanismPickerDate ?? selectedDate,
+          );
+          setDayMechanismPickerDate(null);
+          void paintDates([target], patch);
         }}
       />
 

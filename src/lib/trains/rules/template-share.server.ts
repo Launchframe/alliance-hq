@@ -9,7 +9,10 @@ import {
   getRuleTemplateForAlliance,
   type RuleTemplate,
 } from "@/lib/trains/rules/templates.server";
-import { parseTemplateWeekRules } from "@/lib/trains/rules/template-days.shared";
+import {
+  parseTemplateWeekRules,
+  stripEventRuleTenantBindings,
+} from "@/lib/trains/rules/template-days.shared";
 
 /**
  * Share codes for alliance-authored week templates.
@@ -196,7 +199,10 @@ export async function previewSharedTemplate(input: {
     sourceTemplateId: row.id,
     name: row.name,
     description: row.description,
-    days: parseTemplateWeekRules(row.days),
+    // Shared previews and the copies imported from them carry event rules as
+    // portable intents only — never another alliance's occurrence, board, or
+    // series ids.
+    days: stripEventRuleTenantBindings(parseTemplateWeekRules(row.days)),
     sourceAllianceTag: row.sourceAllianceTag,
     alreadyImported: selfImport || existing.length > 0,
   };

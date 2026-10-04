@@ -4,11 +4,14 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import { EventRulePicker } from "@/components/trains/EventRulePicker";
+import { FAMILY_LABEL_KEY } from "@/components/events/EventSourcePicker";
 import {
   conductorRuleLabelKey,
   ruleLabelText,
   vipRuleLabelKey,
   type ConductorRule,
+  type EventScoresRule,
   type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
@@ -16,6 +19,7 @@ import {
   RULE_PALETTE_SWATCHES,
   defaultScopeForPaletteId,
   paletteEntry,
+  paletteEntryOpensEventPicker,
   paletteIdForRule,
   ruleForPaletteSelection,
   scopeForRule,
@@ -33,8 +37,22 @@ const VIP_OPTIONS: Array<{ id: string; rule: VipRule | null }> = [
   { id: "none", rule: { kind: "none" } },
   { id: "donations_second", rule: { kind: "donations_second" } },
   {
-    id: "event_top_x",
-    rule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+    id: "event_scores",
+    // Label-only placeholder — clicking opens the event picker in template
+    // mode, which emits the real rule. Never painted directly.
+    rule: {
+      kind: "event_scores",
+      source: {
+        target: "warzone-duel",
+        seriesId: null,
+        occurrenceId: null,
+        boardKey: null,
+        teamScope: null,
+      },
+      eligibility: "participants",
+      topN: "all",
+      fallback: "none",
+    },
   },
 ];
 
@@ -76,12 +94,17 @@ export function TrainRuleTemplateEditor({
   const t = useTranslations("settings.trainTemplates");
   const tRules = useTranslations("trains.rules");
   const tEventEvidence = useTranslations("eventEvidence");
+  const tNav = useTranslations("nav");
   const tWeekdays = useTranslations("trains.weekdays");
 
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [days, setDays] = useState<TemplateWeekRules>(initialDays);
   const [openSlot, setOpenSlot] = useState<WeekdayKey | null>(null);
+  const [eventPicker, setEventPicker] = useState<{
+    weekday: WeekdayKey;
+    role: "conductor" | "vip";
+  } | null>(null);
 
   const warnings = useMemo(
     () => validateTemplateWeekRules(days, leadDays),
@@ -99,7 +122,26 @@ export function TrainRuleTemplateEditor({
     }));
   }
 
+  /** Template-mode event summary: family + scope; occurrence stays unbound. */
+  function eventRuleSummary(rule: EventScoresRule): string {
+    const familyKey = FAMILY_LABEL_KEY[rule.source.target];
+    const familyLabel = familyKey
+      ? familyKey.ns === "nav"
+        ? tNav(familyKey.key)
+        : tEventEvidence(familyKey.key)
+      : tEventEvidence("title");
+    const scope =
+      rule.eligibility === "participants"
+        ? tEventEvidence("allParticipants")
+        : rule.topN === "all"
+          ? tEventEvidence("allScored")
+          : t("scopeOption", { count: rule.topN });
+    return tRules("eventScoresSummary", { event: familyLabel, scope });
+  }
+
   function conductorLabel(rule: ConductorRule | null): string {
+    if (rule?.kind === "event_top_x") return tEventEvidence("eventNotSelected");
+    if (rule?.kind === "event_scores") return eventRuleSummary(rule);
     const scope = scopeForRule(rule);
     const label = ruleLabelText(
       conductorRuleLabelKey(rule),
@@ -107,6 +149,12 @@ export function TrainRuleTemplateEditor({
       tEventEvidence,
     );
     return scope != null ? `${label} ${scope}` : label;
+  }
+
+  function vipLabel(rule: VipRule | null): string {
+    if (rule?.kind === "event_top_x") return tEventEvidence("eventNotSelected");
+    if (rule?.kind === "event_scores") return eventRuleSummary(rule);
+    return ruleLabelText(vipRuleLabelKey(rule), tRules, tEventEvidence);
   }
 
   return (
@@ -188,11 +236,7 @@ export function TrainRuleTemplateEditor({
                       {conductorLabel(slot.conductorRule)}
                       <span className="text-hq-fg-muted">
                         {" · "}
-                        {ruleLabelText(
-                          vipRuleLabelKey(slot.vipRule),
-                          tRules,
-                          tEventEvidence,
-                        )}
+                        {vipLabel(slot.vipRule)}
                       </span>
                     </span>
                     {warning ? (
@@ -227,15 +271,22 @@ export function TrainRuleTemplateEditor({
                                 type="button"
                                 disabled={busy}
                                 data-testid={`trains-template-editor-rule-${entry.id}`}
-                                onClick={() =>
+                                onClick={() => {
+                                  if (paletteEntryOpensEventPicker(entry.id)) {
+                                    setEventPicker({
+                                      weekday,
+                                      role: "conductor",
+                                    });
+                                    return;
+                                  }
                                   setSlot(weekday, {
                                     conductorRule: ruleForPaletteSelection(
                                       entry.id,
                                       scopeForRule(slot.conductorRule) ??
                                         defaultScopeForPaletteId(entry.id),
                                     ),
-                                  })
-                                }
+                                  });
+                                }}
                                 className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50 ${
                                   selected
                                     ? "border-hq-accent bg-hq-accent/15 text-hq-fg"
@@ -246,14 +297,16 @@ export function TrainRuleTemplateEditor({
                                   className={`h-2.5 w-2.5 rounded-sm ${RULE_PALETTE_SWATCHES[entry.id]?.swatch}`}
                                   aria-hidden
                                 />
-                                {tRules(
-                                  conductorRuleLabelKey(
-                                    ruleForPaletteSelection(
-                                      entry.id,
-                                      defaultScopeForPaletteId(entry.id),
-                                    ),
-                                  ),
-                                )}
+                                {paletteEntryOpensEventPicker(entry.id)
+                                  ? tEventEvidence("title")
+                                  : tRules(
+                                      conductorRuleLabelKey(
+                                        ruleForPaletteSelection(
+                                          entry.id,
+                                          defaultScopeForPaletteId(entry.id),
+                                        ),
+                                      ),
+                                    )}
                               </button>
                             );
                           })}
@@ -308,9 +361,13 @@ export function TrainRuleTemplateEditor({
                                 type="button"
                                 disabled={busy}
                                 data-testid={`trains-template-editor-vip-${option.id}`}
-                                onClick={() =>
-                                  setSlot(weekday, { vipRule: option.rule })
-                                }
+                                onClick={() => {
+                                  if (option.id === "event_scores") {
+                                    setEventPicker({ weekday, role: "vip" });
+                                    return;
+                                  }
+                                  setSlot(weekday, { vipRule: option.rule });
+                                }}
                                 className={`rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50 ${
                                   selected
                                     ? "border-hq-accent bg-hq-accent/15 text-hq-fg"
@@ -327,6 +384,39 @@ export function TrainRuleTemplateEditor({
                           })}
                         </div>
                       </div>
+
+                      {eventPicker?.weekday === weekday ? (
+                        <div
+                          className="border-t border-hq-border pt-3"
+                          data-testid={`trains-template-editor-event-picker-${weekday}`}
+                        >
+                          <EventRulePicker
+                            role={eventPicker.role}
+                            date=""
+                            mode="template"
+                            disabled={busy}
+                            initialRule={
+                              (eventPicker.role === "vip"
+                                ? slot.vipRule
+                                : slot.conductorRule)?.kind === "event_scores"
+                                ? ((eventPicker.role === "vip"
+                                    ? slot.vipRule
+                                    : slot.conductorRule) as EventScoresRule)
+                                : null
+                            }
+                            onApply={(rule) => {
+                              setSlot(
+                                weekday,
+                                eventPicker.role === "vip"
+                                  ? { vipRule: rule }
+                                  : { conductorRule: rule },
+                              );
+                              setEventPicker(null);
+                            }}
+                            onBack={() => setEventPicker(null)}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

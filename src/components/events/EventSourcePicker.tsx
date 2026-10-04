@@ -37,6 +37,11 @@ type Props = {
   value: EventSourceSelection;
   onChange: (next: EventSourceSelection) => void;
   disabled?: boolean;
+  /**
+   * Template mode captures a family/series intent only — the occurrence and
+   * board selects stay hidden so a template can never bind a specific event.
+   */
+  templateMode?: boolean;
 };
 
 export const FAMILY_LABEL_KEY: Record<
@@ -55,7 +60,12 @@ export const FAMILY_LABEL_KEY: Record<
  * event catalog APIs. No auto-selection; changing a parent clears dependents
  * (with a confirmation when unsaved selections would be lost).
  */
-export function EventSourcePicker({ value, onChange, disabled }: Props) {
+export function EventSourcePicker({
+  value,
+  onChange,
+  disabled,
+  templateMode = false,
+}: Props) {
   const t = useTranslations("eventEvidence");
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
@@ -245,23 +255,29 @@ export function EventSourcePicker({ value, onChange, disabled }: Props) {
       {value.target === "warzone-duel" ? (
         <p className="text-xs text-hq-fg-muted">{t("warzoneAliases")}</p>
       ) : null}
-      <AppSelect
-        value={value.eventId}
-        onChange={(eventId) => {
-          if (eventId === value.eventId) return;
-          requestChange(Boolean(value.boardId), () =>
-            onChange({ ...value, eventId, boardId: "", teamScope: "" }),
-          );
-        }}
-        options={occurrenceOptions}
-        placeholder={t("chooseOccurrence")}
-        searchable
-        searchPlaceholder={tMembers("search")}
-        disabled={disabled || !value.seriesId}
-        aria-label={t("chooseOccurrence")}
-      />
-      <p className="text-xs text-hq-fg-muted">{t("chooseOccurrenceHint")}</p>
-      {value.eventId ? (
+      {templateMode ? null : (
+        <>
+          <AppSelect
+            value={value.eventId}
+            onChange={(eventId) => {
+              if (eventId === value.eventId) return;
+              requestChange(Boolean(value.boardId), () =>
+                onChange({ ...value, eventId, boardId: "", teamScope: "" }),
+              );
+            }}
+            options={occurrenceOptions}
+            placeholder={t("chooseOccurrence")}
+            searchable
+            searchPlaceholder={tMembers("search")}
+            disabled={disabled || !value.seriesId}
+            aria-label={t("chooseOccurrence")}
+          />
+          <p className="text-xs text-hq-fg-muted">
+            {t("chooseOccurrenceHint")}
+          </p>
+        </>
+      )}
+      {value.eventId || (templateMode && teamScoped) ? (
         teamScoped ? (
           <div className="space-y-1">
             <AppSelect

@@ -26,6 +26,7 @@ import type { ConductorTopN } from "@/lib/trains/conductor-top-n.shared";
 import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   DAY_RULE_PALETTE,
+  paletteEntryOpensEventPicker,
   paletteEntryRequiresScope,
   paletteIdForRule,
   ruleForPaletteSelection,
@@ -53,6 +54,8 @@ type Props = {
   ruleLabels: Record<DayRulePaletteId, string>;
   vrReporterCount?: number;
   onSelect: (selection: DayTemplatePaintSelection) => void;
+  /** Event results entries open the shared event rule picker, not a paint. */
+  onConfigureEvent?: (date: string) => void;
   onClose: () => void;
 };
 
@@ -66,6 +69,7 @@ export function DayTemplateContextMenu({
   ruleLabels,
   vrReporterCount = 0,
   onSelect,
+  onConfigureEvent,
   onClose,
 }: Props) {
   const t = useTranslations("trains.dayTemplateMenu");
@@ -222,6 +226,12 @@ export function DayTemplateContextMenu({
                     // never be sent with a defaulted or missing scope.
                     if (paletteEntryRequiresScope(entry.id)) {
                       setScopeBoard(entry.id as "vs_top_n" | "vr_top_n");
+                      return;
+                    }
+                    if (paletteEntryOpensEventPicker(entry.id)) {
+                      const date = anchor.date;
+                      closeMenu();
+                      onConfigureEvent?.(date);
                       return;
                     }
                     onSelect({ rule: ruleForPaletteSelection(entry.id) });

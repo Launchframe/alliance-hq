@@ -21,6 +21,7 @@ import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   DAY_RULE_PALETTE,
   RULE_PALETTE_SWATCHES,
+  paletteEntryOpensEventPicker,
   paletteEntryRequiresScope,
   ruleForPaletteSelection,
   type DayRulePaletteId,
@@ -41,6 +42,8 @@ type Props = {
   vrReporterCount: number;
   busy?: boolean;
   onPaint: (dates: string[], rule: ConductorRule | null) => void;
+  /** Event results opens the shared event rule picker for the focus date. */
+  onConfigureEvent?: (focusDate: string) => void;
   onSpinSelected: () => void;
   onManualPick: () => void;
   onManualPickVip: () => void;
@@ -102,6 +105,7 @@ export function TrainMonthToolbar({
   vrReporterCount,
   busy = false,
   onPaint,
+  onConfigureEvent,
   onSpinSelected,
   onManualPick,
   onManualPickVip,
@@ -139,6 +143,13 @@ export function TrainMonthToolbar({
     // toolbar can never fall back to a default scope.
     if (paletteEntryRequiresScope(paletteId)) {
       setPendingScopeBoard(paletteId as "vs_top_n" | "vr_top_n");
+      return;
+    }
+    if (paletteEntryOpensEventPicker(paletteId)) {
+      setActivePaletteId(paletteId);
+      setPaletteOpen(false);
+      setPendingScopeBoard(null);
+      onConfigureEvent?.(focusDate);
       return;
     }
     setActivePaletteId(paletteId);

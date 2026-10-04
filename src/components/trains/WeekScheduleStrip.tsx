@@ -77,6 +77,8 @@ type Props = {
   /** Per-date gate (today/future for officers; admins may paint past). */
   isDatePaintable?: (date: string) => boolean;
   onPaintDate?: (date: string, rule: ConductorRule | null) => void;
+  /** Event results menu entries open the shared event rule picker. */
+  onConfigureEvent?: (date: string) => void;
   vrReporterCount?: number;
   navLabels: {
     previousWeek: string;
@@ -186,14 +188,15 @@ function WeekScheduleDayCell({
   const weekday = weekdayLabel(day.date);
   const vipLabel =
     day.vipRule?.kind !== "none"
-      ? (day.vipRule?.kind === "event_scores"
+      ? (day.vipRule?.kind === "event_scores" ||
+        day.vipRule?.kind === "event_top_x"
           ? (eventRuleSummary?.(day.vipRule) ?? null)
           : null) ??
         (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null)
       : null;
   const displayScope = scopeForRule(displayRule);
   const conductorLineLabel =
-    displayRule?.kind === "event_scores"
+    displayRule?.kind === "event_scores" || displayRule?.kind === "event_top_x"
       ? (eventRuleSummary?.(displayRule) ??
         ruleTextLabels[conductorRuleLabelKey(displayRule)] ??
         paletteIdForRule(displayRule))
@@ -642,6 +645,7 @@ export function WeekScheduleStrip({
   canPaintDays = false,
   isDatePaintable,
   onPaintDate,
+  onConfigureEvent,
   vrReporterCount = 0,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
@@ -930,6 +934,7 @@ export function WeekScheduleStrip({
         ruleLabels={ruleLabels ?? ({} as Record<DayRulePaletteId, string>)}
         vrReporterCount={vrReporterCount}
         onSelect={handlePaintTemplate}
+        onConfigureEvent={onConfigureEvent}
         onClose={handleCloseTemplateMenu}
       />
     </div>

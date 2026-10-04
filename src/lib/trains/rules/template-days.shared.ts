@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import {
   dayRulesSchema,
+  type ConductorRule,
   type DayRules,
+  type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
   WEEKDAY_KEYS,
@@ -89,3 +91,36 @@ export function validateTemplateWeekRules(
 }
 
 export { conductorRuleSourceDay, WEEKDAY_KEYS };
+
+/**
+ * Strip tenant-local bindings from `event_scores` rules so a template travels
+ * between alliances as an intent: family, eligibility, scope and fallback
+ * survive; occurrence ids, board keys, and (unless kept) series ids do not.
+ * A shared template can never bind another alliance's event by id or name.
+ */
+export function stripEventRuleTenantBindings(
+  days: TemplateWeekRules,
+  options?: { keepSeriesIds?: boolean },
+): TemplateWeekRules {
+  const strip = <T extends ConductorRule | VipRule | null>(rule: T): T => {
+    if (!rule || rule.kind !== "event_scores") return rule;
+    return {
+      ...rule,
+      source: {
+        target: rule.source.target,
+        seriesId: options?.keepSeriesIds ? rule.source.seriesId : null,
+        occurrenceId: null,
+        boardKey: null,
+        teamScope: rule.source.teamScope,
+      },
+    };
+  };
+  const out = {} as TemplateWeekRules;
+  for (const day of WEEKDAY_KEYS) {
+    out[day] = {
+      conductorRule: strip(days[day].conductorRule),
+      vipRule: strip(days[day].vipRule),
+    };
+  }
+  return out;
+}

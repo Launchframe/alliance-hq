@@ -85,6 +85,7 @@ type Props = {
     onViewPool: () => void;
     spinDisabledReason?: string | null;
     canSpinDates: (dates: string[]) => boolean;
+    onConfigureEvent?: (date: string) => void;
   };
 };
 
@@ -419,6 +420,7 @@ export function TrainMonthCalendar({
           onPaint={(dates, rule) => {
             onPaintDates?.(dates, rule);
           }}
+          onConfigureEvent={(date) => monthToolbar.onConfigureEvent?.(date)}
           onSpinSelected={() =>
             monthToolbar.onSpinSelected(selectedDatesList)
           }
@@ -480,7 +482,8 @@ export function TrainMonthCalendar({
             const dayNumber = date.slice(8);
             const scope = day ? scopeForRule(day.conductorRule) : null;
             const mechLabel = day
-              ? day.conductorRule?.kind === "event_scores"
+              ? day.conductorRule?.kind === "event_scores" ||
+                day.conductorRule?.kind === "event_top_x"
                 ? (eventRuleSummary?.(day.conductorRule) ??
                   ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
                   paletteIdForRule(day.conductorRule))
@@ -491,7 +494,8 @@ export function TrainMonthCalendar({
               : null;
             const vipLabel =
               day && day.vipRule?.kind !== "none"
-                ? ((day.vipRule?.kind === "event_scores"
+                ? ((day.vipRule?.kind === "event_scores" ||
+                  day.vipRule?.kind === "event_top_x"
                     ? (eventRuleSummary?.(day.vipRule) ?? null)
                     : null) ??
                   (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null))

@@ -43,12 +43,19 @@ export type DayRulePaletteEntry = {
   scopes?: readonly number[];
   /** True for the "no rule" entry, which is a real choice, not an absence. */
   isFreeChoice?: boolean;
+  /**
+   * This entry never paints directly — it opens the event rule picker so the
+   * officer binds an event (day mode) or a family/series intent (template
+   * mode) through the same configuration UI everywhere.
+   */
+  opensEventPicker?: boolean;
 };
 
 // `event_scores` and legacy `event_top_x` keep palette ids so labels, styles
-// and identities stay exhaustive, but neither is a selectable entry: the
-// former requires an occurrence binding from the event rule picker, the
-// latter stays decodable for history only — new days use `event_scores`.
+// and identities stay exhaustive. `event_top_x` stays decodable for history
+// only — new days use `event_scores`. The `event_scores` palette entry never
+// paints a rule by itself: selecting it opens the event rule picker, which is
+// the only path that produces a bound (or template-intent) rule.
 export const DAY_RULE_PALETTE: readonly DayRulePaletteEntry[] = [
   { id: "free_choice", rule: null, isFreeChoice: true },
   { id: "vs_top_n", rule: null, scopes: VS_TOP_N_SCOPES },
@@ -69,6 +76,7 @@ export const DAY_RULE_PALETTE: readonly DayRulePaletteEntry[] = [
     rule: { kind: "rank_pool", pool: "heavy_hitter", draw: "wheel" },
   },
   { id: "donations_top", rule: { kind: "donations_top" } },
+  { id: "event_scores", rule: null, opensEventPicker: true },
 ];
 
 export function paletteEntry(
@@ -79,6 +87,11 @@ export function paletteEntry(
 
 export function paletteEntryRequiresScope(id: DayRulePaletteId): boolean {
   return (paletteEntry(id)?.scopes?.length ?? 0) > 0;
+}
+
+/** Entries that open the event rule picker instead of painting directly. */
+export function paletteEntryOpensEventPicker(id: DayRulePaletteId): boolean {
+  return paletteEntry(id)?.opensEventPicker === true;
 }
 
 /**
