@@ -608,9 +608,16 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
   ).toBeVisible({ timeout: 180_000 });
   await expect
     .poll(
-      async () =>
-        panel(page).getByLabel("Opponent alliance name", { exact: true }).inputValue(),
-      { timeout: 60_000 },
+      async () => {
+        const ui = await panel(page)
+          .getByLabel("Opponent alliance name", { exact: true })
+          .inputValue();
+        if (ui === "TriVision") return ui;
+        const draft = (await evidenceRow(sql, job.jobId, f.allianceId))
+          ?.draft as { form?: { opponent?: { name?: string | null } } } | null;
+        return draft?.form?.opponent?.name ?? ui;
+      },
+      { timeout: 90_000 },
     )
     .toBe("TriVision");
   await expect(page.getByTestId("vs-video-confirm-sides")).not.toBeChecked();

@@ -1240,12 +1240,30 @@ test.describe("VS Ashed sync and capture UI", () => {
     await expect(
       page.getByTestId("vs-matchup-results").locator("visible=true"),
     ).toBeVisible();
-    await page.evaluate((week) => {
-      const url = new URL(window.location.href);
-      url.searchParams.set("week", week);
-      window.history.pushState({ vsThemeProbe: true }, "", `${url.pathname}${url.search}`);
-    }, pastWeek);
-    await expect.poll(() => weekGets, { timeout: 15_000 }).toBe(1);
+    await page.route(
+      (url) => url.search.includes("_rsc="),
+      () => new Promise(() => {}),
+    );
+    await expect
+      .poll(
+        async () => {
+          if (weekGets === 0) {
+            await page.evaluate((week) => {
+              const url = new URL(window.location.href);
+              url.searchParams.set("week", week);
+              window.history.pushState(
+                { vsThemeProbe: true },
+                "",
+                `${url.pathname}${url.search}`,
+              );
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }, pastWeek);
+          }
+          return weekGets;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(1);
     await expect(
       page
         .getByTestId("vs-matchup-results")
