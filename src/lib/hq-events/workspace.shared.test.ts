@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compareEventResultRows,
   batchSourceKindLabelKey,
   batchStatusLabelKey,
   aggregateEventSync,
@@ -109,5 +110,48 @@ describe("aggregateEventSync", () => {
       errorCode: null,
       total: 2,
     });
+  });
+});
+
+describe("compareEventResultRows", () => {
+  const row = (
+    memberName: string,
+    evidenceClass: "real" | "legacy_leaderboard" | "yes_only" | "explicit_no" | "conflict" | "none",
+    realScore: string | null = null,
+  ) => ({ memberName, evidenceClass, realScore, participation: null, conflictKind: null });
+
+  it("orders scored rows by score desc, then buckets, each by name", () => {
+    const rows = [
+      row("Zeta", "explicit_no"),
+      row("Low", "real", "100"),
+      row("High", "real", "200"),
+      row("Beta", "yes_only"),
+      row("Alpha", "yes_only"),
+      row("Conf", "conflict"),
+      row("NoEv", "none"),
+    ];
+    const sorted = [...rows].sort((a, b) => compareEventResultRows(a, b, "en-US"));
+    expect(sorted.map((r) => r.memberName)).toEqual([
+      "High",
+      "Low",
+      "Alpha",
+      "Beta",
+      "Zeta",
+      "Conf",
+      "NoEv",
+    ]);
+  });
+
+  it("compares scores beyond 2^53 exactly", () => {
+    const a = row("A", "real", "9007199254740993");
+    const b = row("B", "real", "9007199254740992");
+    expect(compareEventResultRows(a, b, "en-US")).toBeLessThan(0);
+    expect(compareEventResultRows(b, a, "en-US")).toBeGreaterThan(0);
+  });
+
+  it("breaks score ties by name", () => {
+    const a = row("Beta", "real", "500");
+    const b = row("Alpha", "real", "500");
+    expect(compareEventResultRows(a, b, "en-US")).toBeGreaterThan(0);
   });
 });

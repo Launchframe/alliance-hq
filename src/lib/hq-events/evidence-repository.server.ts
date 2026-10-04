@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 import { getDb, schema } from "@/lib/db";
 import {
@@ -710,19 +711,24 @@ export async function loadEventEvidence(
     )
     .orderBy(desc(schema.hqEventEvidenceBatches.createdAt));
 
-  const syncItems = await db
-    .select({
-      boardId: schema.hqEventSyncItems.boardId,
-      status: schema.hqEventSyncItems.status,
-      errorCode: schema.hqEventSyncItems.errorCode,
-    })
-    .from(schema.hqEventSyncItems)
-    .where(
-      and(
-        eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
-        eq(schema.hqEventSyncItems.hqEventId, event.id),
-      ),
-    );
+  // Sync rows exist only for Ashed-linked alliances; for unlinked ones they
+  // are a dead queue — don't surface them on the workspace.
+  const ashedLinked = await getAshedAllianceIdIfLinked(actor.allianceId);
+  const syncItems = ashedLinked
+    ? await db
+        .select({
+          boardId: schema.hqEventSyncItems.boardId,
+          status: schema.hqEventSyncItems.status,
+          errorCode: schema.hqEventSyncItems.errorCode,
+        })
+        .from(schema.hqEventSyncItems)
+        .where(
+          and(
+            eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
+            eq(schema.hqEventSyncItems.hqEventId, event.id),
+          ),
+        )
+    : [];
 
   return {
     boards,

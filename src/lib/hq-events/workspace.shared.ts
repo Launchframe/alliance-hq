@@ -162,6 +162,40 @@ export function resultFilterOf(
 }
 
 /**
+ * Display ordering for the event results table: scored rows first (real and
+ * legacy_leaderboard) by score descending — BigInt comparison, never
+ * Number, as scores may exceed 2^53 — with name ties; then yes_only,
+ * explicit_no, conflict, and evidence-less roster rows, each by name.
+ */
+export function compareEventResultRows(
+  a: Pick<EventResultRow, "evidenceClass" | "participation" | "conflictKind" | "memberName" | "realScore">,
+  b: Pick<EventResultRow, "evidenceClass" | "participation" | "conflictKind" | "memberName" | "realScore">,
+  locale: string,
+): number {
+  const order: Record<string, number> = {
+    scored: 0,
+    yes_only: 1,
+    no_only: 2,
+    conflict: 3,
+  };
+  const bucketA = resultFilterOf(a);
+  const bucketB = resultFilterOf(b);
+  const rankA = bucketA != null ? order[bucketA]! : 4;
+  const rankB = bucketB != null ? order[bucketB]! : 4;
+  if (rankA !== rankB) return rankA - rankB;
+  if (rankA === 0) {
+    const scoreA = a.realScore != null && a.realScore !== "" ? BigInt(a.realScore) : null;
+    const scoreB = b.realScore != null && b.realScore !== "" ? BigInt(b.realScore) : null;
+    if (scoreA != null && scoreB != null && scoreA !== scoreB) {
+      return scoreA > scoreB ? -1 : 1;
+    }
+    if (scoreA != null && scoreB == null) return -1;
+    if (scoreA == null && scoreB != null) return 1;
+  }
+  return (a.memberName ?? "").localeCompare(b.memberName ?? "", locale);
+}
+
+/**
  * Exact decimal-string formatting with the active locale. Never Number() —
  * scores may exceed 2^53.
  */

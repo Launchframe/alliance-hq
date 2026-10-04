@@ -11,6 +11,7 @@ import { Link } from "@/i18n/navigation";
 import type { EventTarget } from "@/lib/hq-events/event-types.shared";
 import {
   batchSourceKindLabelKey,
+  compareEventResultRows,
   batchStatusLabelKey,
   aggregateEventSync,
   boardTeamScope,
@@ -206,8 +207,10 @@ export function EventWorkspace({
 
   const noEvidenceMembers = useMemo(() => {
     const evidenced = new Set(boardResults.map((row) => row.memberId));
-    return activeRoster.filter((m) => !evidenced.has(m.id));
-  }, [boardResults, activeRoster]);
+    return activeRoster
+      .filter((m) => !evidenced.has(m.id))
+      .sort((a, b) => a.current_name.localeCompare(b.current_name, locale));
+  }, [boardResults, activeRoster, locale]);
 
   const counts = useMemo(() => {
     const c: Record<EventResultFilter, number> = {
@@ -226,10 +229,13 @@ export function EventWorkspace({
 
   const visibleResults = useMemo(
     () =>
-      filter === "all"
+      (filter === "all"
         ? boardResults
-        : boardResults.filter((row) => resultFilterOf(row) === filter),
-    [boardResults, filter],
+        : boardResults.filter((row) => resultFilterOf(row) === filter)
+      )
+        .slice()
+        .sort((a, b) => compareEventResultRows(a, b, locale)),
+    [boardResults, filter, locale],
   );
 
   const observationsById = useMemo(() => {

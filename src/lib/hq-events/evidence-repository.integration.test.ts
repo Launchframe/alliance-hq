@@ -378,6 +378,20 @@ describe.skipIf(process.env.EVENT_EVIDENCE_DB_TEST !== "1")(
       void v2;
     });
 
+    it("loadEventEvidence hides sync items for alliances without an Ashed link", async () => {
+      const { sql, actor, eventId, boardId } = await setup();
+      // Queue a sync item directly — simulates a backfill queued pre-unlink.
+      await sql`INSERT INTO hq_event_sync_items (id, alliance_id, hq_event_id, board_id, remote_key, member_id, desired_revision, status, created_at, updated_at)
+        VALUES (${`sync-${nanoid(8)}`}, ${actor.allianceId}, ${eventId}, ${boardId}, ${`rk-${nanoid(6)}`}, 'm-x', 1, 'pending', ${new Date()}, ${new Date()})`;
+      const unlinked = await loadEventEvidence(actor, { eventId, boardId });
+      expect(unlinked!.syncItems).toEqual([]);
+      // Link the alliance → the queued item surfaces again.
+      await sql`UPDATE alliances SET ashed_alliance_id = ${`ashed-${nanoid(8)}`} WHERE id = ${actor.allianceId}`;
+      const linked = await loadEventEvidence(actor, { eventId, boardId });
+      expect(linked!.syncItems).toHaveLength(1);
+      expect(linked!.syncItems[0]!.status).toBe("pending");
+    });
+
     it("concurrent board commits serialize without deadlock", async () => {
       const { actor, eventId, boardId } = await setup();
       const [a, b] = await Promise.all([
