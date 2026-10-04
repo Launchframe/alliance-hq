@@ -17,10 +17,14 @@ describe("discipline permissions", () => {
     expect(canAccessVsCompliance({ ...actor, hqUserId: null, roleName: "owner", isPlatformMaintainer: true }, manage)).toBe(false);
   });
 
-  it("allows native officers to read and manage, but not change policy settings", () => {
+  it("allows native officers to read, manage, and change policy settings with an explicit grant", () => {
     expect(canAccessVsCompliance(actor, read)).toBe(true);
     expect(canAccessVsCompliance(actor, manage)).toBe(true);
-    expect(canAccessVsCompliance({ ...actor, permissions: new Set([settings]) }, settings)).toBe(false);
+    expect(canAccessVsCompliance({ ...actor, permissions: new Set([settings]) }, settings)).toBe(true);
+  });
+
+  it.each(["member", "data_entry", "viewer"])("denies %s settings even with an accidentally granted permission", (roleName) => {
+    expect(canAccessVsCompliance({ ...actor, roleName, permissions: new Set([settings]) }, settings)).toBe(false);
   });
 
   it("requires an explicit discipline grant, not members:write alone", () => {

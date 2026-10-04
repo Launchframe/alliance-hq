@@ -77,9 +77,9 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
       <p className="text-sm">{all("videoReview.vsWeeklyDateOption", { date: date(week) })}</p>
       {visible && policy ? <div className="grid gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 sm:grid-cols-2">
         <p>{t("dailyTarget")}: {number(policy.dailyTarget)}</p>
-        <p>{t("weeklyMinimum")}: {number(policy.weeklyMinimum)}</p>
+        <p>{t("weeklyMinimum")}: {number("preset" in policy ? policy.weeklyMinimum : null)}</p>
         <p>{t("leeway")}: {number(policy.leewayPct)}</p>
-        <p>{t("preset")}: {t(policy.preset === "rank_aware" ? "rankAware" : "consecutive")}</p>
+        <p>{t("preset")}: {t("preset" in policy && policy.preset === "consecutive" ? "consecutive" : "rankAware")}</p>
         <label className="flex items-center gap-2"><input type="checkbox" checked={policy.enabled} disabled readOnly />{t("enabled")}</label>
       </div> : null}
       {error ? <p ref={errorRef} role="alert" className="text-hq-danger">{error}</p> : null}

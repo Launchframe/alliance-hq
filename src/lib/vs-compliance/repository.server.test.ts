@@ -6,7 +6,7 @@ import type { ComplianceTx, loadComplianceFacts } from "./evidence.server";
 const mockFacts = vi.hoisted(() => vi.fn());
 vi.mock("server-only", () => ({}));
 vi.mock("./evidence.server", async () => ({ ...(await vi.importActual("./evidence.server")), loadComplianceFacts: mockFacts }));
-import { rebuildComplianceTx, type ComplianceRow } from "./repository.server";
+import { computeComplianceRows, rebuildComplianceTx, type ComplianceRow } from "./repository.server";
 
 const weeks = ["2026-08-16", "2026-08-23", "2026-08-30"];
 const member = { active: true, currentRank: 3, rankVersion: "rank", joinedAt: "2020-01-01T00:00:00Z", leftAt: null, isOwner: false };
@@ -65,5 +65,31 @@ describe("durable chronological evaluation and inbox reconciliation", () => {
     const db = database(first.rows, [settled], [{ actionId: "action", memberId: "member", status: "failed" }]);
     await rebuildComplianceTx(db.tx, "tenant", weeks, external);
     expect(db.writes.filter((write) => write.table === "inbox_reminder_items").at(-1)?.value.active).toBe(1);
+  });
+  it("computes rows, inbox candidates, and review writes without touching the database", async () => {
+    const db = database();
+    const result = await computeComplianceRows(db.tx, "tenant", weeks, external);
+    expect(db.writes).toHaveLength(0);
+    expect(result.rows.map((row) => row.evaluation.streak)).toEqual([1, 2, 3]);
+    expect(result.changedRows).toHaveLength(3);
+    expect(result.inbox.at(-1)).toMatchObject({ active: 1, requiredPermission: "vs_compliance:read" });
+    const first = await rebuildComplianceTx(database().tx, "tenant", weeks, external);
+    const settled = { id: "action", eventId: first.rows[2].id, memberId: "member", kind: "remove", targetRank: null, memberSnapshot: member, evaluationBasis: first.rows[2].evaluation.evaluationBasis };
+    const departed = facts(); departed.members[0].member = { ...member, active: false, joinedAt: null };
+    departed.heads[2].score = 40_000_000; departed.heads[2].version++;
+    mockFacts.mockResolvedValue(departed);
+    const reviewDb = database(first.rows, [settled]);
+    const computed = await computeComplianceRows(reviewDb.tx, "tenant", weeks, external);
+    expect(reviewDb.writes).toHaveLength(0);
+    expect(computed.reviews).toHaveLength(1);
+    expect(computed.rows[2].evaluation).toMatchObject({ outcome: "passed", correctionReview: true });
+  });
+  it("lets a policy override evaluate hypothetical models without persisting them", async () => {
+    const dailyPolicy = { modelVersion: 2 as const, enabled: true, dailyTarget: 1, leewayPct: 0, allowedMissedDays: 0, demotion: { unit: "weeks" as const, length: 1 }, promotion: { unit: "weeks" as const, length: 2 }, version: 9, effectiveWeek: weeks[0] };
+    const db = database();
+    const result = await computeComplianceRows(db.tx, "tenant", weeks, external, { policiesOverride: [dailyPolicy], now: new Date("2026-09-05T12:00:00Z") });
+    expect(db.writes).toHaveLength(0);
+    expect(result.rows.map((row) => row.evaluation.modelVersion)).toEqual([2, 2, 2]);
+    expect(result.rows.map((row) => row.evaluation.policyVersion)).toEqual([9, 9, 9]);
   });
 });

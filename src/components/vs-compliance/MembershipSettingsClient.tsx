@@ -37,8 +37,9 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
       if (!requests.current.current(version)) return;
       const payload = data as MembershipSettings;
       const policy = payload.latest ?? payload.defaults;
+      const legacyPolicy = "preset" in policy ? policy : payload.defaults;
       setSettings(payload);
-      setDraft({ enabled: policy.enabled, dailyTarget: String(policy.dailyTarget), weeklyMinimum: policy.weeklyMinimum === null ? "" : String(policy.weeklyMinimum), leewayPct: String(policy.leewayPct), preset: policy.preset, removalThreshold: String(policy.removalThreshold), effectiveWeek: payload.latest && payload.latest.effectiveWeek > earliestWeek ? payload.latest.effectiveWeek : earliestWeek });
+      setDraft({ enabled: legacyPolicy.enabled, dailyTarget: String(policy.dailyTarget), weeklyMinimum: legacyPolicy.weeklyMinimum === null ? "" : String(legacyPolicy.weeklyMinimum), leewayPct: String(policy.leewayPct), preset: legacyPolicy.preset, removalThreshold: String(legacyPolicy.removalThreshold), effectiveWeek: payload.latest && payload.latest.effectiveWeek > earliestWeek ? payload.latest.effectiveWeek : earliestWeek });
     } catch (failure) { if (requests.current.current(version)) setError(failure instanceof ComplianceClientError ? failure.message : all("statSync.actionFailed")); }
     finally { if (requests.current.current(version)) setLoading(false); }
   }, [all, earliestWeek, endpoint]);
@@ -66,9 +67,9 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
   const policyDetails = (policy: VsPolicyVersion) => <article key={policy.version} className="space-y-2 rounded border border-hq-border p-4">
     <h3 className="font-medium">{t("effectiveFrom")}: {all("videoReview.vsWeeklyDateOption", { date: date(policy.effectiveWeek) })} · {all("shell.version", { version: number(policy.version) })}</h3>
     <label className="flex items-center gap-2"><input type="checkbox" checked={policy.enabled} disabled readOnly />{t("enabled")}</label>
-    <p>{t("dailyTarget")}: {number(policy.dailyTarget)}</p><p>{t("weeklyMinimum")}: {number(policy.weeklyMinimum)}</p><p>{t("leeway")}: {number(policy.leewayPct)}</p>
-    <p>{t("preset")}: {t(policy.preset === "rank_aware" ? "rankAware" : "consecutive")}</p>
-    {policy.preset === "consecutive" ? <p>{t("removalThreshold")}: {number(policy.removalThreshold)}</p> : null}
+    <p>{t("dailyTarget")}: {number(policy.dailyTarget)}</p>{policy.modelVersion !== 2 ? <><p>{t("weeklyMinimum")}: {number(policy.weeklyMinimum)}</p></> : null}<p>{t("leeway")}: {number(policy.leewayPct)}</p>
+    {policy.modelVersion !== 2 ? <p>{t("preset")}: {t(policy.preset === "rank_aware" ? "rankAware" : "consecutive")}</p> : null}
+    {policy.modelVersion !== 2 && policy.preset === "consecutive" ? <p>{t("removalThreshold")}: {number(policy.removalThreshold)}</p> : null}
   </article>;
   return <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
     <header className="space-y-2"><Link href="/vs-compliance" className="text-hq-accent underline">{t("title")}</Link><h1 className="text-2xl font-semibold">{t("settings")}</h1><p>{allianceTag}</p></header>

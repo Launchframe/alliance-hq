@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultVsPolicy } from "./policy.shared";
 
-const state = vi.hoisted(() => ({ results: [] as Record<string, unknown>[][], inserts: [] as Record<string, unknown>[], locks: [] as string[], activeTransaction: false, authorize: vi.fn() }));
+const state = vi.hoisted(() => ({ results: [] as Record<string, unknown>[][], inserts: [] as Record<string, unknown>[], locks: [] as string[], activeTransaction: false, authorize: vi.fn(), audit: vi.fn() }));
+vi.mock("@/lib/bff/officer-action-audit.server", () => ({ writeOfficerActionAudit: (...args: unknown[]) => state.audit(...args) }));
 vi.mock("server-only", () => ({}));
 vi.mock("./access.server", () => ({ requireVsComplianceAccess: (...args: unknown[]) => {
   expect(state.activeTransaction).toBe(false);
@@ -97,10 +98,49 @@ describe("versioned policy persistence", () => {
     expect(saved.effectiveWeek).toBe("2026-09-27");
   });
 
-  it("denies an ordinary officer with an accidentally granted settings permission", async () => {
+  it("allows an officer with the settings permission", async () => {
     state.results = authorizedRows();
     state.results[3] = [{ roleName: "officer", permissionId: "vs_compliance:settings" }];
+    const saved = await saveVsMembershipSettings("session", "alliance", { expectedVersion: 0, patch: {} }, () => now);
+    expect(saved).toMatchObject({ version: 1 });
+    expect(state.inserts).toHaveLength(1);
+  });
+
+  it.each(["member", "data_entry"])("denies %s even with an accidentally granted settings permission", async (roleName) => {
+    state.results = authorizedRows();
+    state.results[3] = [{ roleName, permissionId: "vs_compliance:settings" }];
     await expect(saveVsMembershipSettings("session", "alliance", { expectedVersion: 0, patch: {} }, () => now)).rejects.toMatchObject({ code: "forbidden" });
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("persists daily-consistency columns, nulls legacy-only fields, and audits the change", async () => {
+    state.results = authorizedRows([existing]);
+    const saved = await saveVsMembershipSettings("session", "alliance", { expectedVersion: 1, patch: { modelVersion: 2, enabled: true, allowedMissedDays: 1, demotion: { unit: "days", length: 3 }, promotion: { unit: "weeks", length: 4 } } }, () => now);
+    expect(saved).toMatchObject({ modelVersion: 2, version: 2, enabled: true, allowedMissedDays: 1, demotion: { unit: "days", length: 3 }, promotion: { unit: "weeks", length: 4 } });
+    expect(saved).not.toHaveProperty("weeklyMinimum");
+    expect(state.inserts[0]).toMatchObject({
+      modelVersion: 2, version: 2, enabled: true, dailyTarget: 7_200_000, leewayPct: 0,
+      weeklyMinimum: null, allowedMissedDays: 1, demotionUnit: "days", demotionLength: 3,
+      promotionUnit: "weeks", promotionLength: 4,
+    });
+    expect(state.inserts[0]).not.toHaveProperty("preset");
+    expect(state.inserts[0]).not.toHaveProperty("removalThreshold");
+    expect(state.audit).toHaveBeenCalledTimes(1);
+    expect(state.audit).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: "session", allianceId: "alliance", hqUserId: "user",
+      action: "vs_compliance.policy_update", severity: "override",
+      permission: "vs_compliance:settings", resourceType: "vs_compliance_policy",
+      metadata: expect.objectContaining({ previous: expect.objectContaining({ modelVersion: 1 }), next: expect.objectContaining({ modelVersion: 2 }) }),
+    }));
+    expect(JSON.stringify(state.audit.mock.calls[0][0])).not.toContain("other-owner");
+  });
+
+  it("audits legacy v1 saves with the projected policies and no actor ids", async () => {
+    state.results = authorizedRows();
+    await saveVsMembershipSettings("session", "alliance", { expectedVersion: 0, patch: { enabled: true, weeklyMinimum: 40_000_000 } }, () => now);
+    expect(state.inserts[0]).toMatchObject({ modelVersion: 1, weeklyMinimum: 40_000_000, preset: "rank_aware", removalThreshold: 3, allowedMissedDays: null, demotionUnit: null, demotionLength: null, promotionUnit: null, promotionLength: null });
+    expect(state.audit).toHaveBeenCalledTimes(1);
+    expect(state.audit.mock.calls[0][0].metadata.previous).toBeNull();
   });
 
   it("scopes authorized reads and projects only policy settings, never actor or private metadata", async () => {

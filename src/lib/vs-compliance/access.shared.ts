@@ -10,6 +10,6 @@ export function canAccessVsCompliance(actor: {
 }, permission: VsCompliancePermission): boolean {
   if (!actor.hqUserId) return false;
   if (actor.isPlatformMaintainer && actor.permissions.has("hq:admin")) return true;
-  const roles = permission === VS_COMPLIANCE_SETTINGS_PERMISSION ? ["owner", "maintainer"] : ["owner", "maintainer", "officer"];
+  const roles = ["owner", "maintainer", "officer"];
   return actor.roleName !== null && roles.includes(actor.roleName) && actor.permissions.has(permission);
 }

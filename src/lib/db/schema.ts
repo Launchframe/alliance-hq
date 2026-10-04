@@ -5080,6 +5080,12 @@ export const vsCompliancePolicies = pgTable("vs_compliance_policies", {
   leewayPct: integer("leeway_pct").notNull().default(0),
   preset: text("preset").$type<"rank_aware" | "consecutive">().notNull().default("rank_aware"),
   removalThreshold: integer("removal_threshold").notNull().default(3),
+  modelVersion: integer("model_version").notNull().default(1),
+  allowedMissedDays: integer("allowed_missed_days"),
+  demotionUnit: text("demotion_unit").$type<"days" | "weeks">(),
+  demotionLength: integer("demotion_length"),
+  promotionUnit: text("promotion_unit").$type<"days" | "weeks">(),
+  promotionLength: integer("promotion_length"),
   createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
