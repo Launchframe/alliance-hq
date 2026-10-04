@@ -8087,6 +8087,7 @@
       "environment": "Ambiente: {environment}",
       "failure": "Categoria da falha: {failure}",
       "incident": "Incidente: {incident}",
+      "logReference": "Referência do log: {incidentId}",
       "window": "Janela do alerta: {window}",
       "nextStep": "Verifique os logs do aplicativo para este incidente antes de tentar a ação afetada novamente."
     }

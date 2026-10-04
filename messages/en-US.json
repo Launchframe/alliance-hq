@@ -8106,6 +8106,7 @@
       "environment": "Environment: {environment}",
       "failure": "Failure category: {failure}",
       "incident": "Incident: {incident}",
+      "logReference": "Log reference: {incidentId}",
       "window": "Alert window: {window}",
       "nextStep": "Check the application logs for this incident before retrying the affected action."
     }
