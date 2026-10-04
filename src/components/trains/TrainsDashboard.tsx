@@ -768,6 +768,7 @@ export function TrainsDashboard({
       donations_top: t("mechanismsShort.donationsTop"),
       officer_pick: t("mechanismsShort.officerPick"),
       event_top_x_lottery: t("mechanismsShort.eventTopX"),
+      event_scores: t("mechanismsShort.eventTopX"),
       custom: t("mechanismsShort.custom"),
     }),
     [t],
@@ -785,6 +786,7 @@ export function TrainsDashboard({
       donations_top: t("mechanisms.donationsTop"),
       officer_pick: t("mechanisms.officerPick"),
       event_top_x_lottery: t("mechanisms.eventTopX"),
+      event_scores: t("rules.eventScores"),
       custom: t("mechanisms.custom"),
     }),
     [t],
@@ -812,6 +814,7 @@ export function TrainsDashboard({
       conductor_pick: t("vipMechanismsShort.conductorPick"),
       donations_second: t("vipMechanismsShort.donationsSecond"),
       event_top_x_lottery: t("vipMechanismsShort.eventTopX"),
+      event_scores: t("vipMechanismsShort.eventTopX"),
     }),
     [t],
   );

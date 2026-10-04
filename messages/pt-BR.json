@@ -4781,6 +4781,8 @@
       "priceIsFreightHeavyHitter": "Elegibilidade takedown",
       "donationsTop": "Top doador",
       "eventTopX": "Top X evento",
+      "eventScores": "Resultados de eventos",
+      "eventScoresSummary": "{event} · {scope}",
       "vipConductorPick": "Escolha do condutor",
       "vipDonationsSecond": "Segundo doador",
       "vipEventTopX": "Top X evento",
@@ -4797,7 +4799,8 @@
       "r4_rotation": "Percorre os oficiais R4+ em ordem, um condutor por dia.",
       "heavy_hitter_pool": "Gira o rodízio heavy-hitter. Os vencedores saem dele até que se esgote e seja reiniciado.",
       "donations_top": "O maior doador do dia anterior vira condutor automaticamente.",
-      "event_top_x": "Gira uma loteria entre os melhores colocados do evento."
+      "event_top_x": "Gira uma loteria entre os melhores colocados do evento.",
+      "eventScores": "Escolha um evento e sorteie entre seus resultados revisados."
     },
     "mechanismsShort": {
       "vsHighScore": "VS D1",

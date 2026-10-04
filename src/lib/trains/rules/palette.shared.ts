@@ -30,6 +30,7 @@ export const DAY_RULE_PALETTE_IDS = [
   "heavy_hitter_pool",
   "donations_top",
   "event_top_x",
+  "event_scores",
 ] as const;
 
 export type DayRulePaletteId = (typeof DAY_RULE_PALETTE_IDS)[number];
@@ -44,6 +45,9 @@ export type DayRulePaletteEntry = {
   isFreeChoice?: boolean;
 };
 
+// `event_scores` has a palette id so labels/styles/identity stay exhaustive,
+// but it is deliberately NOT a selectable entry: it requires an occurrence
+// binding from the event rule picker (Phase 3), not a scope list.
 export const DAY_RULE_PALETTE: readonly DayRulePaletteEntry[] = [
   { id: "free_choice", rule: null, isFreeChoice: true },
   { id: "vs_top_n", rule: null, scopes: VS_TOP_N_SCOPES },
@@ -131,6 +135,8 @@ export function paletteIdForRule(
       return "donations_top";
     case "event_top_x":
       return "event_top_x";
+    case "event_scores":
+      return "event_scores";
   }
 }
 
@@ -166,6 +172,8 @@ export const RULE_CELL_STYLES: Record<DayRulePaletteId, string> = {
     "border-amber-500 bg-amber-500/15 text-amber-200 light:bg-amber-100 light:text-amber-800",
   event_top_x:
     "border-pink-500 bg-pink-500/15 text-pink-200 light:bg-pink-100 light:text-pink-800",
+  event_scores:
+    "border-rose-500 bg-rose-500/15 text-rose-200 light:bg-rose-100 light:text-rose-800",
 };
 
 export const RULE_PALETTE_SWATCHES: Record<
@@ -183,6 +191,7 @@ export const RULE_PALETTE_SWATCHES: Record<
   heavy_hitter_pool: { swatch: "bg-teal-500", ring: "ring-teal-500" },
   donations_top: { swatch: "bg-amber-500", ring: "ring-amber-500" },
   event_top_x: { swatch: "bg-pink-500", ring: "ring-pink-500" },
+  event_scores: { swatch: "bg-rose-500", ring: "ring-rose-500" },
 };
 
 export function ruleCellStyleClass(rule: ConductorRule | null): string {

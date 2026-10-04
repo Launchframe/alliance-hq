@@ -19,6 +19,7 @@ export const CONDUCTOR_MECHANISMS = [
   "donations_top",
   "officer_pick",
   "event_top_x_lottery",
+  "event_scores",
   "custom",
 ] as const;
 
@@ -28,6 +29,7 @@ export const VIP_MECHANISMS = [
   "conductor_pick",
   "donations_second",
   "event_top_x_lottery",
+  "event_scores",
   "none",
 ] as const;
 
