@@ -208,12 +208,31 @@ describe.skipIf(process.env.EVENT_EVIDENCE_DB_TEST !== "1")(
       expect(replay.result.memberId).toBe(first.result.memberId);
       expect(replay.draw.id).toBe(first.draw.id);
 
+      // Any signature field difference (fingerprint, ack flag) conflicts.
       await expect(
         rollEventForTrain(actor, {
           date: DATE,
           role: "conductor",
           requestId,
           expectedEligibilityFingerprint: "different-fingerprint",
+        }),
+      ).rejects.toSatisfy((e) => (e as TrainRollError).details.code === "REQUEST_CONFLICT");
+      await expect(
+        rollEventForTrain(actor, {
+          date: DATE,
+          role: "conductor",
+          requestId,
+          expectedEligibilityFingerprint: preview.fingerprint!,
+          acknowledgePollFallback: true,
+        }),
+      ).rejects.toSatisfy((e) => (e as TrainRollError).details.code === "REQUEST_CONFLICT");
+      // Replay of the vip role under the same requestId also conflicts.
+      await expect(
+        rollEventForTrain(actor, {
+          date: DATE,
+          role: "vip",
+          requestId,
+          expectedEligibilityFingerprint: preview.fingerprint!,
         }),
       ).rejects.toSatisfy((e) => (e as TrainRollError).details.code === "REQUEST_CONFLICT");
     });
@@ -368,6 +387,22 @@ describe.skipIf(process.env.EVENT_EVIDENCE_DB_TEST !== "1")(
       });
       expect(yeses).toContain(draw.result.memberId);
       expect(draw.draw.fallbackUsed).toBe(1);
+
+      // Receipt snapshots the fallback pool actually drawn from.
+      const snapshot = draw.draw.candidates as {
+        memberId: string;
+        memberName: string | null;
+        evidenceKind: string;
+      }[];
+      expect(snapshot).toHaveLength(4);
+      expect(snapshot.map((c) => c.memberId).sort()).toEqual([...yeses].sort());
+      for (const candidate of snapshot) {
+        expect(candidate.evidenceKind).toBe("poll_yes");
+        expect(candidate.memberName).toBeTruthy();
+      }
+      // candidates_hash is a real content hash, not the request signature.
+      expect(draw.draw.candidatesHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(draw.draw.candidatesHash).not.toBe(draw.draw.requestSignature);
     });
 
     it("same event on the next date starts fresh (no day exclusion)", async () => {

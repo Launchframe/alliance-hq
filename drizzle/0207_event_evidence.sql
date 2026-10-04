@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS "train_event_draws" (
   "date" text NOT NULL,
   "role" text NOT NULL,
   "request_id" text NOT NULL,
+  "request_signature" text NOT NULL,
   "rule_identity" text NOT NULL,
   "rule" jsonb,
   "hq_event_id" text NOT NULL,

@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomInt } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { schema } from "@/lib/db";
@@ -68,16 +68,6 @@ function drawSignature(input: {
     .slice(0, 32);
 }
 
-function drawReceiptSignature(
-  draw: typeof schema.trainEventDraws.$inferSelect,
-): { date: string; role: string; ruleIdentity: string; fingerprint: string } {
-  return {
-    date: draw.date,
-    role: draw.role,
-    ruleIdentity: draw.ruleIdentity,
-    fingerprint: draw.eligibilityFingerprint,
-  };
-}
 
 export type RollEventForTrainResult = {
   result: RollResult;
@@ -113,6 +103,7 @@ export async function rollEventForTrain(
 
   return withTrainScheduleWriteLock(actor.allianceId, undefined, async (tx) => {
     // Idempotent replay / conflicting signature on (alliance, requestId).
+    // Compared against the full request signature after the rule is loaded.
     const [existing] = await tx
       .select()
       .from(schema.trainEventDraws)
@@ -123,13 +114,35 @@ export async function rollEventForTrain(
         ),
       )
       .limit(1);
+
+    const seasonKey =
+      input.seasonKey ??
+      (await (
+        await import("@/lib/trains/service")
+      ).resolveTrainSeasonKey(actor.allianceId, tx));
+
+    const rule = await loadDayEventRule(actor, input, seasonKey, tx);
+    if (!rule) {
+      throwEventDraw(
+        "EVENT_NOT_SELECTED",
+        "Select a reviewed event before spinning.",
+      );
+    }
+    const ruleIdentity =
+      input.role === "vip" ? vipRuleIdentity(rule) : conductorRuleIdentity(rule);
+    const signature = drawSignature({
+      date: input.date,
+      role: input.role,
+      ruleIdentity,
+      fingerprint: input.expectedEligibilityFingerprint,
+      acknowledgePollFallback,
+    });
+
+    // Same requestId + same signature replays the original draw without
+    // touching eligibility again; any other field under the same requestId is
+    // a caller bug and conflicts.
     if (existing) {
-      const stored = drawReceiptSignature(existing);
-      if (
-        stored.date === input.date &&
-        stored.role === input.role &&
-        stored.fingerprint === input.expectedEligibilityFingerprint
-      ) {
+      if (existing.requestSignature === signature) {
         return {
           result: {
             memberId: existing.winnerMemberId,
@@ -150,15 +163,10 @@ export async function rollEventForTrain(
       );
     }
 
-    const seasonKey =
-      input.seasonKey ??
-      (await (
-        await import("@/lib/trains/service")
-      ).resolveTrainSeasonKey(actor.allianceId, tx));
-
     const preview = await previewEventEligibility(actor, {
       date: input.date,
       role: input.role,
+      rule,
       seasonKey,
       db: tx,
       forUpdate: true,
@@ -215,23 +223,6 @@ export async function rollEventForTrain(
       );
     }
 
-    const rule = await loadDayEventRule(actor, input, seasonKey, tx);
-    if (!rule) {
-      throwEventDraw(
-        "EVENT_NOT_SELECTED",
-        "Select a reviewed event before spinning.",
-      );
-    }
-    const ruleIdentity =
-      input.role === "vip" ? vipRuleIdentity(rule) : conductorRuleIdentity(rule);
-    const signature = drawSignature({
-      date: input.date,
-      role: input.role,
-      ruleIdentity,
-      fingerprint: preview.fingerprint!,
-      acknowledgePollFallback,
-    });
-
     const pool = useFallback
       ? (eligibility.fallbackCandidates ?? [])
       : eligibility.candidates.map((candidate) => candidate.memberId);
@@ -239,9 +230,17 @@ export async function rollEventForTrain(
       throwEventDraw("PENDING_EVIDENCE", "No drawable members on this event.");
     }
     const winnerId = pool[randomInt(0, pool.length)]!;
+
+    // The receipt snapshots the pool actually drawn from — under the poll
+    // fallback that is the Yes respondents, not the empty scored board.
+    const receiptCandidates = useFallback
+      ? await fallbackCandidateSnapshot(actor.allianceId, pool, tx)
+      : eligibility.candidates;
+    const candidatesHash = createHash("sha256")
+      .update(JSON.stringify(receiptCandidates))
+      .digest("hex");
     const winnerName =
-      [...(eligibility.candidates ?? [])]
-        .find((candidate) => candidate.memberId === winnerId)
+      receiptCandidates.find((candidate) => candidate.memberId === winnerId)
         ?.memberName ??
       (await memberNameFor(actor.allianceId, winnerId, tx)) ??
       "";
@@ -256,13 +255,14 @@ export async function rollEventForTrain(
         date: input.date,
         role: input.role,
         requestId,
+        requestSignature: signature,
         ruleIdentity,
         rule,
         hqEventId: preview.sourceIdentity.occurrenceId ?? "",
         boardRevisions,
         eligibilityFingerprint: preview.fingerprint!,
-        candidates: eligibility.candidates,
-        candidatesHash: signature,
+        candidates: receiptCandidates,
+        candidatesHash,
         winnerMemberId: winnerId,
         winnerMemberName: winnerName,
         fallbackUsed: useFallback ? 1 : 0,
@@ -341,6 +341,42 @@ async function loadDayEventRule(
   const rule =
     input.role === "vip" ? dayConfig.vipRule : dayConfig.conductorRule;
   return rule?.kind === "event_scores" ? rule : null;
+}
+
+async function fallbackCandidateSnapshot(
+  allianceId: string,
+  memberIds: string[],
+  tx: Parameters<Parameters<typeof withTrainScheduleWriteLock>[2]>[0],
+): Promise<
+  {
+    memberId: string;
+    memberName: string | null;
+    eventScore: string | null;
+    stage: number | null;
+    evidenceKind: string;
+  }[]
+> {
+  if (memberIds.length === 0) return [];
+  const rows = await tx
+    .select({
+      memberId: schema.allianceMembers.ashedMemberId,
+      name: schema.allianceMembers.currentName,
+    })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        inArray(schema.allianceMembers.ashedMemberId, memberIds),
+      ),
+    );
+  const names = new Map(rows.map((row) => [row.memberId, row.name]));
+  return [...memberIds].sort().map((memberId) => ({
+    memberId,
+    memberName: names.get(memberId) ?? null,
+    eventScore: null,
+    stage: null,
+    evidenceKind: "poll_yes",
+  }));
 }
 
 async function memberNameFor(
