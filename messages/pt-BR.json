@@ -8455,12 +8455,11 @@
     "eventSeries": "Série do evento",
     "markNotReady": "Marcar como não pronto",
     "actualScoresImport": "Estas são pontuações reais do placar",
-    "synced": "Sincronizado com o Ashed.",
-    "syncFailed": "Salvo no HQ. A sincronização com o Ashed falhou — tente novamente.",
-    "syncConflict": "Salvo no HQ. O Ashed já tem valores diferentes — revisão necessária.",
-    "syncUncertain": "Salvo no HQ. O resultado da sincronização com o Ashed é incerto — tente novamente para reconciliar.",
-    "precisionUnsupported": "Salvo no HQ. Uma pontuação é grande demais para a sincronização com o Ashed.",
-    "syncRetry": "Tentar sincronizar com o Ashed novamente"
+    "synced": "Sincronizado",
+    "syncFailed": "Salvo no HQ, mas a sincronização com o Ashed falhou. Tente novamente para sincronizar.",
+    "syncConflict": "Os resultados do Ashed mudaram. Revise as diferenças antes de sincronizar.",
+    "syncUncertain": "O Ashed pode ter recebido esta alteração. Verificando antes de tentar novamente.",
+    "precisionUnsupported": "Salvo exatamente no HQ. Esta pontuação é grande demais para sincronizar com segurança ao Ashed."
   },
   "activity": {
     "title": "Atividade",

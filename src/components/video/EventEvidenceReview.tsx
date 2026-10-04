@@ -140,6 +140,7 @@ export function EventEvidenceReview({ jobId }: Props) {
   const tCommon = useTranslations("common");
   const tTrains = useTranslations("trains.wheel");
   const tSettings = useTranslations("settings");
+  const tActions = useTranslations("vsPerformance.actions");
   const locale = useLocale();
 
   const [loading, setLoading] = useState(true);
@@ -349,7 +350,7 @@ export function EventEvidenceReview({ jobId }: Props) {
                 onClick={() => void handleSyncRetry()}
                 className="text-sm text-hq-accent hover:underline disabled:opacity-50"
               >
-                {tEvent("syncRetry")}
+                {tActions("retry")}
               </button>
             )}
           </div>

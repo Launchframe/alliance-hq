@@ -687,6 +687,7 @@ function BoardSyncStatus({
   onChanged: () => void;
 }) {
   const t = useTranslations("eventEvidence");
+  const tActions = useTranslations("vsPerformance.actions");
   const [retrying, setRetrying] = useState(false);
   const boardItems = items.filter((item) => item.boardId === boardId);
   const aggregate = aggregateEventSync(boardItems);
@@ -727,7 +728,7 @@ function BoardSyncStatus({
           onClick={() => void retry()}
           className="text-hq-accent hover:underline disabled:opacity-50"
         >
-          {t("syncRetry")}
+          {tActions("retry")}
         </button>
       ) : null}
     </p>
