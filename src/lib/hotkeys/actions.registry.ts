@@ -173,6 +173,16 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiresAllianceMemberLink: true,
   },
   {
+    id: "nav.vsCalculator",
+    labelKey: "actions.nav.vsCalculator",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/tools/vs-calculator",
+    hideWhenPermission: "members:write",
+    requiresAllianceMemberLink: true,
+  },
+  {
     id: "nav.professions",
     labelKey: "actions.nav.professions",
     category: "navigation",

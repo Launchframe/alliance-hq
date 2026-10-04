@@ -77,6 +77,19 @@ describe("buildVsDailyAnnouncementPreview", () => {
     expect(message).toContain("Troops should be out gathering before Reset.");
   });
 
+  it("localizes earn-point catalog lines for pt-BR on a weekday target", async () => {
+    vi.mocked(resolveShinyWeekdaysForAlliance).mockResolvedValue(null);
+
+    const { message } = await buildVsDailyAnnouncementPreview({
+      allianceId: "a1",
+      locale: "pt-BR",
+      now: noonUtc("2024-01-07"),
+    });
+
+    expect(message).toContain("Ganhe pontos");
+    expect(message).toContain("pts cada");
+  });
+
   it("localizes Sunday reminders and the calculator URL for pt-BR", async () => {
     vi.mocked(resolveShinyWeekdaysForAlliance).mockResolvedValue(null);
 
