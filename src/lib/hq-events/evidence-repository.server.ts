@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
@@ -823,19 +823,67 @@ export async function confirmEventReadiness(
       .limit(1);
     if (incomplete) throw new EventEvidenceError("import_incomplete");
 
+    // readySources selects the committed batches projected into the ready
+    // snapshot (event-eligibility scopes observations by these ids). A
+    // non-null selection must name committed batches of this event bound to
+    // this board (or event-wide batches with no board) — anything else
+    // would silently exclude all evidence.
+    let readySourceIds: string[] | null = null;
+    if (input.readySources != null) {
+      readySourceIds = [...new Set(input.readySources)];
+      if (readySourceIds.length === 0) {
+        throw new EventEvidenceError("invalid_ready_sources");
+      }
+      const batches = await tx
+        .select({ id: schema.hqEventEvidenceBatches.id })
+        .from(schema.hqEventEvidenceBatches)
+        .where(
+          and(
+            eq(schema.hqEventEvidenceBatches.allianceId, actor.allianceId),
+            eq(schema.hqEventEvidenceBatches.hqEventId, event.id),
+            eq(schema.hqEventEvidenceBatches.status, "committed"),
+            inArray(schema.hqEventEvidenceBatches.id, readySourceIds),
+            or(
+              eq(schema.hqEventEvidenceBatches.boardId, board.id),
+              isNull(schema.hqEventEvidenceBatches.boardId),
+            ),
+          ),
+        );
+      if (batches.length !== readySourceIds.length) {
+        throw new EventEvidenceError("invalid_ready_sources");
+      }
+    }
+
+    const scoredWhere = [
+      eq(schema.hqEventMemberResults.allianceId, actor.allianceId),
+      eq(schema.hqEventMemberResults.boardId, board.id),
+      inArray(schema.hqEventMemberResults.evidenceClass, [
+        "real",
+        "legacy_leaderboard",
+      ]),
+    ];
+    if (readySourceIds != null) {
+      // Only results backed by observations from the selected batches count.
+      scoredWhere.push(
+        inArray(
+          schema.hqEventMemberResults.memberId,
+          tx
+            .select({ memberId: schema.hqEventObservations.memberId })
+            .from(schema.hqEventObservations)
+            .where(
+              and(
+                eq(schema.hqEventObservations.allianceId, actor.allianceId),
+                eq(schema.hqEventObservations.boardId, board.id),
+                inArray(schema.hqEventObservations.batchId, readySourceIds),
+              ),
+            ),
+        ),
+      );
+    }
     const [scored] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.hqEventMemberResults)
-      .where(
-        and(
-          eq(schema.hqEventMemberResults.allianceId, actor.allianceId),
-          eq(schema.hqEventMemberResults.boardId, board.id),
-          inArray(schema.hqEventMemberResults.evidenceClass, [
-            "real",
-            "legacy_leaderboard",
-          ]),
-        ),
-      );
+      .where(and(...scoredWhere));
     if ((scored?.count ?? 0) === 0 && input.emptyConfirmed !== true) {
       throw new EventEvidenceError("empty_confirmation_required");
     }
