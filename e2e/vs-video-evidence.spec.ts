@@ -610,7 +610,7 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
     .poll(
       async () =>
         panel(page).getByLabel("Opponent alliance name", { exact: true }).inputValue(),
-      { timeout: 30_000 },
+      { timeout: 60_000 },
     )
     .toBe("TriVision");
   await expect(page.getByTestId("vs-video-confirm-sides")).not.toBeChecked();

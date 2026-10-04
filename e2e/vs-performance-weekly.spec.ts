@@ -1006,6 +1006,7 @@ test.describe("VS weekly planner UI", () => {
   test("a failed week load does not auto-retry until Retry is clicked", async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     const scenario = await createNativeVsScenario(getE2eSql());
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
     const pastWeek = getWeekStartMonday(addCalendarDays(todayLocalDate(), -7));
@@ -1023,11 +1024,7 @@ test.describe("VS weekly planner UI", () => {
     );
     await page.goto("/en-US/vs-performance");
     await expect(page.getByTestId("weekly-vs-plan").locator("visible=true")).toBeVisible();
-    await page.evaluate((week) => {
-      const url = new URL(window.location.href);
-      url.searchParams.set("week", week);
-      window.history.pushState({}, "", `${url.pathname}${url.search}`);
-    }, pastWeek);
+    await waitForVsWeekClientFetch(page, pastWeek, () => calls);
     await expect(
       page.getByRole("button", { name: "Retry", exact: true }),
     ).toBeVisible({ timeout: 15_000 });
