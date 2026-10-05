@@ -1,5 +1,17 @@
 "use client";
 
+import {
+  Check,
+  CircleDashed,
+  CircleDot,
+  CircleHelp,
+  CircleSlash,
+  Clock,
+  Hourglass,
+  Minus,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -31,36 +43,34 @@ function DayCell({ day, dayName }: { day: VsMemberDay; dayName: string }) {
   const locale = useLocale();
   const { key, args } = vsMemberDayMessage(day);
   const stateLabel = t(key, args.score !== undefined ? { score: formatVsScore(args.score, locale) } : {});
-  const markers: Record<VsMemberDay["state"], string> = {
-    open: "·",
-    in_progress: "…",
-    met: "✓",
-    missed: "✗",
-    excused: "E",
-    pending_excusal: "?",
-    missing: "—",
-    conflict: "⚠",
-    unverified: "?",
-    recorded: "•",
+  const icons: Record<VsMemberDay["state"], typeof Check> = {
+    open: CircleDashed,
+    in_progress: Clock,
+    met: Check,
+    missed: X,
+    excused: CircleSlash,
+    pending_excusal: Hourglass,
+    missing: Minus,
+    conflict: TriangleAlert,
+    unverified: CircleHelp,
+    recorded: CircleDot,
   };
+  const Icon = icons[day.state];
+  const accessibleLabel = `${t("dayCell", { day: dayName, state: stateLabel })}${
+    day.source === "derived" ? ` — ${t("derived")}` : ""
+  }`;
   return (
     <td className="whitespace-nowrap px-2 py-2 text-center text-xs">
-      <span
-        aria-label={t("dayCell", { day: dayName, state: stateLabel })}
-        title={stateLabel}
-        className="inline-flex flex-col items-center"
-      >
-        {day.score !== null ? (
-          <span className="tabular-nums text-hq-fg">{formatVsScore(day.score, locale)}</span>
-        ) : (
-          <span className="text-hq-fg-muted">—</span>
-        )}
-        <span aria-hidden className="text-[10px] leading-tight text-hq-fg-muted">
-          {markers[day.state]}
+      <span className="inline-flex flex-col items-center" title={stateLabel}>
+        <span aria-hidden className="inline-flex flex-col items-center">
+          {day.score !== null ? (
+            <span className="tabular-nums text-hq-fg">{formatVsScore(day.score, locale)}</span>
+          ) : (
+            <span className="text-hq-fg-muted">—</span>
+          )}
+          <Icon className="h-3 w-3 text-hq-fg-muted" strokeWidth={2.5} />
         </span>
-        {day.source === "derived" ? (
-          <span className="sr-only">{t("derived")}</span>
-        ) : null}
+        <span className="sr-only">{accessibleLabel}</span>
       </span>
     </td>
   );
@@ -115,13 +125,13 @@ export function VsMemberTable({ rows, sort, direction, onSort, emptyLabel }: Pro
       <table className="min-w-full divide-y divide-hq-border text-sm" data-testid="vs-members-table">
         <thead className="bg-hq-surface-muted/50">
           <tr>
-            {headerCell("name", t("member"), "text-left")}
+            {headerCell("name", t("member"), "text-left sticky left-0 z-10 bg-hq-surface-muted")}
             {headerCell("rank", t("rank"), "text-center")}
+            <th scope="col" className="whitespace-nowrap px-2 py-2 text-xs font-medium text-hq-fg-muted text-left">{t("status")}</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2 text-xs font-medium text-hq-fg-muted text-left">{t("signal")}</th>
             {DAY_KEYS.map((day, index) => headerCell(`day${index}` as SortableKey, tWeekdays(day), "text-center"))}
             {headerCell("total", t("total"), "text-right")}
             <th scope="col" className="whitespace-nowrap px-2 py-2 text-xs font-medium text-hq-fg-muted text-center">{t("daysMet")}</th>
-            <th scope="col" className="whitespace-nowrap px-2 py-2 text-xs font-medium text-hq-fg-muted text-left">{t("status")}</th>
-            <th scope="col" className="whitespace-nowrap px-2 py-2 text-xs font-medium text-hq-fg-muted text-left">{t("signal")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-hq-border bg-hq-surface">
@@ -136,34 +146,11 @@ export function VsMemberTable({ rows, sort, direction, onSort, emptyLabel }: Pro
               const total = vsMemberTotalDisplay(row);
               return (
                 <tr key={row.memberId} className="hover:bg-hq-surface-muted/40">
-                  <td className="whitespace-nowrap px-3 py-2 text-left font-medium text-hq-fg">
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-hq-surface px-3 py-2 text-left font-medium text-hq-fg">
                     {row.name}
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-center text-xs text-hq-fg-muted">
                     {row.currentRank !== null ? t("rankLabel", { rank: row.currentRank }) : "—"}
-                  </td>
-                  {row.days.map((day, index) => (
-                    <DayCell key={day.date} day={day} dayName={tWeekdays(DAY_KEYS[index])} />
-                  ))}
-                  <td className="whitespace-nowrap px-2 py-2 text-right">
-                    {total.kind === "none" ? (
-                      <span className="text-hq-fg-muted">—</span>
-                    ) : (
-                      <span className="tabular-nums text-hq-fg">{formatVsScore(total.value, locale)}</span>
-                    )}
-                    {total.kind === "reported" ? (
-                      <span className="block text-[10px] text-hq-fg-muted">{t("reportedTotal")}</span>
-                    ) : null}
-                    {total.kind === "partial" ? (
-                      <span className="block text-[10px] text-hq-fg-muted">
-                        {t("partialTotal", { count: total.count })}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-2 text-center text-xs text-hq-fg-muted">
-                    {vsMemberShowCoverage(row.counts)
-                      ? t("coverage", { met: row.counts.met, required: row.counts.required })
-                      : "—"}
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-left">
                     <span className="text-xs text-hq-fg">{t(VS_MEMBER_STATUS_KEYS[row.status])}</span>
@@ -187,6 +174,29 @@ export function VsMemberTable({ rows, sort, direction, onSort, emptyLabel }: Pro
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-left text-xs text-hq-fg-muted">
                     {signalLabel(row)}
+                  </td>
+                  {row.days.map((day, index) => (
+                    <DayCell key={day.date} day={day} dayName={tWeekdays(DAY_KEYS[index])} />
+                  ))}
+                  <td className="whitespace-nowrap px-2 py-2 text-right">
+                    {total.kind === "none" ? (
+                      <span className="text-hq-fg-muted">—</span>
+                    ) : (
+                      <span className="tabular-nums text-hq-fg">{formatVsScore(total.value, locale)}</span>
+                    )}
+                    {total.kind === "reported" ? (
+                      <span className="block text-[10px] text-hq-fg-muted">{t("reportedTotal")}</span>
+                    ) : null}
+                    {total.kind === "partial" ? (
+                      <span className="block text-[10px] text-hq-fg-muted">
+                        {t("partialTotal", { count: total.count })}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2 text-center text-xs text-hq-fg-muted">
+                    {vsMemberShowCoverage(row.counts)
+                      ? t("coverage", { met: row.counts.met, required: row.counts.required })
+                      : "—"}
                   </td>
                 </tr>
               );

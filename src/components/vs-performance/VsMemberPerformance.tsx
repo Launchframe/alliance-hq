@@ -105,6 +105,13 @@ export function VsMemberPerformance({ weekStart }: Props) {
     queueMicrotask(() => void load());
   }, [load]);
 
+  const prevWeekStart = useRef(weekStart);
+  useEffect(() => {
+    if (prevWeekStart.current === weekStart) return;
+    prevWeekStart.current = weekStart;
+    if (query.page !== 1) replaceQuery({ page: 1 }, false);
+  }, [weekStart, query.page, replaceQuery]);
+
   const onSort = useCallback(
     (sort: VsMembersViewQuery["sort"]) => {
       const direction =

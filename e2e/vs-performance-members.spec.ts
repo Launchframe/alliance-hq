@@ -109,11 +109,34 @@ test("officer member table shows statuses, filters, sorts, and pagination", asyn
   await expect(table).toBeVisible();
 
   const rowFor = (name: string) => table.getByRole("row").filter({ hasText: name });
+  await expect(table.locator("thead th")).toHaveText([
+    "Member",
+    "Rank",
+    "Performance status",
+    "Rank outlook",
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Total",
+    "Days meeting minimum",
+  ]);
+
   await expect(rowFor("VSM Meeting")).toContainText("Meeting expectations");
   await expect(rowFor("VSM Below")).toContainText("Below minimum");
   await expect(rowFor("VSM Zero")).toContainText("No participation");
   await expect(rowFor("VSM Missing")).toContainText("Needs evidence");
   await expect(rowFor("VSM Excused")).toContainText("Partly excused");
+
+  // Day cells expose a full accessible label via sr-only text.
+  await expect(
+    rowFor("VSM Meeting").locator("td").nth(4).locator(".sr-only"),
+  ).toHaveText(/Mon: Met minimum/);
+  await expect(
+    rowFor("VSM Excused").locator("td").nth(9).locator(".sr-only"),
+  ).toHaveText(/Sat: Excused/);
 
   // Filter by status updates URL and rows.
   await section.getByRole("button", { name: "Performance status" }).click();
@@ -164,6 +187,17 @@ test("pt-BR localizes the member table", async ({ page }) => {
   await expect(table).toBeVisible();
   await expect(page.getByTestId("vs-members-section")).toContainText("Desempenho dos membros");
   await expect(table.getByRole("row").filter({ hasText: "VSM Meeting" })).toContainText("Cumprindo as expectativas");
+});
+
+test("changing the week resets pagination to page 1 while keeping filters", async ({ page }) => {
+  const f = await setupVsMembersFixture();
+  const officer = await f.actor("officer");
+  await openPage(page, officer, `?week=${f.weekStart}&status=meeting&page=2`);
+
+  await expect(page.getByTestId("vs-members-table")).toBeVisible();
+  await page.getByRole("button", { name: "Previous week", exact: true }).click();
+  await expect(page).not.toHaveURL(/page=/);
+  await expect(page).toHaveURL(/status=meeting/);
 });
 
 test("member table stays inside a scroll container at 390px and renders in dark theme", async ({ page }) => {
