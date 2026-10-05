@@ -46,6 +46,7 @@ export default function InboxPageClient({
   const tProposal = useTranslations("supportTeams.proposals");
   const locale = useLocale();
   const tCompliance = useTranslations("vsCompliance");
+  const tNav = useTranslations("nav");
   const tWork = useTranslations("teamWork");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +145,7 @@ export default function InboxPageClient({
     if (kind === "team_work") return tWork("title");
     if (kind === "support_team_proposal") return tProposal("title");
     if (kind === "support_team_draft") return tDraft("title");
-    if (kind === "vs_compliance") return tCompliance("title");
+    if (kind === "vs_compliance") return tNav("vsPerformance");
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
@@ -170,7 +171,7 @@ export default function InboxPageClient({
     if (item.kind === "team_work") return tWork("digest");
     if (item.kind === "support_team_proposal") return tProposal("title");
     if (item.kind === "support_team_draft") return tDraft("title");
-    if (item.kind === "vs_compliance") return tCompliance("title");
+    if (item.kind === "vs_compliance") return tNav("vsPerformance");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkRequestTitle", { name });

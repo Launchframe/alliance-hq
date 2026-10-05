@@ -16,7 +16,7 @@ export function AllianceSettingsForm({
   showComplianceLink = false,
 }: Props) {
   const t = useTranslations("settings");
-  const tCompliance = useTranslations("vsCompliance");
+  const tPolicy = useTranslations("vsPerformance.policy");
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -77,9 +77,9 @@ export function AllianceSettingsForm({
       ) : null}
 
       {showComplianceLink ? <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
-        <h2 className="font-medium">{tCompliance("settings")}</h2>
-        <p className="mt-2 text-sm text-hq-fg-muted">{tCompliance("dailyHint")}</p>
-        <Link href="/settings/vs-membership-minimums" className="mt-4 inline-block text-sm text-hq-accent hover:underline">{tCompliance("settings")}</Link>
+        <h2 className="font-medium">{tPolicy("title")}</h2>
+        <p className="mt-2 text-sm text-hq-fg-muted">{tPolicy("consistencyHint")}</p>
+        <Link href="/settings/vs-membership-minimums" className="mt-4 inline-block text-sm text-hq-accent hover:underline">{tPolicy("title")}</Link>
       </section> : null}
 
       {showTeamLink ? (

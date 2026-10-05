@@ -43,7 +43,7 @@ describe("v2 policy preview route", () => {
     const body = await response.json();
     expect(body.weekEnding).toBe(closedWeek);
     expect(body.rows).toHaveLength(1);
-    expect(body.rows[0]).toEqual({ memberId: "member", memberName: "Member", currentRank: 3, outcome: "missed", counts: { required: 6, met: 0, missed: 6, excused: 0, unknown: 0 }, recommendationKind: "demote", signal: { kind: "concern", targetRank: null, reached: false } });
+    expect(body.rows[0]).toEqual({ memberId: "member", memberName: "Member", currentRank: 3, outcome: "missed", counts: { required: 6, met: 0, missed: 6, excused: 0, unknown: 0 }, recommendationKind: "demote", recommendationTargetRank: 2, signal: { kind: "concern", targetRank: null, reached: false } });
     expect(mocks.access).toHaveBeenCalledWith("session", "tenant", "vs_compliance:settings");
     expect(mocks.external).toHaveBeenCalledWith("tenant", [closedWeek]);
     expect(mocks.compute).toHaveBeenCalledTimes(1);

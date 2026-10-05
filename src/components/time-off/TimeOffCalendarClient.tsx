@@ -20,7 +20,7 @@ type Props = { initial: TimeOffCalendarPayload; showComplianceLink?: boolean };
 
 export function TimeOffCalendarClient({ initial, showComplianceLink = false }: Props) {
   const t = useTranslations("timeOff");
-  const tCompliance = useTranslations("vsCompliance");
+  const tNav = useTranslations("nav");
   const locale = useLocale();
   const [dashboard, setDashboard] = useState(initial);
   const [tab, setTab] = useState<"my" | "alliance">(initial.linkedCommanderIds.length ? "my" : "alliance");
@@ -132,7 +132,7 @@ export function TimeOffCalendarClient({ initial, showComplianceLink = false }: P
         <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
         <p className="text-sm text-hq-fg-muted">{t("subtitle")}</p>
         <p className="text-xs text-hq-fg-muted">{t("workflow.serverTime")}</p>
-        {showComplianceLink ? <Link href="/vs-compliance" className="inline-block text-sm text-hq-accent hover:underline">{tCompliance("title")}</Link> : null}
+        {showComplianceLink ? <Link href="/vs-performance" className="inline-block text-sm text-hq-accent hover:underline">{tNav("vsPerformance")}</Link> : null}
         <div className="flex flex-wrap gap-2 pt-2">
           {dashboard.linkedCommanderIds.length > 0 ? <button type="button" className={buttonClass} onClick={() => setModal({ officer: false })}>{t("form.title")}</button> : null}
           {dashboard.canManageOthers ? <button type="button" className={buttonClass} onClick={() => setModal({ officer: true })}>{t("form.officerEntry")}</button> : null}

@@ -3,6 +3,7 @@ import type { loadVsMembershipSettings } from "@/lib/vs-compliance/policy.server
 import type { VsComplianceHistory, VsPolicyVersion } from "@/lib/vs-compliance/types.shared";
 import { validateVsPolicy } from "@/lib/vs-compliance/policy.shared";
 import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
+import type { VsPolicyPreviewRow } from "@/lib/vs-compliance/policy-editor.shared";
 import { addCalendarDays } from "@/lib/trains/game-time";
 
 export type ComplianceDashboard = Awaited<ReturnType<typeof loadComplianceDashboard>>;
@@ -65,6 +66,14 @@ export function isPolicy(value: unknown): value is VsPolicyVersion {
   const policy = value as VsPolicyVersion;
   try { validateVsPolicy(policy); } catch { return false; }
   return Number.isSafeInteger(policy.version) && policy.version > 0 && typeof policy.effectiveWeek === "string" && validateVsPeriod(policy.effectiveWeek, "weekly");
+}
+
+export type VsPolicyPreviewResponse = { weekEnding: string; rows: VsPolicyPreviewRow[] };
+
+export function isPolicyPreview(data: Record<string, unknown>): data is Record<string, unknown> & VsPolicyPreviewResponse {
+  const count = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  const rank = (value: unknown) => value === null || typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
+  return typeof data.weekEnding === "string" && validateVsPeriod(data.weekEnding, "weekly") && Array.isArray(data.rows) && data.rows.every((row) => row && typeof row.memberId === "string" && typeof row.memberName === "string" && rank(row.currentRank) && ["passed", "excused", "waived", "missed", "pending_data", "not_eligible"].includes(row.outcome) && (row.counts === null || count(row.counts.required) && count(row.counts.met) && count(row.counts.missed) && count(row.counts.excused) && count(row.counts.unknown)) && ["none", "demote", "remove", "leadership_review"].includes(row.recommendationKind) && rank(row.recommendationTargetRank) && (row.signal === null || row.signal && ["none", "concern", "promotion"].includes(row.signal.kind) && rank(row.signal.targetRank) && typeof row.signal.reached === "boolean"));
 }
 
 export function isMembershipSettings(data: Record<string, unknown>): data is Record<string, unknown> & MembershipSettings {

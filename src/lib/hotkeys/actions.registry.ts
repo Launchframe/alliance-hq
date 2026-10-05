@@ -74,15 +74,6 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/members",
   },
   {
-    id: "nav.vsCompliance",
-    labelKey: "actions.nav.vsCompliance",
-    category: "navigation",
-    scope: "global",
-    kind: "navigate",
-    href: "/vs-compliance",
-    requiredPermission: "vs_compliance:read",
-  },
-  {
     id: "nav.vsMembershipMinimums",
     labelKey: "actions.nav.vsMembershipMinimums",
     category: "navigation",
@@ -99,6 +90,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/vs-performance",
     requiredPermission: "scores:read",
+  },
+  {
+    id: "nav.vsCompliance",
+    labelKey: "actions.nav.vsCompliance",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/vs-performance",
+    requiredPermission: "vs_compliance:read",
   },
   {
     id: "nav.donations",

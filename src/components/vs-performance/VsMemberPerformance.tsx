@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { addCalendarDays } from "@/lib/trains/game-time";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Button } from "@/components/ui/button";
 import { VsMemberTable } from "@/components/vs-performance/VsMemberTable";
@@ -40,6 +41,7 @@ export function VsMemberPerformance({ weekStart, searchParams }: Props) {
   const tActions = useTranslations("vsPerformance.actions");
   const tErrors = useTranslations("vsPerformance.errors");
   const tCompliance = useTranslations("vsCompliance");
+  const all = useTranslations();
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -173,6 +175,11 @@ export function VsMemberPerformance({ weekStart, searchParams }: Props) {
             {data.live ? t("inProgress") : t("closed")}
           </span>
         ) : null}
+        {data?.canManage ? (
+          <Link href="/settings/vs-membership-minimums" className="text-xs text-hq-accent hover:underline">
+            {all("vsPerformance.policy.title")}
+          </Link>
+        ) : null}
       </div>
 
       {data ? (
@@ -191,9 +198,9 @@ export function VsMemberPerformance({ weekStart, searchParams }: Props) {
             <p>{t("sourceChecked", { time: dateTimeFmt.format(new Date(data.source.verifiedAt)) })}</p>
           ) : null}
           {sourceKey === "sourceStale" ? <p role="status">{t("sourceStale")}</p> : null}
-          {data.outstanding.count > 0 ? (
+          {data.outstanding.count > 0 && data.outstanding.weeks.length > 0 ? (
             <p>
-              <Link href="/vs-compliance" className="text-hq-accent hover:underline">
+              <Link href={`/vs-performance?week=${addCalendarDays(data.outstanding.weeks[data.outstanding.weeks.length - 1], -6)}`} className="text-hq-accent hover:underline">
                 {t("outstanding")} ({intl.format(data.outstanding.count)})
               </Link>
             </p>

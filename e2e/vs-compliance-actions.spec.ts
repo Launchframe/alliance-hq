@@ -105,15 +105,18 @@ async function linkBrowserActor(f: Awaited<ReturnType<typeof fixture>>, actor = 
   await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: actor.hqUserId, ashedMemberId: linked.ashedMemberId });
 }
 
-test("browser confirms the displayed in-game action and shows HQ-only success", async ({ page, context }) => {
+const detailUrl = (memberId: string, weekEnding: string) => `/en-US/vs-performance/members/${memberId}?week=${addCalendarDays(weekEnding, -6)}`;
+
+test("browser confirms the displayed in-game action and shows HQ-only success", async ({ page, context, request }) => {
   const f = await fixture();
   await linkBrowserActor(f);
   await context.addCookies(playwrightAuthCookies(f.officer));
-  await page.goto("/en-US/vs-compliance");
-  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
-  await expect(card.getByText("Recommend R2", { exact: true })).toBeVisible();
-  await expect(card.getByText("In-Game Rank: R3", { exact: true })).toBeVisible();
-  await card.getByRole("button", { name: "Confirm in-game action" }).click();
+  await request.get("/api/vs-compliance", { headers: f.officer.headers });
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending));
+  await expect(page.getByRole("heading", { name: "Compliance Member · VS Performance" })).toBeVisible();
+  await expect(page.getByText("Current rank: R3", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Recommend R2", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Confirm in-game action" }).click();
   const dialog = page.getByRole("dialog", { name: "Confirm in-game action" });
   await expect(dialog.getByText("Confirm only after performing the displayed action in-game.", { exact: false })).toBeVisible();
   await dialog.getByRole("button", { name: "Confirm in-game action" }).click();
@@ -123,13 +126,13 @@ test("browser confirms the displayed in-game action and shows HQ-only success", 
   expect(rows.map((row) => row.alliance_rank)).toEqual([2]);
 });
 
-test("browser stale confirmation retains the old recommendation and requires a fresh review", async ({ page, context }) => {
+test("browser stale confirmation retains the old recommendation and requires a fresh review", async ({ page, context, request }) => {
   const f = await fixture("consecutive");
   await linkBrowserActor(f);
   await context.addCookies(playwrightAuthCookies(f.officer));
-  await page.goto("/en-US/vs-compliance");
-  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
-  await card.getByRole("button", { name: "Confirm in-game action" }).click();
+  await request.get("/api/vs-compliance", { headers: f.officer.headers });
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending));
+  await page.getByRole("button", { name: "Confirm in-game action" }).click();
   const dialog = page.getByRole("dialog", { name: "Confirm in-game action" });
   await expect(dialog.getByText("Recommend removal", { exact: true })).toBeVisible();
   await f.sql`UPDATE vs_score_heads SET score = 40000000, version = version + 1 WHERE alliance_id = ${f.alliance.allianceId} AND recorded_date = ${f.weeks[1]}`;
@@ -138,16 +141,17 @@ test("browser stale confirmation retains the old recommendation and requires a f
   await expect(dialog.getByText("Recommend removal", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Confirm in-game action" })).toBeDisabled();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(card.getByText("Recommend R2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Recommend R2", { exact: true }).first()).toBeVisible();
   expect(await f.sql`SELECT id FROM vs_compliance_actions WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
 });
 
-test("browser waiver requires a private reason and retains it with a stable retry after response loss", async ({ page, context }) => {
+test("browser waiver requires a private reason and retains it with a stable retry after response loss", async ({ page, context, request }) => {
   const f = await fixture();
   await linkBrowserActor(f);
   await context.addCookies(playwrightAuthCookies(f.officer));
-  await page.goto("/en-US/vs-compliance");
-  await page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" }).getByRole("button", { name: "Waive this week" }).click();
+  await request.get("/api/vs-compliance", { headers: f.officer.headers });
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending));
+  await page.getByRole("button", { name: "Waive this week" }).click();
   const dialog = page.getByRole("dialog", { name: "Waive this week" });
   await dialog.getByRole("button", { name: "Waive this week" }).click();
   await expect(dialog.getByRole("alert")).toHaveText("Enter a reason for this waiver.");
@@ -171,17 +175,17 @@ test("browser waiver requires a private reason and retains it with a stable retr
   await expect(page.getByText("Private UI waiver", { exact: true })).toHaveCount(0);
 });
 
-test("browser missing evidence remains pending without inventing zero or a demotion", async ({ page, context }) => {
+test("browser missing evidence remains pending without inventing zero or a demotion", async ({ page, context, request }) => {
   const f = await fixture();
   await linkBrowserActor(f);
   await f.sql`DELETE FROM vs_score_heads WHERE alliance_id = ${f.alliance.allianceId}`;
   await context.addCookies(playwrightAuthCookies(f.officer));
-  await page.goto("/en-US/vs-compliance");
-  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
-  await expect(card.getByText("Missing evidence", { exact: true }).first()).toBeVisible();
-  await expect(card.getByText("Missing, incomplete, or conflicting evidence will not create a disciplinary miss.")).toBeVisible();
-  await expect(card.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
-  await expect(card).not.toContainText("0 points");
+  await request.get("/api/vs-compliance", { headers: f.officer.headers });
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending));
+  await expect(page.getByRole("heading", { name: "Compliance Member · VS Performance" })).toBeVisible();
+  await expect(page.getByText("Needs evidence", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
+  await expect(page.getByTestId("vs-member-detail")).not.toContainText("0 points");
 });
 
 for (const role of ["member", "data_entry"] as const) test(`browser ${role} cannot read other discipline or mutate compliance`, async ({ page, context }) => {
@@ -189,26 +193,28 @@ for (const role of ["member", "data_entry"] as const) test(`browser ${role} cann
   await linkBrowserActor(f, actor);
   await context.addCookies(playwrightAuthCookies(actor));
   await page.goto("/en-US/vs-compliance");
-  await expect(page.getByTestId("compliance-row")).toHaveCount(0);
+  await expect(page.getByText("Page not found", { exact: true })).toBeVisible();
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending));
   await expect(page.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Waive this week" })).toHaveCount(0);
   expect((await page.request.get("/api/vs-compliance")).status()).toBe(403);
   await page.goto("/en-US/settings/vs-membership-minimums");
-  await expect(page.getByRole("checkbox", { name: "Enable weekly discipline" })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "Enable VS performance policy" })).toHaveCount(0);
 });
 
-for (const locale of ["en-US", "pt-BR"]) test(`daily grid preserves zero and weekly-only unknowns in ${locale}`, async ({ page, context }) => {
+for (const locale of ["en-US", "pt-BR"]) test(`daily grid preserves zero and weekly-only unknowns in ${locale}`, async ({ page, context, request }) => {
   const f = await fixture();
   await linkBrowserActor(f);
   await f.sql`UPDATE vs_score_heads SET score = 40000000 WHERE alliance_id = ${f.alliance.allianceId} AND recorded_date = ${f.ending}`;
   const monday = addCalendarDays(f.ending, -6);
   await f.sql`INSERT INTO vs_score_heads(id, alliance_id, member_id, member_name, recorded_date, period, score, origin, version) VALUES (${nanoid()}, ${f.alliance.allianceId}, ${f.member.ashedMemberId}, 'Compliance Member', ${monday}, 'daily', 0, 'hq', 1)`;
   await context.addCookies(playwrightAuthCookies(f.officer));
-  await page.goto(`/${locale}/vs-compliance`);
-  const table = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" }).getByTestId("compliance-daily-grid");
-  await expect(table.getByRole("row")).toHaveCount(7);
-  await expect(table.getByRole("row").nth(1)).toContainText(`0 / ${new Intl.NumberFormat(locale).format(7_200_000)}`);
-  await expect(table.locator("time").first()).toHaveAttribute("datetime", monday);
+  await request.get("/api/vs-compliance", { headers: f.officer.headers });
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending).replace("/en-US/", `/${locale}/`));
+  const grid = page.getByTestId("vs-member-day-grid");
+  await expect(grid.locator("li")).toHaveCount(6);
+  const missed = new RegExp(locale === "pt-BR" ? "Abaixo do mínimo: 0" : "Below minimum: 0");
+  await expect(grid.locator("li").nth(0).locator(".sr-only")).toHaveText(missed);
   const payload = await (await page.request.get(`/api/vs-compliance?weekEnding=${f.ending}`)).json();
   const row = payload.rows.find((value: { memberId: string }) => value.memberId === f.member.ashedMemberId);
   expect(row).toMatchObject({ outcome: "passed", dailyTarget: 7_200_000 });
@@ -228,13 +234,13 @@ test("selected member history displays original actors, waiver and correction wi
   const fresh = (await (await request.get("/api/vs-compliance", { headers: second.headers })).json()).rows.find((item: { id: string }) => item.id === row.id);
   expect((await request.post(`/api/vs-compliance/tasks/${row.id}/waive`, { headers: second.headers, data: { requestId: nanoid(), confirmationBasis: fresh.confirmationBasis, reason: "Private history waiver" } })).status()).toBe(200);
   await context.addCookies(playwrightAuthCookies(f.officer));
-  await page.goto("/en-US/vs-compliance");
-  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
-  await expect(card.getByText("Private history waiver")).toHaveCount(0);
+  await page.goto(detailUrl(f.member.ashedMemberId, f.ending));
+  await expect(page.getByRole("heading", { name: "Compliance Member · VS Performance" })).toBeVisible();
+  await expect(page.getByText("Private history waiver")).toHaveCount(0);
   const broad = await (await page.request.get("/api/vs-compliance")).text();
   expect(broad).not.toContain("Private history waiver");
-  await card.locator("summary").filter({ hasText: /^History$/ }).click();
-  const history = card.getByTestId("compliance-action-history");
+  await page.getByTestId("vs-member-decision-history").locator("summary").click();
+  const history = page.getByTestId("vs-member-decision-history");
   await expect(history).toContainText("Original Officer");
   await expect(history).toContainText("Waiving Officer");
   await expect(history).toContainText("R3 → R2");
