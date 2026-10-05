@@ -1,30 +1,19 @@
 "use client";
 
-import {
-  Check,
-  CircleDashed,
-  CircleDot,
-  CircleHelp,
-  CircleSlash,
-  Clock,
-  Hourglass,
-  Minus,
-  TriangleAlert,
-  X,
-} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/navigation";
 import {
   formatVsScore,
   VS_MEMBER_EXCUSAL_KEYS,
   VS_MEMBER_SIGNAL_KEYS,
   VS_MEMBER_STATUS_KEYS,
-  vsMemberDayMessage,
   vsMemberShowCoverage,
   vsMemberTotalDisplay,
   type VsMembersViewQuery,
 } from "@/lib/vs-performance/member-performance-view.shared";
 import type { VsMemberDay, VsMemberRow } from "@/lib/vs-performance/member-performance.shared";
+import { VsDayBadge } from "./VsDayBadge";
 
 type SortableKey = "name" | "rank" | "day0" | "day1" | "day2" | "day3" | "day4" | "day5" | "total";
 
@@ -32,6 +21,7 @@ const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 type Props = {
   rows: VsMemberRow[];
+  weekStart: string;
   sort: VsMembersViewQuery["sort"];
   direction: "asc" | "desc";
   onSort: (sort: SortableKey) => void;
@@ -39,44 +29,14 @@ type Props = {
 };
 
 function DayCell({ day, dayName }: { day: VsMemberDay; dayName: string }) {
-  const t = useTranslations("vsPerformance.members");
-  const locale = useLocale();
-  const { key, args } = vsMemberDayMessage(day);
-  const stateLabel = t(key, args.score !== undefined ? { score: formatVsScore(args.score, locale) } : {});
-  const icons: Record<VsMemberDay["state"], typeof Check> = {
-    open: CircleDashed,
-    in_progress: Clock,
-    met: Check,
-    missed: X,
-    excused: CircleSlash,
-    pending_excusal: Hourglass,
-    missing: Minus,
-    conflict: TriangleAlert,
-    unverified: CircleHelp,
-    recorded: CircleDot,
-  };
-  const Icon = icons[day.state];
-  const accessibleLabel = `${t("dayCell", { day: dayName, state: stateLabel })}${
-    day.source === "derived" ? ` — ${t("derived")}` : ""
-  }`;
   return (
     <td className="relative whitespace-nowrap px-2 py-2 text-center text-xs">
-      <span className="inline-flex flex-col items-center" title={stateLabel}>
-        <span aria-hidden className="inline-flex flex-col items-center">
-          {day.score !== null ? (
-            <span className="tabular-nums text-hq-fg">{formatVsScore(day.score, locale)}</span>
-          ) : (
-            <span className="text-hq-fg-muted">—</span>
-          )}
-          <Icon className="h-3 w-3 text-hq-fg-muted" strokeWidth={2.5} />
-        </span>
-        <span className="sr-only">{accessibleLabel}</span>
-      </span>
+      <VsDayBadge day={day} dayName={dayName} />
     </td>
   );
 }
 
-export function VsMemberTable({ rows, sort, direction, onSort, emptyLabel }: Props) {
+export function VsMemberTable({ rows, weekStart, sort, direction, onSort, emptyLabel }: Props) {
   const t = useTranslations("vsPerformance.members");
   const tWeekdays = useTranslations("trains.weekdays");
   const tCompliance = useTranslations("vsCompliance");
@@ -147,7 +107,22 @@ export function VsMemberTable({ rows, sort, direction, onSort, emptyLabel }: Pro
               return (
                 <tr key={row.memberId} className="hover:bg-hq-surface-muted/40">
                   <td className="sticky left-0 z-10 whitespace-nowrap bg-hq-surface px-3 py-2 text-left font-medium text-hq-fg">
-                    {row.name}
+                    <Link
+                      id={`vs-member-link-${row.memberId}`}
+                      href={`/vs-performance/members/${encodeURIComponent(row.memberId)}?week=${weekStart}`}
+                      onClick={() => {
+                        try {
+                          window.sessionStorage.setItem(
+                            "vs-member-focus",
+                            JSON.stringify({ memberId: row.memberId, path: window.location.pathname + window.location.search }),
+                          );
+                        } catch {
+                        }
+                      }}
+                      className="rounded text-hq-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-hq-accent"
+                    >
+                      {row.name}
+                    </Link>
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-center text-xs text-hq-fg-muted">
                     {row.currentRank !== null ? t("rankLabel", { rank: row.currentRank }) : "—"}

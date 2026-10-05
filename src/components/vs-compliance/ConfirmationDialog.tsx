@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
 import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
-import { ComplianceEvidence } from "./ComplianceEvidence";
-import { actionBody, ComplianceClientError, createActionAttempt, readComplianceResponse, syncLabel, type ActionAttempt, type ComplianceRow } from "./client.shared";
+import { actionBody, ComplianceClientError, createActionAttempt, readComplianceResponse, syncLabel, type ActionAttempt, type ConfirmationTarget } from "./client.shared";
 
 const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm disabled:opacity-50";
 
-export function ConfirmationDialog({ row, operation, onClose, onSaved }: { row: ComplianceRow; operation: ActionAttempt["operation"]; onClose: () => void; onSaved: () => void }) {
+export function ConfirmationDialog({ row, operation, facts, onClose, onSaved }: { row: ConfirmationTarget; operation: ActionAttempt["operation"]; facts?: ReactNode; onClose: () => void; onSaved: () => void }) {
   const t = useTranslations("vsCompliance");
   const all = useTranslations();
   const [reason, setReason] = useState("");
@@ -68,7 +67,7 @@ export function ConfirmationDialog({ row, operation, onClose, onSaved }: { row: 
     }}>
       <h2 className="text-lg font-semibold">{t(operation === "waive" ? "waive" : "confirm")}</h2>
       <h3 className="font-medium">{row.memberName}</h3>
-      <ComplianceEvidence row={row} />
+      {facts}
       {operation === "complete" ? <p>{t("confirmHint")}</p> : <label className="block space-y-2">{t("waiverReason")}<textarea required maxLength={2000} disabled={busy || uncertain || saved || blocked} value={reason} onChange={(event) => { setReason(event.target.value); attempt.current = null; }} className="block w-full rounded border border-hq-border bg-hq-surface p-2" /></label>}
       {saved ? <div role="status" className="space-y-2"><p>{t(operation === "waive" ? "waived" : "actionSaved")}</p>{operation === "complete" ? <p>{all(`timeOff.sync.${syncLabel(status)}`)}</p> : null}</div> : null}
       {status === "credentials_required" || status === "failed" ? <Link href="/connect?next=/vs-compliance" className="text-hq-accent underline">{all("common.connect")}</Link> : null}

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTableName } from "drizzle-orm";
+import { addCalendarDays } from "@/lib/trains/game-time";
+import { lastClosedVsWeek } from "./workflow.shared";
 import { defaultVsPolicy } from "./policy.shared";
 import { rebuildVsCompliance } from "./evaluate.shared";
 import { evaluateVsWeek } from "@/lib/vs-scores/evidence.shared";
@@ -106,6 +108,33 @@ describe("officer-confirmed native bookkeeping", () => {
     expect(mocks.writes.find((write) => write.table === "vs_compliance_actions")?.values).toMatchObject({ kind: "waive", reason: "Private waiver", actorId: "officer" });
     expect(mocks.writes.some((write) => write.table === "alliance_members")).toBe(false);
     expect(mocks.rebuild).toHaveBeenCalledTimes(2);
+  });
+  it("rejects confirmation and waiver while the week is still open or provisional", async () => {
+    const openWeek = { ...row, weekEnding: addCalendarDays(lastClosedVsWeek(), 7), evaluation: { ...row.evaluation, weekEnding: addCalendarDays(lastClosedVsWeek(), 7) } };
+    mocks.results = [[openWeek], [], []];
+    mocks.rebuild.mockResolvedValue({ rows: [openWeek], actions: [], facts: { alliance: { operatingMode: "native" }, members: [{ memberId: "member", name: "Member", member }] } });
+    await expect(performComplianceAction("session", "tenant", "event", body, false)).rejects.toMatchObject({ code: "changed", status: 409 });
+    expect(mocks.writes).toHaveLength(0);
+    mocks.results = [[openWeek], [], []];
+    await expect(performComplianceAction("session", "tenant", "event", { ...body, reason: "Early" }, true)).rejects.toMatchObject({ code: "changed", status: 409 });
+    expect(mocks.writes).toHaveLength(0);
+    const provisional = { ...row, evaluation: { ...row.evaluation, provisional: true } };
+    mocks.results = [[provisional], [], []];
+    mocks.rebuild.mockResolvedValue({ rows: [provisional], actions: [], facts: { alliance: { operatingMode: "native" }, members: [{ memberId: "member", name: "Member", member }] } });
+    await expect(performComplianceAction("session", "tenant", "event", body, false)).rejects.toMatchObject({ code: "changed", status: 409 });
+    expect(mocks.writes).toHaveLength(0);
+  });
+  it("rejects a second rank action for the same member-week from a different event id", async () => {
+    const prior = { ...row, id: "prior-event" };
+    mocks.results = [[row, prior], [], []];
+    mocks.rebuild.mockResolvedValue({ rows: [row], actions: [{ id: "done", eventId: "prior-event", memberId: "member", kind: "demote" }], facts: { alliance: { operatingMode: "native" }, members: [{ memberId: "member", name: "Member", member }] } });
+    await expect(performComplianceAction("session", "tenant", "event", body, false)).rejects.toMatchObject({ code: "handled", status: 409 });
+    expect(mocks.writes).toHaveLength(0);
+    // waiver on the same member-week remains allowed after a rank action
+    mocks.results = [[row, prior], [], []];
+    mocks.rebuild.mockResolvedValue({ rows: [row], actions: [{ id: "done", eventId: "prior-event", memberId: "member", kind: "demote" }], facts: { alliance: { operatingMode: "native" }, members: [{ memberId: "member", name: "Member", member }] } });
+    await performComplianceAction("session", "tenant", "event", { ...body, reason: "Private waiver" }, true);
+    expect(mocks.writes.find((write) => write.table === "vs_compliance_actions")?.values).toMatchObject({ kind: "waive" });
   });
   it("denies unauthorized and foreign requests without preparing external evidence", async () => {
     mocks.authorize.mockRejectedValueOnce(new Error("forbidden"));

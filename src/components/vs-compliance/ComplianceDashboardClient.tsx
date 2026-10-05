@@ -107,6 +107,6 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
       </article>;
       })}</div>
     </section>
-    {selection ? <ConfirmationDialog row={selection.row} operation={selection.operation} onSaved={() => { void load(week); }} onClose={() => { setSelection(null); void load(week); }} /> : null}
+    {selection ? <ConfirmationDialog row={selection.row} operation={selection.operation} facts={<ComplianceEvidence row={selection.row} />} onSaved={() => { void load(week); }} onClose={() => { setSelection(null); void load(week); }} /> : null}
   </div>;
 }

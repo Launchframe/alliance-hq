@@ -105,6 +105,20 @@ export function VsMemberPerformance({ weekStart, searchParams }: Props) {
     queueMicrotask(() => void load());
   }, [load]);
 
+  useEffect(() => {
+    if (loading || !data) return;
+    let focusId: string | null = null;
+    try {
+      const stored = window.sessionStorage.getItem("vs-member-focus");
+      if (stored) focusId = (JSON.parse(stored) as { memberId?: string }).memberId ?? null;
+    } catch {
+      focusId = null;
+    }
+    if (!focusId) return;
+    window.sessionStorage.removeItem("vs-member-focus");
+    document.getElementById(`vs-member-link-${focusId}`)?.focus();
+  }, [loading, data]);
+
   const prevWeekStart = useRef(weekStart);
   useEffect(() => {
     if (prevWeekStart.current === weekStart) return;
@@ -352,6 +366,7 @@ export function VsMemberPerformance({ weekStart, searchParams }: Props) {
           <div className={loading ? "opacity-60" : undefined}>
             <VsMemberTable
               rows={data.rows}
+              weekStart={weekStart}
               sort={query.sort}
               direction={query.direction ?? defaultSortDirection(query.sort)}
               onSort={(key) => onSort(key)}

@@ -232,3 +232,131 @@ export function vsMembersPageRange(
 export function formatVsScore(value: string, locale: string): string {
   return new Intl.NumberFormat(locale).format(BigInt(value));
 }
+
+export type VsMemberDetailSequence = {
+  demotion: {
+    unit: "days" | "weeks";
+    length: number;
+    progress: number | null;
+    episode: string[] | null;
+    recoveredAfter: string[];
+  };
+  promotion: { unit: "days" | "weeks"; length: number; progress: number | null };
+};
+
+export type VsMemberOutcome =
+  | "passed"
+  | "excused"
+  | "waived"
+  | "missed"
+  | "pending_data"
+  | "not_eligible";
+
+export type VsMemberDetailWeek = {
+  modelVersion: 1 | 2;
+  status: VsMemberRow["status"];
+  excusal: VsMemberRow["excusal"];
+  signal: VsMemberRow["signal"];
+  days: VsMemberDay[];
+  dailySubtotal: string | null;
+  knownDays: number;
+  reportedTotal: string | null;
+  counts: VsMemberRow["counts"];
+  outcome: VsMemberOutcome;
+  score: string | null;
+  threshold: number | null;
+  streak: number | null;
+  policyVersion: number | null;
+  provisional: boolean;
+  sequence: VsMemberDetailSequence | null;
+  settled: {
+    kind: "demote" | "remove";
+    targetRank: number | null;
+    syncStatus: "local" | "pending" | "synced" | "failed" | "credentials_required" | null;
+  } | null;
+  correctionReview: boolean;
+};
+
+export type VsMemberHistoryWeek = {
+  weekEnding: string;
+  status: VsMemberRow["status"];
+  outcome: VsMemberOutcome;
+  modelVersion: number;
+  policyVersion: number | null;
+  score: string | null;
+  threshold: number | null;
+  counts: VsMemberRow["counts"] | null;
+  settled: {
+    kind: "demote" | "remove";
+    targetRank: number | null;
+    syncStatus: "local" | "pending" | "synced" | "failed" | "credentials_required" | null;
+  } | null;
+  correctionReview: boolean;
+};
+
+export type VsMemberDetailResponse = {
+  allianceId: string;
+  memberId: string;
+  inputVersion: number;
+  weekStart: string;
+  weekEnding: string;
+  live: boolean;
+  canManage: boolean;
+  member: {
+    name: string;
+    currentRank: number | null;
+    rosterStatus: "active" | "former";
+    joinedAt: string | null;
+  };
+  policy: {
+    modelVersion: number | null;
+    version: number | null;
+    enabled: boolean;
+    dailyThreshold: number | null;
+    weeklyMinimum: number | null;
+    allowedMissedDays: number | null;
+  };
+  source: { native: boolean; verifiedAt: string | null; stale: boolean };
+  week: VsMemberDetailWeek;
+  eventId: string | null;
+  action: {
+    eventId: string;
+    confirmationBasis: string;
+    canConfirm: boolean;
+    canWaive: boolean;
+  } | null;
+  history: { weeks: VsMemberHistoryWeek[]; nextBefore: string | null };
+};
+
+export type VsMemberHistoryPage = {
+  allianceId: string;
+  memberId: string;
+  weekStart: string;
+  weekEnding: string;
+  history: { weeks: VsMemberHistoryWeek[]; nextBefore: string | null };
+};
+
+export type VsMemberScoreRevision = {
+  recordedDate: string;
+  period: "daily" | "weekly";
+  version: number;
+  score: string | null;
+  origin: "hq" | "derived";
+  recordedAt: string;
+  actorName: string | null;
+};
+
+export type VsMemberRevisionsResponse = {
+  memberId: string;
+  weekStart: string;
+  weekEnding: string;
+  page: number;
+  hasMore: boolean;
+  revisions: VsMemberScoreRevision[];
+};
+
+export function vsMemberDetailApiParams(weekStart: string, beforeWeek?: string): string {
+  const params = new URLSearchParams({ weekStart });
+  if (beforeWeek) params.set("beforeWeek", beforeWeek);
+  return params.toString();
+}
