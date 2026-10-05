@@ -1,6 +1,6 @@
 import { VS_COMPLIANCE_MANAGE_PERMISSION, VS_COMPLIANCE_READ_PERMISSION, VS_COMPLIANCE_SETTINGS_PERMISSION } from "@/lib/rbac/constants";
 
-export type VsCompliancePermission = typeof VS_COMPLIANCE_READ_PERMISSION | typeof VS_COMPLIANCE_MANAGE_PERMISSION | typeof VS_COMPLIANCE_SETTINGS_PERMISSION;
+export type VsCompliancePermission = typeof VS_COMPLIANCE_READ_PERMISSION | typeof VS_COMPLIANCE_MANAGE_PERMISSION | typeof VS_COMPLIANCE_SETTINGS_PERMISSION | "scores:write";
 
 export function canAccessVsCompliance(actor: {
   hqUserId: string | null;

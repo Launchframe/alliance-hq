@@ -325,6 +325,20 @@ export type VsMemberDetailResponse = {
     canConfirm: boolean;
     canWaive: boolean;
   } | null;
+  edit: {
+    scope: string;
+    inputVersion: number;
+    evidenceFingerprint: string;
+    cells: Array<{
+      recordedDate: string;
+      period: "daily" | "weekly";
+      score: string | null;
+      source: "hq" | "ashed" | "derived" | null;
+      expectedHeadVersion: number | null;
+      editable: boolean;
+      canClear: boolean;
+    }>;
+  } | null;
   history: { weeks: VsMemberHistoryWeek[]; nextBefore: string | null };
 };
 
@@ -344,6 +358,8 @@ export type VsMemberScoreRevision = {
   origin: "hq" | "derived";
   recordedAt: string;
   actorName: string | null;
+  manual: boolean;
+  reason: string | null;
 };
 
 export type VsMemberRevisionsResponse = {

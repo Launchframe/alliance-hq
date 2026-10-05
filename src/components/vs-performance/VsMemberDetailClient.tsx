@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
+import { DirtyNavigation } from "@/components/navigation/DirtyNavigation";
 import { ConfirmationDialog } from "@/components/vs-compliance/ConfirmationDialog";
 import { ComplianceHistoryRecords } from "@/components/vs-compliance/ComplianceHistory";
 import {
@@ -28,6 +29,7 @@ import {
   type VsMemberRevisionsResponse,
 } from "@/lib/vs-performance/member-performance-view.shared";
 import { VsDayBadge } from "./VsDayBadge";
+import { VsMemberScoreEditor } from "./VsMemberScoreEditor";
 
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm disabled:opacity-50";
@@ -244,9 +246,14 @@ function RevisionHistory({ memberId, weekStart }: { memberId: string; weekStart:
                       ? all("commandersIndex.unreportedShort")
                       : intl.format(BigInt(revision.score))}
                     {" · "}
-                    {revision.origin === "derived" ? tMembers("derived") : all("vsPerformance.results.sourceHq")}
+                    {revision.manual
+                      ? t("manualSource")
+                      : revision.origin === "derived" ? tMembers("derived") : all("vsPerformance.results.sourceHq")}
                     {revision.actorName ? ` · ${revision.actorName}` : ""}
                   </p>
+                  {revision.manual && revision.reason ? (
+                    <p className="text-xs text-hq-fg-muted">{revision.reason}</p>
+                  ) : null}
                   <p className="text-xs text-hq-fg-muted">
                     <time dateTime={revision.recordedAt}>{dateTime(revision.recordedAt)}</time>
                   </p>
@@ -513,6 +520,16 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
   const allWeeks = data ? [...data.history.weeks, ...historyExtra] : [];
 
   return (
+    <Suspense fallback={null}>
+    <DirtyNavigation
+      labels={{
+        title: all("notes.editor.discardTitle"),
+        body: all("notes.editor.discardBody"),
+        keepEditing: all("notes.editor.keepEditing"),
+        discard: all("notes.editor.discard"),
+        saveFailed: all("notes.saveFailed"),
+      }}
+    >
     <div className="mx-auto max-w-3xl space-y-6" data-testid="vs-member-detail">
       <div>
         <Link
@@ -641,6 +658,15 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
               <ActionRecommendation week={data.week} currentRank={data.member.currentRank} />
               <SequenceFacts week={data.week} />
             </div>
+
+            {data.edit ? (
+              <VsMemberScoreEditor
+                memberId={memberId}
+                weekStart={weekStart}
+                edit={data.edit}
+                onSaved={() => void load()}
+              />
+            ) : null}
 
             {data.action ? (
               <div className="flex flex-wrap gap-2">
@@ -775,5 +801,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
         />
       ) : null}
     </div>
+    </DirtyNavigation>
+    </Suspense>
   );
 }

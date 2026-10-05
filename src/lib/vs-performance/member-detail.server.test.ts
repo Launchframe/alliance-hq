@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import type { VsComplianceDay } from "@/lib/vs-compliance/types.shared";
 
-const state = vi.hoisted(() => ({ access: vi.fn(), external: vi.fn(), resolve: vi.fn(), version: vi.fn(), compute: vi.fn(), results: [] as unknown[][] }));
+const state = vi.hoisted(() => ({ access: vi.fn(), external: vi.fn(), resolve: vi.fn(), version: vi.fn(), compute: vi.fn(), scoresWrite: vi.fn(), results: [] as unknown[][] }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/vs-compliance/access.server", () => ({ requireVsComplianceAccess: state.access }));
+vi.mock("@/lib/rbac/context", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/rbac/context")>()), sessionHasPermissionForAlliance: state.scoresWrite }));
 vi.mock("@/lib/vs-compliance/evidence.server", async () => ({
   ...(await vi.importActual("@/lib/vs-compliance/evidence.server")),
   prepareExternalEvidence: state.external,
@@ -70,6 +71,7 @@ beforeEach(() => {
   state.access.mockResolvedValue({ sessionId: "session", allianceId: "tenant", hqUserId: "user", boundHqUserId: "user" });
   state.external.mockResolvedValue({ native: true, verifiedAt: null, weeks: new Map(), excuses: [] });
   state.version.mockResolvedValue(7);
+  state.scoresWrite.mockResolvedValue(false);
   state.resolve.mockImplementation(() => ({ evidence: { state: "ready", score: 48_000_000, source: "weekly", dailyCoverage: 0, basis: [], derivedSaturday: null }, daily: daily(weekEnding), excused: false, pendingExcusal: false }));
   state.compute.mockImplementation(async () => ({
     facts: facts([{ memberId: "member", active: true }]),
@@ -139,6 +141,22 @@ describe("officer member detail read model", () => {
     const stale = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(stale.action).toBeNull();
     expect(stale.eventId).toBe("row-member");
+  });
+
+  it("exposes an edit snapshot only for officers with scores:write", async () => {
+    state.results = [rosterScope(), [persistedFor("member")], []];
+    const denied = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
+    expect(denied.edit).toBeNull();
+    state.scoresWrite.mockResolvedValue(true);
+    state.results = [rosterScope(), [persistedFor("member")], []];
+    const allowed = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
+    expect(allowed.edit).not.toBeNull();
+    expect(allowed.edit!.inputVersion).toBe(7);
+    expect(allowed.edit!.scope).toMatch(/^[a-f0-9]{64}$/);
+    expect(allowed.edit!.evidenceFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(allowed.edit!.cells).toHaveLength(7);
+    expect(allowed.edit!.cells[6]).toMatchObject({ period: "weekly", recordedDate: weekEnding });
+    expect(JSON.stringify(allowed.edit)).not.toContain("ashed:9");
   });
 
   it("suppresses actions on live or provisional weeks", async () => {
