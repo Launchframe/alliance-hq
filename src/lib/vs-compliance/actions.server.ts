@@ -10,7 +10,7 @@ import { planCurrentGenerationRankEligibilitySync, RANK_ELIGIBILITY_POOL_TYPES }
 import { requireVsComplianceAccess } from "./access.server";
 import { lockCompliance, prepareExternalEvidence, loadComplianceStateVersion, type ComplianceTx } from "./evidence.server";
 import { authorizeComplianceTx, complianceHash, findComplianceReceipt, rebuildComplianceTx, type ComplianceRow } from "./repository.server";
-import { validateComplianceCommand } from "./workflow.shared";
+import { lastClosedVsWeek, validateComplianceCommand } from "./workflow.shared";
 import { VsComplianceError } from "./types.shared";
 
 async function recordNativeAction(tx: ComplianceTx, row: ComplianceRow, action: typeof schema.vsComplianceActions.$inferSelect, members: { memberId: string; name: string; member: { active: boolean; currentRank: number | null } }[]) {
@@ -75,6 +75,8 @@ export async function performComplianceAction(sessionId: string, allianceId: str
     const row = rebuilt.rows.find((candidate) => candidate.id === eventId);
     if (!row || row.evaluation.confirmationBasis !== command.confirmationBasis) throw new VsComplianceError("changed", 409);
     if (rebuilt.actions.some((action) => action.eventId === eventId && (waiver ? action.kind === "waive" : action.kind !== "waive"))) throw new VsComplianceError("handled", 409);
+    if (row.weekEnding > lastClosedVsWeek(new Date()) || row.evaluation.provisional) throw new VsComplianceError("changed", 409);
+    if (!waiver && rebuilt.actions.some((action) => action.memberId === row.memberId && action.kind !== "waive" && oldRows.some((old) => old.id === action.eventId && old.memberId === row.memberId && old.weekEnding === row.weekEnding))) throw new VsComplianceError("handled", 409);
     if (!waiver && (!row.memberSnapshot.active || row.memberSnapshot.isOwner || row.memberSnapshot.currentRank === null || row.memberSnapshot.currentRank >= 5 || !["demote", "remove"].includes(row.evaluation.recommendation.kind))) throw new VsComplianceError("changed", 409);
     if (waiver && !["missed", "pending_data"].includes(row.evaluation.outcome) && !row.evaluation.settled) throw new VsComplianceError("handled", 409);
     const action: typeof schema.vsComplianceActions.$inferSelect = { id: nanoid(), allianceId, eventId, memberId: row.memberId, actorId: actor.hqUserId, requestId: command.requestId, requestDigest: digest, kind: waiver ? "waive" : row.evaluation.recommendation.kind as "demote" | "remove", expectedRank: row.memberSnapshot.currentRank, targetRank: waiver ? null : row.evaluation.recommendation.targetRank, evaluationBasis: row.evaluation.evaluationBasis, memberSnapshot: row.memberSnapshot, reason: command.reason, recordedAt: new Date() };

@@ -8,14 +8,16 @@ import { addCalendarDays } from "@/lib/trains/game-time";
 export type ComplianceDashboard = Awaited<ReturnType<typeof loadComplianceDashboard>>;
 export type ComplianceRow = ComplianceDashboard["rows"][number];
 export type MembershipSettings = Awaited<ReturnType<typeof loadVsMembershipSettings>> & { canManage: boolean };
+export type ConfirmationTarget = Pick<ComplianceRow, "id" | "memberId" | "memberName" | "weekEnding" | "confirmationBasis">;
+
 export type ActionAttempt = {
-  row: ComplianceRow;
+  row: ConfirmationTarget;
   operation: "complete" | "waive";
   requestId: string;
   reason: string;
 };
 
-export function createActionAttempt(row: ComplianceRow, operation: ActionAttempt["operation"], reason: string, requestId = crypto.randomUUID()): ActionAttempt {
+export function createActionAttempt<T extends ConfirmationTarget>(row: T, operation: ActionAttempt["operation"], reason: string, requestId = crypto.randomUUID()): ActionAttempt & { row: T } {
   return { row: structuredClone(row), operation, requestId, reason: reason.trim() };
 }
 
