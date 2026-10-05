@@ -18,6 +18,16 @@ Do not commit while any gate is failing.
 
 **GitHub will not run CI through 1 Sep 2026** (Actions credit freeze: **CI** and **Cleanup Neon preview branch** are disabled; org budget **$0**). Empty or skipped GitHub checks are expected — they are **not** a pass. Before marking ready, merging to **`main`**, or pushing a non-draft PR: also **`npm run build`** and **`npm run test:e2e`** (skip Playwright for docs-only). Detail: **`.cursor/rules/gha-credit-freeze.mdc`**.
 
+## Supported locales
+
+HQ supports three locales: `en-US` (source), `pt-BR` (hand-translated), and `id` (machine-translated, pending human review).
+
+- New user-facing strings must land in `messages/en-US.json` first and be approved by the maintainer before any locale file is edited.
+- Hand-translate approved English into `messages/pt-BR.json` in the same implementation commit.
+- Keep `messages/id.json` in sync with the English source by running `node scripts/i18n/translate.mjs` after `messages/en-US.json` changes. Generated Indonesian strings are not reviewed by default; flag them in the PR under a **Copy (pending maintainer review)** block.
+- When adding or changing Discord slash-command text, update `description_localizations` and `choices` in `scripts/discord/register-commands.mjs` for all supported locales.
+- `npm run i18n:validate` must pass after any locale edit.
+
 ## Drizzle migrations and `_journal.json`
 
 `db:prepare` (every Vercel build) applies migrations listed in **`drizzle/meta/_journal.json` only**. A `drizzle/NNNN_*.sql` file without a journal entry **never runs on deploy**.
@@ -71,7 +81,7 @@ Apply on every Real Steel pass for this repo:
 - **Session minting** — authenticated API routes use `requireApiSession` / `loadApiSession` (no lazy anonymous mint). `getOrCreateSession` is allowlisted only for bootstrap, connect/pairing-complete, sign-in bridge, and pre-auth Discord pages — grep new call sites in review
 - **Bootstrap safety** — `PLATFORM_BOOTSTRAP_EMAIL` only promotes when zero platform maintainers exist; no privilege escalation on reconnect
 - **Deploy seeds** — `db:prepare` migrations/seeds idempotent; safe to run on every Vercel build; every `drizzle/NNNN_*.sql` must appear in `drizzle/meta/_journal.json` (`npm run db:validate-journal`)
-- **i18n** — interactive work: maintainer approves English before `messages/en-US.*` or `messages/pt-BR.*` change (see [`.cursor/rules/user-facing-copy-review.mdc`](.cursor/rules/user-facing-copy-review.mdc)). Real Steel / async review agents may land proposed copy with the same commit when they post a PR **Copy (pending maintainer review)** block. Always en-US + hand pt-BR together; run `npm run i18n:validate`. Every user-visible surface (web, Discord, generated images) must use the active locale — see [`.cursor/rules/i18n-all-surfaces.mdc`](.cursor/rules/i18n-all-surfaces.mdc).
+- **i18n** — interactive work: maintainer approves English before `messages/en-US.*` or `messages/pt-BR.*` change (see [`.cursor/rules/user-facing-copy-review.mdc`](.cursor/rules/user-facing-copy-review.mdc)). Real Steel / async review agents may land proposed copy with the same commit when they post a PR **Copy (pending maintainer review)** block. Always en-US + hand pt-BR + generated `id` together, or flag missing `id` copy as pending review; run `npm run i18n:validate`. Every user-visible surface (web, Discord, generated images) must use the active locale — see [`.cursor/rules/i18n-all-surfaces.mdc`](.cursor/rules/i18n-all-surfaces.mdc).
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries
 - **Native alliance invites** — `createHqInvite` (team settings + `/api/admin/native-alliances/.../invites`) does **not** require a linked game server; a missing alliance state server must never block invite or join-code creation. Set the state server later (owner name+UID onboarding, alliance **Game season** settings, or platform maintainer via **Admin → Alliances**). Server matching still happens at member-link time (`wrong_server`). **Commander claim invites** are member-role invites with `targetAshedMemberId` (bulk via `createHqClaimInvitesBulk`). Operator guides: `/guides/alliance-onboarding`; agent rule: `.cursor/rules/native-alliance-invites-rbac.mdc`.
