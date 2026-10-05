@@ -34,21 +34,21 @@ test("compliance policy denies no-cookie, bootstrap, member, viewer and data-ent
   expect(rows).toHaveLength(0);
 });
 
-test("native officers can inspect policy but only owner-equivalent roles can configure it", async ({ request }) => {
+test("native officers can inspect and configure policy alongside owner-equivalent roles", async ({ request }) => {
   const f = await fixture();
   const officer = await f.actor("officer");
   const owner = await f.actor("owner");
   const data = { expectedVersion: 0, enabled: true, weeklyMinimum: 40_000_000, preset: "consecutive", removalThreshold: 5 };
   const read = await request.get(f.url, { headers: officer.headers });
   expect(read.status()).toBe(200);
-  expect(await read.json()).toMatchObject({ latest: null, canManage: false, defaults: { enabled: false, dailyTarget: 7_200_000, weeklyMinimum: null } });
-  expect((await request.patch(f.url, { headers: officer.headers, data })).status()).toBe(403);
-  const saved = await request.patch(f.url, { headers: owner.headers, data });
+  expect(await read.json()).toMatchObject({ latest: null, canManage: true, defaults: { enabled: false, dailyTarget: 7_200_000, weeklyMinimum: null } });
+  expect((await request.patch(f.url, { headers: officer.headers, data })).status()).toBe(200);
+  const saved = await request.patch(f.url, { headers: owner.headers, data: { ...data, expectedVersion: 1 } });
   expect(saved.status()).toBe(200);
-  expect(await saved.json()).toMatchObject({ latest: { version: 1, enabled: true, weeklyMinimum: 40_000_000, removalThreshold: 5, preset: "consecutive" } });
+  expect(await saved.json()).toMatchObject({ latest: { version: 2, enabled: true, weeklyMinimum: 40_000_000, removalThreshold: 5, preset: "consecutive" } });
   const readAgain = await request.get(f.url, { headers: officer.headers });
   const payload = await readAgain.json();
-  expect(payload.history).toHaveLength(1);
+  expect(payload.history).toHaveLength(2);
   expect(JSON.stringify(payload)).not.toContain("createdByHqUserId");
   expect(JSON.stringify(payload)).not.toContain("game_uid");
   const other = await fixture();
@@ -82,7 +82,7 @@ test("browser configures a separate weekly minimum and explicitly enables a futu
   await expect.poll(async () => (await f.sql`SELECT id FROM vs_compliance_policies WHERE alliance_id = ${f.alliance.allianceId}`).length).toBe(2);
 });
 
-test("browser officers inspect read-only settings and stale owner saves retain inputs", async ({ page, context }) => {
+test("browser officers can edit settings and stale owner saves retain inputs", async ({ page, context }) => {
   const f = await fixture(); const owner = await f.actor("owner"); const officer = await f.actor("officer");
   for (const actor of [owner, officer]) {
     const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: `Policy ${actor.hqUserId}`, allianceRank: 4 });
@@ -90,8 +90,8 @@ test("browser officers inspect read-only settings and stale owner saves retain i
   }
   await context.addCookies(playwrightAuthCookies(officer));
   await page.goto("/en-US/settings/vs-membership-minimums");
-  await expect(page.getByLabel("Daily VS target", { exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Daily VS target", { exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
   await context.addCookies(playwrightAuthCookies(owner));
   await page.goto("/en-US/settings/vs-membership-minimums");
   await page.getByLabel("Weekly VS minimum", { exact: true }).fill("50000000");
