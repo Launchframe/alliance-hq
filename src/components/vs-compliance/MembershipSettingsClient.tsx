@@ -111,7 +111,7 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
   const policyDetails = (policy: VsPolicyVersion) => <article key={policy.version} className="space-y-2 rounded border border-hq-border p-4" data-testid="vs-policy-history-row">
     <h3 className="font-medium">{tp(policy.modelVersion === 2 ? "dailyVersion" : "legacyVersion")} · {all("videoReview.vsWeeklyDateOption", { date: date(policy.effectiveWeek) })} · {all("shell.version", { version: number(policy.version) })}</h3>
     <label className="flex items-center gap-2"><input type="checkbox" checked={policy.enabled} disabled readOnly />{policy.modelVersion === 2 ? tp("enabled") : t("enabled")}</label>
-    <p>{tp("dailyMinimum")}: {number(policy.dailyTarget)}</p>
+    <p>{policy.modelVersion === 2 ? tp("dailyMinimum") : t("dailyTarget")}: {number(policy.dailyTarget)}</p>
     <p>{t("leeway")}: {number(policy.leewayPct)}</p>
     {policy.modelVersion === 2 ? <>
       <p>{tp("allowedMisses")}: {number(policy.allowedMissedDays)}</p>
@@ -121,6 +121,7 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
       <p>{t("weeklyMinimum")}: {number(policy.weeklyMinimum)}</p>
       <p>{t("preset")}: {t(policy.preset === "rank_aware" ? "rankAware" : "consecutive")}</p>
       {policy.preset === "consecutive" ? <p>{t("removalThreshold")}: {number(policy.removalThreshold)}</p> : null}
+      <p className="text-sm text-hq-fg-muted">{t("dailyHint")}</p>
     </>}
   </article>;
 
@@ -170,6 +171,7 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
           {preview.response.rows.map((row: VsPolicyPreviewRow) => <li key={row.memberId} className="rounded border border-hq-border p-2 text-sm">
             {row.memberName} · {tMembers(VS_PREVIEW_OUTCOME_KEYS[row.outcome])}
             {row.recommendationKind === "demote" && row.recommendationTargetRank !== null ? ` · ${t("demote", { rank: tMembers("rankLabel", { rank: row.recommendationTargetRank }) })}` : row.recommendationKind === "remove" ? ` · ${t("remove")}` : row.recommendationKind === "leadership_review" ? ` · ${t("leadershipReview")}` : null}
+            {row.signal?.kind === "promotion" ? ` · ${row.signal.targetRank !== null ? tMembers("promotionTarget", { rank: tMembers("rankLabel", { rank: row.signal.targetRank }) }) : tMembers("promotionPotential")}` : row.signal?.kind === "concern" ? ` · ${tMembers("atRisk")}` : null}
           </li>)}
         </ul>
       </div> : null}

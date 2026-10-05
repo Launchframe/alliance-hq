@@ -73,6 +73,8 @@ test("browser upgrades a v1 policy to v2 with explicit enable and a future effec
   await expect(page.getByLabel("Missed days allowed per week", { exact: true })).toHaveValue("0");
   await expect(page.getByTestId("vs-policy-history-row")).toContainText("Earlier weekly-minimum policy");
   await expect(page.getByTestId("vs-policy-history-row")).toContainText("Weekly VS minimum");
+  await expect(page.getByTestId("vs-policy-history-row")).toContainText("Daily VS target");
+  await expect(page.getByTestId("vs-policy-history-row")).not.toContainText("Daily minimum");
   await expect(page.getByTestId("vs-policy-history-row")).toContainText("Enable weekly discipline");
   await page.getByLabel("Daily minimum", { exact: true }).fill("40000000");
   await page.getByLabel("Missed days allowed per week", { exact: true }).fill("1");
@@ -87,8 +89,12 @@ test("browser upgrades a v1 policy to v2 with explicit enable and a future effec
   expect(Number(rows[1].daily_target)).toBe(40_000_000);
   await expect(page.getByTestId("vs-policy-history-row").first()).toContainText("Daily-consistency policy");
   await expect(page.getByTestId("vs-policy-history-row").first()).toContainText("Enable VS performance policy");
+  await expect(page.getByTestId("vs-policy-history-row").first()).toContainText("Daily minimum");
+  await expect(page.getByTestId("vs-policy-history-row").first()).not.toContainText("Daily VS target");
   await page.goto("/pt-BR/settings/vs-membership-minimums");
+  await expect(page.getByTestId("vs-policy-history-row").nth(0)).toContainText("Mínimo diário");
   await expect(page.getByTestId("vs-policy-history-row").nth(0)).toContainText("Ativar política de desempenho VS");
+  await expect(page.getByTestId("vs-policy-history-row").nth(1)).toContainText("Meta diária de VS");
   await expect(page.getByTestId("vs-policy-history-row").nth(1)).toContainText("Ativar disciplina semanal");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/en-US/settings/vs-membership-minimums");
@@ -155,6 +161,37 @@ test("browser preview rejects open weeks and never renders a mismatched server w
   await expect(page.getByText("Could not preview this policy. Try again.", { exact: true })).toBeVisible();
   await expect(results).toHaveCount(0);
   await expect(page.getByText("Stale Member")).toHaveCount(0);
+});
+
+test("browser preview shows advisory promotion and concern signals without actions", async ({ page, context }) => {
+  const f = await fixture(); const officer = await f.actor("officer");
+  const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Policy Officer", allianceRank: 4 });
+  await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: linked.ashedMemberId });
+  const weekEnding = lastClosedVsWeek();
+  await page.route("**/api/vs-performance/policy-preview", async (route) => {
+    await route.fulfill({ json: { weekEnding, rows: [
+      { memberId: "m1", memberName: "Rising Member", currentRank: 3, outcome: "passed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: { kind: "promotion", targetRank: 4, reached: true } },
+      { memberId: "m2", memberName: "Fading Member", currentRank: 3, outcome: "missed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: { kind: "concern", targetRank: null, reached: false } },
+      { memberId: "m3", memberName: "Quiet Member", currentRank: 3, outcome: "passed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: { kind: "promotion", targetRank: null, reached: false } },
+    ] } });
+  });
+  await context.addCookies(playwrightAuthCookies(officer));
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await expect(page.getByRole("heading", { name: "VS performance policy" })).toBeVisible();
+  await page.getByLabel("Closed VS week to preview", { exact: true }).fill(weekEnding);
+  await page.getByRole("button", { name: "Preview policy" }).click();
+  const results = page.getByTestId("vs-policy-preview-results");
+  await expect(results).toBeVisible();
+  await expect(results).toContainText("Rising Member");
+  await expect(results).toContainText("Showing potential for R4");
+  await expect(results).toContainText("Fading Member");
+  await expect(results).toContainText("On track for demotion");
+  await expect(results).toContainText("Quiet Member");
+  await expect(results).toContainText("Promotion potential");
+  await expect(page.getByText("Preview only. This does not change historical results or create rank actions.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
+  expect(await f.sql`SELECT id FROM vs_compliance_policies WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
+  expect(await f.sql`SELECT id FROM vs_compliance_actions WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
 });
 
 test("browser officers can edit settings and stale owner saves retain inputs", async ({ page, context }) => {
