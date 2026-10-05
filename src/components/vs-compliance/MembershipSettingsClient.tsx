@@ -7,7 +7,7 @@ import { mergeVsPolicyPatch, vsThreshold } from "@/lib/vs-compliance/policy.shar
 import type { VsPolicyVersion } from "@/lib/vs-compliance/types.shared";
 import { VS_PREVIEW_OUTCOME_KEYS, vsPolicyEditorDraft, vsPolicyPatchFromDraft, vsPreviewIncomplete, type VsPolicyPreviewRow } from "@/lib/vs-compliance/policy-editor.shared";
 import { lastClosedVsWeek } from "@/lib/vs-compliance/workflow.shared";
-import { addCalendarDays } from "@/lib/trains/game-time";
+import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
 import { ComplianceClientError, isMembershipSettings, isPolicy, isPolicyPreview, readComplianceResponse, RequestVersion, type MembershipSettings, type VsPolicyPreviewResponse } from "./client.shared";
 
 const inputClass = "block w-full rounded border border-hq-border bg-hq-surface p-2 disabled:opacity-60";
@@ -35,6 +35,7 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [previewWeek, setPreviewWeek] = useState(() => lastClosedVsWeek());
+  const [previewWeekInvalid, setPreviewWeekInvalid] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState(false);
@@ -46,11 +47,6 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
   const date = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
   const number = (value: number | null) => value === null ? all("commandersIndex.unreportedShort") : new Intl.NumberFormat(locale).format(value);
   useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
-
-  const previewWeeks = useMemo(() => {
-    const last = lastClosedVsWeek();
-    return Array.from({ length: 8 }, (_, index) => addCalendarDays(last, -7 * index));
-  }, []);
 
   const load = useCallback(async () => {
     const version = requests.current.next();
@@ -94,14 +90,17 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
   }
 
   async function runPreview() {
-    if (previewBusy || !patch) { if (!patch) setPreviewError(true); return; }
+    if (previewBusy) return;
+    if (!patch) { setPreviewError(true); return; }
+    if (!validateVsPeriod(previewWeek, "weekly") || previewWeek > lastClosedVsWeek()) { setPreviewWeekInvalid(true); return; }
+    const requestedWeek = previewWeek;
     const version = previewRequests.current.next();
     const key = previewKey!;
-    setPreviewBusy(true); setPreviewError(false);
+    setPreviewBusy(true); setPreviewError(false); setPreviewWeekInvalid(false);
     try {
-      const data = await readComplianceResponse(await fetch("/api/vs-performance/policy-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ policy: patch, weekEnding: previewWeek }) }), tp("previewFailed"));
+      const data = await readComplianceResponse(await fetch("/api/vs-performance/policy-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ policy: patch, weekEnding: requestedWeek }) }), tp("previewFailed"));
       if (!previewRequests.current.current(version)) return;
-      if (!isPolicyPreview(data)) throw new Error(tp("previewFailed"));
+      if (!isPolicyPreview(data) || data.weekEnding !== requestedWeek) throw new Error(tp("previewFailed"));
       setPreview({ key, response: data as VsPolicyPreviewResponse });
     } catch { if (previewRequests.current.current(version)) setPreviewError(true); }
     finally { if (previewRequests.current.current(version)) setPreviewBusy(false); }
@@ -111,7 +110,7 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
   const stalePreview = preview !== null && preview.key !== previewKey;
   const policyDetails = (policy: VsPolicyVersion) => <article key={policy.version} className="space-y-2 rounded border border-hq-border p-4" data-testid="vs-policy-history-row">
     <h3 className="font-medium">{tp(policy.modelVersion === 2 ? "dailyVersion" : "legacyVersion")} · {all("videoReview.vsWeeklyDateOption", { date: date(policy.effectiveWeek) })} · {all("shell.version", { version: number(policy.version) })}</h3>
-    <label className="flex items-center gap-2"><input type="checkbox" checked={policy.enabled} disabled readOnly />{tp("enabled")}</label>
+    <label className="flex items-center gap-2"><input type="checkbox" checked={policy.enabled} disabled readOnly />{policy.modelVersion === 2 ? tp("enabled") : t("enabled")}</label>
     <p>{tp("dailyMinimum")}: {number(policy.dailyTarget)}</p>
     <p>{t("leeway")}: {number(policy.leewayPct)}</p>
     {policy.modelVersion === 2 ? <>
@@ -158,10 +157,8 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
 
     {settings?.canManage ? <section className="space-y-3" data-testid="vs-policy-preview">
       <h2 className="text-lg font-semibold">{tp("preview")}</h2>
-      <label className="block space-y-2">{tp("previewWeek")}<select aria-label={tp("previewWeek")} value={previewWeek} onChange={(event) => setPreviewWeek(event.target.value)} className={inputClass}>
-        {previewWeeks.map((week) => <option key={week} value={week}>{all("videoReview.vsWeeklyDateOption", { date: date(week) })}</option>)}
-      </select></label>
-      <p className="text-sm text-hq-fg-muted">{tp("closedWeek")}</p>
+      <label className="block space-y-2">{tp("previewWeek")}<input type="date" max={lastClosedVsWeek()} step={7} value={previewWeek} onChange={(event) => { setPreviewWeek(event.target.value); setPreviewWeekInvalid(false); }} className={inputClass} /></label>
+      {previewWeekInvalid ? <p role="alert" className="text-hq-danger">{tp("closedWeek")}</p> : null}
       <p className="text-sm text-hq-fg-muted">{tp("previewHint")}</p>
       <button type="button" disabled={previewBusy || loading || !patch} className={buttonClass} onClick={() => void runPreview()}>{previewBusy ? all("common.loading") : tp("preview")}</button>
       {previewError ? <p role="alert" className="text-hq-danger">{tp("previewFailed")}</p> : null}

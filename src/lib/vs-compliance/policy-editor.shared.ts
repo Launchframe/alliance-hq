@@ -43,12 +43,13 @@ export function vsPolicyEditorDraft(previous: VsPolicyVersion | null, now: Date)
 }
 
 const integer = (value: string, min: number, max: number): number | null => {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+  if (!/^\d+$/.test(value.trim())) return null;
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
 };
 
 export function vsPolicyPatchFromDraft(draft: VsPolicyEditorDraft): Record<string, unknown> | null {
-  const dailyTarget = integer(draft.dailyTarget, 1, 2_147_483_647);
+  const dailyTarget = integer(draft.dailyTarget, 1, Number.MAX_SAFE_INTEGER);
   const leewayPct = integer(draft.leewayPct, 0, 100);
   const allowedMissedDays = integer(draft.allowedMissedDays, 0, 5);
   const demotionLength = integer(draft.demotionLength, 1, draft.demotionUnit === "days" ? 312 : 52);

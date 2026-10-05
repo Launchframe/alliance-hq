@@ -44,10 +44,14 @@ describe("vsPolicyPatchFromDraft", () => {
     expect(() => mergeVsPolicyPatch(daily(), patch, NOW)).not.toThrow();
   });
   it.each([
-    ["dailyTarget", "0"], ["dailyTarget", "1.5"], ["leewayPct", "101"], ["leewayPct", "-1"],
-    ["allowedMissedDays", "6"], ["allowedMissedDays", "-1"], ["demotionLength", "0"], ["promotionLength", "abc"],
+    ["dailyTarget", "0"], ["dailyTarget", "1.5"], ["dailyTarget", ""], ["leewayPct", "101"], ["leewayPct", "-1"], ["leewayPct", ""],
+    ["allowedMissedDays", "6"], ["allowedMissedDays", "-1"], ["allowedMissedDays", ""], ["demotionLength", "0"], ["promotionLength", "abc"], ["promotionLength", "   "],
   ] as const)("rejects invalid %s=%s", (field, value) => {
     expect(vsPolicyPatchFromDraft({ ...valid, [field]: value })).toBeNull();
+  });
+  it("accepts the maximum safe daily target and rejects beyond it", () => {
+    expect(vsPolicyPatchFromDraft({ ...valid, dailyTarget: "9007199254740991" })).toMatchObject({ dailyTarget: 9_007_199_254_740_991 });
+    expect(vsPolicyPatchFromDraft({ ...valid, dailyTarget: "9007199254740992" })).toBeNull();
   });
   it("rejects sequence lengths above the unit cap", () => {
     expect(vsPolicyPatchFromDraft({ ...valid, demotionUnit: "weeks", demotionLength: "53" })).toBeNull();

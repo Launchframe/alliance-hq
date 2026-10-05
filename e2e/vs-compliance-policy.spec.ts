@@ -73,6 +73,7 @@ test("browser upgrades a v1 policy to v2 with explicit enable and a future effec
   await expect(page.getByLabel("Missed days allowed per week", { exact: true })).toHaveValue("0");
   await expect(page.getByTestId("vs-policy-history-row")).toContainText("Earlier weekly-minimum policy");
   await expect(page.getByTestId("vs-policy-history-row")).toContainText("Weekly VS minimum");
+  await expect(page.getByTestId("vs-policy-history-row")).toContainText("Enable weekly discipline");
   await page.getByLabel("Daily minimum", { exact: true }).fill("40000000");
   await page.getByLabel("Missed days allowed per week", { exact: true }).fill("1");
   const effective = addCalendarDays(firstFullVsWeek(new Date()), 7);
@@ -85,6 +86,14 @@ test("browser upgrades a v1 policy to v2 with explicit enable and a future effec
   expect(rows[1]).toMatchObject({ version: 2, enabled: true, model_version: 2, effective_week: effective, allowed_missed_days: 1, demotion_unit: "weeks", demotion_length: 1, promotion_unit: "weeks", promotion_length: 2 });
   expect(Number(rows[1].daily_target)).toBe(40_000_000);
   await expect(page.getByTestId("vs-policy-history-row").first()).toContainText("Daily-consistency policy");
+  await expect(page.getByTestId("vs-policy-history-row").first()).toContainText("Enable VS performance policy");
+  await page.goto("/pt-BR/settings/vs-membership-minimums");
+  await expect(page.getByTestId("vs-policy-history-row").nth(0)).toContainText("Ativar política de desempenho VS");
+  await expect(page.getByTestId("vs-policy-history-row").nth(1)).toContainText("Ativar disciplina semanal");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await expect(page.getByRole("heading", { name: "VS performance policy" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
 });
 
 test("browser preview is read-only, neutral on missing evidence, and invalidates on draft change", async ({ page, context }) => {
@@ -94,7 +103,7 @@ test("browser preview is read-only, neutral on missing evidence, and invalidates
   const member = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Preview Member", allianceRank: 3 });
   const missing = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Preview Missing", allianceRank: 3 });
   await f.sql`UPDATE alliance_members SET join_date = '2020-01-01' WHERE alliance_id = ${f.alliance.allianceId} AND ashed_member_id IN (${member.ashedMemberId}, ${missing.ashedMemberId})`;
-  const weekEnding = lastClosedVsWeek();
+  const weekEnding = addCalendarDays(lastClosedVsWeek(), -70);
   for (let index = 0; index < 6; index++) await f.sql`INSERT INTO vs_score_heads(id, alliance_id, member_id, member_name, recorded_date, period, score, origin, version) VALUES (${nanoid()}, ${f.alliance.allianceId}, ${member.ashedMemberId}, 'Preview Member', ${addCalendarDays(weekEnding, index - 6)}, 'daily', 0, 'hq', 1)`;
   await context.addCookies(playwrightAuthCookies(officer));
   await page.goto("/en-US/settings/vs-membership-minimums");
@@ -102,10 +111,12 @@ test("browser preview is read-only, neutral on missing evidence, and invalidates
   await page.locator("form").getByRole("checkbox", { name: "Enable VS performance policy" }).check();
   await page.getByLabel("Daily minimum", { exact: true }).fill("7200000");
   await page.getByLabel("Missed days allowed per week", { exact: true }).fill("0");
-  await page.getByLabel("Closed VS week to preview", { exact: true }).selectOption(weekEnding);
+  const [auditBefore] = await f.sql`SELECT count(*)::integer AS count FROM audit_log WHERE alliance_id = ${f.alliance.allianceId}`;
+  await page.getByLabel("Closed VS week to preview", { exact: true }).fill(weekEnding);
   await page.getByRole("button", { name: "Preview policy" }).click();
   const results = page.getByTestId("vs-policy-preview-results");
   await expect(results).toBeVisible();
+  await expect(results).toContainText(`Preview for week ending ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${weekEnding}T12:00:00Z`))}`);
   await expect(results).toContainText("Preview Member");
   await expect(results).toContainText("Below minimum");
   await expect(results).toContainText("Recommend R2");
@@ -116,9 +127,34 @@ test("browser preview is read-only, neutral on missing evidence, and invalidates
   // Preview must not write policies, actions, or audit rows.
   expect(await f.sql`SELECT id FROM vs_compliance_policies WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
   expect(await f.sql`SELECT id FROM vs_compliance_actions WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
+  const [auditAfter] = await f.sql`SELECT count(*)::integer AS count FROM audit_log WHERE alliance_id = ${f.alliance.allianceId}`;
+  expect(auditAfter.count).toBe(auditBefore.count);
   // Changing the draft invalidates the rendered preview.
   await page.getByLabel("Missed days allowed per week", { exact: true }).fill("5");
   await expect(results).toHaveCount(0);
+});
+
+test("browser preview rejects open weeks and never renders a mismatched server week", async ({ page, context }) => {
+  const f = await fixture(); const officer = await f.actor("officer");
+  const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Policy Officer", allianceRank: 4 });
+  await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: linked.ashedMemberId });
+  await context.addCookies(playwrightAuthCookies(officer));
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await expect(page.getByRole("heading", { name: "VS performance policy" })).toBeVisible();
+  const results = page.getByTestId("vs-policy-preview-results");
+  await page.getByLabel("Closed VS week to preview", { exact: true }).fill(addCalendarDays(lastClosedVsWeek(), 7));
+  await page.getByRole("button", { name: "Preview policy" }).click();
+  await expect(page.getByText("Choose a completed VS week to preview.", { exact: true })).toBeVisible();
+  await expect(results).toHaveCount(0);
+  const weekEnding = lastClosedVsWeek();
+  await page.route("**/api/vs-performance/policy-preview", async (route) => {
+    await route.fulfill({ json: { weekEnding: addCalendarDays(weekEnding, -7), rows: [{ memberId: "m", memberName: "Stale Member", currentRank: 3, outcome: "missed", counts: null, recommendationKind: "demote", recommendationTargetRank: 2, signal: null }] } });
+  });
+  await page.getByLabel("Closed VS week to preview", { exact: true }).fill(weekEnding);
+  await page.getByRole("button", { name: "Preview policy" }).click();
+  await expect(page.getByText("Could not preview this policy. Try again.", { exact: true })).toBeVisible();
+  await expect(results).toHaveCount(0);
+  await expect(page.getByText("Stale Member")).toHaveCount(0);
 });
 
 test("browser officers can edit settings and stale owner saves retain inputs", async ({ page, context }) => {
