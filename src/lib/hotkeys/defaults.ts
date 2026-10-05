@@ -37,6 +37,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   // g+k is Connect Ashed; g+8 is free for My Kills
   "nav.myKills": seq("g", "8"),
   "nav.vsCalculator": seq("g", "7"),
+  "nav.myVsPerformance": seq("g", "1"),
   "nav.professions": seq("g", "'"),
   "nav.trains": seq("g", "t"),
   // Must not be a prefix extension of `g t` — sequences match immediately on
