@@ -5911,7 +5911,7 @@
       "teamsTooMany": "At most **{max}** takedown teams per request. Example: `/vr-report teams:3`.",
       "hqLinkRequired": "Link your in-game commander first with `/link-commander`, then try again.",
       "waitForGuildRegistration": "This server is not registered to an alliance yet. Wait for the owner to finish setup, or run `/help` for the owner checklist.",
-      "invalidLanguage": "Choose English or Português.",
+      "invalidLanguage": "Choose English, Português, or Bahasa.",
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now.",

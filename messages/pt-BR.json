@@ -5857,7 +5857,7 @@
       "teamsTooMany": "No máximo **{max}** equipes de takedown por pedido. Exemplo: `/vr-report teams:3`.",
       "hqLinkRequired": "Vincule seu comandante primeiro com `/link-commander` e tente novamente.",
       "waitForGuildRegistration": "Este servidor ainda não está registrado para uma aliança. Aguarde o dono concluir a configuração ou use `/help` para ver os passos.",
-      "invalidLanguage": "Escolha English ou Português.",
+      "invalidLanguage": "Escolha English, Português ou Bahasa.",
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
       "noConfirm": "Nada para confirmar agora.",

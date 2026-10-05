@@ -1324,6 +1324,13 @@
       "when": 1791900000205,
       "tag": "0205_vs_policy_v2_required_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1791900000206,
+      "tag": "0206_indonesian_locale_constraints",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@ import { Lexer, type Token, type Tokens } from "marked";
 import { z } from "zod";
 import { redactIntakeText } from "./intake.shared";
 
-export const publicationPreviewSchema = z.object({ requestId: z.string().min(8).max(120), noteId: z.string().min(1).max(160), expectedVersion: z.number().int().positive(), title: z.string().trim().min(1).max(160), body: z.string().trim().min(1).max(100_000), locale: z.enum(["en-US", "pt-BR"]), days: z.union([z.literal(1), z.literal(7), z.literal(30)]) });
+export const publicationPreviewSchema = z.object({ requestId: z.string().min(8).max(120), noteId: z.string().min(1).max(160), expectedVersion: z.number().int().positive(), title: z.string().trim().min(1).max(160), body: z.string().trim().min(1).max(100_000), locale: z.enum(["en-US", "pt-BR", "id"]), days: z.union([z.literal(1), z.literal(7), z.literal(30)]) });
 export const publicationCommandSchema = z.object({ requestId: z.string().min(8).max(120), expectedVersion: z.number().int().positive(), command: z.enum(["publish", "revoke", "rotate"]), reviewed: z.boolean().default(false) });
 export type Publication = { id: string; noteId: string; state: "draft" | "published" | "revoked"; version: number; snapshotVersion: number; title: string; body: string; locale: string; expiresAt: string; link: string | null };
 export type PublicationSummary = Omit<Publication, "body" | "link">;

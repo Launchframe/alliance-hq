@@ -15,7 +15,7 @@ export type HistoryImportKind = typeof HISTORY_IMPORT_KINDS[number];
 export type HistoryImportState = "uploading" | "queued" | "processing" | "review" | "committed" | "cancelled" | "failed";
 export type HistoryJobState = "pending" | "running" | "completed" | "cancelled" | "failed";
 export const historyInitSchema = z.object({
-  expectedScope: z.string().min(1).max(300), requestId: z.string().min(8).max(120), title: z.string().trim().min(1).max(160), kind: z.enum(HISTORY_IMPORT_KINDS), locale: z.enum(["en-US", "pt-BR"]),
+  expectedScope: z.string().min(1).max(300), requestId: z.string().min(8).max(120), title: z.string().trim().min(1).max(160), kind: z.enum(HISTORY_IMPORT_KINDS), locale: z.enum(["en-US", "pt-BR", "id"]),
   files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp"]), size: z.number().int().positive().max(HISTORY_IMAGE_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
 }).refine((input) => input.files.reduce((sum, file) => sum + file.size, 0) <= HISTORY_BATCH_BYTES && (input.kind === "screenshots"
   ? input.files.every((file) => file.contentType.startsWith("image/"))
