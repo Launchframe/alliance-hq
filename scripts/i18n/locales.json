@@ -1,9 +1,10 @@
 {
   "source": "en-US",
-  "targets": ["pt-BR"],
+  "targets": ["pt-BR", "id"],
   "googleSourceCode": "en",
   "googleTargetCodes": {
     "pt-BR": "pt-BR",
+    "id": "id",
     "ko": "ko",
     "ja": "ja",
     "zh-CN": "zh-CN",

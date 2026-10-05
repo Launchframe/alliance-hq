@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { locales, type AppLocale } from "@/i18n/routing";
 import {
   fixtureThpHistoryEvents,
   fixtureVrProgressSeries,
@@ -25,7 +26,7 @@ export const runtime = "nodejs";
 
 /**
  * Developer preview of Discord chart PNGs (fixture data).
- * GET /api/dev/discord-chart-preview?kind=vr|thp&format=png|svg&locale=en-US|pt-BR
+ * GET /api/dev/discord-chart-preview?kind=vr|thp&format=png|svg&locale=en-US|pt-BR|id
  */
 export async function GET(request: NextRequest) {
   if (!isDevOrPreviewEnvironment()) {
@@ -35,8 +36,7 @@ export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get("kind") ?? "vr";
   const format = request.nextUrl.searchParams.get("format") ?? "png";
   const localeParam = request.nextUrl.searchParams.get("locale");
-  const locale =
-    localeParam === "pt-BR" || localeParam === "en-US" ? localeParam : "en-US";
+  const locale: AppLocale = (locales as readonly string[]).includes(localeParam ?? "") ? (localeParam as AppLocale) : "en-US";
   if (kind !== "vr" && kind !== "thp") {
     return NextResponse.json(
       { error: "kind must be vr or thp" },
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date("2026-07-16T18:00:00.000Z");
-  const nowLabel = locale === "pt-BR" ? "Agora" : "Now";
+  const nowLabel = locale === "pt-BR" ? "Agora" : locale === "id" ? "Sekarang" : "Now";
 
   if (kind === "vr") {
     const fixture = fixtureVrProgressSeries(now);

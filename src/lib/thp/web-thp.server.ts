@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ActivityPrincipal } from "@/lib/activity/access.server";
 import { ActivityWriteError } from "@/lib/activity/errors.server";
-import { createDiscordTranslator } from "@/lib/discord/i18n";
+import { createDiscordTranslator, normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { isThpConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import {
@@ -43,7 +43,7 @@ export async function handleWebThpCommand(
   input: WebThpCommandInput,
 ): Promise<MyThpPostResponse | { code: "member_link_required" }> {
   const translate = createDiscordTranslator(
-    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+    normalizeDiscordBotLocale(input.locale),
   );
   try {
     return await executeWebThpCommand(input);
@@ -84,7 +84,7 @@ async function executeWebThpCommand(
   }
 
   const translate = createDiscordTranslator(
-    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+    normalizeDiscordBotLocale(input.locale),
   );
 
   if (input.confirm) {

@@ -11,7 +11,7 @@ export async function loadCalendarSettings(hqUserId: string, locale = "en-US"): 
     const preferences = await readCalendarPreferences(tx, hqUserId);
     if (!preferences.version) {
       const [user] = await tx.select({ timezone: schema.hqUsers.timezone }).from(schema.hqUsers).where(eq(schema.hqUsers.id, hqUserId));
-      preferences.locale = locale === "pt-BR" ? "pt-BR" : "en-US";
+      preferences.locale = locale === "pt-BR" ? "pt-BR" : locale === "id" ? "id" : "en-US";
       preferences.timezone = user?.timezone ?? "Etc/GMT+2";
     }
     const memberships = await tx.select({ id: schema.alliances.id, tag: schema.alliances.tag, name: schema.alliances.name }).from(schema.allianceMemberships).innerJoin(schema.alliances, eq(schema.alliances.id, schema.allianceMemberships.allianceId)).where(and(eq(schema.allianceMemberships.hqUserId, hqUserId), eq(schema.allianceMemberships.status, "active")));

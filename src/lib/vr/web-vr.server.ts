@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ActivityPrincipal } from "@/lib/activity/access.server";
 import { ActivityWriteError } from "@/lib/activity/errors.server";
-import { createDiscordTranslator, type DiscordTranslate } from "@/lib/discord/i18n";
+import { createDiscordTranslator, normalizeDiscordBotLocale, type DiscordTranslate } from "@/lib/discord/i18n";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
@@ -152,9 +152,7 @@ export async function handleWebVrCommand(input: {
     explicitInstituteLevel: input.explicitInstituteLevel ?? null,
     confirm: input.confirm ?? null,
   };
-  const translate = createDiscordTranslator(
-    input.locale === "pt-BR" ? "pt-BR" : "en-US",
-  );
+  const translate = createDiscordTranslator(normalizeDiscordBotLocale(input.locale));
   let outcome: WebVrCommandCoreOutcome;
   try {
     outcome = await handleWebVrCommandCore(input);
@@ -230,9 +228,7 @@ async function handleWebVrCommandCore(input: {
     };
   }
 
-  const translate = createDiscordTranslator(
-    input.locale === "pt-BR" ? "pt-BR" : "en-US",
-  );
+  const translate = createDiscordTranslator(normalizeDiscordBotLocale(input.locale));
   const season = await resolveVrSeasonContext(input.allianceId);
   const commander = await getCommanderByAshedMemberId(
     link.ashedMemberId,

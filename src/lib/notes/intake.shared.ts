@@ -6,7 +6,7 @@ import { taskCreateSchema, TASK_STATUSES } from "./tasks.shared";
 export const intakeRequestSchema = z.object({
   draftId: z.string().min(8).max(120), revision: z.number().int().nonnegative(),
   overrideRevision: z.number().int().nonnegative(), body: z.string().trim().min(1).max(10_000),
-  locale: z.enum(["en-US", "pt-BR"]), noteId: z.string().min(1).max(120).optional(),
+  locale: z.enum(["en-US", "pt-BR", "id"]), noteId: z.string().min(1).max(120).optional(),
   expectedVersion: z.number().int().positive().optional(),
 });
 export const semanticIntakeSchema = z.object({

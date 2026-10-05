@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ActivityPrincipal } from "@/lib/activity/access.server";
 import { ActivityWriteError } from "@/lib/activity/errors.server";
-import { createDiscordTranslator } from "@/lib/discord/i18n";
+import { createDiscordTranslator, normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import {
   isKillsConfirmPending,
   killsConfirmEventSource,
@@ -42,7 +42,7 @@ export async function handleWebKillsCommand(
   input: WebKillsCommandInput,
 ): Promise<MyKillsPostResponse | { code: "member_link_required" }> {
   const translate = createDiscordTranslator(
-    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+    normalizeDiscordBotLocale(input.locale),
   );
   try {
     return await executeWebKillsCommand(input);
@@ -83,7 +83,7 @@ async function executeWebKillsCommand(
   }
 
   const translate = createDiscordTranslator(
-    input.locale === "pt-BR" ? "pt-BR" : "en-US",
+    normalizeDiscordBotLocale(input.locale),
   );
 
   if (input.confirm) {

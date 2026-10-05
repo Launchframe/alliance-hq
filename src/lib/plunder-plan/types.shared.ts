@@ -1,3 +1,4 @@
+import type { AppLocale } from "@/i18n/routing";
 import type { PlanSchedule, PlanOccurrence, ScheduleErrorCode } from "./schedule.shared";
 
 export type PlanErrorCode = ScheduleErrorCode | "forbidden" | "linkRequired" | "commanderUnavailable" | "invalidColor" | "duplicate" | "stale" | "notFound" | "expired" | "channel" | "load" | "save" | "rateLimit";
@@ -32,9 +33,9 @@ export type PlanDashboard = {
   notificationSettings: PlanNotificationSettings[];
   regularEvents: Array<{ id: string; eventKey: string; label: string; startAt: string }>;
 };
-export type PlanNotificationSettings = { guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; version: number };
+export type PlanNotificationSettings = { guildId: string; channelId: string; timeSt: string; locale: AppLocale; enabled: boolean; version: number };
 export type PlanCommand =
-  | { action: "notifications"; requestId: string; guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; expectedVersion: number }
+  | { action: "notifications"; requestId: string; guildId: string; channelId: string; timeSt: string; locale: AppLocale; enabled: boolean; expectedVersion: number }
   | { action: "create"; requestId: string; kind: "plan" | "suggestion"; memberId?: string; sourceId?: string; sourceVersion?: number; schedule: PlanSchedule; reminder: boolean }
   | { action: "edit"; requestId: string; id: string; expectedVersion: number; schedule: PlanSchedule; reminder: boolean }
   | { action: "pause" | "resume" | "remove"; requestId: string; id: string; expectedVersion: number }

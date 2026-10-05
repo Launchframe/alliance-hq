@@ -649,6 +649,7 @@ const commandBody = [
         choices: [
           { name: "English", value: "English" },
           { name: "Português (Brasil)", value: "Português" },
+          { name: "Bahasa Indonesia", value: "Bahasa" },
         ],
       },
     ],
@@ -671,6 +672,7 @@ const commandBody = [
         choices: [
           { name: "English", value: "English" },
           { name: "Português (Brasil)", value: "Português" },
+          { name: "Bahasa Indonesia", value: "Bahasa" },
         ],
       },
     ],

@@ -1,5 +1,6 @@
 import enUS from "../../../messages/en-US.json";
 import ptBR from "../../../messages/pt-BR.json";
+import id from "../../../messages/id.json";
 
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 
@@ -8,6 +9,7 @@ type VsAnnouncementsMessages = Record<string, unknown>;
 const MESSAGES: Record<DiscordBotLocale, VsAnnouncementsMessages> = {
   "en-US": (enUS as { vsAnnouncements: VsAnnouncementsMessages }).vsAnnouncements,
   "pt-BR": (ptBR as { vsAnnouncements: VsAnnouncementsMessages }).vsAnnouncements,
+  "id": (id as { vsAnnouncements: VsAnnouncementsMessages }).vsAnnouncements,
 };
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {

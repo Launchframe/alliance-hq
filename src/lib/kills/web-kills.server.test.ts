@@ -39,6 +39,7 @@ vi.mock("@/lib/kills/repository", async (importOriginal) => {
 
 vi.mock("@/lib/discord/i18n", () => ({
   createDiscordTranslator: () => (key: string) => key,
+  normalizeDiscordBotLocale: (value: string | undefined) => value ?? "en-US",
 }));
 
 vi.mock("@/lib/kills/kill-count-ocr/parse-kills-details-image", () => ({

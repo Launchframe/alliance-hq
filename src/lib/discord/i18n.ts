@@ -1,25 +1,29 @@
 import { createTranslator } from "next-intl";
 import enUS from "../../../messages/en-US.json";
 import ptBR from "../../../messages/pt-BR.json";
+import id from "../../../messages/id.json";
 
 import { getDiscordUserLocale, upsertDiscordUserLocale } from "@/lib/vr/repository";
 
-export type DiscordBotLocale = "en-US" | "pt-BR";
+export type DiscordBotLocale = "en-US" | "pt-BR" | "id";
 
 const MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {
   "en-US": { ...enUS.discordBot, activity: { saveBlocked: enUS.activity.saveBlocked }, plunderPlan: enUS.plunderPlan, teamWork: enUS.teamWork, trainDuty: enUS.trains.conductorHistory, timeOff: { ...enUS.discordBot.timeOff, workflow: enUS.timeOff.workflow, form: enUS.timeOff.form, officerModal: enUS.timeOff.officerModal, entry: enUS.timeOff.entry, sync: enUS.timeOff.sync } },
   "pt-BR": { ...ptBR.discordBot, activity: { saveBlocked: ptBR.activity.saveBlocked }, plunderPlan: ptBR.plunderPlan, teamWork: ptBR.teamWork, trainDuty: ptBR.trains.conductorHistory, timeOff: { ...ptBR.discordBot.timeOff, workflow: ptBR.timeOff.workflow, form: ptBR.timeOff.form, officerModal: ptBR.timeOff.officerModal, entry: ptBR.timeOff.entry, sync: ptBR.timeOff.sync } },
+  "id": { ...id.discordBot, activity: { saveBlocked: id.activity.saveBlocked }, plunderPlan: id.plunderPlan, teamWork: id.teamWork, trainDuty: id.trains.conductorHistory, timeOff: { ...id.discordBot.timeOff, workflow: id.timeOff.workflow, form: id.timeOff.form, officerModal: id.timeOff.officerModal, entry: id.timeOff.entry, sync: id.timeOff.sync } },
 };
 
 const AUTHORIZE_MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {
   "en-US": enUS.discordAuthorize as Record<string, unknown>,
   "pt-BR": ptBR.discordAuthorize as Record<string, unknown>,
+  "id": id.discordAuthorize as Record<string, unknown>,
 };
 
 export function normalizeDiscordBotLocale(value: string | undefined): DiscordBotLocale {
   if (!value) return "en-US";
   const lower = value.toLowerCase();
   if (lower.startsWith("pt")) return "pt-BR";
+  if (lower === "id" || lower.startsWith("id-")) return "id";
   return "en-US";
 }
 
@@ -130,6 +134,9 @@ export function parseLanguageChoice(value: string | undefined): DiscordBotLocale
     normalized === "pt-br"
   ) {
     return "pt-BR";
+  }
+  if (normalized === "indonesian" || normalized === "bahasa" || normalized === "id" || normalized === "id-id") {
+    return "id";
   }
   return null;
 }
