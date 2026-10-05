@@ -49,7 +49,8 @@ export function HotkeyCommandPalette({
         isConnected,
         operatingMode,
         showVideoQueue,
-      }).filter((action) => action.scope !== "admin-sequence"),
+      }).filter((action) => action.scope !== "admin-sequence")
+        .filter((action, index, actions) => action.kind !== "navigate" || !action.href || actions.findIndex((other) => other.kind === "navigate" && other.href === action.href) === index),
     [hasAllianceMemberLink, isConnected, operatingMode, sessionPermissions, showVideoQueue],
   );
 

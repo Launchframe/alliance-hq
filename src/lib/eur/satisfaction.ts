@@ -148,7 +148,7 @@ export async function loadReminderInboxForUser(options: {
   const teamWorkAllowed = items.some((item) => item.kind === "team_work") && await canReadTeamWorkInbox({ allianceId: options.allianceId, hqUserId: options.principalHqUserId ?? options.hqUserId, permissions: options.permissions, personal: options.personalWorkOnly });
   const teamWorkTranslation = teamWorkAllowed ? await getTranslations("teamWork") : null;
   let complianceAllowed = false;
-  const complianceTranslation = items.some((item) => item.kind === "vs_compliance") ? await getTranslations("vsCompliance") : null;
+  const complianceTranslation = items.some((item) => item.kind === "vs_compliance") ? await getTranslations("nav") : null;
   if (complianceTranslation && (options.permissions.has("vs_compliance:read") || options.permissions.has("hq:admin"))) {
     const principalHqUserId = options.principalHqUserId ?? options.hqUserId;
     const [user] = await db.select({ maintainer: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, principalHqUserId)).limit(1);
@@ -178,7 +178,7 @@ export async function loadReminderInboxForUser(options: {
     .map((item) => ({
       id: item.id,
       kind: item.kind,
-      title: item.kind === "team_work" && teamWorkTranslation ? teamWorkTranslation("digest") : item.kind === "vs_compliance" && complianceTranslation ? complianceTranslation("title") : item.title,
+      title: item.kind === "team_work" && teamWorkTranslation ? teamWorkTranslation("digest") : item.kind === "vs_compliance" && complianceTranslation ? complianceTranslation("vsPerformance") : item.title,
       body: item.kind === "vs_compliance" || item.kind === "team_work" ? null : item.body,
       href:
         resolveOnboardingReviewInboxHref({

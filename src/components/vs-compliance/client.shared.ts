@@ -3,6 +3,7 @@ import type { loadVsMembershipSettings } from "@/lib/vs-compliance/policy.server
 import type { VsComplianceHistory, VsPolicyVersion } from "@/lib/vs-compliance/types.shared";
 import { validateVsPolicy } from "@/lib/vs-compliance/policy.shared";
 import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
+import type { VsPolicyPreviewRow } from "@/lib/vs-compliance/policy-editor.shared";
 import { addCalendarDays } from "@/lib/trains/game-time";
 
 export type ComplianceDashboard = Awaited<ReturnType<typeof loadComplianceDashboard>>;
@@ -65,6 +66,32 @@ export function isPolicy(value: unknown): value is VsPolicyVersion {
   const policy = value as VsPolicyVersion;
   try { validateVsPolicy(policy); } catch { return false; }
   return Number.isSafeInteger(policy.version) && policy.version > 0 && typeof policy.effectiveWeek === "string" && validateVsPeriod(policy.effectiveWeek, "weekly");
+}
+
+export type VsPolicyPreviewResponse = { weekEnding: string; rows: VsPolicyPreviewRow[] };
+
+export function isPolicyPreview(data: Record<string, unknown>): data is Record<string, unknown> & VsPolicyPreviewResponse {
+  const count = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  const rank = (value: unknown) => value === null || typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
+  if (typeof data.weekEnding !== "string" || !validateVsPeriod(data.weekEnding, "weekly") || !Array.isArray(data.rows)) return false;
+  return data.rows.every((row: unknown) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+    const value = row as Partial<VsPolicyPreviewRow>;
+    if (typeof value.memberId !== "string" || typeof value.memberName !== "string" || !rank(value.currentRank) ||
+      !["passed", "excused", "waived", "missed", "pending_data", "not_eligible"].includes(value.outcome ?? "") ||
+      !(value.counts === null || value.counts && count(value.counts.required) && count(value.counts.met) && count(value.counts.missed) && count(value.counts.excused) && count(value.counts.unknown)) ||
+      !["none", "demote", "remove", "leadership_review"].includes(value.recommendationKind ?? "") ||
+      typeof value.signal?.reached !== "boolean" && value.signal !== null) return false;
+    if (value.recommendationKind === "demote") {
+      if (typeof value.currentRank !== "number" || value.currentRank < 2 || value.currentRank > 4 || value.recommendationTargetRank !== value.currentRank - 1) return false;
+    } else if (value.recommendationKind === "remove") {
+      if (value.currentRank !== 1 || value.recommendationTargetRank !== null) return false;
+    } else if (value.recommendationTargetRank !== null) return false;
+    if (value.signal === null) return true;
+    if (!value.signal || !["none", "concern", "promotion"].includes(value.signal.kind ?? "")) return false;
+    if (value.signal.kind === "promotion") return (value.currentRank === 1 || value.currentRank === 2) && value.signal.targetRank === value.currentRank + 1;
+    return value.signal.targetRank === null;
+  });
 }
 
 export function isMembershipSettings(data: Record<string, unknown>): data is Record<string, unknown> & MembershipSettings {

@@ -90,6 +90,47 @@ test.describe("App hotkeys", () => {
     await expect(page).toHaveURL(/\/trains$/);
   });
 
+  test("g3 alias labels VS Performance and the palette keeps a single destination", async ({ page }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `HK${nanoid(3)}`,
+      name: "Hotkeys Alias Alliance",
+    });
+    const auth = await createAuthenticatedHqSession(sql, uniqueEmail("hotkeys-alias"));
+    await createAllianceMembership(sql, {
+      hqUserId: auth.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: auth.hqUserId,
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${auth.sessionId}
+    `;
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: auth.sessionId,
+        nextAuthToken: auth.nextAuthToken,
+      }),
+    );
+
+    await page.goto("/settings/hotkeys");
+    await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toBeVisible();
+    await expect(page.getByText("Go to VS Performance").first()).toBeVisible();
+    await expect(page.getByText("VS compliance", { exact: true })).toHaveCount(0);
+
+    await page.goto("/members");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+    await expect(page.getByRole("option", { name: /VS compliance/i })).toHaveCount(0);
+    await expect(page.getByRole("option", { name: /^Go to VS Performance/ })).toHaveCount(1);
+  });
+
   test("hotkey settings page loads", async ({ page }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {

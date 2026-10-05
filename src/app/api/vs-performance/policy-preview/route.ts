@@ -48,6 +48,7 @@ export async function POST(request: Request) {
         outcome: row.evaluation.outcome,
         counts: row.evaluation.counts ?? null,
         recommendationKind: row.evaluation.recommendation.kind,
+        recommendationTargetRank: row.evaluation.recommendation.targetRank,
         signal: row.evaluation.signal ?? null,
       })),
     });

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
+import { addCalendarDays } from "@/lib/trains/game-time";
 import { VS_COMPLIANCE_READ_PERMISSION } from "@/lib/rbac/constants";
 import { canAccessVsCompliance, type VsCompliancePermission } from "./access.shared";
 import type { VsComplianceActor } from "./access.server";
@@ -83,10 +84,10 @@ export async function computeComplianceRows(tx: Pick<ComplianceTx, "select">, al
     const active = ownRows.some((row) => row.evaluation.recommendation.kind !== "none" || row.evaluation.correctionReview) || jobs.some((job) => job.memberId === roster.memberId && !job.supersededAt && !["local", "synced"].includes(job.status));
     const itemId = `vs-compliance:${complianceHash([allianceId, roster.memberId])}`;
     const weekEnding = work?.weekEnding ?? requestedWeeks[0];
-    const eventQuery = work?.id
-      ? `weekEnding=${encodeURIComponent(weekEnding)}&eventId=${encodeURIComponent(work.id)}`
-      : `weekEnding=${encodeURIComponent(weekEnding)}`;
-    inbox.push({ id: itemId, allianceId, kind: "vs_compliance", title: "VS compliance", body: null, href: `/vs-compliance?${eventQuery}`, resourceId: work?.id ?? null, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, active: active ? 1 : 0 });
+    const href = work?.id
+      ? `/vs-performance/members/${encodeURIComponent(roster.memberId)}?week=${addCalendarDays(weekEnding, -6)}`
+      : `/vs-performance?week=${addCalendarDays(weekEnding, -6)}`;
+    inbox.push({ id: itemId, allianceId, kind: "vs_compliance", title: "VS Performance", body: null, href, resourceId: work?.id ?? null, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, active: active ? 1 : 0 });
   }
   return { rows, changedRows, reviews, expungeIds, inbox, actions, jobs, facts };
 }
@@ -100,7 +101,7 @@ export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, 
   });
   if (reviews.length) await tx.insert(schema.vsComplianceReviews).values(reviews).onConflictDoNothing();
   if (expungeIds.length) await tx.update(schema.memberViolations).set({ expungedAt: new Date(), updatedAt: new Date() }).where(and(eq(schema.memberViolations.allianceId, allianceId), inArray(schema.memberViolations.complianceEventId, expungeIds)));
-  if (inbox.length) await tx.insert(schema.inboxReminderItems).values([{ ...inbox[0], id: `vs-compliance:${complianceHash(allianceId)}`, resourceId: null, href: "/vs-compliance", active: inbox.some((item) => item.active === 1) ? 1 : 0 }]).onConflictDoUpdate({ target: schema.inboxReminderItems.id, set: { active: sql`excluded.active`, href: sql`excluded.href`, resourceId: sql`excluded.resource_id`, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, body: null } });
+  if (inbox.length) await tx.insert(schema.inboxReminderItems).values([{ ...inbox[0], id: `vs-compliance:${complianceHash(allianceId)}`, resourceId: null, href: "/vs-performance", active: inbox.some((item) => item.active === 1) ? 1 : 0 }]).onConflictDoUpdate({ target: schema.inboxReminderItems.id, set: { active: sql`excluded.active`, title: sql`excluded.title`, href: sql`excluded.href`, resourceId: sql`excluded.resource_id`, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, body: null } });
   return { rows, actions, jobs, facts };
 }
 

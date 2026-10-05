@@ -13,8 +13,8 @@ import { VsComplianceError } from "@/lib/vs-compliance/types.shared";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
-  const t = await getTranslations("vsCompliance");
-  return allianceScopedMetadata(t("settings"));
+  const t = await getTranslations("vsPerformance.policy");
+  return allianceScopedMetadata(t("title"));
 }
 
 export default async function MembershipMinimumsPage() {

@@ -5,6 +5,7 @@ import { createNativeAlliance, getE2eSql } from "../../../e2e/fixtures/db";
 
 const migration = readFileSync(new URL("../../../drizzle/0138_vs_compliance.sql", import.meta.url), "utf8");
 const dailyMigration = readFileSync(new URL("../../../drizzle/0202_vs_policy_daily_consistency.sql", import.meta.url), "utf8");
+const requiredFieldsMigration = readFileSync(new URL("../../../drizzle/0205_vs_policy_v2_required_fields.sql", import.meta.url), "utf8");
 
 describe.skipIf(process.env.VS_COMPLIANCE_DB_TEST !== "1")("compliance migration against the guarded e2e database", () => {
   it("preserves legacy events, retires unsafe legacy tasks and remains idempotent", async () => {
@@ -51,10 +52,13 @@ describe.skipIf(process.env.VS_COMPLIANCE_DB_TEST !== "1")("compliance migration
       const rows = await sql`SELECT version, model_version, allowed_missed_days, demotion_unit FROM vs_compliance_policies WHERE alliance_id = ${alliance.allianceId} ORDER BY version`;
       expect(rows.map((row) => [row.version, row.model_version, row.allowed_missed_days, row.demotion_unit])).toEqual([[1, 1, null, null], [2, 1, null, null]]);
     }
+    for (let pass = 0; pass < 2; pass++) await sql.unsafe(requiredFieldsMigration);
     await sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, model_version, allowed_missed_days, demotion_unit, demotion_length, promotion_unit, promotion_length) VALUES (${nanoid()}, ${alliance.allianceId}, 3, '2026-09-13', true, 2, 1, 'days', 3, 'weeks', 2)`;
     await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, weekly_minimum, model_version, allowed_missed_days) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', false, 40000000, 1, 0)`).rejects.toThrow();
     await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, model_version, allowed_missed_days, demotion_unit, demotion_length, promotion_unit, promotion_length) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', false, 2, 6, 'days', 3, 'weeks', 2)`).rejects.toThrow();
     await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, model_version, allowed_missed_days, demotion_unit, demotion_length, promotion_unit, promotion_length) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', false, 2, 1, 'weeks', NULL, 'weeks', 2)`).rejects.toThrow();
+    await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, model_version, allowed_missed_days, demotion_unit, demotion_length, promotion_unit, promotion_length) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', false, 2, NULL, 'weeks', 1, 'weeks', 2)`).rejects.toThrow();
+    await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, model_version, allowed_missed_days, demotion_unit, demotion_length, promotion_unit, promotion_length) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', false, 2, 1, 'weeks', 1, 'weeks', NULL)`).rejects.toThrow();
     await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, model_version) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', true, 3)`).rejects.toThrow();
     await expect(sql`INSERT INTO vs_compliance_policies (id, alliance_id, version, effective_week, enabled, weekly_minimum, model_version) VALUES (${nanoid()}, ${alliance.allianceId}, 4, '2026-09-13', true, NULL, 1)`).rejects.toThrow();
     const [officer] = await sql`SELECT count(*)::integer AS count FROM roles WHERE id = 'role-officer'`;

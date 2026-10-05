@@ -70,7 +70,7 @@ export function ConfirmationDialog({ row, operation, facts, onClose, onSaved }: 
       {facts}
       {operation === "complete" ? <p>{t("confirmHint")}</p> : <label className="block space-y-2">{t("waiverReason")}<textarea required maxLength={2000} disabled={busy || uncertain || saved || blocked} value={reason} onChange={(event) => { setReason(event.target.value); attempt.current = null; }} className="block w-full rounded border border-hq-border bg-hq-surface p-2" /></label>}
       {saved ? <div role="status" className="space-y-2"><p>{t(operation === "waive" ? "waived" : "actionSaved")}</p>{operation === "complete" ? <p>{all(`timeOff.sync.${syncLabel(status)}`)}</p> : null}</div> : null}
-      {status === "credentials_required" || status === "failed" ? <Link href="/connect?next=/vs-compliance" className="text-hq-accent underline">{all("common.connect")}</Link> : null}
+      {status === "credentials_required" || status === "failed" ? <Link href="/connect?next=/vs-performance" className="text-hq-accent underline">{all("common.connect")}</Link> : null}
       {error ? <p ref={errorRef} role="alert" className="text-sm text-hq-danger">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
         {!saved || retrySync ? <button type="button" disabled={busy || blocked} className={buttonClass} onClick={() => void submit()}>{busy ? all("common.loading") : retrySync ? all("timeOff.sync.retry") : t(operation === "waive" ? "waive" : "confirm")}</button> : null}
