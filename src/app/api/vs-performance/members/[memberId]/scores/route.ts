@@ -43,10 +43,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ membe
     if (code === "forbidden") return NextResponse.json({ code, error: t("vsPerformance.errors.forbidden") }, { status: 403 });
     if (code === "not_found") return NextResponse.json({ code, error: t("vsPerformance.member.notFound") }, { status: 404 });
     if (code === "invalid_period") return NextResponse.json({ code, error: t("vsPerformance.member.futureDay") }, { status: 400 });
-    if (code === "invalid_score" || code === "invalid_rows" || code === "invalid_member") {
+    if (code === "invalid_score" || code === "invalid_rows" || code === "invalid_member" || code === "invalid_week") {
       return NextResponse.json({ code, error: t("vsPerformance.member.scoreInvalid") }, { status: 400 });
     }
-    if (code === "invalid_week") return NextResponse.json({ code, error: t("vsPerformance.errors.invalid") }, { status: 400 });
     if (status === 409) return NextResponse.json({ code: "stale", error: t("vsPerformance.member.scoreChanged") }, { status: 409 });
     return NextResponse.json({ code: "save", error: t("vsPerformance.errors.save") }, { status: status >= 400 && status < 600 ? status : 500 });
   }

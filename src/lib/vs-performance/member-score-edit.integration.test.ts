@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const transport = vi.hoisted(() => ({ resolve: vi.fn(), validate: vi.fn() }));
+const transport = vi.hoisted(() => ({ resolve: vi.fn(), validate: vi.fn(), excused: vi.fn(), fetchScope: vi.fn() }));
 vi.mock("@/lib/vs-scores/ashed-transport.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/vs-scores/ashed-transport.server")>();
   return {
@@ -10,14 +10,41 @@ vi.mock("@/lib/vs-scores/ashed-transport.server", async (importOriginal) => {
     validateVsAshedMember: transport.validate,
   };
 });
+vi.mock("@/lib/time-off/excused-transport.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/time-off/excused-transport.server")>();
+  return {
+    ...actual,
+    resolveExcusedConnection: transport.excused,
+    fetchExcusedSnapshot: vi.fn(async () => []),
+  };
+});
+vi.mock("@/lib/vs-scores/sync.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/vs-scores/sync.server")>();
+  return {
+    ...actual,
+    fetchRemoteVsScope: transport.fetchScope,
+  };
+});
 
-import { getE2eSql, closeE2eSql } from "../../../e2e/fixtures/db";
+import { nanoid } from "nanoid";
+import {
+  getE2eSql,
+  closeE2eSql,
+  createAshedAlliance,
+  createAllianceMembership,
+  createAllianceRosterMember,
+  createAuthenticatedHqSession,
+  createHqMemberLink,
+} from "../../../e2e/fixtures/db";
 import { createNativeVsScenario, seedVsReviewJob } from "../../../e2e/fixtures/vs-evidence";
 import { getDatabaseUrl } from "@/lib/db/url";
 import { assertE2eDatabaseUrl } from "../../../scripts/e2e-database-url-guard.mjs";
+import { ROLE_IDS } from "@/lib/rbac/constants";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { lastClosedVsWeek } from "@/lib/vs-compliance/workflow.shared";
-import { commitReviewedVsScores, listVsHeads } from "@/lib/vs-scores/repository.server";
+import { evaluateComplianceAlliance } from "@/lib/vs-compliance/service.server";
+import { changeVsBatches, commitReviewedVsScores, listVsHeads } from "@/lib/vs-scores/repository.server";
+import { syncVsScoresForAlliance } from "@/lib/vs-scores/sync.server";
 import { saveManualVsScores } from "./member-score-edit.server";
 import { loadVsMemberDetail, loadVsMemberScoreRevisions } from "./member-performance.server";
 
@@ -37,9 +64,10 @@ async function setup() {
   await sql`INSERT INTO vs_compliance_policies(id, alliance_id, version, effective_week, enabled, daily_target, leeway_pct, allowed_missed_days, model_version, preset, demotion_unit, demotion_length, promotion_unit, promotion_length)
     VALUES (${`pol-${fixture.allianceId}`}, ${fixture.allianceId}, 1, ${weekEnding}, true, ${DAILY_MIN}, 0, 1, 2, 'rank_aware', 'weeks', 1, 'weeks', 2)`;
   const target = fixture.member;
-  const seed = async (date: string, score: number, period: "daily" | "weekly" = "daily") => {
-    const job = await seedVsReviewJob(sql, { allianceId: fixture.allianceId, actor: fixture.officer, recordedDate: date, rows: [{ memberId: target.memberId, memberName: target.memberName, score }] });
-    return commitReviewedVsScores({ ...job, allianceId: fixture.allianceId, hqUserId: fixture.officer.hqUserId, recordedDate: date, period, requestId: randomUUID(), expectedRevision: 0 });
+  const seed = async (date: string, score: number, period: "daily" | "weekly" = "daily", member: { memberId: string; memberName: string } = target) => {
+    const job = await seedVsReviewJob(sql, { allianceId: fixture.allianceId, actor: fixture.officer, recordedDate: date, rows: [{ memberId: member.memberId, memberName: member.memberName, score }] });
+    const result = await commitReviewedVsScores({ ...job, allianceId: fixture.allianceId, hqUserId: fixture.officer.hqUserId, recordedDate: date, period, requestId: randomUUID(), expectedRevision: 0 });
+    return { result, job };
   };
   return { sql, ...fixture, target, seed };
 }
@@ -156,5 +184,138 @@ describe.skipIf(process.env.VS_EVIDENCE_DB_TEST !== "1")("manual VS score edits 
     const cmd = await command(fixture, fixture.target.memberId, [{ index: 0, operation: "set", score: "5" }]);
     await expect(saveManualVsScores(fixture.officer.sessionId, fixture.allianceId, "foreign-member", cmd))
       .rejects.toMatchObject({ status: 404 });
+  });
+
+  it("recomputes only the corrected member's derived Saturday", async () => {
+    const fixture = await setup();
+    const other = fixture.otherOfficer;
+    for (const day of days.slice(0, 5)) {
+      await fixture.seed(day, 100);
+      await fixture.seed(day, 200, "daily", other);
+    }
+    await fixture.seed(weekEnding, 700, "weekly");
+    await fixture.seed(weekEnding, 1400, "weekly", other);
+    const saturday = days[5];
+    const saturdayHead = async (memberId: string) =>
+      (await listVsHeads(fixture.allianceId, { recordedDate: saturday })).find((head) => head.memberId === memberId);
+    expect((await saturdayHead(fixture.target.memberId))?.score).toBe(200);
+    const otherBefore = await saturdayHead(other.memberId);
+    expect(otherBefore?.score).toBe(400);
+
+    const cmd = await command(fixture, fixture.target.memberId, [{ index: 0, operation: "set", score: "0" }]);
+    await saveManualVsScores(fixture.officer.sessionId, fixture.allianceId, fixture.target.memberId, cmd);
+    expect((await saturdayHead(fixture.target.memberId))?.score).toBe(300);
+    const otherAfter = await saturdayHead(other.memberId);
+    expect(otherAfter?.score).toBe(400);
+    expect(otherAfter?.version).toBe(otherBefore?.version);
+  });
+
+  it("applies seven changed cells as one receipt with seven manual batches", async () => {
+    const fixture = await setup();
+    const edit = await editFor(fixture, fixture.target.memberId);
+    const cmd = {
+      weekStart,
+      scope: edit.scope,
+      inputVersion: edit.inputVersion,
+      evidenceFingerprint: edit.evidenceFingerprint,
+      requestId: randomUUID().replace(/-/g, ""),
+      changes: edit.cells.map((cell, index) => ({
+        recordedDate: cell.recordedDate,
+        period: cell.period,
+        expectedHeadVersion: cell.expectedHeadVersion,
+        operation: "set" as const,
+        score: String(index + 1),
+      })),
+    };
+    const result = await saveManualVsScores(fixture.officer.sessionId, fixture.allianceId, fixture.target.memberId, cmd);
+    expect(result).toMatchObject({ ok: true, changed: 7 });
+    const batches = await fixture.sql`SELECT batch_id FROM vs_score_manual_edit_batches mb INNER JOIN vs_score_manual_edits me ON me.id = mb.edit_id WHERE me.alliance_id = ${fixture.allianceId}`;
+    expect(batches).toHaveLength(7);
+    for (const [index, cell] of edit.cells.entries()) {
+      const head = (await listVsHeads(fixture.allianceId, { recordedDate: cell.recordedDate })).find(
+        (row) => row.memberId === fixture.target.memberId && row.period === cell.period,
+      );
+      expect(head?.score).toBe(index + 1);
+    }
+  });
+
+  it("keeps a manual correction when the original upload is replayed or deleted", async () => {
+    const fixture = await setup();
+    const seeded = await fixture.seed(days[0], 111);
+    const cmd = await command(fixture, fixture.target.memberId, [{ index: 0, operation: "set", score: "777" }], { reason: "Officer fix" });
+    await saveManualVsScores(fixture.officer.sessionId, fixture.allianceId, fixture.target.memberId, cmd);
+
+    const [batch] = await fixture.sql`SELECT id, context_json FROM data_upload_batches WHERE parse_session_id = ${seeded.job.parseSessionId}`;
+    await changeVsBatches({
+      allianceId: fixture.allianceId,
+      hqUserId: fixture.officer.hqUserId,
+      batchIds: [batch.id],
+      expectedVersions: { [batch.id]: batch.context_json.vsRevision },
+      canManageAny: true,
+    });
+    const heads = await listVsHeads(fixture.allianceId, { recordedDate: days[0] });
+    expect(heads.find((head) => head.memberId === fixture.target.memberId)?.score).toBe(777);
+    const revisions = await loadVsMemberScoreRevisions(fixture.officer.sessionId, fixture.allianceId, fixture.target.memberId, { weekStart });
+    const manual = revisions.revisions.filter((revision) => revision.manual);
+    expect(manual.length).toBeGreaterThanOrEqual(1);
+    expect(manual.every((revision) => revision.reason === "Officer fix")).toBe(true);
+  });
+
+  it("corrects a former member with a recorded evaluation", async () => {
+    const fixture = await setup();
+    await fixture.seed(days[0], 555);
+    await evaluateComplianceAlliance(fixture.allianceId, [weekEnding]);
+    await fixture.sql`UPDATE alliance_members SET status = 'former' WHERE alliance_id = ${fixture.allianceId} AND ashed_member_id = ${fixture.target.memberId}`;
+    const cmd = await command(fixture, fixture.target.memberId, [{ index: 0, operation: "set", score: "321" }]);
+    const result = await saveManualVsScores(fixture.officer.sessionId, fixture.allianceId, fixture.target.memberId, cmd);
+    expect(result).toMatchObject({ ok: true, changed: 1 });
+    const heads = await listVsHeads(fixture.allianceId, { recordedDate: days[0] });
+    expect(heads.find((head) => head.memberId === fixture.target.memberId)?.score).toBe(321);
+  });
+
+  it("saves HQ scores for an Ashed alliance as pending with scoped sync only", async () => {
+    const url = getDatabaseUrl();
+    assertE2eDatabaseUrl(url);
+    const sql = getE2eSql();
+    const alliance = await createAshedAlliance(sql, { tag: `VSA${nanoid(4)}`, name: "Ashed VS Test" });
+    await sql`UPDATE alliances SET ashed_alliance_id = ${`ashed-e2e-${nanoid(6)}`} WHERE id = ${alliance.allianceId}`;
+    const session = await createAuthenticatedHqSession(sql, `${nanoid(12)}@e2e.test`);
+    await createAllianceMembership(sql, { allianceId: alliance.allianceId, hqUserId: session.hqUserId, roleName: "officer", source: "manual" });
+    await sql`UPDATE sessions SET alliance_id = ${alliance.allianceId}, current_alliance_id = ${alliance.allianceId} WHERE id = ${session.sessionId}`;
+    const member = await createAllianceRosterMember(sql, { allianceId: alliance.allianceId, currentName: `Ashed member ${nanoid(4)}`, allianceRank: 3 });
+    await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: session.hqUserId, ashedMemberId: member.ashedMemberId });
+    await sql`INSERT INTO vs_compliance_policies(id, alliance_id, version, effective_week, enabled, daily_target, leeway_pct, allowed_missed_days, model_version, preset, demotion_unit, demotion_length, promotion_unit, promotion_length)
+      VALUES (${`pol-${alliance.allianceId}`}, ${alliance.allianceId}, 1, ${weekEnding}, true, ${DAILY_MIN}, 0, 1, 2, 'rank_aware', 'weeks', 1, 'weeks', 2)`;
+    transport.excused.mockResolvedValue(null);
+    transport.resolve.mockRejectedValue(new Error("ashed offline"));
+
+    const detail = await loadVsMemberDetail(session.sessionId, alliance.allianceId, member.ashedMemberId, { weekStart });
+    const cell = detail.edit!.cells[0]!;
+    const result = await saveManualVsScores(session.sessionId, alliance.allianceId, member.ashedMemberId, {
+      weekStart, scope: detail.edit!.scope, inputVersion: detail.edit!.inputVersion,
+      evidenceFingerprint: detail.edit!.evidenceFingerprint, requestId: randomUUID().replace(/-/g, ""),
+      changes: [{ recordedDate: cell.recordedDate, period: cell.period, expectedHeadVersion: cell.expectedHeadVersion, operation: "set", score: "88" }],
+    });
+    expect(result).toMatchObject({ ok: true, changed: 1, syncStatus: "pending" });
+    expect(transport.resolve).not.toHaveBeenCalled();
+    expect(transport.fetchScope).not.toHaveBeenCalled();
+    const scopes = await sql`SELECT recorded_date, period, status FROM vs_score_sync_scopes WHERE alliance_id = ${alliance.allianceId}`;
+    expect(scopes).toEqual([{ recorded_date: cell.recordedDate, period: "daily", status: "pending" }]);
+
+    await syncVsScoresForAlliance(alliance.allianceId);
+    const [scope] = await sql`SELECT status FROM vs_score_sync_scopes WHERE alliance_id = ${alliance.allianceId}`;
+    expect(scope.status).toBe("credentials_required");
+    const heads = await listVsHeads(alliance.allianceId, { recordedDate: cell.recordedDate });
+    expect(heads.find((head) => head.memberId === member.ashedMemberId)?.score).toBe(88);
+  });
+
+  it("rejects after preflight role revocation without writing a receipt", async () => {
+    const fixture = await setup();
+    const cmd = await command(fixture, fixture.target.memberId, [{ index: 0, operation: "set", score: "5" }]);
+    await fixture.sql`UPDATE alliance_memberships SET role_id = ${ROLE_IDS.member} WHERE alliance_id = ${fixture.allianceId} AND hq_user_id = ${fixture.officer.hqUserId}`;
+    await expect(saveManualVsScores(fixture.officer.sessionId, fixture.allianceId, fixture.target.memberId, cmd))
+      .rejects.toMatchObject({ status: 403 });
+    const edits = await fixture.sql`SELECT id FROM vs_score_manual_edits WHERE alliance_id = ${fixture.allianceId}`;
+    expect(edits).toHaveLength(0);
   });
 });

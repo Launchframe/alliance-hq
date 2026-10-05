@@ -68,6 +68,7 @@ describe("member score edit route", () => {
       [new VsComplianceError("changed", 409), 409, "t:vsPerformance.member.scoreChanged"],
       [new VsComplianceError("handled", 409), 409, "t:vsPerformance.member.scoreChanged"],
       [new VsEvidenceError("invalid_score"), 400, "t:vsPerformance.member.scoreInvalid"],
+      [new VsComplianceError("invalid_week", 400), 400, "t:vsPerformance.member.scoreInvalid"],
       [new VsEvidenceError("invalid_rows"), 400, "t:vsPerformance.member.scoreInvalid"],
       [new VsEvidenceError("invalid_period"), 400, "t:vsPerformance.member.futureDay"],
       [new VsEvidenceError("forbidden", 403), 403, "t:vsPerformance.errors.forbidden"],
@@ -86,8 +87,10 @@ describe("member score edit route", () => {
   });
 
   it("treats malformed JSON as an invalid payload", async () => {
+    mocks.save.mockRejectedValue(new VsEvidenceError("invalid_rows", 400));
     const response = await PATCH(request(null), context);
     expect(mocks.save).toHaveBeenCalledWith("session", "tenant", "m-1", null);
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("t:vsPerformance.member.scoreInvalid");
   });
 });

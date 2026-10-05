@@ -28,11 +28,13 @@ export function VsMemberScoreEditor({
   weekStart,
   edit,
   onSaved,
+  onReview,
 }: {
   memberId: string;
   weekStart: string;
   edit: Edit;
   onSaved: () => void | Promise<void>;
+  onReview: () => Promise<string | null>;
 }) {
   const t = useTranslations("vsPerformance.member");
   const tMembers = useTranslations("vsPerformance.members");
@@ -48,13 +50,20 @@ export function VsMemberScoreEditor({
   const [error, setError] = useState<SaveError>(null);
   const [changedEvidence, setChangedEvidence] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [reviewPending, setReviewPending] = useState(false);
   const attempt = useRef<{ requestId: string; body: string } | null>(null);
   const saving = useRef(false);
+  const [selfSavedPending, setSelfSavedPending] = useState(false);
+  const [ackFingerprint, setAckFingerprint] = useState<string | null>(null);
   const [seenFingerprint, setSeenFingerprint] = useState(edit.evidenceFingerprint);
 
   if (edit.evidenceFingerprint !== seenFingerprint) {
     setSeenFingerprint(edit.evidenceFingerprint);
-    if (draft.size > 0) setChangedEvidence(true);
+    const acknowledged = selfSavedPending || edit.evidenceFingerprint === ackFingerprint;
+    if (selfSavedPending) setSelfSavedPending(false);
+    if (edit.evidenceFingerprint === ackFingerprint) setAckFingerprint(null);
+    if (draft.size > 0) setChangedEvidence(!acknowledged);
+    if (acknowledged) setError(null);
     if (phase !== "editing" && phase !== "saved") setPhase("editing");
   }
 
@@ -69,7 +78,7 @@ export function VsMemberScoreEditor({
   const setCell = (cell: Edit["cells"][number], value: VsScoreDraftEdit | null) => {
     if (phase === "uncertain" || phase === "saving") return;
     setPhase("editing");
-    setError(null);
+    setError((current) => (current === "changed" ? current : null));
     setDraft((current) => {
       const next = new Map(current);
       if (value === null) next.delete(scoreCellKey(cell));
@@ -105,6 +114,7 @@ export function VsMemberScoreEditor({
       }
       saving.current = false;
       if (status === 200 && result?.ok) {
+        setSelfSavedPending(true);
         setPhase("saved");
         setSyncStatus(result.syncStatus ?? null);
         setDraft(new Map());
@@ -114,6 +124,7 @@ export function VsMemberScoreEditor({
         return;
       }
       if (status === 409) {
+        attempt.current = null;
         setPhase("editing");
         setError("changed");
         return;
@@ -139,8 +150,24 @@ export function VsMemberScoreEditor({
     [memberId, onSaved],
   );
 
+  const reviewRequired = error === "changed" || changedEvidence;
+
+  const review = useCallback(async () => {
+    if (reviewPending || saving.current) return;
+    setReviewPending(true);
+    const fingerprint = await onReview();
+    setReviewPending(false);
+    if (fingerprint === null) return;
+    if (fingerprint === edit.evidenceFingerprint) {
+      setChangedEvidence(false);
+      setError(null);
+      return;
+    }
+    setAckFingerprint(fingerprint);
+  }, [edit.evidenceFingerprint, onReview, reviewPending]);
+
   const save = useCallback(() => {
-    if (saving.current || changes.length === 0 || reasonTooLong || !validateScoreDraft(draft)) {
+    if (saving.current || reviewRequired || changes.length === 0 || reasonTooLong || !validateScoreDraft(draft)) {
       if (changes.length && !validateScoreDraft(draft)) setError("invalid");
       return;
     }
@@ -156,7 +183,7 @@ export function VsMemberScoreEditor({
     });
     attempt.current = { requestId, body };
     void submit(requestId, body);
-  }, [changes, draft, edit, reason, reasonTooLong, submit, weekStart]);
+  }, [changes, draft, edit, reason, reasonTooLong, reviewRequired, submit, weekStart]);
 
   const retry = useCallback(() => {
     if (!attempt.current || saving.current) return;
@@ -262,7 +289,7 @@ export function VsMemberScoreEditor({
           value={reason}
           onChange={(event) => {
             setReason(event.target.value);
-            if (phase === "editing") setError(null);
+            if (phase === "editing") setError((current) => (current === "changed" ? current : null));
           }}
         />
         <p className="text-xs text-hq-fg-muted">{t("reasonPrivate")}</p>
@@ -292,15 +319,15 @@ export function VsMemberScoreEditor({
           <Button
             type="button"
             size="sm"
-            disabled={locked || changes.length === 0 || reasonTooLong}
+            disabled={locked || reviewRequired || changes.length === 0 || reasonTooLong}
             onClick={save}
           >
             {phase === "saving" ? tActions("saving") : tActions("save")}
           </Button>
         )}
         {changes.length === 0 && draft.size === 0 ? <p className="self-center text-xs text-hq-fg-muted">{t("noChanges")}</p> : null}
-        {error === "changed" ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => void onSaved()}>
+        {reviewRequired ? (
+          <Button type="button" variant="outline" size="sm" disabled={reviewPending || locked} onClick={() => void review()}>
             {t("reviewLatest")}
           </Button>
         ) : null}

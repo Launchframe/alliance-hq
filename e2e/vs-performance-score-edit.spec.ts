@@ -68,32 +68,41 @@ test("clear records an empty score instead of zero and undo restores the field",
   expect(head.score).toBeNull();
 });
 
-test("a failed save keeps the draft for an identical retry, and 409 requires review", async ({ page, request }) => {
+test("a lost save response retries the identical body, and 409 requires review", async ({ page, request }) => {
   const f = await setupVsMembersFixture();
   const officer = await f.actor("officer");
   await request.get("/api/vs-compliance", { headers: officer.headers });
   const meetingId = await memberIdByName(f.sql, f.alliance.allianceId, "VSM Meeting");
   const scoresPath = `**/api/vs-performance/members/${meetingId}/scores`;
+  const detailUrl = (url: URL) => url.pathname === `/api/vs-performance/members/${meetingId}`;
 
   await openDetail(page, officer, meetingId, f.weekStart);
   const editor = page.getByTestId("vs-member-score-editor");
   const input = editor.getByTestId(`vs-score-input-daily:${f.days[0]}`);
 
-  let failOnce = true;
+  const bodies: string[] = [];
   await page.route(scoresPath, async (route) => {
-    if (failOnce) {
-      failOnce = false;
-      return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+    bodies.push(route.request().postData() ?? "");
+    if (bodies.length === 1) {
+      await route.fetch();
+      return route.abort("failed");
     }
     return route.continue();
   });
+  const [baseline] = await f.sql`SELECT count(*)::int AS count FROM vs_score_revisions r INNER JOIN vs_score_heads h ON r.head_id = h.id WHERE h.alliance_id = ${f.alliance.allianceId} AND h.member_id = ${meetingId} AND h.recorded_date = ${f.days[0]} AND h.period = 'daily'`;
   await input.fill("42");
   await editor.getByRole("button", { name: "Save", exact: true }).click();
   await expect(editor.getByText(/Could not confirm whether the scores were saved/)).toBeVisible();
   await editor.getByRole("button", { name: "Retry" }).click();
   await expect(editor.getByText("Scores saved in HQ.", { exact: true })).toBeVisible();
-  const [head] = await f.sql`SELECT score FROM vs_score_heads WHERE alliance_id = ${f.alliance.allianceId} AND member_id = ${meetingId} AND recorded_date = ${f.days[0]} AND period = 'daily'`;
+  expect(bodies).toHaveLength(2);
+  expect(bodies[0]).toBe(bodies[1]);
+  const receipts = await f.sql`SELECT id FROM vs_score_manual_edits WHERE alliance_id = ${f.alliance.allianceId}`;
+  expect(receipts).toHaveLength(1);
+  const [head] = await f.sql`SELECT score, version FROM vs_score_heads WHERE alliance_id = ${f.alliance.allianceId} AND member_id = ${meetingId} AND recorded_date = ${f.days[0]} AND period = 'daily'`;
   expect(Number(head.score)).toBe(42);
+  const [after] = await f.sql`SELECT count(*)::int AS count FROM vs_score_revisions r INNER JOIN vs_score_heads h ON r.head_id = h.id WHERE h.alliance_id = ${f.alliance.allianceId} AND h.member_id = ${meetingId} AND h.recorded_date = ${f.days[0]} AND h.period = 'daily'`;
+  expect(after.count).toBe(baseline.count + 1);
   await page.unroute(scoresPath);
 
   // 409: another write moves the head; draft is kept, save blocked until evidence is reviewed
@@ -102,7 +111,28 @@ test("a failed save keeps the draft for an identical retry, and 409 requires rev
   await editor.getByRole("button", { name: "Save", exact: true }).click();
   await expect(editor.getByText(/These scores changed while you were editing/)).toBeVisible();
   await expect(input).toHaveValue("43");
-  await expect(editor.getByRole("button", { name: "Review latest evidence" })).toBeVisible();
+  const saveButton = editor.getByRole("button", { name: "Save", exact: true });
+  await expect(saveButton).toBeDisabled();
+  const review = editor.getByRole("button", { name: "Review latest evidence" });
+  await expect(review).toBeVisible();
+
+  // a failed refresh keeps the draft and still blocks save
+  await page.route(detailUrl, (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: "{}" }),
+  );
+  await review.click();
+  await expect(input).toHaveValue("43");
+  await expect(editor.getByText(/These scores changed while you were editing/)).toBeVisible();
+  await expect(saveButton).toBeDisabled();
+  await page.unroute(detailUrl);
+
+  // a successful review rebases the draft onto the new head version; save applies it
+  await review.click();
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+  await expect(editor.getByText("Scores saved in HQ.", { exact: true })).toBeVisible();
+  const [final] = await f.sql`SELECT score FROM vs_score_heads WHERE alliance_id = ${f.alliance.allianceId} AND member_id = ${meetingId} AND recorded_date = ${f.days[0]} AND period = 'daily'`;
+  expect(Number(final.score)).toBe(43);
 });
 
 test("unclosed days are disabled and dirty edits block navigation", async ({ page }) => {

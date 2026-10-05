@@ -402,45 +402,41 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
   const requestSeq = useRef(0);
   const historySeq = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserve = false): Promise<VsMemberDetailResponse | null> => {
     const seq = ++requestSeq.current;
     setLoading(true);
-    setError(null);
+    if (!preserve) setError(null);
     try {
       const res = await fetch(
         `/api/vs-performance/members/${encodeURIComponent(memberId)}?${vsMemberDetailApiParams(weekStart)}`,
         { cache: "no-store" },
       );
-      if (seq !== requestSeq.current) return;
-      if (res.status === 404) {
-        setData(null);
-        setError("notFound");
-        return;
-      }
-      if (res.status === 403) {
-        setData(null);
-        setError("forbidden");
-        return;
-      }
+      if (seq !== requestSeq.current) return null;
       if (!res.ok) {
-        setData(null);
-        setError("load");
-        return;
+        if (!preserve) {
+          setData(null);
+          setError(res.status === 404 ? "notFound" : res.status === 403 ? "forbidden" : "load");
+        }
+        return null;
       }
       const body = (await res.json()) as VsMemberDetailResponse;
       if (body.memberId !== memberId || body.weekStart !== weekStart) {
-        setData(null);
-        setError("load");
-        return;
+        if (!preserve) {
+          setData(null);
+          setError("load");
+        }
+        return null;
       }
       setData(body);
       setHistoryExtra([]);
       setHistoryNext(body.history.nextBefore);
+      return body;
     } catch {
-      if (seq === requestSeq.current) {
+      if (!preserve && seq === requestSeq.current) {
         setData(null);
         setError("load");
       }
+      return null;
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
@@ -665,6 +661,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                 weekStart={weekStart}
                 edit={data.edit}
                 onSaved={() => void load()}
+                onReview={async () => (await load(true))?.edit?.evidenceFingerprint ?? null}
               />
             ) : null}
 
