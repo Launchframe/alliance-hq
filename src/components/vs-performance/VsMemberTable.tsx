@@ -112,9 +112,11 @@ export function VsMemberTable({ rows, weekStart, sort, direction, onSort, emptyL
                       href={`/vs-performance/members/${encodeURIComponent(row.memberId)}?week=${weekStart}`}
                       onClick={() => {
                         try {
-                          window.sessionStorage.setItem("vs-member-focus", row.memberId);
+                          window.sessionStorage.setItem(
+                            "vs-member-focus",
+                            JSON.stringify({ memberId: row.memberId, path: window.location.pathname + window.location.search }),
+                          );
                         } catch {
-                          // sessionStorage may be unavailable; focus restore is best-effort
                         }
                       }}
                       className="rounded text-hq-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-hq-accent"

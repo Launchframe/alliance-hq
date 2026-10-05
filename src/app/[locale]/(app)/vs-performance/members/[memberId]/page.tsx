@@ -44,7 +44,11 @@ export default async function VsMemberDetailPage({ params, searchParams }: Props
 
   return (
     <div className="px-4 py-6 md:px-0">
-      <VsMemberDetailClient memberId={memberId} weekStart={weekStart} />
+      <VsMemberDetailClient
+        key={`${allianceId}:${memberId}:${weekStart}`}
+        memberId={memberId}
+        weekStart={weekStart}
+      />
     </div>
   );
 }

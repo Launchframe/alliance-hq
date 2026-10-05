@@ -253,6 +253,7 @@ export type VsMemberOutcome =
   | "not_eligible";
 
 export type VsMemberDetailWeek = {
+  modelVersion: 1 | 2;
   status: VsMemberRow["status"];
   excusal: VsMemberRow["excusal"];
   signal: VsMemberRow["signal"];
@@ -278,13 +279,18 @@ export type VsMemberDetailWeek = {
 
 export type VsMemberHistoryWeek = {
   weekEnding: string;
+  status: VsMemberRow["status"];
   outcome: VsMemberOutcome;
   modelVersion: number;
   policyVersion: number | null;
   score: string | null;
   threshold: number | null;
   counts: VsMemberRow["counts"] | null;
-  settled: { kind: "demote" | "remove"; targetRank: number | null } | null;
+  settled: {
+    kind: "demote" | "remove";
+    targetRank: number | null;
+    syncStatus: "local" | "pending" | "synced" | "failed" | "credentials_required" | null;
+  } | null;
   correctionReview: boolean;
 };
 

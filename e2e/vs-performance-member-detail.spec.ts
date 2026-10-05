@@ -45,6 +45,7 @@ test("officer follows the member link, sees the detail, and Back restores filter
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/vs-performance/members/${belowId}\\?week=${f.weekStart}`));
 
+  await page.reload();
   await expect(page.getByRole("heading", { name: "VSM Below · VS Performance" })).toBeVisible();
   await expect(page.getByText("Below minimum", { exact: true }).first()).toBeVisible();
   const grid = page.getByTestId("vs-member-day-grid");
@@ -54,6 +55,7 @@ test("officer follows the member link, sees the detail, and Back restores filter
 
   await page.getByRole("link", { name: "Back to VS Performance" }).click();
   await expect(page).toHaveURL(/status=below/);
+  await expect(page).toHaveURL(new RegExp(`week=${f.weekStart}`));
   await expect(page.getByTestId("vs-members-table")).toBeVisible();
   await expect(page.locator(`#vs-member-link-${belowId}`)).toBeFocused();
 });
@@ -68,9 +70,14 @@ test("v2 detail shows sequence facts and confirms a single demotion", async ({ p
   await expect(page.getByRole("heading", { name: "VSM Zero · VS Performance" })).toBeVisible();
   await expect(page.getByText("No participation", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Demotion review: 1 of 1/)).toBeVisible();
+  // v2 must not mix the daily minimum into a weekly-total sentence, and counts render once.
+  await expect(page.getByText(/points; required/)).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Selected week" }).getByText(/0 met · 6 missed/)).toHaveCount(1);
 
   await page.getByRole("button", { name: "Confirm in-game action" }).click();
   const dialog = page.getByRole("dialog", { name: "Confirm in-game action" });
+  await expect(dialog.getByText(/Current rank: R3/)).toBeVisible();
+  await expect(dialog.getByText("Recommend R2", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/0 met · 6 missed/)).toBeVisible();
   await dialog.getByRole("button", { name: "Confirm in-game action" }).click();
   await expect(dialog.getByText("Action recorded.", { exact: true })).toBeVisible();
@@ -89,22 +96,13 @@ test("waiver keeps its reason private to the officer decision history", async ({
 
   await openDetail(page, officer, zeroId, f.weekStart);
   await expect(page.getByRole("heading", { name: "VSM Zero · VS Performance" })).toBeVisible();
+  // Persisted v2 week with six verified zero days classifies as zero participation.
+  await expect(page.getByTestId("vs-member-history-list").locator("li").first()).toContainText("No participation");
   await page.getByRole("button", { name: "Waive this week" }).click();
   const dialog = page.getByRole("dialog", { name: "Waive this week" });
   await dialog.getByLabel("Reason for waiver").fill("Private member waiver");
   await expect(dialog.getByLabel("Reason for waiver")).toHaveValue("Private member waiver");
   await dialog.getByRole("button", { name: "Waive this week" }).click();
-  const savedOrAlert = dialog.getByText("Week waived.", { exact: true }).or(dialog.getByRole("alert"));
-  try {
-    await savedOrAlert.waitFor({ timeout: 20000 });
-  } catch {
-    const submit = dialog.getByRole("button", { name: "Waive this week" });
-    console.log("SUBMIT STATE disabled:", await submit.isDisabled().catch(() => "?"), "count:", await submit.count());
-    throw new Error("waive produced neither success nor alert");
-  }
-  if (await dialog.getByRole("alert").isVisible().catch(() => false)) {
-    throw new Error(`waiver failed: ${await dialog.getByRole("alert").textContent()}`);
-  }
   await expect(dialog.getByText("Week waived.", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
@@ -119,6 +117,8 @@ test("waiver keeps its reason private to the officer decision history", async ({
   await decisions.locator("summary").click();
   await expect(decisions).toContainText("Private member waiver");
   await expect(decisions).toContainText("Week waived.");
+  const history = page.getByTestId("vs-member-history-list");
+  await expect(history.locator("li").first()).toContainText("Waived");
 });
 
 test("member, data-entry, anonymous and foreign officers cannot open member details", async ({ page, request }) => {

@@ -43,6 +43,7 @@ const daily = (ending: string): VsComplianceDay[] => Array.from({ length: 6 }, (
 const evaluation = (over: Record<string, unknown> = {}) => ({ weekEnding, outcome: "missed", threshold: 40_000_000, score: 10_000_000, policyVersion: 3, streak: 1, recommendation: { kind: "demote", targetRank: 2 }, evaluationBasis: "eval-secret", confirmationBasis: "conf-secret", settled: null, correctionReview: false, ...over });
 const rowFor = (memberId: string, over: Record<string, unknown> = {}) => ({ id: `row-${memberId}`, memberId, memberName: `Name ${memberId}`, weekEnding, memberSnapshot: memberOf(true), evaluation: evaluation(over), input: { evidence: { basis: ["hq:1:1"] } }, remoteEvidence: [{ id: "ashed:9", recordedDate: weekEnding, period: "weekly", score: 1 }], remoteVerifiedAt: null });
 const persistedFor = (memberId: string, over: Record<string, unknown> = {}) => ({ ...rowFor(memberId, over), remoteVerifiedAt: null });
+const rosterScope = () => [{ id: "roster-1", memberName: "Name member" }];
 
 function facts(memberIds: Array<{ memberId: string; active: boolean }>) {
   return {
@@ -87,14 +88,14 @@ describe("officer member detail read model", () => {
   });
 
   it("fetches remote evidence for the selected week only", async () => {
-    state.results = [[persistedFor("member")], []];
+    state.results = [rosterScope(), [persistedFor("member")], []];
     await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(state.external).toHaveBeenCalledTimes(1);
     expect(state.external).toHaveBeenCalledWith("tenant", [weekEnding]);
   });
 
   it("returns a safe allowlisted DTO without internal basis, evidence ids, or actor data", async () => {
-    state.results = [[persistedFor("member")], historyRows("member", 2)];
+    state.results = [rosterScope(), [persistedFor("member")], historyRows("member", 2), []];
     const result = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(result.weekEnding).toBe(weekEnding);
     expect(result.member).toMatchObject({ name: "Name member", currentRank: 3, rosterStatus: "active" });
@@ -107,15 +108,22 @@ describe("officer member detail read model", () => {
     expect(result.action).toMatchObject({ eventId: "row-member", confirmationBasis: "conf-secret" });
   });
 
-  it("returns 404 when neither a computed nor a persisted row exists, even for a foreign member id", async () => {
-    state.compute.mockImplementation(async () => ({ facts: facts([]), rows: [rowFor("other-member")], changedRows: [], reviews: [], expungeIds: [], inbox: [], actions: [], jobs: [] }));
+  it("returns 404 without remote work for an unknown or foreign member id", async () => {
     state.results = [[], []];
+    await expect(loadVsMemberDetail("session", "tenant", "foreign-member", { weekStart })).rejects.toMatchObject({ code: "not_found", status: 404 });
+    expect(state.external).not.toHaveBeenCalled();
+    expect(state.compute).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when neither a computed nor a persisted row exists for a known member", async () => {
+    state.compute.mockImplementation(async () => ({ facts: facts([]), rows: [rowFor("other-member")], changedRows: [], reviews: [], expungeIds: [], inbox: [], actions: [], jobs: [] }));
+    state.results = [rosterScope(), [], []];
     await expect(loadVsMemberDetail("session", "tenant", "member", { weekStart })).rejects.toMatchObject({ code: "not_found", status: 404 });
   });
 
   it("falls back to the persisted read-only record with null current rank when the member left the roster", async () => {
     state.compute.mockImplementation(async () => ({ facts: facts([]), rows: [], changedRows: [], reviews: [], expungeIds: [], inbox: [], actions: [], jobs: [] }));
-    state.results = [[persistedFor("member")], []];
+    state.results = [[persistedFor("member")], [persistedFor("member")], []];
     const result = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(result.member).toMatchObject({ name: "Name member", currentRank: null, rosterStatus: "former" });
     expect(result.action).toBeNull();
@@ -123,11 +131,11 @@ describe("officer member detail read model", () => {
   });
 
   it("offers confirm/waive only when the persisted event matches the computed basis", async () => {
-    state.results = [[persistedFor("member")], []];
+    state.results = [rosterScope(), [persistedFor("member")], []];
     const result = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(result.action).toMatchObject({ eventId: "row-member", canConfirm: true, canWaive: true });
     // Stale persisted evaluation (different basis) suppresses the action offer
-    state.results = [[persistedFor("member", { confirmationBasis: "stale-basis" })], []];
+    state.results = [rosterScope(), [persistedFor("member", { confirmationBasis: "stale-basis" })], []];
     const stale = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(stale.action).toBeNull();
     expect(stale.eventId).toBe("row-member");
@@ -135,27 +143,27 @@ describe("officer member detail read model", () => {
 
   it("suppresses actions on live or provisional weeks", async () => {
     state.compute.mockImplementation(async () => ({ facts: facts([{ memberId: "member", active: true }]), rows: [rowFor("member", { provisional: true })], changedRows: [], reviews: [], expungeIds: [], inbox: [], actions: [], jobs: [] }));
-    state.results = [[persistedFor("member", { provisional: true })], []];
+    state.results = [[persistedFor("member", { provisional: true })], [persistedFor("member", { provisional: true })], []];
     const result = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
     expect(result.action).toBeNull();
   });
 
   it("pages recorded history in 12+1 blocks without provider or compute calls", async () => {
     const rows = historyRows("member", 13);
-    state.results = [[persistedFor("member")], rows];
+    state.results = [[persistedFor("member")], rows, []];
     const page = await loadVsMemberHistory("session", "tenant", "member", { weekStart, beforeWeek: weekEnding });
     expect(state.external).not.toHaveBeenCalled();
     expect(state.compute).not.toHaveBeenCalled();
     expect(page.history.weeks).toHaveLength(12);
     expect(page.history.nextBefore).toBe(rows[11].weekEnding);
-    state.results = [[persistedFor("member")], rows.slice(0, 5)];
+    state.results = [[persistedFor("member")], rows.slice(0, 5), []];
     const last = await loadVsMemberHistory("session", "tenant", "member", { weekStart, beforeWeek: weekEnding });
     expect(last.history.weeks).toHaveLength(5);
     expect(last.history.nextBefore).toBeNull();
   });
 
   it("keeps v1 history honest without v2 fields and rejects bad cursors", async () => {
-    state.results = [[persistedFor("member")], historyRows("member", 1)];
+    state.results = [[persistedFor("member")], historyRows("member", 1), []];
     const page = await loadVsMemberHistory("session", "tenant", "member", { weekStart, beforeWeek: weekEnding });
     expect(page.history.weeks[0]).not.toHaveProperty("input");
     await expect(loadVsMemberHistory("session", "tenant", "member", { weekStart, beforeWeek: "2099-01-04" })).rejects.toMatchObject({ code: "invalid_week" });
@@ -172,5 +180,46 @@ describe("officer member detail read model", () => {
     await expect(loadVsMemberScoreRevisions("session", "tenant", "member", { weekStart, page: "101" })).rejects.toMatchObject({ code: "invalid_week" });
     state.results = [[], []];
     await expect(loadVsMemberScoreRevisions("session", "tenant", "member", { weekStart })).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("marks non-native sources stale when verification does not cover the selected week", async () => {
+    state.external.mockResolvedValue({ native: false, verifiedAt: new Date("2020-01-12T04:00:00Z"), weeks: new Map(), excuses: [] });
+    state.results = [rosterScope(), [persistedFor("member")], []];
+    const stale = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
+    expect(stale.source).toEqual({ native: false, verifiedAt: null, stale: true });
+    state.external.mockResolvedValue({ native: false, verifiedAt: new Date("2020-01-12T04:00:00Z"), weeks: new Map([[weekEnding, new Map()]]), excuses: [] });
+    state.results = [rosterScope(), [persistedFor("member")], []];
+    const verified = await loadVsMemberDetail("session", "tenant", "member", { weekStart });
+    expect(verified.source).toEqual({ native: false, verifiedAt: "2020-01-12T04:00:00.000Z", stale: false });
+  });
+
+  it("classifies verified all-zero v2 history weeks as zero participation only via persisted days", async () => {
+    const zeroDays = Array.from({ length: 6 }, (_, index) => ({ date: addCalendarDays(weekEnding, index - 7), score: 0, assessment: "missed" }));
+    const mixedDays = zeroDays.map((day, index) => index === 0 ? { ...day, assessment: "met", score: 5 } : day);
+    const unknownDays = zeroDays.map((day, index) => index === 0 ? { ...day, assessment: "unknown", score: null } : day);
+    const row = (id: string, evalOver: Record<string, unknown>) => ({ id, weekEnding: addCalendarDays(weekEnding, -7), evaluation: evaluation({ weekEnding: addCalendarDays(weekEnding, -7), ...evalOver }), memberSnapshot: memberOf(true), remoteVerifiedAt: null });
+    state.results = [[persistedFor("member")], [
+      row("zero", { modelVersion: 2, days: zeroDays, counts: { required: 6, met: 0, missed: 6, excused: 0, unknown: 0 }, score: 0 }),
+      row("mixed", { modelVersion: 2, days: mixedDays, counts: { required: 6, met: 1, missed: 5, excused: 0, unknown: 0 }, score: 5 }),
+      row("unknown", { modelVersion: 2, days: unknownDays, counts: { required: 6, met: 0, missed: 5, excused: 0, unknown: 1 }, score: 0 }),
+      row("v1zero", { modelVersion: 1, score: 0 }),
+      row("v1below", { modelVersion: 1, score: 9 }),
+    ], []];
+    const page = await loadVsMemberHistory("session", "tenant", "member", { weekStart, beforeWeek: weekEnding });
+    expect(page.history.weeks.map((week) => week.status)).toEqual(["zero", "below", "below", "zero", "below"]);
+  });
+
+  it("attaches rank-action sync status to history weeks and ignores waivers", async () => {
+    const rows = [
+      { id: "hist-1", weekEnding: addCalendarDays(weekEnding, -7), evaluation: evaluation({ weekEnding: addCalendarDays(weekEnding, -7), settled: { actionId: "act-1", kind: "demote", targetRank: 2 } }), memberSnapshot: memberOf(true), remoteVerifiedAt: null },
+      { id: "hist-2", weekEnding: addCalendarDays(weekEnding, -14), evaluation: evaluation({ weekEnding: addCalendarDays(weekEnding, -14), settled: { actionId: "act-waived-not-jobs", kind: "demote", targetRank: 2 } }), memberSnapshot: memberOf(true), remoteVerifiedAt: null },
+    ];
+    state.results = [[persistedFor("member")], rows, [
+      { eventId: "hist-1", actionId: "act-1", status: "synced" },
+      { eventId: "hist-2", actionId: "act-other", status: "local" },
+    ]];
+    const page = await loadVsMemberHistory("session", "tenant", "member", { weekStart, beforeWeek: weekEnding });
+    expect(page.history.weeks[0].settled).toMatchObject({ kind: "demote", targetRank: 2, syncStatus: "synced" });
+    expect(page.history.weeks[1].settled).toMatchObject({ syncStatus: null });
   });
 });

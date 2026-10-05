@@ -10,6 +10,7 @@ import { ComplianceHistoryRecords } from "@/components/vs-compliance/ComplianceH
 import {
   isComplianceHistory,
   readComplianceResponse,
+  syncLabel,
   type ConfirmationTarget,
 } from "@/components/vs-compliance/client.shared";
 import type { VsComplianceHistory } from "@/lib/vs-compliance/types.shared";
@@ -33,20 +34,6 @@ const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm disabled:
 
 type LoadError = "load" | "forbidden" | "notFound";
 
-const OUTCOME_KEYS: Record<string, string> = {
-  passed: "meeting",
-  excused: "excused",
-  waived: "waived",
-  missed: "below",
-  pending_data: "needsEvidence",
-  not_eligible: "notEvaluated",
-};
-
-function outcomeKey(outcome: string, score: string | null): string {
-  if (outcome === "missed" && score === "0") return "zero";
-  return OUTCOME_KEYS[outcome] ?? "notEvaluated";
-}
-
 function SequenceFacts({ week, weekEnding, legacySummary = false }: { week: VsMemberDetailWeek; weekEnding?: string; legacySummary?: boolean }) {
   const t = useTranslations("vsPerformance.member");
   const tMembers = useTranslations("vsPerformance.members");
@@ -63,7 +50,7 @@ function SequenceFacts({ week, weekEnding, legacySummary = false }: { week: VsMe
       {week.policyVersion !== null ? (
         <p>{t("policyVersion", { version: intl.format(week.policyVersion) })}</p>
       ) : null}
-      {legacySummary && week.policyVersion !== 2 && weekEnding && week.score !== null && week.threshold !== null ? (
+      {legacySummary && week.modelVersion === 1 && weekEnding && week.score !== null && week.threshold !== null ? (
         <p>
           {all("vsCompliance.weekSummary", {
             date: date(weekEnding),
@@ -72,16 +59,18 @@ function SequenceFacts({ week, weekEnding, legacySummary = false }: { week: VsMe
           })}
         </p>
       ) : null}
-      <p>
-        {t("dayCounts", {
-          met: intl.format(week.counts.met),
-          missed: intl.format(week.counts.missed),
-          excused: intl.format(week.counts.excused),
-          unknown: intl.format(week.counts.unknown),
-        })}
-      </p>
+      {week.modelVersion === 2 ? (
+        <p>
+          {t("dayCounts", {
+            met: intl.format(week.counts.met),
+            missed: intl.format(week.counts.missed),
+            excused: intl.format(week.counts.excused),
+            unknown: intl.format(week.counts.unknown),
+          })}
+        </p>
+      ) : null}
       {week.provisional ? <p>{tMembers("provisionalHint")}</p> : null}
-      {sequence ? (
+      {week.modelVersion === 2 && sequence ? (
         <div className="space-y-1">
           {sequence.demotion.progress === null && !sequence.demotion.episode ? (
             <p>{t("progressUnknown")}</p>
@@ -130,7 +119,34 @@ function SequenceFacts({ week, weekEnding, legacySummary = false }: { week: VsMe
           {week.settled.targetRank !== null
             ? ` · ${tMembers("rankLabel", { rank: week.settled.targetRank })}`
             : null}
+          {week.settled.syncStatus
+            ? ` · ${all(`timeOff.sync.${syncLabel(week.settled.syncStatus)}`)}`
+            : null}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ActionRecommendation({ week, currentRank }: { week: VsMemberDetailWeek; currentRank: number | null }) {
+  const t = useTranslations("vsPerformance.member");
+  const tMembers = useTranslations("vsPerformance.members");
+  const tCompliance = useTranslations("vsCompliance");
+  return (
+    <div className="space-y-1 text-sm">
+      <p>
+        {t("currentRank")}:{" "}
+        {currentRank !== null
+          ? tMembers("rankLabel", { rank: currentRank })
+          : tMembers("rankUnknown")}
+      </p>
+      {week.signal.kind === "review_ready" && week.signal.targetRank !== null ? (
+        <p className="font-semibold">
+          {tCompliance("demote", { rank: tMembers("rankLabel", { rank: week.signal.targetRank }) })}
+        </p>
+      ) : null}
+      {week.signal.kind === "removal_review" ? (
+        <p className="font-semibold">{tCompliance("remove")}</p>
       ) : null}
     </div>
   );
@@ -228,7 +244,7 @@ function RevisionHistory({ memberId, weekStart }: { memberId: string; weekStart:
                       ? all("commandersIndex.unreportedShort")
                       : intl.format(BigInt(revision.score))}
                     {" · "}
-                    {revision.origin === "derived" ? tMembers("derived") : "HQ"}
+                    {revision.origin === "derived" ? tMembers("derived") : all("vsPerformance.results.sourceHq")}
                     {revision.actorName ? ` · ${revision.actorName}` : ""}
                   </p>
                   <p className="text-xs text-hq-fg-muted">
@@ -351,7 +367,11 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
   const router = useRouter();
   const intl = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const dateTimeFmt = useMemo(
-    () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
+    () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: "Etc/GMT+2" }),
+    [locale],
+  );
+  const joinedAtFmt = useMemo(
+    () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "Etc/GMT+2" }),
     [locale],
   );
   const date = (value: string) =>
@@ -370,6 +390,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
     operation: "complete" | "waive";
     row: ConfirmationTarget;
     week: VsMemberDetailWeek;
+    currentRank: number | null;
   } | null>(null);
   const requestSeq = useRef(0);
   const historySeq = useRef(0);
@@ -447,16 +468,28 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
 
   const backHref = `/vs-performance?week=${weekStart}`;
   const onBack = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    let fromList = false;
+    let stored: { memberId?: string; path?: string } | null = null;
     try {
-      fromList = window.sessionStorage.getItem("vs-member-focus") === memberId;
+      const raw = window.sessionStorage.getItem("vs-member-focus");
+      stored = raw ? (JSON.parse(raw) as { memberId?: string; path?: string }) : null;
     } catch {
-      fromList = false;
+      stored = null;
     }
-    if (fromList && window.history.length > 1) {
-      event.preventDefault();
-      router.back();
+    if (!stored || stored.memberId !== memberId || typeof stored.path !== "string") return;
+    let url: URL;
+    try {
+      url = new URL(stored.path, window.location.origin);
+    } catch {
+      return;
     }
+    if (url.origin !== window.location.origin) return;
+    const pathOnly = url.pathname.replace(new RegExp(`^/${locale}(?=/|$)`), "");
+    if (pathOnly !== "/vs-performance") return;
+    const allowedKeys = new Set(["week", "q", "status", "rank", "excusal", "signal", "sort", "direction", "page", "pageSize"]);
+    const params = new URLSearchParams();
+    for (const [key, value] of url.searchParams) if (allowedKeys.has(key)) params.append(key, value);
+    event.preventDefault();
+    router.push(`/vs-performance${params.size > 0 ? `?${params.toString()}` : ""}`);
   };
 
   const openAction = (operation: "complete" | "waive") => {
@@ -464,6 +497,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
     setSelection({
       operation,
       week: data.week,
+      currentRank: data.member.currentRank,
       row: {
         id: data.action.eventId,
         memberId: data.memberId,
@@ -529,7 +563,9 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
             </p>
             {data.member.joinedAt ? (
               <p className="text-sm text-hq-fg-muted">
-                {all("supportTeams.tenure")}: {dateTimeFmt.format(new Date(data.member.joinedAt))}
+                {all("supportTeams.tenure")}: {joinedAtFmt.format(new Date(data.member.joinedAt))}
+                {" · "}
+                {all("timeOff.workflow.serverTime")}
               </p>
             ) : (
               <p className="text-sm text-hq-fg-muted">{t("tenureUnknown")}</p>
@@ -577,14 +613,6 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
 
             <div className="space-y-1 text-sm">
               <p className="font-medium text-hq-fg">{t("weekResult")}</p>
-              <p>
-                {t("dayCounts", {
-                  met: intl.format(data.week.counts.met),
-                  missed: intl.format(data.week.counts.missed),
-                  excused: intl.format(data.week.counts.excused),
-                  unknown: intl.format(data.week.counts.unknown),
-                })}
-              </p>
               {data.week.excusal !== "none" && VS_MEMBER_EXCUSAL_KEYS[data.week.excusal] ? (
                 <p>{tMembers(VS_MEMBER_EXCUSAL_KEYS[data.week.excusal]!)}</p>
               ) : null}
@@ -601,7 +629,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                     : ""}
                 </p>
               ) : null}
-              {data.week.score !== null && data.week.threshold !== null ? (
+              {data.week.modelVersion === 1 && data.week.score !== null && data.week.threshold !== null ? (
                 <p>
                   {all("vsCompliance.weekSummary", {
                     date: date(data.weekEnding),
@@ -610,6 +638,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                   })}
                 </p>
               ) : null}
+              <ActionRecommendation week={data.week} currentRank={data.member.currentRank} />
               <SequenceFacts week={data.week} />
             </div>
 
@@ -652,12 +681,12 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                         {t("weekEnding", { date: date(week.weekEnding) })}
                       </time>
                       {" · "}
-                      {tMembers(outcomeKey(week.outcome, week.score))}
+                      {tMembers(VS_MEMBER_STATUS_KEYS[week.status])}
                       {week.policyVersion !== null
                         ? ` · ${t("policyVersion", { version: intl.format(week.policyVersion) })}`
                         : ""}
                     </p>
-                    {week.counts ? (
+                    {week.modelVersion === 2 && week.counts ? (
                       <p className="text-xs text-hq-fg-muted">
                         {t("dayCounts", {
                           met: intl.format(week.counts.met),
@@ -667,7 +696,7 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                         })}
                       </p>
                     ) : null}
-                    {week.score !== null && week.threshold !== null ? (
+                    {week.modelVersion === 1 && week.score !== null && week.threshold !== null ? (
                       <p className="text-xs text-hq-fg-muted">
                         {all("vsCompliance.weekSummary", {
                           date: date(week.weekEnding),
@@ -681,6 +710,9 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                         {all("vsCompliance.actionSaved")}
                         {week.settled.targetRank !== null
                           ? ` · ${tMembers("rankLabel", { rank: week.settled.targetRank })}`
+                          : ""}
+                        {week.settled.syncStatus
+                          ? ` · ${all(`timeOff.sync.${syncLabel(week.settled.syncStatus)}`)}`
                           : ""}
                       </p>
                     ) : null}
@@ -710,8 +742,13 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
                 </Button>
               </div>
             ) : null}
-            <RevisionHistory memberId={memberId} weekStart={weekStart} />
+            <RevisionHistory
+              key={`${memberId}:${weekStart}:${data.inputVersion}`}
+              memberId={memberId}
+              weekStart={weekStart}
+            />
             <DecisionHistory
+              key={`${memberId}:${data.weekEnding}:${data.inputVersion}`}
               eventId={data.eventId}
               memberId={memberId}
               weekEnding={data.weekEnding}
@@ -724,7 +761,12 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
         <ConfirmationDialog
           row={selection.row}
           operation={selection.operation}
-          facts={<SequenceFacts week={selection.week} weekEnding={selection.row.weekEnding} legacySummary />}
+          facts={
+            <>
+              <ActionRecommendation week={selection.week} currentRank={selection.currentRank} />
+              <SequenceFacts week={selection.week} weekEnding={selection.row.weekEnding} legacySummary />
+            </>
+          }
           onSaved={() => void load()}
           onClose={() => {
             setSelection(null);

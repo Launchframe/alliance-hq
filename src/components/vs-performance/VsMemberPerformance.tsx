@@ -107,7 +107,13 @@ export function VsMemberPerformance({ weekStart, searchParams }: Props) {
 
   useEffect(() => {
     if (loading || !data) return;
-    const focusId = window.sessionStorage.getItem("vs-member-focus");
+    let focusId: string | null = null;
+    try {
+      const stored = window.sessionStorage.getItem("vs-member-focus");
+      if (stored) focusId = (JSON.parse(stored) as { memberId?: string }).memberId ?? null;
+    } catch {
+      focusId = null;
+    }
     if (!focusId) return;
     window.sessionStorage.removeItem("vs-member-focus");
     document.getElementById(`vs-member-link-${focusId}`)?.focus();

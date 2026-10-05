@@ -76,7 +76,7 @@ export async function loadVsMemberWeek(sessionId: string, allianceId: string, ra
       allowedMissedDays: policy?.modelVersion === 2 ? policy.allowedMissedDays : null,
       enabled: policy?.enabled ?? false,
     },
-    source: { native: external.native, verifiedAt: external.verifiedAt?.toISOString() ?? null, stale: !external.native && !external.verifiedAt },
+    source: { native: external.native, verifiedAt: !external.native && external.verifiedAt && external.weeks.has(weekEnding) ? external.verifiedAt.toISOString() : null, stale: !external.native && !(external.verifiedAt && external.weeks.has(weekEnding)) },
     summary,
     attention,
     outstanding: { count: new Set(outstanding.map((row) => row.memberId)).size, weeks: [...new Set(outstanding.map((row) => row.weekEnding))].sort() },
@@ -92,16 +92,37 @@ async function assertVsMemberScope(db: ReturnType<typeof getDb>, allianceId: str
   return roster;
 }
 
-function mapVsMemberHistoryPage(history: Array<{ weekEnding: string; evaluation: VsComplianceEvaluation }>) {
-  const weeks: VsMemberHistoryWeek[] = history.slice(0, 12).map((row) => ({
+function vsMemberHistoryStatus(evaluation: VsComplianceEvaluation): VsMemberRow["status"] {
+  if (evaluation.outcome === "passed") return "meeting";
+  if (evaluation.outcome === "excused") return "excused";
+  if (evaluation.outcome === "waived") return "waived";
+  if (evaluation.outcome === "pending_data") return "needs_evidence";
+  if (evaluation.outcome === "not_eligible") return "not_eligible";
+  if (evaluation.modelVersion === 2) {
+    const assessed = (evaluation.days ?? []).filter(day => day.assessment === "met" || day.assessment === "missed");
+    const verifiedZero = assessed.length > 0 && evaluation.counts?.unknown === 0 && assessed.every(day => day.assessment === "missed" && day.score === 0);
+    return verifiedZero ? "zero" : "below";
+  }
+  return evaluation.score === 0 ? "zero" : "below";
+}
+
+async function mapVsMemberHistoryPage(db: ReturnType<typeof getDb>, allianceId: string, memberId: string, history: Array<{ id: string; weekEnding: string; evaluation: VsComplianceEvaluation }>) {
+  const visibleWeeks = history.slice(0, 12);
+  const statusByActionId = new Map<string, NonNullable<VsMemberHistoryWeek["settled"]>["syncStatus"]>();
+  if (visibleWeeks.length > 0) {
+    const jobRows = await db.select({ eventId: schema.vsComplianceActions.eventId, actionId: schema.vsComplianceActions.id, status: schema.vsComplianceSyncJobs.status }).from(schema.vsComplianceActions).leftJoin(schema.vsComplianceSyncJobs, and(eq(schema.vsComplianceSyncJobs.actionId, schema.vsComplianceActions.id), eq(schema.vsComplianceSyncJobs.allianceId, allianceId))).where(and(eq(schema.vsComplianceActions.allianceId, allianceId), eq(schema.vsComplianceActions.memberId, memberId), inArray(schema.vsComplianceActions.eventId, visibleWeeks.map(week => week.id)), inArray(schema.vsComplianceActions.kind, ["demote", "remove"])));
+    for (const job of jobRows) statusByActionId.set(job.actionId, job.status as NonNullable<VsMemberHistoryWeek["settled"]>["syncStatus"]);
+  }
+  const weeks: VsMemberHistoryWeek[] = visibleWeeks.map((row) => ({
     weekEnding: row.weekEnding,
+    status: vsMemberHistoryStatus(row.evaluation),
     outcome: row.evaluation.outcome,
     modelVersion: row.evaluation.modelVersion ?? 1,
     policyVersion: row.evaluation.policyVersion,
     score: row.evaluation.score === null ? null : String(row.evaluation.score),
     threshold: row.evaluation.threshold,
     counts: row.evaluation.counts ?? null,
-    settled: row.evaluation.settled ? { kind: row.evaluation.settled.kind, targetRank: row.evaluation.settled.targetRank } : null,
+    settled: row.evaluation.settled ? { kind: row.evaluation.settled.kind, targetRank: row.evaluation.settled.targetRank, syncStatus: statusByActionId.get(row.evaluation.settled.actionId) ?? null } : null,
     correctionReview: row.evaluation.correctionReview === true,
   }));
   return { weeks, nextBefore: history.length === 13 ? weeks[11].weekEnding : null };
@@ -118,7 +139,7 @@ export async function loadVsMemberHistory(sessionId: string, allianceId: string,
   const db = getDb();
   await assertVsMemberScope(db, allianceId, memberId, weekEnding);
   const history = await db.select({ id: schema.vsComplianceEvaluations.id, weekEnding: schema.vsComplianceEvaluations.weekEnding, evaluation: schema.vsComplianceEvaluations.evaluation, memberSnapshot: schema.vsComplianceEvaluations.memberSnapshot, remoteVerifiedAt: schema.vsComplianceEvaluations.remoteVerifiedAt }).from(schema.vsComplianceEvaluations).where(and(eq(schema.vsComplianceEvaluations.allianceId, allianceId), eq(schema.vsComplianceEvaluations.memberId, memberId), lte(schema.vsComplianceEvaluations.weekEnding, lastClosed), lt(schema.vsComplianceEvaluations.weekEnding, beforeWeek))).orderBy(desc(schema.vsComplianceEvaluations.weekEnding), desc(schema.vsComplianceEvaluations.id)).limit(13);
-  return { allianceId, memberId, weekStart: query.weekStart, weekEnding, history: mapVsMemberHistoryPage(history) };
+  return { allianceId, memberId, weekStart: query.weekStart, weekEnding, history: await mapVsMemberHistoryPage(db, allianceId, memberId, history) };
 }
 
 const detailStatusFallback = (
@@ -164,6 +185,7 @@ function persistedWeek(persisted: { evaluation: VsComplianceEvaluation; input: V
   const subtotal = days.reduce((sum, day) => sum + (day.score === null ? BigInt(0) : BigInt(day.score)), BigInt(0));
   const recommendation = evaluation.recommendation;
   return {
+    modelVersion: evaluation.modelVersion === 2 ? 2 : 1,
     status: detailStatusFallback(evaluation, days),
     excusal: detailExcusalFallback(days),
     signal:
@@ -215,6 +237,7 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
   catch (error) { if (!(error instanceof VsComplianceError) || error.code !== "forbidden") throw error; }
 
   const db = getDb();
+  await assertVsMemberScope(db, allianceId, memberId, weekEnding);
   const external = await prepareExternalEvidence(allianceId, [weekEnding]);
   const [result, inputVersion, persisted, history] = await Promise.all([
     computeComplianceRows(db, allianceId, [weekEnding], external, { now }),
@@ -245,6 +268,7 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
     });
     const evaluation = computed.evaluation;
     week = {
+      modelVersion: evaluation.modelVersion === 2 ? 2 : 1,
       status: view.status,
       excusal: view.excusal,
       signal: view.signal,
@@ -322,11 +346,11 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
       weeklyMinimum: policy && policy.modelVersion !== 2 ? policy.weeklyMinimum : null,
       allowedMissedDays: policy?.modelVersion === 2 ? policy.allowedMissedDays : null,
     },
-    source: { native: external.native, verifiedAt: external.verifiedAt?.toISOString() ?? null, stale: !external.native && !external.verifiedAt },
+    source: { native: external.native, verifiedAt: !external.native && external.verifiedAt && external.weeks.has(weekEnding) ? external.verifiedAt.toISOString() : null, stale: !external.native && !(external.verifiedAt && external.weeks.has(weekEnding)) },
     week,
     eventId: persistedRow?.id ?? null,
     action,
-    history: mapVsMemberHistoryPage(history),
+    history: await mapVsMemberHistoryPage(db, allianceId, memberId, history),
   };
 }
 
