@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { locales, type AppLocale } from "@/i18n/routing";
 import type { PlanNotificationSettings } from "@/lib/plunder-plan/types.shared";
 
 export function PlunderPlanNotifications({ settings, busy, onSave }: { settings: PlanNotificationSettings[]; busy: boolean; onSave: (body: Record<string, unknown>) => Promise<void> }) {
@@ -26,7 +27,7 @@ function SettingsForm({ initial, busy, onSave }: { initial: PlanNotificationSett
     <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy} checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />{t("notifications.enableDigest")}</label>
     <label className="block">{t("notifications.channel")}<input className={style} disabled={busy} value={draft.channelId} pattern="[0-9]{15,25}" required={draft.enabled} onChange={(event) => setDraft({ ...draft, channelId: event.target.value })} /></label>
     <label className="block">{t("notifications.time")}<input className={style} type="time" disabled={busy} required value={draft.timeSt} onChange={(event) => setDraft({ ...draft, timeSt: event.target.value })} /></label>
-    <label className="block">{t("notifications.language")}<select aria-label={t("notifications.language")} className={style} disabled={busy} value={draft.locale} onChange={(event) => setDraft({ ...draft, locale: event.target.value as "en-US" | "pt-BR" })}><option value="en-US">{languages.of("en-US")}</option><option value="pt-BR">{languages.of("pt-BR")}</option></select></label>
+    <label className="block">{t("notifications.language")}<select aria-label={t("notifications.language")} className={style} disabled={busy} value={draft.locale} onChange={(event) => setDraft({ ...draft, locale: event.target.value as AppLocale })}>{locales.map((code) => (<option key={code} value={code}>{languages.of(code)}</option>))}</select></label>
     <button className="min-h-11 rounded border border-hq-border px-4 py-2" disabled={busy}>{t("save")}</button>
   </form>;
 }

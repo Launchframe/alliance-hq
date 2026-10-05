@@ -16,6 +16,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { ActivityWriteError, toActivityWriteError } from "@/lib/activity/errors.server";
+import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import {
   captureActivityContext,
   type ActivityIdentity,
@@ -2457,7 +2458,7 @@ export async function listGuildTrainChannelsForAlliance(
 
 export async function getDiscordUserLocale(
   discordUserId: string,
-): Promise<"en-US" | "pt-BR" | null> {
+): Promise<DiscordBotLocale | null> {
   const db = getDb();
   const [row] = await db
     .select({ locale: schema.discordUserPrefs.locale })
@@ -2465,12 +2466,14 @@ export async function getDiscordUserLocale(
     .where(eq(schema.discordUserPrefs.discordUserId, discordUserId))
     .limit(1);
   if (!row?.locale) return null;
-  return row.locale === "pt-BR" ? "pt-BR" : "en-US";
+  if (row.locale === "pt-BR") return "pt-BR";
+  if (row.locale === "id") return "id";
+  return "en-US";
 }
 
 export async function upsertDiscordUserLocale(
   discordUserId: string,
-  locale: "en-US" | "pt-BR",
+  locale: DiscordBotLocale,
 ): Promise<void> {
   const db = getDb();
   await db

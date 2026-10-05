@@ -1,10 +1,11 @@
+import { locales } from "@/i18n/routing";
 import { isPlanZone } from "@/lib/plunder-plan/schedule.shared";
 import { CALENDAR_SOURCES, CalendarError, type CalendarPreferences, type CalendarSource } from "./types.shared";
 
 export function parseCalendarPreferences(input: unknown): CalendarPreferences {
   if (!input || typeof input !== "object") throw new CalendarError("invalid_preferences");
   const { alerts, locale, timezone } = input as CalendarPreferences;
-  if (!Array.isArray(alerts) || alerts.length > 5 || new Set(alerts).size !== alerts.length || alerts.some((offset) => !Number.isInteger(offset) || offset < 1 || offset > 40320) || (locale !== "en-US" && locale !== "pt-BR") || !isPlanZone(timezone)) throw new CalendarError("invalid_preferences");
+  if (!Array.isArray(alerts) || alerts.length > 5 || new Set(alerts).size !== alerts.length || alerts.some((offset) => !Number.isInteger(offset) || offset < 1 || offset > 40320) || !locales.includes(locale) || !isPlanZone(timezone)) throw new CalendarError("invalid_preferences");
   return { alerts: [...alerts].sort((a, b) => b - a), locale, timezone };
 }
 

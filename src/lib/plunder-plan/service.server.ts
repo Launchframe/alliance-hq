@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { locales, type AppLocale } from "@/i18n/routing";
 import { getDb, schema } from "@/lib/db";
 import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
 import { defaultPlanColor, parsePlanColor } from "./colors.shared";
@@ -96,7 +97,7 @@ export async function readPlanDashboard(tx: PlanTx, allianceId: string, identity
     const settings = identity.canSuggest ? await tx.select().from(schema.plunderPlanDigestSettings).where(eq(schema.plunderPlanDigestSettings.allianceId, allianceId)) : [];
     const notificationSettings = guilds.map(({ guildId }) => {
       const setting = settings.find((row) => row.guildId === guildId);
-      return { guildId, channelId: setting?.channelId ?? "", timeSt: setting?.timeSt ?? "09:00", locale: setting?.locale === "pt-BR" ? "pt-BR" as const : "en-US" as const, enabled: setting?.enabled ?? false, version: setting?.version ?? 0 };
+      return { guildId, channelId: setting?.channelId ?? "", timeSt: setting?.timeSt ?? "09:00", locale: (setting?.locale && (locales as readonly string[]).includes(setting.locale)) ? (setting.locale as AppLocale) : "en-US", enabled: setting?.enabled ?? false, version: setting?.version ?? 0 };
     });
     const result: PlanDashboard = { regularEvents: [], discordLinked: identity.aliases.some((alias) => alias.startsWith("discord:")), notificationSettings, version: state?.version ?? 0, canSuggest: identity.canSuggest, canManageSelf: identity.canManageSelf, commanders: roster.filter((row) => row.status !== "former" && identity.memberIds.includes(row.id)).map(({ id, name }) => ({ id, name })), plans: [], occurrences: [], suppressed: [], color: color.color, colorVersion: color.version };
     for (const row of rows) {
@@ -137,8 +138,8 @@ export function parsePlanCommand(input: unknown): PlanCommand {
   if (!Number.isSafeInteger(row.expectedVersion) || Number(row.expectedVersion) < 0) throw new PlunderPlanError("stale", 409);
   const expectedVersion = Number(row.expectedVersion);
   if (row.action === "notifications") {
-    if (!isDiscordId(row.guildId) || (row.enabled !== false && !isDiscordId(row.channelId)) || typeof row.channelId !== "string" || typeof row.enabled !== "boolean" || typeof row.timeSt !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.timeSt) || (row.locale !== "en-US" && row.locale !== "pt-BR")) throw new PlunderPlanError("channel");
-    return { action: "notifications", requestId: row.requestId, guildId: row.guildId, channelId: row.channelId, timeSt: row.timeSt, locale: row.locale, enabled: row.enabled, expectedVersion };
+    if (!isDiscordId(row.guildId) || (row.enabled !== false && !isDiscordId(row.channelId)) || typeof row.channelId !== "string" || typeof row.enabled !== "boolean" || typeof row.timeSt !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.timeSt) || typeof row.locale !== "string" || !(locales as readonly string[]).includes(row.locale)) throw new PlunderPlanError("channel");
+    return { action: "notifications", requestId: row.requestId, guildId: row.guildId, channelId: row.channelId, timeSt: row.timeSt, locale: row.locale as AppLocale, enabled: row.enabled, expectedVersion };
   }
   if (row.action === "color") {
     const color = parsePlanColor(row.color);

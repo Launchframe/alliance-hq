@@ -38,6 +38,7 @@ vi.mock("@/lib/thp/repository", async (importOriginal) => {
 
 vi.mock("@/lib/discord/i18n", () => ({
   createDiscordTranslator: () => (key: string) => key,
+  normalizeDiscordBotLocale: (value: string | undefined) => value ?? "en-US",
 }));
 
 vi.mock("@/lib/thp/hero-power-ocr/parse-power-details-image", () => ({

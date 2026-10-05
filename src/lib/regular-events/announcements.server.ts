@@ -2,6 +2,7 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
+import type { AppLocale } from "@/i18n/routing";
 import { getDb, schema } from "@/lib/db";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
@@ -111,7 +112,7 @@ function formatTimeStFromScheduledStart(scheduledStartAt: Date): string {
 export function formatRegularEventAnnouncementMessage(input: {
   eventKey: string;
   scheduledStartAt: Date;
-  locale?: "en-US" | "pt-BR";
+  locale?: AppLocale;
 }): string {
   const t = createDiscordTranslator(input.locale ?? "en-US");
   const event = regularEventLabel(input.eventKey);
@@ -128,7 +129,7 @@ export function formatRegularEventUploadReminderTitle(input: {
 export function formatRegularEventScheduleInGameReminder(input: {
   eventKey: string;
   scheduledStartAt: Date;
-  locale?: "en-US" | "pt-BR";
+  locale?: AppLocale;
 }): string {
   const t = createDiscordTranslator(input.locale ?? "en-US");
   const event = regularEventLabel(input.eventKey);

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { parseCalendarPreferences } from "@/lib/calendar/preferences.shared";
+import { locales, type AppLocale } from "@/i18n/routing";
 import { calendarRecoveryMessage, type CalendarEvent, type CalendarSource, type CalendarSettingsData } from "@/lib/calendar/types.shared";
 import { preventDefaultFormSubmit, FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
 
@@ -134,7 +135,7 @@ export function CalendarConnectionsClient({ initial, initialError = "" }: { init
       {alerts.map((row, index) => <div key={row.id} className="flex items-end gap-2"><label className="min-w-0 flex-1 space-y-1"><span>{t("minutes")}</span><input className={field} type="number" min={1} max={40320} step={1} required value={row.value} onChange={(event) => setAlerts((current) => current.map((item) => item.id === row.id ? { ...item, value: event.target.value } : item))} /></label><button type="button" className={button} disabled={busy} aria-label={`${t("removeAlert")} ${index + 1}`} onClick={() => setAlerts((current) => current.filter((item) => item.id !== row.id))}>{t("removeAlert")}</button></div>)}
       <button type="button" className={button} disabled={busy || alerts.length >= 5} onClick={() => setAlerts((current) => [...current, { id: crypto.randomUUID(), value: "" }])}>{t("addAlert")}</button>
       <p className="text-sm text-hq-fg-muted">{t("alertLimit")}</p>
-      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1"><span>{t("locale")}</span><select className={field} value={language} onChange={(event) => setLanguage(event.target.value as "en-US" | "pt-BR")}><option value="en-US">{languages("en-US")}</option><option value="pt-BR">{languages("pt-BR")}</option></select></label><label className="space-y-1"><span>{t("timezone")}</span><input className={field} required enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label></div>
+      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1"><span>{t("locale")}</span><select className={field} value={language} onChange={(event) => setLanguage(event.target.value as AppLocale)}>{locales.map((code) => (<option key={code} value={code}>{languages(code)}</option>))}</select></label><label className="space-y-1"><span>{t("timezone")}</span><input className={field} required enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label></div>
       <button type="submit" className={button} disabled={busy}>{t("save")}</button><p className="text-sm text-hq-fg-muted">{t("pastAlert")}</p>
       <CalendarActionError error={actionError} scope="preferences" />
     </form>

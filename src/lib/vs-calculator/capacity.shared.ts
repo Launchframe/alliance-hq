@@ -1,3 +1,4 @@
+import type { AppLocale } from "@/i18n/routing";
 import type { VsCalculatorDayNumber } from "@/lib/vs-calculator/vs-calendar.shared";
 import type { VsPointsByDay } from "@/lib/vs-calculator/catalog-seed.shared";
 import { pointsForCatalogDay } from "@/lib/vs-calculator/catalog-seed.shared";
@@ -49,7 +50,7 @@ export function catalogDefsForDay(
 export function topEarnPointLinesForDay(
   day: VsCalculatorDayNumber,
   defs: VsCatalogItemDef[],
-  options?: { limit?: number; locale?: "en-US" | "pt-BR" },
+  options?: { limit?: number; locale?: AppLocale },
 ): string[] {
   const limit = options?.limit ?? 5;
   const locale = options?.locale ?? "en-US";

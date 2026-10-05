@@ -22,7 +22,7 @@ export function pickMajorityLocale(rows: LocalePrefRow[]): DiscordBotLocale {
 
   const counts = new Map<DiscordBotLocale, number>();
   for (const row of pool) {
-    const locale: DiscordBotLocale = row.locale === "pt-BR" ? "pt-BR" : "en-US";
+    const locale: DiscordBotLocale = row.locale === "pt-BR" ? "pt-BR" : row.locale === "id" ? "id" : "en-US";
     counts.set(locale, (counts.get(locale) ?? 0) + 1);
   }
 

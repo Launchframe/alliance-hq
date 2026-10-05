@@ -1,15 +1,18 @@
 import enUS from "../../../messages/en-US.json";
 import ptBR from "../../../messages/pt-BR.json";
+import id from "../../../messages/id.json";
 
-export type MemberLinkLocale = "en-US" | "pt-BR";
+export type MemberLinkLocale = "en-US" | "pt-BR" | "id";
 
 const MESSAGES: Record<MemberLinkLocale, Record<string, unknown>> = {
   "en-US": enUS.memberLink as Record<string, unknown>,
   "pt-BR": ptBR.memberLink as Record<string, unknown>,
+  "id": id.memberLink as Record<string, unknown>,
 };
 
 function normalizeLocale(value: string | undefined): MemberLinkLocale {
   if (value?.toLowerCase().startsWith("pt")) return "pt-BR";
+  if (value?.toLowerCase() === "id" || value?.toLowerCase().startsWith("id-")) return "id";
   return "en-US";
 }
 

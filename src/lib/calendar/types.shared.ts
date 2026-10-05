@@ -1,7 +1,9 @@
+import type { AppLocale } from "@/i18n/routing";
+
 export const CALENDAR_SOURCES = ["regular", "battle", "boarding", "plunder", "teams", "timeOff"] as const;
 export type CalendarSource = typeof CALENDAR_SOURCES[number];
-export type CalendarPreferences = { alerts: number[]; locale: "en-US" | "pt-BR"; timezone: string };
-export type CalendarEvent = { key: string; source: CalendarSource; title: string; description: string; path: string; locale?: "en-US" | "pt-BR"; allDay: boolean; start: string; end: string; alerts: number[] };
+export type CalendarPreferences = { alerts: number[]; locale: AppLocale; timezone: string };
+export type CalendarEvent = { key: string; source: CalendarSource; title: string; description: string; path: string; locale?: AppLocale; allDay: boolean; start: string; end: string; alerts: number[] };
 export type CalendarSettingsData = {
   preferences: CalendarPreferences & { version: number };
   alliances: Array<{ id: string; tag: string | null; name: string; sources: CalendarSource[] }>;
@@ -29,5 +31,5 @@ export function calendarOAuthFailureCode(error: unknown): string {
 }
 
 export function calendarEventPath(path: string, locale: string): string {
-  return `${locale === "pt-BR" ? "/pt-BR" : ""}${path}`;
+  return `${locale === "en-US" ? "" : `/${locale}`}${path}`;
 }
