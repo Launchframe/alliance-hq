@@ -73,7 +73,25 @@ export type VsPolicyPreviewResponse = { weekEnding: string; rows: VsPolicyPrevie
 export function isPolicyPreview(data: Record<string, unknown>): data is Record<string, unknown> & VsPolicyPreviewResponse {
   const count = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
   const rank = (value: unknown) => value === null || typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
-  return typeof data.weekEnding === "string" && validateVsPeriod(data.weekEnding, "weekly") && Array.isArray(data.rows) && data.rows.every((row) => row && typeof row.memberId === "string" && typeof row.memberName === "string" && rank(row.currentRank) && ["passed", "excused", "waived", "missed", "pending_data", "not_eligible"].includes(row.outcome) && (row.counts === null || count(row.counts.required) && count(row.counts.met) && count(row.counts.missed) && count(row.counts.excused) && count(row.counts.unknown)) && ["none", "demote", "remove", "leadership_review"].includes(row.recommendationKind) && rank(row.recommendationTargetRank) && (row.signal === null || row.signal && ["none", "concern", "promotion"].includes(row.signal.kind) && rank(row.signal.targetRank) && typeof row.signal.reached === "boolean"));
+  if (typeof data.weekEnding !== "string" || !validateVsPeriod(data.weekEnding, "weekly") || !Array.isArray(data.rows)) return false;
+  return data.rows.every((row: unknown) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+    const value = row as Partial<VsPolicyPreviewRow>;
+    if (typeof value.memberId !== "string" || typeof value.memberName !== "string" || !rank(value.currentRank) ||
+      !["passed", "excused", "waived", "missed", "pending_data", "not_eligible"].includes(value.outcome ?? "") ||
+      !(value.counts === null || value.counts && count(value.counts.required) && count(value.counts.met) && count(value.counts.missed) && count(value.counts.excused) && count(value.counts.unknown)) ||
+      !["none", "demote", "remove", "leadership_review"].includes(value.recommendationKind ?? "") ||
+      typeof value.signal?.reached !== "boolean" && value.signal !== null) return false;
+    if (value.recommendationKind === "demote") {
+      if (typeof value.currentRank !== "number" || value.currentRank < 2 || value.currentRank > 4 || value.recommendationTargetRank !== value.currentRank - 1) return false;
+    } else if (value.recommendationKind === "remove") {
+      if (value.currentRank !== 1 || value.recommendationTargetRank !== null) return false;
+    } else if (value.recommendationTargetRank !== null) return false;
+    if (value.signal === null) return true;
+    if (!value.signal || !["none", "concern", "promotion"].includes(value.signal.kind ?? "")) return false;
+    if (value.signal.kind === "promotion") return (value.currentRank === 1 || value.currentRank === 2) && value.signal.targetRank === value.currentRank + 1;
+    return value.signal.targetRank === null;
+  });
 }
 
 export function isMembershipSettings(data: Record<string, unknown>): data is Record<string, unknown> & MembershipSettings {

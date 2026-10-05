@@ -168,11 +168,17 @@ test("browser preview shows advisory promotion and concern signals without actio
   const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Policy Officer", allianceRank: 4 });
   await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: linked.ashedMemberId });
   const weekEnding = lastClosedVsWeek();
+  const previewRow = (overrides: Record<string, unknown>) => ({ memberId: "m", memberName: "Member", currentRank: 3, outcome: "passed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: null, ...overrides });
   await page.route("**/api/vs-performance/policy-preview", async (route) => {
-    await route.fulfill({ json: { weekEnding, rows: [
-      { memberId: "m1", memberName: "Rising Member", currentRank: 3, outcome: "passed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: { kind: "promotion", targetRank: 4, reached: true } },
-      { memberId: "m2", memberName: "Fading Member", currentRank: 3, outcome: "missed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: { kind: "concern", targetRank: null, reached: false } },
-      { memberId: "m3", memberName: "Quiet Member", currentRank: 3, outcome: "passed", counts: null, recommendationKind: "none", recommendationTargetRank: null, signal: { kind: "promotion", targetRank: null, reached: false } },
+    const requested = JSON.parse(route.request().postData() ?? "{}").weekEnding as string;
+    if (requested === addCalendarDays(weekEnding, -7)) {
+      await route.fulfill({ json: { weekEnding: requested, rows: [previewRow({ memberName: "Impossible Member", currentRank: 3, signal: { kind: "promotion", targetRank: 4, reached: true } })] } });
+      return;
+    }
+    await route.fulfill({ json: { weekEnding: requested, rows: [
+      previewRow({ memberId: "m1", memberName: "Rising Member", currentRank: 1, signal: { kind: "promotion", targetRank: 2, reached: true } }),
+      previewRow({ memberId: "m2", memberName: "Climbing Member", currentRank: 2, signal: { kind: "promotion", targetRank: 3, reached: false } }),
+      previewRow({ memberId: "m3", memberName: "Fading Member", outcome: "missed", signal: { kind: "concern", targetRank: null, reached: false } }),
     ] } });
   });
   await context.addCookies(playwrightAuthCookies(officer));
@@ -183,15 +189,20 @@ test("browser preview shows advisory promotion and concern signals without actio
   const results = page.getByTestId("vs-policy-preview-results");
   await expect(results).toBeVisible();
   await expect(results).toContainText("Rising Member");
-  await expect(results).toContainText("Showing potential for R4");
+  await expect(results).toContainText("Showing potential for R2");
+  await expect(results).toContainText("Climbing Member");
+  await expect(results).toContainText("Showing potential for R3");
   await expect(results).toContainText("Fading Member");
   await expect(results).toContainText("On track for demotion");
-  await expect(results).toContainText("Quiet Member");
-  await expect(results).toContainText("Promotion potential");
   await expect(page.getByText("Preview only. This does not change historical results or create rank actions.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
   expect(await f.sql`SELECT id FROM vs_compliance_policies WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
   expect(await f.sql`SELECT id FROM vs_compliance_actions WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
+  await page.getByLabel("Closed VS week to preview", { exact: true }).fill(addCalendarDays(weekEnding, -7));
+  await page.getByRole("button", { name: "Preview policy" }).click();
+  await expect(page.getByText("Could not preview this policy. Try again.", { exact: true })).toBeVisible();
+  await expect(results).toHaveCount(0);
+  await expect(page.getByText("Impossible Member")).toHaveCount(0);
 });
 
 test("browser officers can edit settings and stale owner saves retain inputs", async ({ page, context }) => {

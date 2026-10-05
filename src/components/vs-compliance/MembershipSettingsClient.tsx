@@ -171,7 +171,7 @@ export function MembershipSettingsClient({ allianceTag, earliestWeek }: { allian
           {preview.response.rows.map((row: VsPolicyPreviewRow) => <li key={row.memberId} className="rounded border border-hq-border p-2 text-sm">
             {row.memberName} · {tMembers(VS_PREVIEW_OUTCOME_KEYS[row.outcome])}
             {row.recommendationKind === "demote" && row.recommendationTargetRank !== null ? ` · ${t("demote", { rank: tMembers("rankLabel", { rank: row.recommendationTargetRank }) })}` : row.recommendationKind === "remove" ? ` · ${t("remove")}` : row.recommendationKind === "leadership_review" ? ` · ${t("leadershipReview")}` : null}
-            {row.signal?.kind === "promotion" ? ` · ${row.signal.targetRank !== null ? tMembers("promotionTarget", { rank: tMembers("rankLabel", { rank: row.signal.targetRank }) }) : tMembers("promotionPotential")}` : row.signal?.kind === "concern" ? ` · ${tMembers("atRisk")}` : null}
+            {row.signal?.kind === "promotion" && row.signal.targetRank !== null ? ` · ${tMembers("promotionTarget", { rank: tMembers("rankLabel", { rank: row.signal.targetRank }) })}` : row.signal?.kind === "concern" ? ` · ${tMembers("atRisk")}` : null}
           </li>)}
         </ul>
       </div> : null}

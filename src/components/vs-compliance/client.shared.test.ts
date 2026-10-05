@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionBody, ComplianceClientError, createActionAttempt, isDashboard, isMembershipSettings, isPolicy, readComplianceResponse, RequestVersion, syncLabel, type ComplianceRow } from "./client.shared";
+import { actionBody, ComplianceClientError, createActionAttempt, isDashboard, isMembershipSettings, isPolicy, isPolicyPreview, readComplianceResponse, RequestVersion, syncLabel, type ComplianceRow } from "./client.shared";
 import { jsx } from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
@@ -102,5 +102,47 @@ describe("compliance client request safety", () => {
     expect(unknown).not.toContain("0 points");
     const ineligible = render({ ...row, outcome: "not_eligible" });
     expect(ineligible).not.toContain("trains.paintRuleGate.ineligibleLocked");
+  });
+});
+
+describe("isPolicyPreview", () => {
+  const row = (overrides: Record<string, unknown> = {}) => ({
+    memberId: "m", memberName: "Member", currentRank: 3, outcome: "passed", counts: null,
+    recommendationKind: "none", recommendationTargetRank: null, signal: null, ...overrides,
+  });
+  const body = (rows: unknown[]) => ({ weekEnding: "2026-09-27", rows });
+  it("accepts canonical one-step demotion, R1 removal, and R1→R2/R2→R3 promotions", () => {
+    expect(isPolicyPreview(body([
+      row({ outcome: "missed", currentRank: 3, recommendationKind: "demote", recommendationTargetRank: 2 }),
+      row({ outcome: "missed", currentRank: 1, recommendationKind: "remove" }),
+      row({ outcome: "missed", currentRank: 1, recommendationKind: "leadership_review" }),
+      row({ currentRank: 1, signal: { kind: "promotion", targetRank: 2, reached: true } }),
+      row({ currentRank: 2, signal: { kind: "promotion", targetRank: 3, reached: false } }),
+      row({ outcome: "missed", signal: { kind: "concern", targetRank: null, reached: true } }),
+      row({ signal: { kind: "none", targetRank: null, reached: false } }),
+    ]))).toBe(true);
+  });
+  it.each([
+    row({ outcome: "missed", currentRank: 4, recommendationKind: "demote", recommendationTargetRank: 2 }),
+    row({ outcome: "missed", currentRank: 3, recommendationKind: "demote", recommendationTargetRank: null }),
+    row({ outcome: "missed", currentRank: 2, recommendationKind: "remove", recommendationTargetRank: null }),
+    row({ outcome: "missed", currentRank: 1, recommendationKind: "remove", recommendationTargetRank: 2 }),
+    row({ recommendationKind: "none", recommendationTargetRank: 2 }),
+    row({ signal: { kind: "promotion", targetRank: 4, reached: true } }),
+    row({ currentRank: 2, signal: { kind: "promotion", targetRank: null, reached: true } }),
+    row({ signal: { kind: "concern", targetRank: 2, reached: true } }),
+    row({ signal: { kind: "none", targetRank: 3, reached: false } }),
+    row({ signal: { kind: "promotion", targetRank: 2, reached: true } }),
+    row({ signal: { kind: "nope", targetRank: null, reached: true } }),
+    row({ signal: { kind: "promotion", targetRank: "2", reached: true } }),
+    { memberId: "m" },
+    null,
+    "row",
+  ])("rejects malformed row %#", (value) => {
+    expect(isPolicyPreview(body([value]))).toBe(false);
+  });
+  it("rejects a non-weekly or open week ending", () => {
+    expect(isPolicyPreview({ weekEnding: "2026-09-28", rows: [row()] })).toBe(false);
+    expect(isPolicyPreview(body("rows" as unknown as unknown[]))).toBe(false);
   });
 });
