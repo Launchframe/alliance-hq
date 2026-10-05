@@ -13,18 +13,18 @@ import { evaluateVsWeek, parseVsScore, validateVsPeriod, vsWeekEndingDate, VsEvi
 export type VsTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 export type VsHead = typeof schema.vsScoreHeads.$inferSelect;
 export type VsReviewRow = { id: string; memberId?: string | null; memberName?: string | null; score?: unknown; rank?: number | null; deleted?: boolean };
-type MutationContext = {
+export type MutationContext = {
   tx: VsTransaction; allianceId: string; actorId: string; mirror: boolean;
   original: Map<string, VsHead>; heads: Map<string, VsHead>; changes: Map<string, VsHead>;
-  weeks: Set<string>; dates: string[];
+  weeks: Set<string>; dates: string[]; manualMemberId?: string;
 };
 const keyFor = (row: Pick<VsHead, "memberId" | "period" | "recordedDate">) => JSON.stringify([row.memberId, row.period, row.recordedDate]);
 
-async function lockAlliance(tx: VsTransaction, allianceId: string) {
+export async function lockAlliance(tx: VsTransaction, allianceId: string) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vs-evidence:${allianceId}`}))`);
 }
 
-async function mutationContext(tx: VsTransaction, allianceId: string, actorId: string, dates: string[]): Promise<MutationContext> {
+export async function mutationContext(tx: VsTransaction, allianceId: string, actorId: string, dates: string[]): Promise<MutationContext> {
   const weeks = new Set(dates.map(vsWeekEndingDate));
   const allDates = [...weeks].flatMap((week) => Array.from({ length: 7 }, (_, index) => addCalendarDays(week, index - 6)));
   const rows = allDates.length ? await tx.select().from(schema.vsScoreHeads).where(and(eq(schema.vsScoreHeads.allianceId, allianceId), inArray(schema.vsScoreHeads.recordedDate, allDates))) : [];
@@ -34,7 +34,7 @@ async function mutationContext(tx: VsTransaction, allianceId: string, actorId: s
   return { tx, allianceId, actorId, mirror: alliance.mode === "ashed" && !!alliance.externalId, original, heads: new Map(original), changes: new Map(), weeks, dates };
 }
 
-function setHead(context: MutationContext, next: Pick<VsHead, "memberId" | "memberName" | "period" | "recordedDate" | "score" | "origin" | "batchId" | "sourceJobId" | "basis">) {
+export function setHead(context: MutationContext, next: Pick<VsHead, "memberId" | "memberName" | "period" | "recordedDate" | "score" | "origin" | "batchId" | "sourceJobId" | "basis">) {
   const key = keyFor(next);
   const original = context.original.get(key);
   if (original && original.score === next.score && original.origin === next.origin && original.batchId === next.batchId && original.sourceJobId === next.sourceJobId && original.memberName === next.memberName && JSON.stringify(original.basis) === JSON.stringify(next.basis)) {
@@ -49,6 +49,7 @@ function recomputeSaturdays(context: MutationContext) {
     const saturday = addCalendarDays(week, -1);
     const rows = [...context.heads.values()].filter((row) => vsWeekEndingDate(row.recordedDate) === week);
     for (const memberId of new Set(rows.map((row) => row.memberId))) {
+      if (context.manualMemberId && memberId !== context.manualMemberId) continue;
       const own = rows.filter((row) => row.memberId === memberId);
       const previous = own.find((row) => row.period === "daily" && row.recordedDate === saturday);
       if (previous?.origin === "hq" && previous.score != null) continue;
@@ -84,12 +85,14 @@ async function persistHeadChanges(context: MutationContext, changes: VsHead[]) {
   })));
 }
 
-async function persistMutation(context: MutationContext) {
+export async function persistMutation(context: MutationContext) {
   recomputeSaturdays(context);
   const changes = [...context.changes.values()];
   if (changes.length) await persistHeadChanges(context, changes);
   if (context.mirror) {
-    const candidates = [...context.heads.values()].filter((row) => context.dates.includes(row.recordedDate) || row.origin === "derived");
+    const candidates = context.manualMemberId
+      ? changes
+      : [...context.heads.values()].filter((row) => context.dates.includes(row.recordedDate) || row.origin === "derived");
     const scopes = new Map(candidates.map((row) => [JSON.stringify([row.period, row.recordedDate]), row]));
     for (const row of scopes.values()) await context.tx.insert(schema.vsScoreSyncScopes).values({ id: nanoid(), allianceId: context.allianceId, recordedDate: row.recordedDate, period: row.period, nextAttemptAt: new Date(0) })
       .onConflictDoUpdate({ target: [schema.vsScoreSyncScopes.allianceId, schema.vsScoreSyncScopes.period, schema.vsScoreSyncScopes.recordedDate], set: { requestedVersion: sql`${schema.vsScoreSyncScopes.requestedVersion} + 1`, status: "pending", nextAttemptAt: new Date(0) } });
@@ -170,7 +173,11 @@ export async function commitReviewedVsScoresTx(tx: VsTransaction, input: VsScore
     else await tx.insert(schema.dataUploadBatches).values({ ...batchValues, id: batchId, allianceId: input.allianceId, scoreTarget: "vs-performance", submitEntity: "VSScore", sourceJobId: input.jobId, parseSessionId: input.parseSessionId, createdByHqUserId: input.hqUserId });
     const incomingKeys = new Set(active.map((row) => keyFor({ memberId: row.memberId!, recordedDate: input.recordedDate, period: input.period })));
     for (const row of old) if (!incomingKeys.has(keyFor(row))) setHead(context, { ...row, score: null });
-    for (const row of active) setHead(context, { memberId: row.memberId!, memberName: names.get(row.memberId!)!, recordedDate: input.recordedDate, period: input.period, score: row.scoreValue, origin: "hq", batchId, sourceJobId: input.jobId, basis: [] });
+    for (const row of active) {
+      const existing = context.original.get(keyFor({ memberId: row.memberId!, recordedDate: input.recordedDate, period: input.period }));
+      if (existing?.origin === "hq" && existing.sourceJobId === null && existing.batchId !== null) continue;
+      setHead(context, { memberId: row.memberId!, memberName: names.get(row.memberId!)!, recordedDate: input.recordedDate, period: input.period, score: row.scoreValue, origin: "hq", batchId, sourceJobId: input.jobId, basis: [] });
+    }
     await persistMutation(context);
     const originals = new Map(parsed.map((row) => [row.id, row]));
     let rowsEdited = 0;
@@ -228,6 +235,7 @@ export async function changeVsBatches(input: {
       if (current.length !== input.batchIds.length || current.some((batch) => !input.batchIds.includes(batch.id))) throw new VsEvidenceError("stale", 409);
     }
     for (const batch of batches) {
+      if (batch.contextJson.vsManual === true) throw new VsEvidenceError("forbidden", 403);
       if (batch.status !== "active" || batch.scoreTarget !== "vs-performance" || batch.contextJson.storage !== "hq" || input.expectedVersions[batch.id] !== batch.contextJson.vsRevision) throw new VsEvidenceError("stale", 409);
       if (!input.canManageAny && batch.createdByHqUserId !== input.hqUserId) throw new VsEvidenceError("forbidden", 403);
       if (input.newRecordedDate && !validateVsPeriod(input.newRecordedDate, String(batch.contextJson.vsPeriod))) throw new VsEvidenceError("invalid_period");

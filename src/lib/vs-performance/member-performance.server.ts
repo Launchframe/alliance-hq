@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, desc, eq, inArray, lt, lte, or } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
 import { VS_COMPLIANCE_MANAGE_PERMISSION, VS_COMPLIANCE_READ_PERMISSION } from "@/lib/rbac/constants";
@@ -14,6 +15,8 @@ import { lastClosedVsWeek } from "@/lib/vs-compliance/workflow.shared";
 import { buildVsMemberRow, parseVsMemberWeekQuery, queryVsMemberRows, summarizeVsMemberRows, vsMemberDisplayThreshold } from "./member-performance.shared";
 import type { VsMemberDay, VsMemberRow } from "./member-performance.shared";
 import type { VsMemberDetailResponse, VsMemberDetailWeek, VsMemberHistoryWeek, VsMemberRevisionsResponse } from "./member-performance-view.shared";
+import { manualScoreSnapshot } from "./member-score-edit.server";
+import { vsScope } from "./vs-scope.server";
 
 export async function loadVsMemberWeek(sessionId: string, allianceId: string, rawQuery: Record<string, string | undefined>) {
   await requireVsComplianceAccess(sessionId, allianceId, VS_COMPLIANCE_READ_PERMISSION);
@@ -224,7 +227,7 @@ function persistedWeek(persisted: { evaluation: VsComplianceEvaluation; input: V
 }
 
 export async function loadVsMemberDetail(sessionId: string, allianceId: string, memberId: string, rawQuery: Record<string, string | undefined>): Promise<VsMemberDetailResponse> {
-  await requireVsComplianceAccess(sessionId, allianceId, VS_COMPLIANCE_READ_PERMISSION);
+  const actor = await requireVsComplianceAccess(sessionId, allianceId, VS_COMPLIANCE_READ_PERMISSION);
   const now = new Date();
   const query = parseVsMemberWeekQuery({ weekStart: rawQuery.weekStart }, now);
   const weekEnding = addCalendarDays(query.weekStart, 6);
@@ -308,6 +311,11 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
     week = persistedWeek(persistedRow!);
   }
 
+  const canEditScores = !!computed && canManage && await sessionHasPermissionForAlliance(sessionId, allianceId, "scores:write");
+  const edit: VsMemberDetailResponse["edit"] = canEditScores
+    ? { ...manualScoreSnapshot({ allianceId, memberId, weekEnding, inputVersion, facts: result.facts, external, persisted: persistedRow, now }), scope: vsScope(actor, query.weekStart), inputVersion }
+    : null;
+
   let action: VsMemberDetailResponse["action"] = null;
   if (computed && persistedRow && persistedRow.id === computed.id && persistedRow.evaluation.confirmationBasis === computed.evaluation.confirmationBasis) {
     const evaluation = computed.evaluation;
@@ -350,6 +358,7 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
     week,
     eventId: persistedRow?.id ?? null,
     action,
+    edit,
     history: await mapVsMemberHistoryPage(db, allianceId, memberId, history),
   };
 }
@@ -365,7 +374,23 @@ export async function loadVsMemberScoreRevisions(sessionId: string, allianceId: 
   const db = getDb();
   await assertVsMemberScope(db, allianceId, memberId, weekEnding);
   const dates = Array.from({ length: 6 }, (_, i) => addCalendarDays(weekEnding, i - 6));
-  const rows = await db.select({ recordedDate: schema.vsScoreHeads.recordedDate, period: schema.vsScoreHeads.period, version: schema.vsScoreRevisions.version, score: schema.vsScoreRevisions.score, origin: schema.vsScoreRevisions.origin, recordedAt: schema.vsScoreRevisions.recordedAt, actorName: schema.hqUsers.displayName }).from(schema.vsScoreRevisions).innerJoin(schema.vsScoreHeads, and(eq(schema.vsScoreRevisions.headId, schema.vsScoreHeads.id), eq(schema.vsScoreRevisions.allianceId, schema.vsScoreHeads.allianceId))).leftJoin(schema.hqUsers, eq(schema.vsScoreRevisions.recordedByHqUserId, schema.hqUsers.id)).where(and(eq(schema.vsScoreRevisions.allianceId, allianceId), eq(schema.vsScoreHeads.allianceId, allianceId), eq(schema.vsScoreHeads.memberId, memberId), or(and(eq(schema.vsScoreHeads.period, "weekly"), eq(schema.vsScoreHeads.recordedDate, weekEnding)), and(eq(schema.vsScoreHeads.period, "daily"), inArray(schema.vsScoreHeads.recordedDate, dates))))).orderBy(desc(schema.vsScoreRevisions.recordedAt), desc(schema.vsScoreRevisions.id)).limit(51).offset((page - 1) * 50);
+  const rows = await db.select({
+    recordedDate: schema.vsScoreHeads.recordedDate,
+    period: schema.vsScoreHeads.period,
+    version: schema.vsScoreRevisions.version,
+    score: schema.vsScoreRevisions.score,
+    origin: schema.vsScoreRevisions.origin,
+    recordedAt: schema.vsScoreRevisions.recordedAt,
+    actorName: schema.hqUsers.displayName,
+    manualEditId: schema.vsScoreManualEdits.id,
+    reason: schema.vsScoreManualEdits.reason,
+  }).from(schema.vsScoreRevisions)
+    .innerJoin(schema.vsScoreHeads, and(eq(schema.vsScoreRevisions.headId, schema.vsScoreHeads.id), eq(schema.vsScoreRevisions.allianceId, schema.vsScoreHeads.allianceId)))
+    .leftJoin(schema.hqUsers, eq(schema.vsScoreRevisions.recordedByHqUserId, schema.hqUsers.id))
+    .leftJoin(schema.vsScoreManualEditBatches, eq(schema.vsScoreManualEditBatches.batchId, schema.vsScoreRevisions.batchId))
+    .leftJoin(schema.vsScoreManualEdits, and(eq(schema.vsScoreManualEdits.id, schema.vsScoreManualEditBatches.editId), eq(schema.vsScoreManualEdits.allianceId, allianceId), eq(schema.vsScoreManualEdits.memberId, memberId), eq(schema.vsScoreManualEdits.weekEnding, weekEnding)))
+    .where(and(eq(schema.vsScoreRevisions.allianceId, allianceId), eq(schema.vsScoreHeads.allianceId, allianceId), eq(schema.vsScoreHeads.memberId, memberId), or(and(eq(schema.vsScoreHeads.period, "weekly"), eq(schema.vsScoreHeads.recordedDate, weekEnding)), and(eq(schema.vsScoreHeads.period, "daily"), inArray(schema.vsScoreHeads.recordedDate, dates)))))
+    .orderBy(desc(schema.vsScoreRevisions.recordedAt), desc(schema.vsScoreRevisions.id)).limit(51).offset((page - 1) * 50);
   return {
     memberId,
     weekStart: query.weekStart,
@@ -380,6 +405,8 @@ export async function loadVsMemberScoreRevisions(sessionId: string, allianceId: 
       origin: row.origin,
       recordedAt: row.recordedAt.toISOString(),
       actorName: row.actorName,
+      manual: row.manualEditId !== null,
+      reason: row.reason,
     })),
   };
 }

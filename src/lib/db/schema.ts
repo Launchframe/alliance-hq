@@ -5053,6 +5053,29 @@ export const vsScoreSubmissions = pgTable("vs_score_submissions", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("vs_score_submissions_request_unique").on(table.allianceId, table.sourceJobId, table.requestId)]);
 
+export const vsScoreManualEdits = pgTable("vs_score_manual_edits", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  actorId: text("actor_id").notNull(),
+  memberId: text("member_id").notNull(),
+  weekEnding: text("week_ending").notNull(),
+  requestId: text("request_id").notNull(),
+  requestDigest: text("request_digest").notNull(),
+  reason: text("reason"),
+  resultJson: jsonb("result_json").$type<{ changed: number; syncStatus: "local" | "pending" }>().notNull().default({ changed: 0, syncStatus: "local" }),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("vs_score_manual_edits_request_unique").on(table.allianceId, table.actorId, table.requestId),
+  index("vs_score_manual_edits_member_week_idx").on(table.allianceId, table.memberId, table.weekEnding, table.recordedAt.desc()),
+]);
+
+export const vsScoreManualEditBatches = pgTable("vs_score_manual_edit_batches", {
+  batchId: text("batch_id").primaryKey().references(() => dataUploadBatches.id, { onDelete: "cascade" }),
+  editId: text("edit_id").notNull().references(() => vsScoreManualEdits.id, { onDelete: "cascade" }),
+  recordedDate: text("recorded_date").notNull(),
+  period: text("period").$type<"daily" | "weekly">().notNull(),
+}, (table) => [index("vs_score_manual_edit_batches_edit_idx").on(table.editId)]);
+
 export const vsScoreSyncScopes = pgTable("vs_score_sync_scopes", {
   id: text("id").primaryKey(),
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
