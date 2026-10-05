@@ -1317,6 +1317,13 @@
       "when": 1791900000204,
       "tag": "0204_vs_manual_score_edits",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1791900000205,
+      "tag": "0205_vs_policy_v2_required_fields",
+      "breakpoints": true
     }
   ]
 }
