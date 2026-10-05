@@ -41,6 +41,13 @@ export function resolveDiscordPublicKey(): string | null {
   return raw.replace(/^["']|["']$/g, "");
 }
 
+export type DiscordSlashOption = {
+  name: string;
+  type: number;
+  value?: unknown;
+  options?: DiscordSlashOption[];
+};
+
 export type DiscordInteractionPayload = {
   type: number;
   id?: string;
@@ -55,7 +62,7 @@ export type DiscordInteractionPayload = {
     type?: number;
     /** Target message id for message context-menu commands. */
     target_id?: string;
-    options?: Array<{ name: string; type: number; value?: unknown }>;
+    options?: DiscordSlashOption[];
     custom_id?: string;
     values?: string[];
     components?: Array<{
@@ -69,7 +76,12 @@ export type DiscordInteractionPayload = {
     resolved?: {
       attachments?: Record<
         string,
-        { url?: string; filename?: string; content_type?: string }
+        {
+          url?: string;
+          proxy_url?: string;
+          filename?: string;
+          content_type?: string;
+        }
       >;
       messages?: Record<
         string,

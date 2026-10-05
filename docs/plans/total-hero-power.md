@@ -6,7 +6,7 @@ Alliance HQ tracks **total hero power** per Commander (lifetime, cross-alliance)
 
 | Channel | How |
 |---------|-----|
-| Discord `/thp` | `total` option and/or `screenshot` attachment; `/hero-power` is an alias |
+| Discord `/thp` | Subcommands `/thp total` and `/thp screenshot` (required attachment on mobile); `/hero-power` is an alias |
 | Web **My THP** | Manual total, line-item breakdown, or screenshot upload |
 | Ashed sync / roster import | `syncCommanderFromAllianceMember` → `upsertCommanderThp` (`ashed_sync`, `roster_import`, `video_parse`) |
 
@@ -36,7 +36,7 @@ Register: `npm run discord:register-commands`
 
 | Command | Purpose |
 |---------|---------|
-| `/thp [total] [screenshot]` | Report total hero power |
+| `/thp total` / `/thp screenshot` | Report total hero power (manual or OCR) |
 | `/hero-power` | Alias of `/thp` |
 
 ## Web

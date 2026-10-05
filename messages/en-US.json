@@ -5992,18 +5992,18 @@
       "sandboxActive": "**Sandbox mode** — this VR report is practice only and does not count on the live leaderboard."
     },
     "thp": {
-      "notLinked": "First, run `/link-commander` on Discord to link your character, then report THP with `/thp total:163460435` or attach a Power Details screenshot.",
+      "notLinked": "First, run `/link-commander` on Discord to link your character, then report THP with `/thp total` or `/thp screenshot` (Power Details screen).",
       "pickCharacter": "Which character is this THP for?",
       "success": "{name} -- total hero power {total}. That's a {delta} increase in power in the last {window}.",
       "successFirst": "{name} -- total hero power {total}.",
       "windowDay": "1 day",
       "windowDays": "{count} days",
-      "usage": "Report THP with `/thp total:163460435` or attach a Power Details screenshot via the `screenshot` option.",
+      "usage": "Use `/thp total` (enter your number) or `/thp screenshot` (upload the full Power Details screen — not a leaderboard row).",
       "unchanged": "That matches your current total hero power — no change saved.",
-      "declined": "No problem. Send `/thp` again when you're ready.",
+      "declined": "No problem. Run `/thp total` or `/thp screenshot` when you're ready.",
       "anomalyConfirm": "Are you *sure* your total hero power is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
       "ocrConfirm": "I read total hero power as **{total}**. Tap Yes to save, or No to cancel.",
-      "ocrFailed": "Couldn't read that screenshot. Try a clearer Power Details capture or enter `/thp total:163460435` manually.",
+      "ocrFailed": "Couldn't read that screenshot. Use the full in-game **Power Details** screen (not a leaderboard row), or enter the number with `/thp total`.",
       "ocrPartial": "Some values were hard to read. Please review and correct the pre-filled breakdown below.",
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
