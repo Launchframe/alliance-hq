@@ -6,15 +6,15 @@ import { getDb, schema } from "@/lib/db";
 import { VS_COMPLIANCE_READ_PERMISSION, VS_COMPLIANCE_SETTINGS_PERMISSION } from "@/lib/rbac/constants";
 import { canAccessVsCompliance } from "./access.shared";
 import { requireVsComplianceAccess } from "./access.server";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
+import { projectVsPolicyRow } from "./evidence.server";
 import { defaultVsPolicy, mergeVsPolicyPatch } from "./policy.shared";
 import { VsComplianceError, type VsPolicyVersion } from "./types.shared";
 
-function projectPolicy(row: VsPolicyVersion): VsPolicyVersion {
-  return {
-    version: row.version, effectiveWeek: row.effectiveWeek, enabled: row.enabled,
-    dailyTarget: row.dailyTarget, weeklyMinimum: row.weeklyMinimum, leewayPct: row.leewayPct,
-    preset: row.preset, removalThreshold: row.removalThreshold,
-  };
+type VsPolicyRow = typeof schema.vsCompliancePolicies.$inferSelect;
+
+function projectPolicy(row: VsPolicyRow): VsPolicyVersion {
+  return projectVsPolicyRow(row);
 }
 
 export async function loadVsMembershipSettings(sessionId: string, allianceId: string) {
@@ -51,7 +51,25 @@ export async function saveVsMembershipSettings(sessionId: string, allianceId: st
     const now = clock();
     if (session.expiresAt <= now) throw new VsComplianceError("forbidden", 403);
     const policy = mergeVsPolicyPatch(previous ? projectPolicy(previous) : null, input.patch, now);
-    const [saved] = await tx.insert(schema.vsCompliancePolicies).values({ ...policy, id: nanoid(), allianceId, createdByHqUserId: actor.hqUserId }).returning();
+    const columns = policy.modelVersion === 2
+      ? { modelVersion: 2, weeklyMinimum: null, allowedMissedDays: policy.allowedMissedDays, demotionUnit: policy.demotion.unit, demotionLength: policy.demotion.length, promotionUnit: policy.promotion.unit, promotionLength: policy.promotion.length }
+      : { modelVersion: 1 as const, weeklyMinimum: policy.weeklyMinimum, preset: policy.preset, removalThreshold: policy.removalThreshold, allowedMissedDays: null, demotionUnit: null, demotionLength: null, promotionUnit: null, promotionLength: null };
+    const [saved] = await tx.insert(schema.vsCompliancePolicies).values({
+      id: nanoid(), allianceId, createdByHqUserId: actor.hqUserId,
+      version: policy.version, effectiveWeek: policy.effectiveWeek, enabled: policy.enabled,
+      dailyTarget: policy.dailyTarget, leewayPct: policy.leewayPct, ...columns,
+    }).returning();
+    await writeOfficerActionAudit({
+      sessionId: actor.sessionId,
+      allianceId,
+      hqUserId: actor.hqUserId,
+      action: "vs_compliance.policy_update",
+      severity: "override",
+      permission: VS_COMPLIANCE_SETTINGS_PERMISSION,
+      resourceType: "vs_compliance_policy",
+      resourceId: saved.id,
+      metadata: { previous: previous ? projectPolicy(previous) : null, next: projectPolicy(saved) },
+    });
     return projectPolicy(saved);
   });
 }

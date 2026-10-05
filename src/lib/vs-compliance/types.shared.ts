@@ -9,7 +9,25 @@ export type VsPolicy = {
   removalThreshold: number;
 };
 
-export type VsPolicyVersion = VsPolicy & { version: number; effectiveWeek: string };
+export type VsSequenceRule = { unit: "days" | "weeks"; length: number };
+
+export type VsLegacyPolicyVersion = VsPolicy & { modelVersion?: 1; version: number; effectiveWeek: string };
+
+export type VsDailyPolicyVersion = {
+  modelVersion: 2;
+  enabled: boolean;
+  dailyTarget: number;
+  leewayPct: number;
+  allowedMissedDays: number;
+  demotion: VsSequenceRule;
+  promotion: VsSequenceRule;
+  version: number;
+  effectiveWeek: string;
+};
+
+export type VsPolicyVersion = VsLegacyPolicyVersion | VsDailyPolicyVersion;
+
+export type VsPolicyDraft = VsPolicy | Omit<VsDailyPolicyVersion, "version" | "effectiveWeek">;
 
 export type VsComplianceMember = {
   active: boolean;
@@ -73,6 +91,7 @@ export type VsComplianceWeek = {
   pendingExcusal: boolean;
   waived: boolean;
   settled?: VsSettledAction;
+  days?: VsComplianceDay[];
 };
 
 export type VsComplianceEvaluation = {
@@ -87,6 +106,15 @@ export type VsComplianceEvaluation = {
   confirmationBasis: string;
   settled: VsSettledAction | null;
   correctionReview: boolean;
+  modelVersion?: 2;
+  provisional?: boolean;
+  days?: Array<{ date: string; assessment: "met" | "missed" | "excused" | "unknown" | "open"; score: number | null }>;
+  counts?: { required: number; met: number; missed: number; excused: number; unknown: number };
+  sequence?: {
+    demotion: { unit: "days" | "weeks"; length: number; progress: number | null; episode: { units: string[] } | null; recoveredAfter: string[] };
+    promotion: { unit: "days" | "weeks"; length: number; progress: number | null };
+  };
+  signal?: { kind: "none" | "concern" | "promotion"; targetRank: number | null; reached: boolean };
 };
 
 export class VsComplianceError extends Error {

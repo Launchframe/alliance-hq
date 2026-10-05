@@ -123,7 +123,7 @@ async function main() {
       "officer_intel:write",
     ]),
   ];
-  roleTemplates.officer.permissions = [...roleTemplates.officer.permissions, "vs_compliance:read", "vs_compliance:manage"];
+  roleTemplates.officer.permissions = [...roleTemplates.officer.permissions, "vs_compliance:read", "vs_compliance:manage", "vs_compliance:settings"];
   roleTemplates.data_entry.permissions = [
     ...new Set([
       ...roleTemplates.data_entry.permissions,

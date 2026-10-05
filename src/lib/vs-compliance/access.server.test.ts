@@ -9,7 +9,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.context.mockResolvedValue({ hqUserId: "canonical", roleName: "owner", isPlatformMaintainer: false, permissions: new Set(), currentAllianceId: "other-alliance" });
   mocks.session.mockResolvedValue({ hqUserId: "session-user" });
-  mocks.membership.mockResolvedValue({ roleName: "officer", permissions: new Set(["vs_compliance:read", "vs_compliance:manage"]) });
+  mocks.membership.mockResolvedValue({ roleName: "officer", permissions: new Set(["vs_compliance:read", "vs_compliance:manage", "vs_compliance:settings"]) });
   mocks.permission.mockResolvedValue(true);
 });
 
@@ -19,7 +19,12 @@ describe("alliance-scoped discipline access", () => {
     expect(actor).toEqual({ sessionId: "session", allianceId: "target-alliance", hqUserId: "canonical", boundHqUserId: "session-user" });
     expect(mocks.membership).toHaveBeenCalledWith("session", "canonical", "target-alliance");
     expect(mocks.permission).toHaveBeenCalledWith("session", "target-alliance", "vs_compliance:manage");
-    await expect(requireVsComplianceAccess("session", "target-alliance", "vs_compliance:settings")).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    await expect(requireVsComplianceAccess("session", "target-alliance", "vs_compliance:settings")).resolves.toMatchObject({ allianceId: "target-alliance" });
+    for (const roleName of [null, "member", "data_entry"]) {
+      mocks.membership.mockResolvedValue({ roleName, permissions: new Set(["vs_compliance:settings"]) });
+      await expect(requireVsComplianceAccess("session", "target-alliance", "vs_compliance:settings")).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    }
+    mocks.membership.mockResolvedValue({ roleName: "officer", permissions: new Set(["vs_compliance:read", "vs_compliance:manage", "vs_compliance:settings"]) });
   });
 
   it("requires the existing permission primitive as well as leadership role", async () => {

@@ -9,9 +9,27 @@ import type { ExcusedRecord } from "@/lib/time-off/excused-sync.shared";
 import { evaluateVsWeek, type VsEvidence } from "@/lib/vs-scores/evidence.shared";
 import { fetchRemoteVsScope } from "@/lib/vs-scores/sync.server";
 import { resolveComplianceJoin } from "./workflow.shared";
-import type { VsComplianceDay, VsComplianceMember, VsComplianceWeek } from "./types.shared";
+import { policyForVsWeek } from "./policy.shared";
+import type { VsComplianceDay, VsComplianceMember, VsComplianceWeek, VsPolicyVersion } from "./types.shared";
 
 export type ComplianceTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+export type VsPolicyRow = typeof schema.vsCompliancePolicies.$inferSelect;
+
+export function projectVsPolicyRow(row: VsPolicyRow): VsPolicyVersion {
+  if (row.modelVersion === 2) {
+    return {
+      modelVersion: 2, version: row.version, effectiveWeek: row.effectiveWeek, enabled: row.enabled,
+      dailyTarget: row.dailyTarget, leewayPct: row.leewayPct, allowedMissedDays: row.allowedMissedDays!,
+      demotion: { unit: row.demotionUnit!, length: row.demotionLength! },
+      promotion: { unit: row.promotionUnit!, length: row.promotionLength! },
+    };
+  }
+  return {
+    modelVersion: 1, version: row.version, effectiveWeek: row.effectiveWeek, enabled: row.enabled,
+    dailyTarget: row.dailyTarget, weeklyMinimum: row.weeklyMinimum, leewayPct: row.leewayPct,
+    preset: row.preset, removalThreshold: row.removalThreshold,
+  };
+}
 export type ExternalComplianceEvidence = { native: boolean; verifiedAt: Date | null; weeks: Map<string, Map<string, VsEvidence[]>>; excuses: ExcusedRecord[] };
 
 export async function prepareExternalEvidence(allianceId: string, weeks: string[]): Promise<ExternalComplianceEvidence> {
@@ -53,7 +71,7 @@ export async function lockCompliance(tx: ComplianceTx, allianceId: string) {
 
 export async function loadComplianceFacts(tx: ComplianceTx, allianceId: string) {
   const [alliance] = await tx.select().from(schema.alliances).where(eq(schema.alliances.id, allianceId)).limit(1);
-  const policies = await tx.select().from(schema.vsCompliancePolicies).where(eq(schema.vsCompliancePolicies.allianceId, allianceId));
+  const policies = (await tx.select().from(schema.vsCompliancePolicies).where(eq(schema.vsCompliancePolicies.allianceId, allianceId))).map(projectVsPolicyRow);
   const roster = await tx.select({ memberId: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, status: schema.allianceMembers.status, rank: schema.allianceMembers.allianceRank, joinDate: schema.allianceMembers.joinDate, updatedAt: schema.allianceMembers.updatedAt }).from(schema.allianceMembers).where(eq(schema.allianceMembers.allianceId, allianceId));
   const tenure = await tx.select({ memberId: schema.memberAllianceTenure.ashedMemberId, joinedAt: schema.memberAllianceTenure.joinedAt, leftAt: schema.memberAllianceTenure.leftAt }).from(schema.memberAllianceTenure).where(eq(schema.memberAllianceTenure.allianceId, allianceId));
   const memberships = await tx.select({ memberId: schema.commanderAllianceMemberships.ashedMemberId, joinedAt: schema.commanderAllianceMemberships.joinedAt, leftAt: schema.commanderAllianceMemberships.leftAt, status: schema.commanderAllianceMemberships.status }).from(schema.commanderAllianceMemberships).where(eq(schema.commanderAllianceMemberships.allianceId, allianceId));
@@ -117,9 +135,11 @@ export function resolveComplianceEvidence(facts: Awaited<ReturnType<typeof loadC
   return { evidence, daily, excused: daily.some((day) => day.excused), pendingExcusal: daily.some((day) => day.pendingExcusal) };
 }
 
-export function assembleComplianceWeek(facts: Awaited<ReturnType<typeof loadComplianceFacts>>, memberId: string, weekEnding: string, external: ExternalComplianceEvidence, previousRemote: VsEvidence[] = [], previousVerifiedAt: Date | null = null): VsComplianceWeek {
-  const { evidence, excused, pendingExcusal } = resolveComplianceEvidence(facts, memberId, weekEnding, external, previousRemote, previousVerifiedAt);
-  return { weekEnding, evidence, excused, pendingExcusal, waived: false };
+export function assembleComplianceWeek(facts: Awaited<ReturnType<typeof loadComplianceFacts>>, memberId: string, weekEnding: string, external: ExternalComplianceEvidence, previousRemote: VsEvidence[] = [], previousVerifiedAt: Date | null = null, policies?: readonly VsPolicyVersion[]): VsComplianceWeek {
+  const { evidence, daily, excused, pendingExcusal } = resolveComplianceEvidence(facts, memberId, weekEnding, external, previousRemote, previousVerifiedAt);
+  const result: VsComplianceWeek = { weekEnding, evidence, excused, pendingExcusal, waived: false };
+  if (policyForVsWeek(policies ?? facts.policies ?? [], weekEnding)?.modelVersion === 2) result.days = daily;
+  return result;
 }
 
 export async function loadComplianceStateVersion(allianceId: string): Promise<number> {

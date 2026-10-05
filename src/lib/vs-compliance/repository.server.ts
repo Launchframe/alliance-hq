@@ -9,7 +9,7 @@ import { canAccessVsCompliance, type VsCompliancePermission } from "./access.sha
 import type { VsComplianceActor } from "./access.server";
 import { assembleComplianceWeek, loadComplianceFacts, type ComplianceTx, type ExternalComplianceEvidence } from "./evidence.server";
 import { rebuildVsCompliance } from "./evaluate.shared";
-import { VsComplianceError } from "./types.shared";
+import { VsComplianceError, type VsPolicyVersion } from "./types.shared";
 
 export const complianceHash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export type ComplianceRow = typeof schema.vsComplianceEvaluations.$inferSelect;
@@ -27,12 +27,14 @@ export async function authorizeComplianceTx(tx: ComplianceTx, actor: VsComplianc
   if (!canAccessVsCompliance({ hqUserId: actor.hqUserId, isPlatformMaintainer: false, roleName: permissions[0]?.roleName ?? null, permissions: new Set(permissions.map((row) => row.permissionId)) }, permission)) throw new VsComplianceError("forbidden", 403);
 }
 
-export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, requestedWeeks: string[], external: ExternalComplianceEvidence) {
-  const facts = await loadComplianceFacts(tx, allianceId);
+export async function computeComplianceRows(tx: Pick<ComplianceTx, "select">, allianceId: string, requestedWeeks: string[], external: ExternalComplianceEvidence, options: { now?: Date; policiesOverride?: VsPolicyVersion[] } = {}) {
+  const facts = await loadComplianceFacts(tx as ComplianceTx, allianceId);
   if (!facts.alliance) throw new VsComplianceError("not_found", 404);
   const oldRows = await tx.select().from(schema.vsComplianceEvaluations).where(eq(schema.vsComplianceEvaluations.allianceId, allianceId));
   const actions = await tx.select().from(schema.vsComplianceActions).where(eq(schema.vsComplianceActions.allianceId, allianceId));
   const jobs = await tx.select().from(schema.vsComplianceSyncJobs).where(eq(schema.vsComplianceSyncJobs.allianceId, allianceId));
+  const policies = options.policiesOverride ?? facts.policies;
+  const now = options.now ?? new Date();
   const weeks = [...new Set([...requestedWeeks, ...oldRows.map((row) => row.weekEnding)])].sort();
   const rows: ComplianceRow[] = [];
   const changedRows: ComplianceRow[] = [];
@@ -40,7 +42,6 @@ export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, 
   const expungeIds: string[] = [];
   const inbox: Array<typeof schema.inboxReminderItems.$inferInsert> = [];
   const members = facts.members;
-  await tx.update(schema.inboxReminderItems).set({ active: 0 }).where(and(eq(schema.inboxReminderItems.allianceId, allianceId), eq(schema.inboxReminderItems.kind, "vs_compliance")));
   for (const roster of members) {
     const previous = oldRows.filter((row) => row.memberId === roster.memberId);
     const memberActions = actions.filter((action) => action.memberId === roster.memberId);
@@ -48,14 +49,14 @@ export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, 
     const inputs = weeks.map((weekEnding) => {
       const old = previous.find((row) => row.weekEnding === weekEnding);
       const id = old?.id ?? complianceHash([allianceId, roster.memberId, weekEnding]);
-      const input = assembleComplianceWeek(facts, roster.memberId, weekEnding, external, old?.remoteEvidence, old?.remoteVerifiedAt);
+      const input = assembleComplianceWeek(facts, roster.memberId, weekEnding, external, old?.remoteEvidence, old?.remoteVerifiedAt, policies);
       if (coveredThrough && weekEnding <= coveredThrough && old) input.eligibilitySnapshot = old.input.eligibilitySnapshot ?? old.memberSnapshot;
       const settled = memberActions.find((action) => action.eventId === id && action.kind !== "waive");
       input.waived = memberActions.some((action) => action.eventId === id && action.kind === "waive");
       if (settled && settled.kind !== "waive") input.settled = { actionId: settled.id, evaluationBasis: settled.evaluationBasis, kind: settled.kind, targetRank: settled.targetRank, memberSnapshot: settled.memberSnapshot };
       return input;
     });
-    const evaluations = rebuildVsCompliance({ weeks: inputs, policies: facts.policies, member: roster.member, now: new Date(), digest: complianceHash });
+    const evaluations = rebuildVsCompliance({ weeks: inputs, policies, member: roster.member, now, digest: complianceHash, consumedThrough: coveredThrough });
     const actionable = evaluations.filter((row) => (!coveredThrough || row.weekEnding > coveredThrough) && row.recommendation.kind !== "none").at(-1)?.weekEnding;
     for (let index = 0; index < evaluations.length; index++) {
       const evaluation = evaluations[index];
@@ -87,6 +88,12 @@ export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, 
       : `weekEnding=${encodeURIComponent(weekEnding)}`;
     inbox.push({ id: itemId, allianceId, kind: "vs_compliance", title: "VS compliance", body: null, href: `/vs-compliance?${eventQuery}`, resourceId: work?.id ?? null, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, active: active ? 1 : 0 });
   }
+  return { rows, changedRows, reviews, expungeIds, inbox, actions, jobs, facts };
+}
+
+export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, requestedWeeks: string[], external: ExternalComplianceEvidence) {
+  const { rows, changedRows, reviews, expungeIds, inbox, actions, jobs, facts } = await computeComplianceRows(tx, allianceId, requestedWeeks, external);
+  await tx.update(schema.inboxReminderItems).set({ active: 0 }).where(and(eq(schema.inboxReminderItems.allianceId, allianceId), eq(schema.inboxReminderItems.kind, "vs_compliance")));
   for (let offset = 0; offset < changedRows.length; offset += 200) await tx.insert(schema.vsComplianceEvaluations).values(changedRows.slice(offset, offset + 200)).onConflictDoUpdate({
     target: [schema.vsComplianceEvaluations.allianceId, schema.vsComplianceEvaluations.memberId, schema.vsComplianceEvaluations.weekEnding],
     set: { memberName: sql`excluded.member_name`, input: sql`excluded.input`, evaluation: sql`excluded.evaluation`, memberSnapshot: sql`excluded.member_snapshot`, remoteEvidence: sql`excluded.remote_evidence`, remoteVerifiedAt: sql`excluded.remote_verified_at`, updatedAt: sql`excluded.updated_at` },
