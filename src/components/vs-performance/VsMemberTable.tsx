@@ -60,7 +60,7 @@ function DayCell({ day, dayName }: { day: VsMemberDay; dayName: string }) {
     day.source === "derived" ? ` — ${t("derived")}` : ""
   }`;
   return (
-    <td className="whitespace-nowrap px-2 py-2 text-center text-xs">
+    <td className="relative whitespace-nowrap px-2 py-2 text-center text-xs">
       <span className="inline-flex flex-col items-center" title={stateLabel}>
         <span aria-hidden className="inline-flex flex-col items-center">
           {day.score !== null ? (

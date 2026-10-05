@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 
@@ -372,9 +372,7 @@ export function VsPerformanceClient({
       ) : (
         <div className={loading ? "space-y-4 opacity-60" : "space-y-4"}>
           {canViewMembers ? (
-            <Suspense>
-              <VsMemberPerformance weekStart={weekStart} />
-            </Suspense>
+            <VsMemberPerformance weekStart={weekStart} searchParams={searchParams} />
           ) : null}
           {autoPull.errorScope === payload.scope ? <p role="alert" className="text-sm text-hq-danger">{t("matchup.importFailed")}</p> : null}
           {autoPull.pullingScope === payload.scope ? <p role="status" className="text-sm text-hq-fg-muted">{t("actions.loading")}</p> : null}

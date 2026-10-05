@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -29,12 +29,13 @@ import {
 
 type Props = {
   weekStart: string;
+  searchParams: ReadonlyURLSearchParams;
 };
 
 const inputCls =
   "rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm text-hq-fg placeholder:text-hq-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-hq-accent";
 
-export function VsMemberPerformance({ weekStart }: Props) {
+export function VsMemberPerformance({ weekStart, searchParams }: Props) {
   const t = useTranslations("vsPerformance.members");
   const tActions = useTranslations("vsPerformance.actions");
   const tErrors = useTranslations("vsPerformance.errors");
@@ -42,7 +43,6 @@ export function VsMemberPerformance({ weekStart }: Props) {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const query = useMemo(() => vsMembersQueryFromSearchParams(searchParams), [searchParams]);
 

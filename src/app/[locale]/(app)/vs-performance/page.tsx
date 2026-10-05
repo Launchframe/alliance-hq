@@ -33,18 +33,21 @@ export default async function VsPerformancePage({ searchParams }: Props) {
   const weekStart = getWeekStartMonday(
     week && isVsCalendarDate(week) ? week : getServerCalendarDate(),
   );
-  const initial = await loadVsPerformanceWeek(session.id, weekStart);
-
   const memberAllianceId = session.currentAllianceId ?? session.allianceId;
-  let canViewMembers = false;
-  if (memberAllianceId) {
+  const checkMemberAccess = async () => {
+    if (!memberAllianceId) return false;
     try {
       await requireVsComplianceAccess(session.id, memberAllianceId, VS_COMPLIANCE_READ_PERMISSION);
-      canViewMembers = true;
+      return true;
     } catch (error) {
       if (!(error instanceof VsComplianceError) || error.code !== "forbidden") throw error;
+      return false;
     }
-  }
+  };
+  const [initial, canViewMembers] = await Promise.all([
+    loadVsPerformanceWeek(session.id, weekStart),
+    checkMemberAccess(),
+  ]);
 
   return (
     <div className="px-4 py-6 md:px-0">
