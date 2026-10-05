@@ -8,6 +8,7 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { AshedEmbedPane } from "@/components/hybrid-ashed/AshedEmbedPane";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { VsMatchupResults } from "@/components/vs-performance/VsMatchupResults";
+import { VsMemberPerformance } from "@/components/vs-performance/VsMemberPerformance";
 import { VsScreenshotCapture } from "@/components/vs-performance/VsScreenshotCapture";
 import { WeeklyPriceIsFreightPodium } from "@/components/vs-performance/WeeklyPriceIsFreightPodium";
 import { WeeklyVsPlan } from "@/components/vs-performance/WeeklyVsPlan";
@@ -19,12 +20,14 @@ import type { VsWeekPayload } from "@/lib/vs-performance/weekly-view.shared";
 type Props = {
   initial: VsWeekPayload;
   canUseAshedEmbeds: boolean;
+  canViewMembers: boolean;
   scoreTargetId: string | null;
 };
 
 export function VsPerformanceClient({
   initial,
   canUseAshedEmbeds,
+  canViewMembers,
   scoreTargetId,
 }: Props) {
   const t = useTranslations("vsPerformance");
@@ -368,6 +371,9 @@ export function VsPerformanceClient({
         </div>
       ) : (
         <div className={loading ? "space-y-4 opacity-60" : "space-y-4"}>
+          {canViewMembers ? (
+            <VsMemberPerformance weekStart={weekStart} searchParams={searchParams} />
+          ) : null}
           {autoPull.errorScope === payload.scope ? <p role="alert" className="text-sm text-hq-danger">{t("matchup.importFailed")}</p> : null}
           {autoPull.pullingScope === payload.scope ? <p role="status" className="text-sm text-hq-fg-muted">{t("actions.loading")}</p> : null}
           <VsMatchupResults
