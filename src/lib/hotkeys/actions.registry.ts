@@ -183,6 +183,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiresAllianceMemberLink: true,
   },
   {
+    id: "nav.myVsPerformance",
+    labelKey: "actions.nav.myVsPerformance",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/my-vs-performance",
+    requiredPermission: "members:read",
+  },
+  {
     id: "nav.professions",
     labelKey: "actions.nav.professions",
     category: "navigation",

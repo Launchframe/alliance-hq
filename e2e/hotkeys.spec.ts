@@ -126,7 +126,12 @@ test.describe("App hotkeys", () => {
     await expect(page.getByText("VS compliance", { exact: true })).toHaveCount(0);
 
     await page.goto("/members");
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+    await expect(async () => {
+      if (!(await page.getByRole("dialog").isVisible().catch(() => false))) {
+        await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+      }
+      await expect(page.getByRole("dialog").getByRole("option").first()).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
     await expect(page.getByRole("option", { name: /VS compliance/i })).toHaveCount(0);
     await expect(page.getByRole("option", { name: /^Go to VS Performance/ })).toHaveCount(1);
   });

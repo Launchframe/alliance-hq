@@ -264,6 +264,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiresAllianceMemberLink: true,
       },
       {
+        id: "my-vs-performance",
+        labelKey: "myVsPerformance",
+        href: "/my-vs-performance",
+        kind: "native",
+        requiredPermission: "members:read",
+      },
+      {
         id: "trains",
         labelKey: "trains",
         href: "/trains",

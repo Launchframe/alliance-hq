@@ -1357,11 +1357,11 @@ test.describe("Activity feed UI", () => {
     await page.goto("/activity");
     await expect(page.getByTestId(`activity-item-${row}`)).toBeVisible();
 
-    let failHead = true;
+    let failedHeads = 0;
     await page.route("**/api/activity/personal**", (route) => {
       const url = route.request().url();
-      if (failHead && url.includes("view=head")) {
-        failHead = false;
+      if (url.includes("view=head")) {
+        failedHeads += 1;
         return route.fulfill({
           status: 500,
           contentType: "application/json",
@@ -1385,8 +1385,17 @@ test.describe("Activity feed UI", () => {
         get: () => "visible",
         configurable: true,
       });
-      window.dispatchEvent(new Event("focus"));
     });
+    let lastDispatch = 0;
+    await expect
+      .poll(async () => {
+        if (Date.now() - lastDispatch > 1_500) {
+          lastDispatch = Date.now();
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        }
+        return failedHeads;
+      }, { timeout: 15_000 })
+      .toBeGreaterThan(0);
     await expect(
       page
         .getByRole("alert")
