@@ -604,7 +604,8 @@
     "organizationsAndPeople": "Organizations & people",
     "videoPipeline": "Video pipeline",
     "productQuality": "Product quality",
-    "platform": "Platform"
+    "platform": "Platform",
+    "historyImport": "History import"
   },
   "hybridAshed": {
     "hqPane": "Alliance HQ",

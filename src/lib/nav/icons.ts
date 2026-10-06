@@ -1,10 +1,12 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   ArrowLeft,
   BarChart3,
   BookOpen,
   Bot,
   Briefcase,
+  Building2,
   Bug,
   Calendar,
   ClipboardCheck,
@@ -25,9 +27,12 @@ import {
   Handshake,
   HelpCircle,
   History,
+  Inbox,
   Landmark,
   Layers,
   LayoutDashboard,
+  LayoutTemplate,
+  Library,
   LifeBuoy,
   ListChecks,
   ListVideo,
@@ -50,6 +55,7 @@ import {
   Star,
   Syringe,
   Target,
+  Ticket,
   Train,
   TreePalm,
   Trophy,
@@ -109,6 +115,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   storeSpend: Gift,
   allianceExercise: Flame,
   trains: Train,
+  trainsPage: Ticket,
   historyImport: History,
   battlePlan: MapPinned,
   plunderPlan: ScrollText,
@@ -132,6 +139,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   discordTrainGuide: LifeBuoy,
   allianceOnboardingGuide: Users,
   openAshed: ExternalLink,
+  professionsPage: Library,
 
   // Admin families
   adminOverview: LayoutDashboard,
@@ -143,10 +151,12 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
 
   // Admin destinations
   overview: LayoutDashboard,
-  inbox: Mail,
+  adminOverviewPage: LayoutTemplate,
+  opsInbox: Inbox,
   system: Monitor,
   gameSeasons: Calendar,
   hqUsers: Users,
+  adminAlliances: Building2,
   commanders: Crown,
   commendations: Medal,
   videoJobs: ListVideo,
@@ -162,6 +172,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   vsInventoryItems: ClipboardList,
   audit: ScrollText,
   hqEvents: Trophy,
+  adminActivity: Activity,
   backToAllianceHq: ArrowLeft,
 };
 

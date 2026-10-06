@@ -1,7 +1,7 @@
 "use client";
 
 import { createElement, useCallback, useMemo, useState } from "react";
-import { ChevronDown, Loader2, Star, X } from "lucide-react";
+import { ChevronDown, ExternalLink, Loader2, Star, X } from "lucide-react";
 import Image from "next/image";
 import { useLinkStatus } from "next/link";
 import { useTranslations } from "next-intl";
@@ -638,6 +638,15 @@ export function SidebarNav({
             </span>
           </button>
         ) : null}
+        <a
+          href="https://ashed.online"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+        >
+          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+          {tNav("openAshed")}
+        </a>
         <SidebarAppearanceToggle />
         <p>{t.rich("dataPoweredBy", { link: ashedLink })}</p>
         <p className="mt-1.5 font-mono text-[10px] text-hq-fg-subtle">
