@@ -89,6 +89,8 @@ Shipped preset shapes:
 
 **Slots are calendar weekdays.** `trainWeekStartDow` is render logic only — "what day does your calendar show the week starting on?" It never changes which rule applies to a date. There is no composite-segment registry and no Tue=0 indexing; a week is simply seven day rules, and applying a template is seven independent paints grouped by rule.
 
+**Settings preview:** template cards rotate the seven stored slots forward by the currently selected conductor lead days so officers can visualize the effective shape before saving the setting. This is display-only: editing, persistence, sharing, and template paint continue to use the canonical calendar-weekday slots.
+
 ### `train_week_schedules.week_start` is always Monday
 
 Schedule rows are keyed by the **Monday calendar week**, normalized inside `repository.ts` (`scheduleWeekStart`) so no caller can key one by a display preference. Otherwise changing `trainWeekStartDow` would silently repoint an alliance at a different row and orphan its template and pivot flag.

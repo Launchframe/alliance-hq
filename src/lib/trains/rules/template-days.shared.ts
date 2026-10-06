@@ -9,6 +9,7 @@ import {
 import {
   WEEKDAY_KEYS,
   weekdayKeyForDate,
+  weekdayKeyForDow,
   type TemplateWeekRules,
   type WeekdayKey,
 } from "@/lib/trains/rules/presets.shared";
@@ -16,6 +17,7 @@ import {
   conductorRuleSourceDay,
   validateConductorRuleOnWeekday,
 } from "@/lib/trains/rules/derive.shared";
+import { clampTrainConductorLeadTimeDays } from "@/lib/trains/vs-week-days.shared";
 
 export type { TemplateWeekRules, WeekdayKey };
 
@@ -88,6 +90,25 @@ export function validateTemplateWeekRules(
     }
   });
   return warnings;
+}
+
+/**
+ * Rotate canonical template slots for the settings-page lead-time preview.
+ *
+ * This never changes the stored template or paint semantics: a canonical rule
+ * on day D is shown on D + leadDays so officers can visualize their lead-time
+ * selection before saving it.
+ */
+export function templateWeekRulesForLeadTimePreview(
+  days: TemplateWeekRules,
+  leadDays = 0,
+): TemplateWeekRules {
+  const lead = clampTrainConductorLeadTimeDays(leadDays);
+  const preview = {} as TemplateWeekRules;
+  WEEKDAY_KEYS.forEach((weekday, displayDow) => {
+    preview[weekday] = days[weekdayKeyForDow(displayDow - lead)];
+  });
+  return preview;
 }
 
 export { conductorRuleSourceDay, WEEKDAY_KEYS };

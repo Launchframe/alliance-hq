@@ -11,11 +11,17 @@ import { allianceTrainLeadTimeApiPath } from "@/lib/alliance/alliance-settings-p
 
 type Props = {
   allianceTag: string;
+  initialLeadDays?: number;
+  onLeadDaysChange?: (leadDays: number) => void;
 };
 
-export function AllianceTrainLeadTimeSettings({ allianceTag }: Props) {
+export function AllianceTrainLeadTimeSettings({
+  allianceTag,
+  initialLeadDays,
+  onLeadDaysChange,
+}: Props) {
   const t = useTranslations("settings.trains.leadTime");
-  const [leadDays, setLeadDays] = useState(0);
+  const [leadDays, setLeadDays] = useState(initialLeadDays ?? 0);
   const [confirmationEnabled, setConfirmationEnabled] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,7 +49,9 @@ export function AllianceTrainLeadTimeSettings({ allianceTag }: Props) {
           return;
         }
         if (!cancelled) {
-          setLeadDays(body.trainConductorLeadTimeDays ?? 0);
+          const loadedDays = body.trainConductorLeadTimeDays ?? 0;
+          setLeadDays(loadedDays);
+          onLeadDaysChange?.(loadedDays);
           setConfirmationEnabled(
             body.trainConductorConfirmationEnabled === true,
           );
@@ -61,7 +69,7 @@ export function AllianceTrainLeadTimeSettings({ allianceTag }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [allianceTag, t]);
+  }, [allianceTag, onLeadDaysChange, t]);
 
   const save = async () => {
     setBusy(true);
@@ -87,6 +95,7 @@ export function AllianceTrainLeadTimeSettings({ allianceTag }: Props) {
       }
       const nextDays = body.trainConductorLeadTimeDays ?? leadDays;
       setLeadDays(nextDays);
+      onLeadDaysChange?.(nextDays);
       setConfirmationEnabled(
         body.trainConductorConfirmationEnabled ?? confirmationEnabled,
       );
@@ -127,11 +136,15 @@ export function AllianceTrainLeadTimeSettings({ allianceTag }: Props) {
               min={0}
               max={7}
               value={leadDays}
-              onChange={(e) =>
-                setLeadDays(
-                  Math.max(0, Math.min(7, Number(e.target.value) || 0)),
-                )
-              }
+              data-testid="train-conductor-lead-days"
+              onChange={(e) => {
+                const next = Math.max(
+                  0,
+                  Math.min(7, Number(e.target.value) || 0),
+                );
+                setLeadDays(next);
+                onLeadDaysChange?.(next);
+              }}
               className="w-24 rounded-lg border border-hq-border bg-hq-bg px-3 py-2 text-sm text-hq-fg"
             />
           </fieldset>

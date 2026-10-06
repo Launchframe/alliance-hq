@@ -435,6 +435,7 @@ export function AllianceTrainTemplatesSettings({
                 <div className="mt-3">
                   <TemplateWeekShapeStrip
                     days={template.days}
+                    leadDays={leadDays}
                     ruleTextLabels={ruleTextLabels}
                   />
                 </div>

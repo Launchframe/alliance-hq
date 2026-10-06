@@ -471,6 +471,58 @@ test.describe("Train rule templates", () => {
     );
   });
 
+  test("the template shape preview rotates immediately with the lead-days input", async ({
+    request,
+    page,
+  }) => {
+    const officer = await setupOfficer(request, "owner");
+    const headers = {
+      Cookie: officer.cookieHeader,
+      "Content-Type": "application/json",
+    };
+
+    const r4Day = {
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
+    };
+    const freeDay = { conductorRule: null, vipRule: null };
+    const created = await request.post("/api/trains/rule-templates", {
+      headers,
+      data: {
+        name: `Weekend R4 ${nanoid(4)}`,
+        days: {
+          sun: r4Day,
+          mon: freeDay,
+          tue: freeDay,
+          wed: freeDay,
+          thu: freeDay,
+          fri: freeDay,
+          sat: r4Day,
+        },
+      },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    const templateId = (await created.json()).template.id as string;
+
+    await page.context().addCookies(officer.cookies);
+    await page.goto("/settings/trains");
+
+    const row = page.getByTestId(`trains-template-row-${templateId}`);
+    await expect(row).toBeVisible();
+    const tile = (day: string) =>
+      row.getByTestId(`trains-template-week-shape-${day}`);
+
+    await expect(tile("sat")).toHaveAttribute("data-rule", "r4_rotation");
+    await expect(tile("sun")).toHaveAttribute("data-rule", "r4_rotation");
+    await expect(tile("mon")).toHaveAttribute("data-rule", "free_choice");
+
+    await page.getByTestId("train-conductor-lead-days").fill("1");
+
+    await expect(tile("sun")).toHaveAttribute("data-rule", "r4_rotation");
+    await expect(tile("mon")).toHaveAttribute("data-rule", "r4_rotation");
+    await expect(tile("sat")).toHaveAttribute("data-rule", "free_choice");
+  });
+
   test("a member without trains:write cannot create a template", async ({
     request,
   }) => {
