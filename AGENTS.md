@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Pre-commit and Pre-PR gates
 
-Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) must pass, in order (matches `.husky/pre-commit`):
+[`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) is the canonical validation/efficiency policy for Devin and Cursor, including stacked PRs, cache preservation, and browser parallelism. It takes precedence over older per-PR full-gate instructions in global skills. Normal `.husky/pre-commit` hooks run these checks in order; let the hook supply them once rather than duplicating them manually:
 
 1. `npx tsc --noEmit`
 2. `npm run lint`
@@ -16,7 +16,9 @@ Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE
 
 Do not commit while any gate is failing.
 
-**GitHub will not run CI through 1 Sep 2026** (Actions credit freeze: **CI** and **Cleanup Neon preview branch** are disabled; org budget **$0**). Empty or skipped GitHub checks are expected — they are **not** a pass. Before marking ready, merging to **`main`**, or pushing a non-draft PR: also **`npm run build`** and **`npm run test:e2e`** (skip Playwright for docs-only). Detail: **`.cursor/rules/gha-credit-freeze.mdc`**.
+**GitHub CI remains disabled under the Actions credit freeze.** Missing checks are not a pass. For a standalone product PR, run the full gate before marking ready, an authorized merge, or a non-draft push. **For a stack, fix on the owning branches, merge parent fixes through every descendant, then run one full gate from the final tip**, recording all covered SHAs. Normal commit hooks and focused regressions still apply on each branch. `npm run test:e2e` includes the guarded production build; do not build twice. Docs/rules-only changes use hooks plus documentation checks, with build/Playwright N/A.
+
+**Preserve `.next`, `.next-e2e`, `node_modules`, and download caches.** No routine clean builds, dependency-tree removal, or `npm ci` in a populated checkout. Cache removal requires a specific diagnosis and approval. Browser specs run with two workers plus an ordered exclusive-project chain for shared-state tests; do not disable dependency isolation for a full gate. See [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) for commands, invalidation rules, and evidence requirements.
 
 ## Supported locales
 
@@ -42,7 +44,7 @@ HQ supports three locales: `en-US` (source), `pt-BR` (hand-translated), and `id`
 
 ## E2E plan completion
 
-Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` locally before marking a plan complete or opening a PR. **GitHub CI e2e will not run** through **1 Sep 2026** (credit freeze).
+Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes. In a stack, the full run belongs at the final combined tip, after focused branch regressions and parent propagation; disclose intermediate WIP validation as pending. Follow [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md), not a redundant full run per PR. Missing GitHub CI is not validation.
 
 ## Checkout policy — primary clone first; worktrees are opt-in
 
@@ -71,7 +73,7 @@ Before wiring a client component to shared logic, trace the import chain:
 
 Apply on every Real Steel pass for this repo:
 
-- **Pre-PR gate on every pass that will push** — GitHub **CI is disabled** (credit freeze). Husky covers typecheck / lint / Vitest / i18n / journal on commit. Before **push** to a non-draft PR, also run **`npm run build`** and **`npm run test:e2e`** (skip Playwright for docs-only). Do not wait for GitHub checks. See **`PRE_COMMIT_GATE.md`**, **`.cursor/rules/gha-credit-freeze.mdc`**.
+- **Efficient Pre-PR gate** — follow **`PRE_COMMIT_GATE.md`**: normal hooks per commit; one full gate on the final combined stack tip, not per parent. Fix findings on their owning branches and merge forward before that gate. Playwright's guarded production build counts as the build gate; docs-only changes do not need build/browser runs. Reuse unchanged evidence, never stale evidence. Do not wait for disabled GitHub CI.
 - **Client bundle hygiene** — `"use client"` files must not transitively import `@/lib/db`, `@/lib/session`, rank-sync, or other server-only modules; use `*.shared.ts` + API routes (see **Client vs server imports** above)
 - **RBAC enforcement** — every new/changed BFF route calls `requireSessionPermission` or equivalent; platform maintainer checks on `/admin/*` and `/api/admin/*`. **Also run the permission primitive pass** — audit `sessionHasPermission` / `sessionHasPermissionForAlliance`, not only route-level guards ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § A).
 - **Auth architecture pass** — on auth/RBAC/session/admin PRs: trace session mint (bootstrap, `getOrCreateSession`) → bind (`hq_user_id`) → primitive → handler; prove anonymous sessions cannot reach privileged routes ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § A, F).
@@ -167,7 +169,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 ## Learned User Preferences
 
 - During OCR-stack validation, comparable fixture-only browser/session isolation repairs are approved as separate maintenance slices. Preserve all permission assertions; this does not authorize production-auth changes or weaker tests.
-- Rebase stacked child PRs (`git rebase --onto`) when the parent was pre-rebase — do not merge conflict resolutions into the child.
+- Propagate stacked fixes with normal direct-parent merges only while the parent's history is preserved. Before merging, verify that the recorded old parent tip is an ancestor of the fetched parent tip. If the parent was rebased/force-pushed or that ancestry cannot be established, stop: do not merge the rewritten parent into its child. Propose a bounded `git rebase --onto` repair using the verified old parent boundary, and obtain explicit approval for that rewrite and any required force-push. Routine stack updates remain merge-based.
 - On `_journal.json` merge conflicts, keep main's migration and renumber the branch SQL + journal tag; propagate renumbers parent→child in stacked work — never drop migration SQL or journal entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
 - Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.
@@ -175,7 +177,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Start feature work on a topic branch in the primary clone; worktrees are opt-in (maintainer request or colliding-session contention).
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
-- Run `npm run test:e2e` locally before pushing PR branch updates. GitHub CI will not run it through 1 Sep 2026 (`.cursor/rules/gha-credit-freeze.mdc`).
+- Apply `PRE_COMMIT_GATE.md` before publishing product PR updates: one full local gate at the final stack tip covers the recorded parent SHAs; do not repeat it on every parent. Report any explicitly needed intermediate push as validation pending.
 
 ## Learned Workspace Facts
 

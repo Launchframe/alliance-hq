@@ -10,6 +10,8 @@ This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SK
 
 **This file adds Alliance HQ completion requirements and orchestrator isolation rules.**
 
+Validation follows the shared [canonical policy](../../../PRE_COMMIT_GATE.md), overriding older full-gate-per-PR/pass instructions: normal hooks per commit, focused regressions on owning branches, parent fixes merged through the stack, and one full gate at the final combined tip. Reuse evidence only for unchanged inputs. Preserve build/dependency caches and use the default parallel/exclusive browser schedule. The guarded Playwright build satisfies the build gate; do not run it twice.
+
 ## Primary clone by default — worktrees are opt-in
 
 A request for Real Steel is not by itself a request for a worktree. Use the PR's topic branch in the primary clone and run writing passes sequentially. Check that the checkout is clean and no other writer owns it before switching branches; otherwise ask the maintainer (wait/serialize vs worktree).
