@@ -132,7 +132,7 @@ describe("parseWarzoneLeaderboardLines", () => {
     expect(rows[2].actualScore).toBe("2000");
   });
 
-  it("drops rows carrying a foreign alliance tag", () => {
+  it("keeps rows carrying a foreign alliance tag for dedup to decide", () => {
     const rows = parseWarzoneLeaderboardLines(
       [
         ...leaderboardHeaders(),
@@ -143,7 +143,8 @@ describe("parseWarzoneLeaderboardLines", () => {
       H,
       "LFgo",
     );
-    expect(rows.map((row) => row.name)).toEqual(["ST1tCH"]);
+    expect(rows.map((row) => row.name)).toEqual(["ST1tCH", "TwinName"]);
+    expect(rows[1]!.allianceTag).toBe("XYZw");
   });
 
   it("keeps tag-less rows when the tag line is unreadable", () => {

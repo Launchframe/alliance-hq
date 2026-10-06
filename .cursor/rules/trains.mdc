@@ -28,8 +28,12 @@ type ConductorRule =
   | { kind: "rank_pool"; pool: "r3" | "r4_plus" | "heavy_hitter"; draw: "wheel" | "manual" }
   | { kind: "price_is_freight"; board: "weekday" | "heavy_hitter" }
   | { kind: "donations_top" }
-  | { kind: "event_top_x"; eventKey: string; topN: number };
+  | { kind: "event_top_x"; eventKey: string; topN: number }   // legacy, decode/display only
+  | { kind: "event_scores"; source: { target; seriesId; occurrenceId; boardKey; teamScope };
+      eligibility: "scored" | "participants"; topN: number | "all"; fallback: "none" | "confirmed_poll_yes" };
 ```
+
+**`event_scores`** is the current event rule: it binds a `hq_events` occurrence (or, in a template, only a family/series intent — `occurrenceId` is always null there). `event_top_x` is **history only**: never offer it as a new selection; every surface (week strip, month calendar, guided flow, advanced pickers, template editor) renders it as `eventEvidence.eventNotSelected` with a Choose/Configure action that opens the event picker.
 
 **`null` is free choice** — a real value meaning "an officer assigns anyone", not "unset". For VIP, `null` is the conductor's pick and `{ kind: "none" }` is a skipped VIP.
 
@@ -194,6 +198,7 @@ The scope is part of the rule, so it cannot be dropped in transit. Palette entri
 - **Top score rank eligibility** (`isMemberEligibleForTopScoreTrain` in `train-top-score-eligibility.shared.ts`; settings `alliances.train_top_score_min_rank` + `alliances.train_top_score_includes_r4_plus`, **defaults minimum R3 + R4/R5 enabled**, managed under Settings → Trains → Top score train eligibility) — the minimum rank slider admits effective **R1–R3** ranks `>= minimum` (choices 1|2|3); **null/unknown rank counts as R1** (Last War has no unranked members); **R4/R5** are eligible only when the include-R4+ toggle is on, independently of the slider; values outside R1–R5 fail closed. Ranks resolve as of the train date via `getAllianceRanksAsOf` + `resolveMemberPoolAllianceRank` (HQ rank events beat stale synced rank), and the filter runs **before** the Top N sort/slice so an excluded high scorer does not consume a slot. The same predicate governs the **`donations_top`** Top Donations score-board draw when HQ stores a donation score ledger — today that draw cannot spin (no donation scores; manual pick only). It does **not** gate manual conductor/VIP picks, rank pools, or Price Is Freight.
 - **Top VR** (`vr_top_n`) — HQ `memberSeasonVr` among active roster members; readiness kind `vr`.
 - **Event Top X VIP** — HQ season VR / event scores.
+- **Event results (`event_scores`)** — the `hq_event_*` evidence ledger for the bound occurrence/board (`event-eligibility.server.ts`; preview `POST /api/trains/event-eligibility`). `eligibility: "scored"` draws from reviewed leaderboard scores (`topN` or `"all"`; `participants` (Warzone VIP) draws all participants incl. confirmed Yes. Warzone conductor may allow `confirmed_poll_yes` fallback only after `confirmPollFallback` acknowledge. The bound event's readiness gates the wheel — **interactive-only draws**: there is no background/cron path, so readiness is evaluated at paint/preview/spin time by an officer. Spin sends `expectedEligibilityFingerprint`; `ELIGIBILITY_CHANGED` / `EVENT_NOT_SELECTED` / `READINESS_INVALIDATED` / `CONFIRM_POLL_FALLBACK` are recoverable through `WheelBlockedDialog`. An unbound `event_scores` day (e.g. freshly applied template) shows `eventNotSelected` + Choose on every surface.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.
 - Donation wheels require manual officer picks until HQ stores donation scores.
 - Do not show schedule preview before roster import (`activeMemberCount === 0`).

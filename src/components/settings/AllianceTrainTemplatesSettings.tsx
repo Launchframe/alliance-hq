@@ -83,6 +83,8 @@ export function AllianceTrainTemplatesSettings({
     for (const key of ["vsTop1", "vsTopN", "vrTopN"] as const) {
       labels[key] = tRules(key);
     }
+    // Event rules resolve outside trains.rules (eventEvidence.title).
+    labels.eventScores = ruleLabelText("eventScores", tRules, tEventEvidence);
     return labels;
   }, [tRules, tEventEvidence]);
 

@@ -108,6 +108,7 @@ async function main() {
       ...roleTemplates.officer.permissions,
       "hq:audit:read",
       "hq:video:enqueue",
+      "hq:events:write",
       "trains:write",
       "inbox:read",
       "eur:schedules:write",

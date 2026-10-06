@@ -71,12 +71,17 @@ type Props = {
   /** Palette-row labels for the day-rule menu. */
   ruleLabels?: Record<DayRulePaletteId, string>;
   /** Per-occurrence summary for `event_scores` cells (family/scope label). */
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   /** Officers/admins may open the day-template menu. */
   canPaintDays?: boolean;
   /** Per-date gate (today/future for officers; admins may paint past). */
   isDatePaintable?: (date: string) => boolean;
   onPaintDate?: (date: string, rule: ConductorRule | null) => void;
+  /** Event results menu entries open the shared event rule picker. */
+  onConfigureEvent?: (date: string) => void;
   vrReporterCount?: number;
   navLabels: {
     previousWeek: string;
@@ -138,7 +143,10 @@ type DayCellOptions = {
   weekEnd: string;
   showDetail: boolean;
   ruleTextLabels: Record<string, string>;
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   scoreStats?: TrainDayScoreStats | null;
   className?: string;
   layout?: "grid" | "carousel";
@@ -186,15 +194,16 @@ function WeekScheduleDayCell({
   const weekday = weekdayLabel(day.date);
   const vipLabel =
     day.vipRule?.kind !== "none"
-      ? (day.vipRule?.kind === "event_scores"
-          ? (eventRuleSummary?.(day.vipRule) ?? null)
+      ? (day.vipRule?.kind === "event_scores" ||
+        day.vipRule?.kind === "event_top_x"
+          ? (eventRuleSummary?.(day.vipRule, day.sourceTemplateId) ?? null)
           : null) ??
         (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null)
       : null;
   const displayScope = scopeForRule(displayRule);
   const conductorLineLabel =
-    displayRule?.kind === "event_scores"
-      ? (eventRuleSummary?.(displayRule) ??
+    displayRule?.kind === "event_scores" || displayRule?.kind === "event_top_x"
+      ? (eventRuleSummary?.(displayRule, day.sourceTemplateId) ??
         ruleTextLabels[conductorRuleLabelKey(displayRule)] ??
         paletteIdForRule(displayRule))
       : `${
@@ -371,7 +380,10 @@ type CarouselProps = {
   today: string;
   selectedDate: string;
   ruleTextLabels: Record<string, string>;
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   canPaintDays?: boolean;
   isDatePaintable?: (date: string) => boolean;
   onOpenTemplateMenu?: (anchor: DayTemplateMenuAnchor) => void;
@@ -642,6 +654,7 @@ export function WeekScheduleStrip({
   canPaintDays = false,
   isDatePaintable,
   onPaintDate,
+  onConfigureEvent,
   vrReporterCount = 0,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
@@ -930,6 +943,7 @@ export function WeekScheduleStrip({
         ruleLabels={ruleLabels ?? ({} as Record<DayRulePaletteId, string>)}
         vrReporterCount={vrReporterCount}
         onSelect={handlePaintTemplate}
+        onConfigureEvent={onConfigureEvent}
         onClose={handleCloseTemplateMenu}
       />
     </div>

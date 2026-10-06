@@ -19,6 +19,7 @@ import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
 import {
   conductorRuleLabelKey,
+  eventUnboundLabelKey,
   ruleLabelText,
   type ConductorRule,
 } from "@/lib/trains/rules/catalog.shared";
@@ -39,6 +40,14 @@ export type TrainsGuidedConductorFlowProps = {
    * `ready` null = still loading/unknown (non-blocking); false = blocked.
    */
   eventEvidence?: { ready: boolean | null; eventId: string | null } | null;
+  /** Opens the shared event rule picker (unbound / legacy event days). */
+  onConfigureEvent?: () => void;
+  /**
+   * Template this day was painted from. When set and the conductor rule is
+   * an unbound `event_scores` intent, the unbound label uses the
+   * shared-template helper (`importedEventNeedsSelection`).
+   */
+  eventSourceTemplateId?: string | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
@@ -245,6 +254,8 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const {
     conductorRule,
     eventEvidence = null,
+    onConfigureEvent,
+    eventSourceTemplateId = null,
     templateDetailHint,
     vsDataStatus,
     conductorMinimumsDataStatus = null,
@@ -306,9 +317,22 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   }, [lockConfirm]);
 
   const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
-  const eventEvidenceRequired = conductorRule?.kind === "event_scores";
-  const eventEvidenceReady =
-    eventEvidenceRequired && eventEvidence ? eventEvidence.ready : null;
+  // Legacy event_top_x and unbound event_scores days block like missing
+  // evidence, but with a "choose the event" recovery instead.
+  const eventUnbound =
+    conductorRule?.kind === "event_top_x" ||
+    (conductorRule?.kind === "event_scores" &&
+      !conductorRule.source.occurrenceId);
+  const eventEvidenceRequired =
+    conductorRule?.kind === "event_scores" ||
+    conductorRule?.kind === "event_top_x";
+  const eventEvidenceReady = eventEvidenceRequired
+    ? eventUnbound
+      ? false
+      : eventEvidence
+        ? eventEvidence.ready
+        : null
+    : null;
   const prerequisiteRequired = vsRequired || eventEvidenceRequired;
   const rosterRequired = Boolean(rosterDataStatus?.required);
   const guidedInput = {
@@ -328,11 +352,17 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
 
   const rulePaletteId = paletteIdForRule(conductorRule);
   const ruleScope = scopeForRule(conductorRule);
-  const conductorPickLabel = `${ruleLabelText(
-    conductorRuleLabelKey(conductorRule),
-    tRules,
-    tEventEvidence,
-  )}${ruleScope != null ? ` ${ruleScope}` : ""}`;
+  const eventUnboundKey = eventUnbound
+    ? (eventUnboundLabelKey(conductorRule, eventSourceTemplateId) ??
+      "eventNotSelected")
+    : null;
+  const conductorPickLabel = eventUnboundKey
+    ? tEventEvidence(eventUnboundKey)
+    : `${ruleLabelText(
+        conductorRuleLabelKey(conductorRule),
+        tRules,
+        tEventEvidence,
+      )}${ruleScope != null ? ` ${ruleScope}` : ""}`;
   const ruleDetailKey = `ruleDetails.${rulePaletteId}` as const;
   const conductorPickHint =
     templateDetailHint ??
@@ -539,7 +569,28 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             status={prerequisitesStatus}
             title={t("steps.prerequisites.title")}
           >
-            {prerequisitesStatus === "current" && eventEvidenceRequired ? (
+            {prerequisitesStatus === "current" &&
+            eventEvidenceRequired &&
+            eventUnbound ? (
+              <div
+                className="flex flex-col gap-2"
+                data-testid="trains-guided-prerequisites"
+              >
+                <p className="text-sm text-hq-fg">
+                  {tEventEvidence(eventUnboundKey ?? "eventNotSelected")}
+                </p>
+                {onConfigureEvent ? (
+                  <button
+                    type="button"
+                    data-testid="trains-guided-configure-event"
+                    onClick={onConfigureEvent}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                  >
+                    {tEventEvidence("chooseEvent")}
+                  </button>
+                ) : null}
+              </div>
+            ) : prerequisitesStatus === "current" && eventEvidenceRequired ? (
               <div
                 className="flex flex-col gap-2"
                 data-testid="trains-guided-prerequisites"

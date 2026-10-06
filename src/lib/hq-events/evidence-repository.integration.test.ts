@@ -317,6 +317,81 @@ describe.skipIf(process.env.EVENT_EVIDENCE_DB_TEST !== "1")(
       ).rejects.toMatchObject({ code: "import_incomplete" });
     });
 
+    it("readySources: rejects unknown/empty/foreign-board ids, scopes empty check", async () => {
+      const { sql, actor, eventId, boardId } = await setup();
+      // Unknown id and empty array both reject.
+      const [v] =
+        await sql`SELECT evidence_version FROM hq_event_boards WHERE id = ${boardId}`;
+      await expect(
+        confirmEventReadiness(actor, {
+          eventId, boardId, expectedEvidenceVersion: v!.evidence_version,
+          action: "mark", readySources: [`nope-${nanoid(6)}`],
+          emptyConfirmed: true,
+        }),
+      ).rejects.toMatchObject({ code: "invalid_ready_sources" });
+      await expect(
+        confirmEventReadiness(actor, {
+          eventId, boardId, expectedEvidenceVersion: v!.evidence_version,
+          action: "mark", readySources: [], emptyConfirmed: true,
+        }),
+      ).rejects.toMatchObject({ code: "invalid_ready_sources" });
+      // A committed batch on a DIFFERENT board is not a valid source.
+      const otherBoard = `bd-${nanoid(10)}`;
+      await sql`INSERT INTO hq_event_boards (id, alliance_id, hq_event_id, board_key, name, evidence_version, created_at, updated_at)
+        VALUES (${otherBoard}, ${actor.allianceId}, ${eventId}, 'other', 'Other', 1, ${new Date()}, ${new Date()})`;
+      const other = await commitReviewedEventEvidence(actor, {
+        eventId, requestId: `req-${nanoid(8)}`, sourceKind: "manual",
+        boards: [{ boardId: otherBoard, observations: [obs({ memberId: "m-other" })] }],
+      });
+      await expect(
+        confirmEventReadiness(actor, {
+          eventId, boardId, expectedEvidenceVersion: v!.evidence_version,
+          action: "mark", readySources: [other.batchId], emptyConfirmed: true,
+        }),
+      ).rejects.toMatchObject({ code: "invalid_ready_sources" });
+      // Commit one real scored batch on this board.
+      const good = await commitReviewedEventEvidence(actor, {
+        eventId, requestId: `req-${nanoid(8)}`, sourceKind: "manual",
+        boards: [{ boardId, observations: [obs({ memberId: "m-scored" })] }],
+      });
+      const [v2] =
+        await sql`SELECT evidence_version FROM hq_event_boards WHERE id = ${boardId}`;
+      // An empty committed batch contributes no scored members → needs confirm.
+      const empty = await commitReviewedEventEvidence(actor, {
+        eventId, requestId: `req-${nanoid(8)}`, sourceKind: "manual",
+        boards: [{ boardId, observations: [] }],
+      });
+      const [v3] =
+        await sql`SELECT evidence_version FROM hq_event_boards WHERE id = ${boardId}`;
+      await expect(
+        confirmEventReadiness(actor, {
+          eventId, boardId, expectedEvidenceVersion: v3!.evidence_version,
+          action: "mark", readySources: [empty.batchId],
+        }),
+      ).rejects.toMatchObject({ code: "empty_confirmation_required" });
+      // The scored batch alone satisfies the check.
+      const marked = await confirmEventReadiness(actor, {
+        eventId, boardId, expectedEvidenceVersion: v3!.evidence_version,
+        action: "mark", readySources: [good.batchId],
+      });
+      expect(marked.readyVersion).toBe(v3!.evidence_version);
+      void v2;
+    });
+
+    it("loadEventEvidence hides sync items for alliances without an Ashed link", async () => {
+      const { sql, actor, eventId, boardId } = await setup();
+      // Queue a sync item directly — simulates a backfill queued pre-unlink.
+      await sql`INSERT INTO hq_event_sync_items (id, alliance_id, hq_event_id, board_id, remote_key, member_id, desired_revision, status, created_at, updated_at)
+        VALUES (${`sync-${nanoid(8)}`}, ${actor.allianceId}, ${eventId}, ${boardId}, ${`rk-${nanoid(6)}`}, 'm-x', 1, 'pending', ${new Date()}, ${new Date()})`;
+      const unlinked = await loadEventEvidence(actor, { eventId, boardId });
+      expect(unlinked!.syncItems).toEqual([]);
+      // Link the alliance → the queued item surfaces again.
+      await sql`UPDATE alliances SET ashed_alliance_id = ${`ashed-${nanoid(8)}`} WHERE id = ${actor.allianceId}`;
+      const linked = await loadEventEvidence(actor, { eventId, boardId });
+      expect(linked!.syncItems).toHaveLength(1);
+      expect(linked!.syncItems[0]!.status).toBe("pending");
+    });
+
     it("concurrent board commits serialize without deadlock", async () => {
       const { actor, eventId, boardId } = await setup();
       const [a, b] = await Promise.all([

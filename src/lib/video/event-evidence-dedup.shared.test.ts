@@ -259,3 +259,133 @@ describe("dedupeWarzoneEvidence fragment merging", () => {
     }
   });
 });
+
+describe("dedupeWarzoneEvidence foreign-tag filtering", () => {
+  const lbTag = (
+    name: string,
+    score: string | null,
+    tag: string | null,
+  ): {
+    name: string;
+    allianceTag: string | null;
+    actualScore: string | null;
+    observedRank: number | null;
+    crop: null;
+  } => ({ name, allianceTag: tag, actualScore: score, observedRank: null, crop: null });
+
+  it("drops foreign-tag rows only when the own tag was observed", () => {
+    const result = dedupeWarzoneEvidence(
+      [
+        frameResult({
+          kind: "leaderboard",
+          entries: [
+            lbTag("CAIPIRA", "15421010", "LFgo"),
+            lbTag("Enemy Two", "9000000", "FOE"),
+            lbTag("NoTag Member", "8000000", null),
+          ],
+        }),
+      ],
+      { allianceTag: "LFgo" },
+    );
+    expect(result.ownTagObserved).toBe(true);
+    expect(result.tagFilteredRows).toBe(1);
+    expect(result.rows.map((r) => r.ocrName)).toEqual([
+      "CAIPIRA",
+      "NoTag Member",
+    ]);
+  });
+
+  it("keeps every row when the own tag is never observed (stored tag stale)", () => {
+    const result = dedupeWarzoneEvidence(
+      [
+        frameResult({
+          kind: "leaderboard",
+          entries: [
+            lbTag("CAIPIRA", "15421010", "LFgo"),
+            lbTag("Freddy", "11808745", "LFgo"),
+          ],
+        }),
+      ],
+      { allianceTag: "WZSM" },
+    );
+    expect(result.ownTagObserved).toBe(false);
+    expect(result.tagFilteredRows).toBe(0);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it("keeps every row when no own tag is configured", () => {
+    const result = dedupeWarzoneEvidence(
+      [
+        frameResult({
+          kind: "leaderboard",
+          entries: [
+            lbTag("CAIPIRA", "15421010", "LFgo"),
+            lbTag("Enemy Two", "9000000", "FOE"),
+          ],
+        }),
+      ],
+      { allianceTag: null },
+    );
+    expect(result.ownTagObserved).toBe(false);
+    expect(result.tagFilteredRows).toBe(0);
+    expect(result.rows).toHaveLength(2);
+  });
+});
+
+describe("dedupeWarzoneEvidence implausible ranks", () => {
+  const lb = (
+    name: string,
+    score: string | null,
+    rank: number | null = null,
+  ): {
+    name: string;
+    allianceTag: string | null;
+    actualScore: string | null;
+    observedRank: number | null;
+    crop: null;
+  } => ({ name, allianceTag: "LFgo", actualScore: score, observedRank: rank, crop: null });
+
+  it("nulls a rank above the in-game top-100 without flagging", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [lb("Bat Pig", "7605222", 817)],
+      }),
+    ]);
+    expect(rows[0]!.observedRank).toBeNull();
+    expect(rows[0]!.needsReview).toBe(false);
+  });
+
+  it("nulls a rank below the member's position among our scored rows", () => {
+    const entries = [
+      lb("P1", "100", null),
+      lb("P2", "90", null),
+      lb("P3", "80", null),
+      lb("P4", "70", null),
+      lb("P5", "60", null),
+      lb("P6", "50", null),
+      lb("P7", "40", null),
+      lb("XxxTwiztedxxX", "30", 2),
+    ];
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({ kind: "leaderboard", entries }),
+    ]);
+    const row = rows.find((r) => r.ocrName === "XxxTwiztedxxX")!;
+    expect(row.observedRank).toBeNull();
+    expect(row.needsReview).toBe(false);
+  });
+
+  it("keeps a plausible rank", () => {
+    const { rows } = dedupeWarzoneEvidence([
+      frameResult({
+        kind: "leaderboard",
+        entries: [
+          lb("P1", "100", null),
+          lb("DENIZ 1", "90", 12),
+        ],
+      }),
+    ]);
+    const row = rows.find((r) => r.ocrName === "DENIZ 1")!;
+    expect(row.observedRank).toBe(12);
+  });
+});

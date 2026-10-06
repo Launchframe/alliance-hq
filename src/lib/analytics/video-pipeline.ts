@@ -28,6 +28,8 @@ export type VideoProcessTimings = {
   denseFrameCount?: number | null;
   framesSkipped?: number | null;
   totalRawOcrRows?: number | null;
+  tagFilteredRows?: number | null;
+  ownTagObserved?: boolean | null;
 };
 
 function analyticsEnabled(): boolean {

@@ -20,7 +20,19 @@ const R4_ROTATION = { kind: "rank_pool", pool: "r4_plus", draw: "wheel" };
 const PIF_WEEKDAY = { kind: "price_is_freight", board: "weekday" };
 const PIF_HEAVY_HITTER = { kind: "price_is_freight", board: "heavy_hitter" };
 const DONATIONS_TOP = { kind: "donations_top" };
-const EVENT_VIP = { kind: "event_top_x", eventKey: "capitol_war", topN: 10 };
+const EVENT_VIP = {
+  kind: "event_scores",
+  source: {
+    target: "warzone-duel",
+    seriesId: null,
+    occurrenceId: null,
+    boardKey: null,
+    teamScope: null,
+  },
+  eligibility: "scored",
+  topN: 10,
+  fallback: "none",
+};
 
 const conductorPicksVip = (conductorRule) => ({ conductorRule, vipRule: null });
 const R4_EVENT_VIP_DAY = { conductorRule: R4_ROTATION, vipRule: EVENT_VIP };

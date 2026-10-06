@@ -51,7 +51,10 @@ type Props = {
   /** Palette-row labels for the paint toolbar. */
   ruleLabels: Record<DayRulePaletteId, string>;
   /** Per-occurrence summary for `event_scores` cells (family/scope label). */
-  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
+  eventRuleSummary?: (
+    rule: ConductorRule | VipRule | null,
+    sourceTemplateId?: string | null,
+  ) => string | null;
   vrReporterCount?: number;
   navLabels: {
     previousMonth: string;
@@ -85,6 +88,7 @@ type Props = {
     onViewPool: () => void;
     spinDisabledReason?: string | null;
     canSpinDates: (dates: string[]) => boolean;
+    onConfigureEvent?: (date: string) => void;
   };
 };
 
@@ -419,6 +423,7 @@ export function TrainMonthCalendar({
           onPaint={(dates, rule) => {
             onPaintDates?.(dates, rule);
           }}
+          onConfigureEvent={(date) => monthToolbar.onConfigureEvent?.(date)}
           onSpinSelected={() =>
             monthToolbar.onSpinSelected(selectedDatesList)
           }
@@ -480,8 +485,9 @@ export function TrainMonthCalendar({
             const dayNumber = date.slice(8);
             const scope = day ? scopeForRule(day.conductorRule) : null;
             const mechLabel = day
-              ? day.conductorRule?.kind === "event_scores"
-                ? (eventRuleSummary?.(day.conductorRule) ??
+              ? day.conductorRule?.kind === "event_scores" ||
+                day.conductorRule?.kind === "event_top_x"
+                ? (eventRuleSummary?.(day.conductorRule, day.sourceTemplateId) ??
                   ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
                   paletteIdForRule(day.conductorRule))
                 : `${
@@ -491,8 +497,9 @@ export function TrainMonthCalendar({
               : null;
             const vipLabel =
               day && day.vipRule?.kind !== "none"
-                ? ((day.vipRule?.kind === "event_scores"
-                    ? (eventRuleSummary?.(day.vipRule) ?? null)
+                ? ((day.vipRule?.kind === "event_scores" ||
+                  day.vipRule?.kind === "event_top_x"
+                    ? (eventRuleSummary?.(day.vipRule, day.sourceTemplateId) ?? null)
                     : null) ??
                   (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null))
                 : null;

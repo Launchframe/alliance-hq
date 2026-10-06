@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   conductorRuleIdentity,
   conductorRuleLabelKey,
+  eventUnboundLabelKey,
   conductorRuleSchema,
   parseConductorRule,
   parseVipRule,
@@ -273,5 +274,45 @@ describe("event_scores labels", () => {
     expect(parseConductorRule(value)).toEqual(value);
     expect(parseVipRule(value)).toEqual(value);
     expect(parseConductorRule({ kind: "event_scores" })).toBeNull();
+  });
+});
+
+describe("eventUnboundLabelKey", () => {
+  const unbound = () =>
+    rule({
+      source: {
+        target: "warzone-duel",
+        seriesId: null,
+        occurrenceId: null,
+        boardKey: null,
+        teamScope: null,
+      },
+    });
+
+  it("returns null for bound event_scores and non-event rules", () => {
+    expect(eventUnboundLabelKey(rule(), "tpl-1")).toBeNull();
+    expect(eventUnboundLabelKey(null, "tpl-1")).toBeNull();
+    expect(
+      eventUnboundLabelKey({ kind: "vs_top_n", topN: 3 }, "tpl-1"),
+    ).toBeNull();
+  });
+
+  it("uses the shared-template helper for template-painted unbound intents", () => {
+    expect(eventUnboundLabelKey(unbound(), "tpl-1")).toBe(
+      "importedEventNeedsSelection",
+    );
+  });
+
+  it("keeps eventNotSelected for direct unbound days and legacy event_top_x", () => {
+    expect(eventUnboundLabelKey(unbound(), null)).toBe("eventNotSelected");
+    expect(eventUnboundLabelKey(unbound(), undefined)).toBe(
+      "eventNotSelected",
+    );
+    expect(
+      eventUnboundLabelKey(
+        { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+        "tpl-1",
+      ),
+    ).toBe("eventNotSelected");
   });
 });

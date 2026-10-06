@@ -71,7 +71,7 @@ When `simpleModeEnabled` is off, the dashboard shows **quick-action buttons** in
 
 When VS/PIF scores are required but missing, advanced mode shows a **non-blocking upload-scores banner** (`data-testid="trains-upload-scores-banner"`) with a link to `/tools/video-upload`. This mirrors the guided flow's blocking `prerequisites` step.
 
-When a wheel spin fails due to empty pool / missing data, **`WheelBlockedDialog`** offers recovery CTAs (reseed, manual pick, retry spin).
+When a wheel spin fails due to empty pool / missing data, **`WheelBlockedDialog`** offers recovery CTAs (reseed, manual pick, retry spin). For `event_scores` rules it additionally recovers `EVENT_NOT_SELECTED` (Configure → event picker), `ELIGIBILITY_CHANGED` (refresh preview + retry), `CONFIRM_POLL_FALLBACK` (in-app confirm, resend with `acknowledgePollFallback`), and `READINESS_INVALIDATED` on lock (Review event). The same `eventEvidence` gate blocks the guided prerequisites step, so both modes agree on when an event rule may spin.
 
 ## Parity contract
 

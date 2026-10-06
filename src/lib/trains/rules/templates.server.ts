@@ -1,13 +1,70 @@
 import "server-only";
 
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
 import {
   parseTemplateWeekRules,
+  stripEventRuleTenantBindings,
   type TemplateWeekRules,
 } from "@/lib/trains/rules/template-days.shared";
+
+/**
+ * Templates never bind a specific occurrence or board — those ids are always
+ * stripped on write. A `seriesId` intent may survive, but only when it names
+ * a series that actually belongs to this alliance.
+ */
+async function sanitizeTemplateDaysForAlliance(
+  allianceId: string,
+  days: TemplateWeekRules,
+): Promise<TemplateWeekRules> {
+  const seriesIds = new Set<string>();
+  for (const slot of Object.values(days)) {
+    for (const rule of [slot.conductorRule, slot.vipRule]) {
+      if (rule?.kind === "event_scores" && rule.source.seriesId) {
+        seriesIds.add(rule.source.seriesId);
+      }
+    }
+  }
+  const valid = new Set<string>();
+  if (seriesIds.size > 0) {
+    const rows = await getDb()
+      .select({ id: schema.hqEventSeries.id })
+      .from(schema.hqEventSeries)
+      .where(
+        and(
+          eq(schema.hqEventSeries.allianceId, allianceId),
+          inArray(schema.hqEventSeries.id, [...seriesIds]),
+        ),
+      );
+    for (const row of rows) valid.add(row.id);
+  }
+  const stripped = stripEventRuleTenantBindings(days, { keepSeriesIds: true });
+  if (valid.size === seriesIds.size) return stripped;
+  const out = {} as TemplateWeekRules;
+  for (const key of Object.keys(stripped) as (keyof TemplateWeekRules)[]) {
+    const slot = stripped[key];
+    const fix = <T extends ConductorRule | VipRule | null>(rule: T): T =>
+      rule?.kind === "event_scores" &&
+      rule.source.seriesId != null &&
+      !valid.has(rule.source.seriesId)
+        ? ({
+            ...rule,
+            source: { ...rule.source, seriesId: null },
+          } as T)
+        : rule;
+    out[key] = {
+      conductorRule: fix(slot.conductorRule),
+      vipRule: fix(slot.vipRule),
+    };
+  }
+  return out;
+}
 
 /**
  * Week templates as data.
@@ -164,6 +221,10 @@ export async function createRuleTemplate(input: {
   sourceTemplateId?: string | null;
 }): Promise<RuleTemplate> {
   const id = nanoid();
+  const days = await sanitizeTemplateDaysForAlliance(
+    input.allianceId,
+    input.days,
+  );
   try {
     await getDb().insert(schema.trainRuleTemplates).values({
       id,
@@ -171,7 +232,7 @@ export async function createRuleTemplate(input: {
       presetKey: null,
       name: input.name,
       description: input.description,
-      days: input.days,
+      days,
       createdByHqUserId: input.createdByHqUserId,
       sourceTemplateId: input.sourceTemplateId ?? null,
     });
@@ -193,6 +254,10 @@ export async function updateRuleTemplate(input: {
   days?: TemplateWeekRules;
 }): Promise<RuleTemplate | null> {
   const db = getDb();
+  const days =
+    input.days !== undefined
+      ? await sanitizeTemplateDaysForAlliance(input.allianceId, input.days)
+      : undefined;
   try {
     const updated = await db
       .update(schema.trainRuleTemplates)
@@ -201,7 +266,7 @@ export async function updateRuleTemplate(input: {
         ...(input.description !== undefined
           ? { description: input.description }
           : {}),
-        ...(input.days !== undefined ? { days: input.days } : {}),
+        ...(days !== undefined ? { days } : {}),
         updatedAt: new Date(),
       })
       .where(

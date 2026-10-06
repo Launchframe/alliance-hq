@@ -47,6 +47,7 @@ const IFRAME_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
 const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set([
   "members:read",
   "scores:read",
+  "events:read",
   "notes:read",
   "battle_plan:read",
   "bank:read",
