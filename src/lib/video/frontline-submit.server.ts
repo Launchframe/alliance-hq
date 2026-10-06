@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import type { VideoJob } from "@/lib/db/schema";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { syncEventResults } from "@/lib/hq-events/ashed-sync.server";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
@@ -58,6 +59,20 @@ export async function submitFrontlineReview(input: {
       body: input.body,
     });
 
+    // Post-commit Ashed sync (create-only + conflicts), outside the commit
+    // transaction. Sync failures never fail the HQ save.
+    const hqEventId = input.job.hqEventId ?? input.body.hqEventId ?? null;
+    const sync = hqEventId
+      ? await syncEventResults(
+          {
+            allianceId,
+            hqUserId: input.hqUserId,
+            sessionId: input.sessionId,
+          },
+          { eventId: hqEventId },
+        ).catch(() => null)
+      : null;
+
     void emitVideoJobStatus({
       ...videoJobStatusOwnerFields(input.job),
       jobId: input.job.id,
@@ -71,6 +86,7 @@ export async function submitFrontlineReview(input: {
       ok: true,
       storage: "hq",
       submitted: result.submitted,
+      sync,
     });
   } catch (error) {
     return frontlineErrorResponse(error);

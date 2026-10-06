@@ -296,13 +296,17 @@ async function upsertDesiredSyncItems(
       ) {
         continue;
       }
+      const nextStatus =
+        existing.lastSyncedValueHash === payloadHash ? "synced" : "pending";
       await tx
         .update(schema.hqEventSyncItems)
         .set({
           desiredRevision,
           desiredPayloadHash: payloadHash,
-          status:
-            existing.lastSyncedValueHash === payloadHash ? "synced" : "pending",
+          status: nextStatus,
+          ...(nextStatus === "pending"
+            ? { errorCode: null, remoteRowId: null }
+            : {}),
           updatedAt: now,
         })
         .where(eq(schema.hqEventSyncItems.id, existing.id));
@@ -332,13 +336,42 @@ async function upsertDesiredSyncItems(
 export async function commitReviewedEventEvidence(
   actor: EventActor,
   input: CommitReviewedEventEvidenceInput,
+  options?: CommitEvidenceOptions,
+): Promise<EventSaveReceipt> {
+  return getDb().transaction(async (tx) =>
+    commitReviewedEventEvidenceInTx(tx, actor, input, options),
+  );
+}
+
+export type CommitEvidenceOptions = {
+  /**
+   * Runs inside the commit transaction after the batch/observations/results
+   * are written. Throwing rolls back the entire save — use it to atomically
+   * consume the source review (job/parse session) and link the data-upload
+   * batch so a consumption failure can never leave orphan evidence rows.
+   */
+  onCommitted?: (tx: Tx, receipt: {
+    batchId: string;
+    observationCount: number;
+  }) => Promise<void>;
+};
+
+/**
+ * Transaction-scoped commit for callers that already hold a transaction
+ * (e.g. the Frontline save path, whose job/parse-session bookkeeping must
+ * roll back together with the evidence write).
+ */
+export async function commitReviewedEventEvidenceInTx(
+  tx: Tx,
+  actor: EventActor,
+  input: CommitReviewedEventEvidenceInput,
+  options?: CommitEvidenceOptions,
 ): Promise<EventSaveReceipt> {
   if (!input.requestId) throw new EventEvidenceError("request_id_required");
   if (input.boards.length === 0) throw new EventEvidenceError("board_required");
   const signature = requestSignature(input);
-  const db = getDb();
 
-  return db.transaction(async (tx) => {
+  return (async () => {
     const [event] = await tx
       .select()
       .from(schema.hqEvents)
@@ -544,6 +577,8 @@ export async function commitReviewedEventEvidence(
       );
     }
 
+    await options?.onCommitted?.(tx, { batchId, observationCount });
+
     await writeOfficerActionAudit({
       sessionId: actor.sessionId,
       allianceId: actor.allianceId,
@@ -572,7 +607,7 @@ export async function commitReviewedEventEvidence(
       changedResults,
       observationCount,
     };
-  });
+  })();
 }
 
 export type EventEvidencePage = {
@@ -580,6 +615,12 @@ export type EventEvidencePage = {
   results: (typeof schema.hqEventMemberResults.$inferSelect)[];
   observations: (typeof schema.hqEventObservations.$inferSelect)[];
   batches: (typeof schema.hqEventEvidenceBatches.$inferSelect)[];
+  /** Per-board Ashed sync item statuses (HQ save state is on boards/batches). */
+  syncItems: {
+    boardId: string | null;
+    status: string;
+    errorCode: string | null;
+  }[];
   nextCursor: string | null;
 };
 
@@ -669,11 +710,26 @@ export async function loadEventEvidence(
     )
     .orderBy(desc(schema.hqEventEvidenceBatches.createdAt));
 
+  const syncItems = await db
+    .select({
+      boardId: schema.hqEventSyncItems.boardId,
+      status: schema.hqEventSyncItems.status,
+      errorCode: schema.hqEventSyncItems.errorCode,
+    })
+    .from(schema.hqEventSyncItems)
+    .where(
+      and(
+        eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
+        eq(schema.hqEventSyncItems.hqEventId, event.id),
+      ),
+    );
+
   return {
     boards,
     results,
     observations: observations.slice(0, limit),
     batches,
+    syncItems,
     nextCursor:
       observations.length > limit ? String(offset + limit) : null,
   };
@@ -886,4 +942,148 @@ export async function bootstrapEventBoardFromLegacyMetadata(
     boards: [{ boardId: input.boardId, observations }],
   });
   return { receipt, reviewTasks };
+}
+
+/**
+ * Retract every observation a committed evidence batch contributed, recompute
+ * the affected board's results, bump evidence_version (invalidating any
+ * readiness mark), and re-derive desired sync items — one transaction.
+ * Used by data-management batch deletion so eligibility never points at
+ * deleted evidence.
+ */
+export async function retractEventEvidenceBatch(
+  actor: EventActor,
+  input: {
+    eventId: string;
+    /** Evidence batch id, or the batch's sourceRef (e.g. video job id). */
+    evidenceBatchId?: string;
+    sourceRef?: string;
+  },
+): Promise<{ retracted: number; boardIds: string[] }> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [event] = await tx
+      .select()
+      .from(schema.hqEvents)
+      .where(
+        and(
+          eq(schema.hqEvents.id, input.eventId),
+          eq(schema.hqEvents.allianceId, actor.allianceId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!event) throw new EventEvidenceError("event_not_found");
+
+    const batchConditions = [
+      eq(schema.hqEventEvidenceBatches.allianceId, actor.allianceId),
+      eq(schema.hqEventEvidenceBatches.hqEventId, event.id),
+      eq(schema.hqEventEvidenceBatches.status, "committed"),
+    ];
+    if (input.evidenceBatchId) {
+      batchConditions.push(
+        eq(schema.hqEventEvidenceBatches.id, input.evidenceBatchId),
+      );
+    }
+    if (input.sourceRef) {
+      batchConditions.push(
+        eq(schema.hqEventEvidenceBatches.sourceRef, input.sourceRef),
+      );
+    }
+    const batches = await tx
+      .select()
+      .from(schema.hqEventEvidenceBatches)
+      .where(and(...batchConditions))
+      .orderBy(asc(schema.hqEventEvidenceBatches.id))
+      .for("update");
+    if (batches.length === 0) return { retracted: 0, boardIds: [] };
+
+    const batchIds = batches.map((batch) => batch.id);
+    const now = new Date();
+    const retractedRows = await tx
+      .update(schema.hqEventObservations)
+      .set({ retracted: 1 })
+      .where(
+        and(
+          eq(schema.hqEventObservations.allianceId, actor.allianceId),
+          inArray(schema.hqEventObservations.batchId, batchIds),
+          eq(schema.hqEventObservations.retracted, 0),
+        ),
+      )
+      .returning({ id: schema.hqEventObservations.id });
+    await tx
+      .update(schema.hqEventEvidenceBatches)
+      .set({ status: "retracted", updatedAt: now })
+      .where(inArray(schema.hqEventEvidenceBatches.id, batchIds));
+
+    const boardIds = [
+      ...new Set(
+        batches
+          .map((batch) => batch.boardId)
+          .filter((id): id is string => id != null),
+      ),
+    ];
+    const { byId: boardsById } = await lockBoardsInOrder(
+      tx,
+      actor.allianceId,
+      boardIds,
+    );
+    for (const boardId of boardIds) {
+      const board = boardsById.get(boardId);
+      if (!board) continue;
+      const { results } = await recomputeBoardResults(
+        tx,
+        actor,
+        event.id,
+        boardId,
+      );
+      await tx
+        .update(schema.hqEventBoards)
+        .set({
+          evidenceVersion: board.evidenceVersion + 1,
+          emptyConfirmed: 0,
+          updatedAt: now,
+        })
+        .where(eq(schema.hqEventBoards.id, boardId));
+
+      const versions = new Map<string, number>();
+      const current = await tx
+        .select()
+        .from(schema.hqEventMemberResults)
+        .where(
+          and(
+            eq(schema.hqEventMemberResults.allianceId, actor.allianceId),
+            eq(schema.hqEventMemberResults.boardId, boardId),
+          ),
+        );
+      for (const row of current) versions.set(row.memberId, row.version);
+      await upsertDesiredSyncItems(
+        tx,
+        actor,
+        event.id,
+        boardId,
+        results,
+        versions,
+      );
+    }
+
+    await writeOfficerActionAudit({
+      sessionId: actor.sessionId,
+      allianceId: actor.allianceId,
+      hqUserId: actor.hqUserId,
+      action: "event_evidence_batch_retract",
+      severity: "update",
+      resourceType: "hq_event",
+      resourceId: event.id,
+      permission: "scores:write",
+      metadata: {
+        batchIds,
+        sourceRef: input.sourceRef ?? null,
+        retracted: retractedRows.length,
+        boardIds,
+      },
+    });
+
+    return { retracted: retractedRows.length, boardIds };
+  });
 }

@@ -1864,7 +1864,7 @@ export const hqEventEvidenceBatches = pgTable(
     parseRevision: integer("parse_revision"),
     reviewedRevision: integer("reviewed_revision"),
     status: text("status")
-      .$type<"staged" | "committed" | "superseded">()
+      .$type<"staged" | "committed" | "superseded" | "retracted">()
       .notNull()
       .default("committed"),
     requestId: text("request_id"),
@@ -1907,7 +1907,7 @@ export const hqEventEvidenceBatches = pgTable(
     ),
     check(
       "hq_event_batches_status_check",
-      sql`${table.status} in ('staged','committed','superseded')`,
+      sql`${table.status} in ('staged','committed','superseded','retracted')`,
     ),
     check(
       "hq_event_batches_import_status_check",
@@ -2084,9 +2084,13 @@ export const hqEventSyncItems = pgTable(
     lastSyncedRevision: integer("last_synced_revision"),
     lastSyncedValueHash: text("last_synced_value_hash"),
     status: text("status")
-      .$type<"pending" | "synced" | "conflict" | "failed" | "unsupported">()
+      .$type<
+        "pending" | "synced" | "conflict" | "failed" | "unsupported" | "uncertain"
+      >()
       .notNull()
       .default("pending"),
+    /** Bound remote row id once a POST succeeded or a match was verified. */
+    remoteRowId: text("remote_row_id"),
     leaseToken: text("lease_token"),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
     errorCode: text("error_code"),
@@ -2111,7 +2115,7 @@ export const hqEventSyncItems = pgTable(
     }).onDelete("cascade"),
     check(
       "hq_event_sync_items_status_check",
-      sql`${table.status} in ('pending','synced','conflict','failed','unsupported')`,
+      sql`${table.status} in ('pending','synced','conflict','failed','unsupported','uncertain')`,
     ),
     uniqueIndex("hq_event_sync_items_remote_key_unique").on(
       table.allianceId,

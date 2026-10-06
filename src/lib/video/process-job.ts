@@ -49,6 +49,7 @@ import {
   getScoreTargetOrThrow,
   isBankDepositSlipHistoryTarget,
   isDesertStormVideoTarget,
+  isEventScoreNativeTarget,
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
   isFrontlineBreakthroughVideoTarget,
@@ -1173,6 +1174,14 @@ export async function processVideoJob(
                 "@/lib/video/ocr-frontline-native"
               );
               return ocrFrontlineNativeFrames(frames, {
+                onProgress: emitOcrFrameProgress,
+              });
+            }
+            if (isEventScoreNativeTarget(scoreTargetId)) {
+              const { ocrEventScoreNativeFrames } = await import(
+                "@/lib/video/ocr-event-score-native"
+              );
+              return ocrEventScoreNativeFrames(frames, {
                 onProgress: emitOcrFrameProgress,
               });
             }

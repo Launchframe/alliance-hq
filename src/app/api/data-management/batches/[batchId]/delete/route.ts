@@ -11,6 +11,8 @@ import {
   getAllianceDataBatch,
   markDataBatchDeleted,
 } from "@/lib/data-management/batch-ledger.server";
+import { retractEventEvidenceBatch } from "@/lib/hq-events/evidence-repository.server";
+import { syncEventResults } from "@/lib/hq-events/ashed-sync.server";
 
 type Props = {
   params: Promise<{ batchId: string }>;
@@ -37,39 +39,82 @@ export async function POST(_request: Request, { params }: Props) {
 
   if (isLocalVsBatch(batch)) return changeLocalVsData({ allianceId: ctx.allianceId, rbac: ctx.rbac, batches: [batch] });
 
+  // Event-ledger batches may live on native (unlinked) alliances: no remote
+  // rows exist to delete, so the local retraction path must not require an
+  // Ashed connection.
+  const eventEvidenceEventId =
+    typeof batch.contextJson.hqEventId === "string" &&
+    batch.contextJson.hqEventId.length > 0
+      ? batch.contextJson.hqEventId
+      : null;
+
   const connection = await loadAshedConnectionForAllianceCapability({
     sessionId: ctx.sessionId,
     allianceId: ctx.allianceId,
     capability: "data_management:write",
     delegatedAction: "data_management.batch_delete",
   });
-  if (!connection) {
-    return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
-  }
-
   const ashedAllianceId = await getAshedAllianceIdIfLinked(ctx.allianceId);
-  if (!ashedAllianceId) {
-    return NextResponse.json(
-      { error: "Alliance is not linked to Ashed." },
-      { status: 409 },
-    );
-  }
 
-  try {
-    await forwardBulkDeleteBatch(connection, batch, ashedAllianceId);
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message.slice(0, 240)
-            : "Failed to delete batch upstream.",
-      },
-      { status: 502 },
-    );
+  if (!eventEvidenceEventId || ashedAllianceId) {
+    if (!connection) {
+      return NextResponse.json(
+        { error: "Ashed not connected" },
+        { status: 503 },
+      );
+    }
+    if (!ashedAllianceId) {
+      return NextResponse.json(
+        { error: "Alliance is not linked to Ashed." },
+        { status: 409 },
+      );
+    }
+
+    try {
+      await forwardBulkDeleteBatch(connection, batch, ashedAllianceId);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "Failed to delete batch upstream.",
+        },
+        { status: 502 },
+      );
+    }
   }
 
   await markDataBatchDeleted(batchId, ctx.allianceId);
+
+  if (eventEvidenceEventId) {
+    // Retract the evidence batch's observations, recompute board results, and
+    // bump evidence_version so eligibility never points at deleted evidence.
+    const retracted = await retractEventEvidenceBatch(
+      {
+        allianceId: ctx.allianceId,
+        hqUserId: ctx.auditHqUserId,
+        sessionId: ctx.sessionId,
+      },
+      {
+        eventId: eventEvidenceEventId,
+        sourceRef: batch.sourceJobId ?? undefined,
+      },
+    ).catch(() => null);
+    if (retracted?.boardIds.length) {
+      // Re-derive remote state (create-only): removed members' remote rows
+      // reconcile on the next sync pass.
+      await syncEventResults(
+        {
+          allianceId: ctx.allianceId,
+          hqUserId: ctx.auditHqUserId,
+          sessionId: ctx.sessionId,
+        },
+        { eventId: eventEvidenceEventId, boardIds: retracted.boardIds },
+      ).catch(() => null);
+    }
+  }
+
   await writeAuditLog({
     sessionId: ctx.sessionId,
     allianceId: ctx.allianceId,

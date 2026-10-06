@@ -1,10 +1,12 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import { syncEventResults } from "@/lib/hq-events/ashed-sync.server";
 import {
   commitReviewedEventEvidence,
   EventEvidenceError,
@@ -87,7 +89,11 @@ export async function submitEventEvidenceFromVideoJob(params: {
   session: Session;
   job: JobSnapshot;
   body: unknown;
-}): Promise<{ receipt: EventSaveReceipt; rowCount: number }> {
+}): Promise<{
+  receipt: EventSaveReceipt;
+  rowCount: number;
+  sync: Awaited<ReturnType<typeof syncEventResults>> | null;
+}> {
   const { session, job } = params;
 
   const allianceId = resolveSessionAllianceId(session);
@@ -232,35 +238,78 @@ export async function submitEventEvidenceFromVideoJob(params: {
     sessionId: session.id,
   };
 
-  const receipt = await commitReviewedEventEvidence(actor, {
-    eventId: eventContext.eventId,
-    requestId: input.requestId,
-    sourceKind,
-    sourceRef: job.id,
-    boards: [
-      {
-        boardId: eventContext.boardId,
-        observations,
-      },
-    ],
-  });
-
-  // Consume the job + parse session only after the commit succeeds.
   const endedAt = new Date();
+  const receipt = await commitReviewedEventEvidence(
+    actor,
+    {
+      eventId: eventContext.eventId,
+      requestId: input.requestId,
+      sourceKind,
+      sourceRef: job.id,
+      boards: [
+        {
+          boardId: eventContext.boardId,
+          observations,
+        },
+      ],
+    },
+    {
+      // One atomic commit: a failure consuming the job, linking the
+      // data-upload batch, or writing the audit rolls back the evidence too.
+      onCommitted: async (tx, { batchId }) => {
+        await tx
+          .update(schema.parseSessions)
+          .set({ status: "submitted", updatedAt: endedAt })
+          .where(eq(schema.parseSessions.id, job.parseSessionId!));
+        await tx
+          .update(schema.videoJobs)
+          .set({ status: "complete", updatedAt: endedAt })
+          .where(
+            and(
+              eq(schema.videoJobs.id, job.id),
+              eq(schema.videoJobs.status, "review"),
+            ),
+          );
+
+        const target = getScoreTargetOrThrow(
+          job.scoreTarget ?? job.category ?? "warzone-evidence",
+        );
+        await recordDataUploadBatch({
+          allianceId,
+          target,
+          submitContext: {
+            hqEventId: eventContext.eventId,
+            recordedDate: endedAt.toISOString().slice(0, 10),
+          },
+          rowCount: observations.length,
+          sourceJobId: job.id,
+          parseSessionId: job.parseSessionId,
+          createdByHqUserId: session.hqUserId ?? null,
+          tx,
+        });
+
+        await writeAuditLog(
+          {
+            sessionId: session.id,
+            allianceId,
+            action: "video.event_submit",
+            resourceType: "video_job",
+            resourceId: job.id,
+            metadata: {
+              eventId: eventContext.eventId,
+              boardId: eventContext.boardId,
+              batchId,
+              rowCount: observations.length,
+            },
+          },
+          tx,
+        );
+      },
+    },
+  );
+
   if (!receipt.replayed) {
-    await db
-      .update(schema.parseSessions)
-      .set({ status: "submitted", updatedAt: endedAt })
-      .where(eq(schema.parseSessions.id, job.parseSessionId));
-    await db
-      .update(schema.videoJobs)
-      .set({ status: "complete", updatedAt: endedAt })
-      .where(
-        and(
-          eq(schema.videoJobs.id, job.id),
-          inArray(schema.videoJobs.status, ["review", "submitting"]),
-        ),
-      );
+
     await emitVideoJobStatus({
       ...videoJobStatusOwnerFields(job),
       jobId: job.id,
@@ -270,37 +319,109 @@ export async function submitEventEvidenceFromVideoJob(params: {
       errorMessage: null,
       updatedAt: endedAt.toISOString(),
     });
-
-    const target = getScoreTargetOrThrow(
-      job.scoreTarget ?? job.category ?? "warzone-evidence",
-    );
-    await recordDataUploadBatch({
-      allianceId,
-      target,
-      submitContext: {
-        hqEventId: eventContext.eventId,
-        recordedDate: endedAt.toISOString().slice(0, 10),
-      },
-      rowCount: observations.length,
-      sourceJobId: job.id,
-      parseSessionId: job.parseSessionId,
-      createdByHqUserId: session.hqUserId ?? null,
-    });
-
-    await writeAuditLog({
-      sessionId: session.id,
-      allianceId,
-      action: "video.event_submit",
-      resourceType: "video_job",
-      resourceId: job.id,
-      metadata: {
-        eventId: eventContext.eventId,
-        boardId: eventContext.boardId,
-        batchId: receipt.batchId,
-        rowCount: observations.length,
-      },
-    });
   }
 
-  return { receipt, rowCount: observations.length };
+  // Post-commit Ashed sync (create-only + conflicts), outside the commit
+  // transaction. Sync failures never fail the HQ save.
+  const sync = receipt.replayed
+    ? null
+    : await syncEventResults(actor, {
+        eventId: eventContext.eventId,
+        boardIds: [eventContext.boardId],
+      }).catch(() => null);
+
+  return { receipt, rowCount: observations.length, sync };
+}
+
+/**
+ * Ledger save for the legacy generic score-submit path (Frontline Ashed-
+ * backed, seasonal/custom boards, Desert/Canyon Storm A/B). The remote Ashed
+ * dispatch and hq_event_members metadata projection stay untouched upstream;
+ * this commits the same reviewed rows into the evidence ledger so ledger
+ * readers and the create-only sync engine can take over from here.
+ */
+export async function commitScoreRowsToEventLedger(params: {
+  actor: {
+    allianceId: string;
+    hqUserId: string | null;
+    sessionId: string | null;
+  };
+  job: { id: string };
+  eventId: string;
+  boardKey?: string | null;
+  team?: "A" | "B" | null;
+  scoreTargetId: string;
+  rows: readonly {
+    id: string;
+    memberId: string;
+    memberName: string;
+    score?: string | null;
+    rank?: number | null;
+    frontlineStage?: number | null;
+    frameIndex?: number | null;
+  }[];
+}): Promise<{ receipt: EventSaveReceipt; boardId: string } | null> {
+  const db = getDb();
+  const boards = await db
+    .select()
+    .from(schema.hqEventBoards)
+    .where(
+      and(
+        eq(schema.hqEventBoards.allianceId, params.actor.allianceId),
+        eq(schema.hqEventBoards.hqEventId, params.eventId),
+      ),
+    )
+    .orderBy(asc(schema.hqEventBoards.boardKey));
+  if (boards.length === 0) return null;
+
+  const wantedKey = (
+    params.boardKey ??
+    (params.team ? params.team.toLowerCase() : "main")
+  ).toLowerCase();
+  const board =
+    boards.find(
+      (candidate) => (candidate.boardKey ?? "").toLowerCase() === wantedKey,
+    ) ??
+    boards.find((candidate) => candidate.boardKey === "main") ??
+    (boards.length === 1 ? boards[0]! : null);
+  if (!board) {
+    throw new EventEvidenceSubmitError("board_not_found", 404);
+  }
+
+  const receipt = await commitReviewedEventEvidence(params.actor, {
+    eventId: params.eventId,
+    requestId: `submit-${params.job.id}-${nanoid(10)}`,
+    sourceKind: "video",
+    sourceRef: params.job.id,
+    boards: [
+      {
+        boardId: board.id,
+        observations: params.rows.map((row) => ({
+          sourceRowKey: row.id,
+          memberId: row.memberId,
+          memberName: row.memberName,
+          kind: "leaderboard" as const,
+          realScore: normalizeCanonicalScore(row.score),
+          stage: row.frontlineStage ?? null,
+          observedRank: row.rank ?? null,
+          provenance: "video" as const,
+          sourceFrame:
+            row.frameIndex != null ? String(row.frameIndex) : null,
+        })),
+      },
+    ],
+  });
+  return { receipt, boardId: board.id };
+}
+
+/** Canonical decimal string for generic leaderboard scores (strips separators). */
+function normalizeCanonicalScore(score: string | null | undefined): string | null {
+  if (score == null) return null;
+  const text = String(score).trim().replace(/[, .\u00a0]/g, "");
+  if (!/^\d+$/.test(text)) return null;
+  try {
+    return BigInt(text).toString();
+  } catch {
+    return null;
+  }
 }

@@ -8454,7 +8454,12 @@
     "eventDate": "Data do evento",
     "eventSeries": "Série do evento",
     "markNotReady": "Marcar como não pronto",
-    "actualScoresImport": "Estas são pontuações reais do placar"
+    "actualScoresImport": "Estas são pontuações reais do placar",
+    "synced": "Sincronizado",
+    "syncFailed": "Salvo no HQ, mas a sincronização com o Ashed falhou. Tente novamente para sincronizar.",
+    "syncConflict": "Os resultados do Ashed mudaram. Revise as diferenças antes de sincronizar.",
+    "syncUncertain": "O Ashed pode ter recebido esta alteração. Verificando antes de tentar novamente.",
+    "precisionUnsupported": "Salvo exatamente no HQ. Esta pontuação é grande demais para sincronizar com segurança ao Ashed."
   },
   "activity": {
     "title": "Atividade",

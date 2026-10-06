@@ -70,7 +70,12 @@ describe("submitFrontlineReview", () => {
       body,
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, storage: "hq", submitted: 2 });
+    expect(await response.json()).toEqual({
+      ok: true,
+      storage: "hq",
+      submitted: 2,
+      sync: null,
+    });
     expect(mocks.commitFrontlineReview).toHaveBeenCalledWith({
       job,
       allianceId: "al-1",

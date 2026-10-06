@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   batchSourceKindLabelKey,
   batchStatusLabelKey,
+  aggregateEventSync,
   boardTeamScope,
   formatEventScore,
   participationCreditFor,
@@ -72,5 +73,41 @@ describe("batch label keys", () => {
     expect(batchSourceKindLabelKey("unknown_kind")).toBe("batchSourceUnknown");
     expect(batchStatusLabelKey("committed")).toBe("batchStatusCommitted");
     expect(batchStatusLabelKey("pending")).toBe("batchStatusUnknown");
+  });
+});
+
+describe("aggregateEventSync", () => {
+  it("reports none when nothing was attempted", () => {
+    expect(aggregateEventSync([])).toEqual({
+      status: "none",
+      errorCode: null,
+      total: 0,
+    });
+  });
+
+  it("rolls items up to the worst-case status and its error code", () => {
+    const item = (status: string, errorCode: string | null = null) => ({
+      status,
+      errorCode,
+    });
+    expect(
+      aggregateEventSync([item("synced"), item("pending"), item("conflict", "remote_differs")]),
+    ).toEqual({ status: "conflict", errorCode: "remote_differs", total: 3 });
+    expect(
+      aggregateEventSync([item("synced"), item("uncertain"), item("unsupported")]),
+    ).toEqual({ status: "uncertain", errorCode: null, total: 3 });
+    expect(
+      aggregateEventSync([item("synced"), item("pending"), item("pending")]),
+    ).toEqual({ status: "pending", errorCode: null, total: 3 });
+    expect(aggregateEventSync([item("synced"), item("unsupported")])).toEqual({
+      status: "unsupported",
+      errorCode: null,
+      total: 2,
+    });
+    expect(aggregateEventSync([item("synced"), item("synced")])).toEqual({
+      status: "synced",
+      errorCode: null,
+      total: 2,
+    });
   });
 });

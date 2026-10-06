@@ -8,8 +8,9 @@ export async function writeAuditLog(
   entry: Omit<AuditLogEntry, "id" | "createdAt"> & {
     severity?: OfficerAuditSeverity;
   },
+  tx?: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
 ) {
-  const db = getDb();
+  const db = tx ?? getDb();
   await db.insert(schema.auditLog).values({
     ...entry,
     id: nanoid(16),

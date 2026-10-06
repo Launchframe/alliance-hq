@@ -11,6 +11,7 @@ import {
   normalizeFrontlineScore,
   FRONTLINE_BREAKTHROUGH_TARGET,
 } from "@/lib/video/frontline-breakthrough.shared";
+import { commitReviewedEventEvidenceInTx } from "@/lib/hq-events/evidence-repository.server";
 import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { computeQualityScore } from "@/lib/video/quality-score";
 import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
@@ -679,6 +680,56 @@ export async function commitFrontlineReview(input: {
         recordedDate: validated.recordedDate,
       },
     });
+
+    // Evidence ledger write, same transaction: the ledger is canonical for
+    // readers once a board has results; the hq_event_members metadata
+    // upserts above stay as the compatibility projection.
+    const [eventBoard] = await tx
+      .select()
+      .from(schema.hqEventBoards)
+      .where(
+        and(
+          eq(schema.hqEventBoards.allianceId, input.allianceId),
+          eq(schema.hqEventBoards.hqEventId, validated.eventId),
+        ),
+      )
+      .orderBy(asc(schema.hqEventBoards.id))
+      .limit(1);
+    if (eventBoard) {
+      await commitReviewedEventEvidenceInTx(
+        tx,
+        {
+          allianceId: input.allianceId,
+          hqUserId: input.hqUserId,
+          sessionId: input.sessionId,
+        },
+        {
+          eventId: validated.eventId,
+          requestId: `frontline-${job.id}-${nanoid(10)}`,
+          sourceKind: "video",
+          sourceRef: job.id,
+          boards: [
+            {
+              boardId: eventBoard.id,
+              observations: validated.rows.map((row) => ({
+                sourceRowKey: row.id,
+                memberId: row.memberId,
+                memberName: row.memberName ?? null,
+                kind: "leaderboard" as const,
+                realScore: normalizeFrontlineScore(row.score),
+                stage: row.frontlineStage ?? null,
+                observedRank: row.rank ?? null,
+                provenance: "video" as const,
+                sourceFrame:
+                  originalRowById.get(row.id)?.frameIndex != null
+                    ? String(originalRowById.get(row.id)!.frameIndex)
+                    : null,
+              })),
+            },
+          ],
+        },
+      );
+    }
 
     return { submitted: rowsSaved };
   });

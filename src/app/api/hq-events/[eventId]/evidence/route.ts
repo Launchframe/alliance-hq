@@ -7,6 +7,7 @@ import {
   loadEventEvidence,
   type EventObservationInput,
 } from "@/lib/hq-events/evidence-repository.server";
+import { syncEventResults } from "@/lib/hq-events/ashed-sync.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
@@ -113,7 +114,20 @@ export async function POST(request: Request, { params }: Props) {
         })),
       },
     );
-    return NextResponse.json({ receipt });
+    // Post-commit Ashed sync (create-only + conflicts). Runs outside the
+    // commit transaction; failures are surfaced per item, never fatal.
+    const sync = await syncEventResults(
+      {
+        allianceId,
+        hqUserId: session.hqUserId ?? null,
+        sessionId: session.id,
+      },
+      {
+        eventId,
+        boardIds: body.boards.map((board) => board.boardId),
+      },
+    ).catch(() => null);
+    return NextResponse.json({ receipt, sync });
   } catch (error) {
     const mapped = evidenceErrorResponse(error);
     if (mapped) return mapped;

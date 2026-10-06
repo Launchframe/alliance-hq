@@ -490,6 +490,17 @@ export function isDesertStormVideoTarget(id: string): boolean {
   return id === "desert-storm";
 }
 
+/**
+ * Targets whose demonstrated layout is a name+score table — when the engine
+ * resolves to native, they use the conservative event-score adapter and are
+ * never routed through the VS or Frontline parsers.
+ */
+export function isEventScoreNativeTarget(id: string): boolean {
+  return (
+    id === "desert-storm" || id === "canyon-storm" || id === "seasonal"
+  );
+}
+
 /** Targets that always use in-house OCR (Ashed has no schema for them). */
 export function isNativeOnlyVideoTarget(id: string): boolean {
   return isBankDepositSlipHistoryTarget(id);

@@ -50,6 +50,26 @@ vi.mock("@/lib/video/frontline-submit.server", () => ({
     ),
 }));
 
+vi.mock("@/lib/hq-events/ashed-sync.server", () => ({
+  syncEventResults: vi.fn(async () => null),
+}));
+
+vi.mock("@/lib/hq-events/evidence-submit.server", async (importOriginal) => {
+  const mod =
+    await importOriginal<
+      typeof import("@/lib/hq-events/evidence-submit.server")
+    >();
+  return {
+    ...mod,
+    commitScoreRowsToEventLedger: vi.fn(async () => null),
+    submitEventEvidenceFromVideoJob: vi.fn(async () => ({
+      receipt: { replayed: false },
+      rowCount: 0,
+      sync: null,
+    })),
+  };
+});
+
 vi.mock("@/lib/vs-scores/submit.server", () => ({
   submitVsReview: (...args: unknown[]) => submitVsReview(...args),
   vsEvidenceErrorResponse: (error: { code?: string; status?: number }) =>
