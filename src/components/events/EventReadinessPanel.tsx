@@ -115,6 +115,32 @@ export function EventReadinessPanel({
     }
   };
 
+  const markNotReady = async () => {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/hq-events/${board.hqEventId}/readiness`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          boardId: board.id,
+          action: "invalidate",
+          expectedEvidenceVersion: board.evidenceVersion,
+        }),
+      });
+      if (!res.ok) {
+        setError(t("actionFailed"));
+        return;
+      }
+      setConfirmed(false);
+      onChanged();
+    } catch {
+      setError(t("actionFailed"));
+    } finally {
+      setPending(false);
+    }
+  };
+
   const toggleSource = (batchId: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -199,6 +225,18 @@ export function EventReadinessPanel({
           onClick={() => void markReady()}
         >
           {pending ? tActions("save") : t("readyForDraws")}
+        </Button>
+      ) : null}
+      {canMarkReady && board.ready ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          data-testid="event-readiness-mark-not-ready"
+          onClick={() => void markNotReady()}
+        >
+          {t("markNotReady")}
         </Button>
       ) : null}
     </section>

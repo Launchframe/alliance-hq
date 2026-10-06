@@ -15,6 +15,7 @@ import {
 } from "@/lib/trains/conductor-wheel-reel.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
 import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { formatEventScore } from "@/lib/hq-events/workspace.shared";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
@@ -36,6 +37,10 @@ export type WheelCandidate = {
   allianceRank?: number | null;
   ticketCount?: number;
   winProbability?: number;
+  /** Event-evidence scoreboard fields (event_scores rules). Decimal string. */
+  eventScore?: string | null;
+  eventStage?: number | null;
+  eventEvidenceKind?: string | null;
 };
 
 type Props = {
@@ -72,11 +77,21 @@ type ReelSessionView = ReelSession;
 
 function scoreBoardKind(
   rule: ConductorRule | null | undefined,
-): "vs" | "vr" | null {
+): "vs" | "vr" | "event" | null {
   if (rule?.kind === "vs_top_n") return "vs";
   if (rule?.kind === "vr_top_n") return "vr";
+  if (rule?.kind === "event_scores") return "event";
   return null;
 }
+
+const EVENT_KIND_BADGE_KEY: Record<string, string> = {
+  real: "leaderboardEvidence",
+  yes_only: "pollYes",
+  explicit_no: "pollNo",
+  legacy_leaderboard: "legacyLeaderboard",
+  conflict: "conflictingEvidence",
+  none: "noEvidence",
+};
 
 function vsScoreColor(score: number): string {
   if (score >= 5_000_000) return "text-amber-600 dark:text-amber-300";
@@ -107,6 +122,7 @@ export function ConductorWheelModal({
   onOverride,
 }: Props) {
   const t = useTranslations("trains.wheel");
+  const tEvent = useTranslations("eventEvidence");
   const locale = useLocale();
   const reelRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -526,6 +542,61 @@ export function ConductorWheelModal({
                         className={`shrink-0 text-sm font-semibold ${vsScoreColor(candidate.priorDayVsScore!)}`}
                       >
                         {formatVsScore(candidate.priorDayVsScore!)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === "revealed" &&
+        !disqualified &&
+        boardKind === "event" &&
+        candidates.length > 0 ? (
+          <div className="mt-4">
+            <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+              {tEvent("title")}
+            </p>
+            <div className="overflow-hidden rounded-lg border border-hq-border">
+              <ul className="divide-y divide-hq-border/60">
+                {candidates.map((candidate) => {
+                  const isWinner =
+                    winner && candidate.memberId === winner.memberId;
+                  const badgeKey =
+                    EVENT_KIND_BADGE_KEY[candidate.eventEvidenceKind ?? "none"] ??
+                    "noEvidence";
+                  return (
+                    <li
+                      key={candidate.memberId}
+                      className={`flex items-center justify-between gap-3 px-3 py-2 ${
+                        isWinner ? "bg-[#388bfd]/10" : "bg-hq-surface/60"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={`truncate text-sm font-medium ${
+                            isWinner
+                              ? "text-hq-accent dark:text-white"
+                              : "text-hq-fg"
+                          }`}
+                        >
+                          {candidate.memberName}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-hq-surface-muted px-2 py-0.5 text-[10px] font-medium text-hq-fg-muted">
+                          {tEvent(badgeKey)}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-hq-fg">
+                        {[
+                          formatEventScore(candidate.eventScore, locale),
+                          candidate.eventStage != null
+                            ? String(candidate.eventStage)
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
                       </span>
                     </li>
                   );

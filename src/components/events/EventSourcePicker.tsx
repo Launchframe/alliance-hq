@@ -39,7 +39,7 @@ type Props = {
   disabled?: boolean;
 };
 
-const FAMILY_LABEL_KEY: Record<
+export const FAMILY_LABEL_KEY: Record<
   EventTarget,
   { ns: "eventEvidence" | "nav"; key: string }
 > = {

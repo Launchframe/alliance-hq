@@ -108,6 +108,9 @@ import type {
   TrainsDashboardPayload,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
+import { FAMILY_LABEL_KEY } from "@/components/events/EventSourcePicker";
+import type { EventTarget } from "@/lib/hq-events/event-types.shared";
+import type { EventEligibilityPreview } from "@/lib/trains/event-eligibility.shared";
 import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import {
@@ -118,6 +121,7 @@ import {
   type ConductorRule,
   type DayRulePatch,
   type DayRules,
+  type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
   DAY_RULE_PALETTE,
@@ -137,7 +141,10 @@ import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podi
 import {
   conductorSpinSourceForTrainDay,
 } from "@/lib/trains/train-day-context.shared";
-import { isPoolSpinSource } from "@/lib/trains/spin-source.shared";
+import {
+  isPoolSpinSource,
+  type SpinSource,
+} from "@/lib/trains/spin-source.shared";
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
@@ -212,6 +219,7 @@ type Props = {
   initial: TrainsDashboardPayload;
   /** From `?date=` when returning from VS score upload. */
   initialSelectedDate?: string | null;
+  initialEventId?: string | null;
   /** From `?scoresReady=1` after VS scores were saved. */
   initialScoresReady?: boolean;
 };
@@ -241,11 +249,13 @@ type PaintOptions = {
 export function TrainsDashboard({
   initial,
   initialSelectedDate = null,
+  initialEventId = null,
   initialScoresReady = false,
 }: Props) {
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
   const tEventEvidence = useTranslations("eventEvidence");
+  const tNav = useTranslations("nav");
   const locale = useLocale();
   const { coverageFetch, coverageDialog } = useCoverageFetch();
   const router = useRouter();
@@ -374,6 +384,15 @@ export function TrainsDashboard({
   }>({ weekTemplate: null, dayOverrides: {} });
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
+  const [eventEvidenceGateState, setEventEvidenceGate] = useState<{
+    ruleKey: string;
+    ready: boolean | null;
+    eventId: string | null;
+  } | null>(null);
+  const [pollFallbackConfirm, setPollFallbackConfirm] = useState<{
+    role: "conductor" | "vip";
+    count: number;
+  } | null>(null);
   const [rollingRole, setRollingRole] = useState<"conductor" | "vip" | null>(
     null,
   );
@@ -723,6 +742,8 @@ export function TrainsDashboard({
     () => activeDayConfigs.find((d) => d.date === selectedDate) ?? null,
     [activeDayConfigs, selectedDate],
   );
+  const selectedConductorRule = selectedDayConfig?.conductorRule ?? null;
+  const selectedVipRule = selectedDayConfig?.vipRule ?? null;
 
   const selectedRecord = useMemo(
     () => activeRecords.find((r) => r.date === selectedDate) ?? null,
@@ -862,13 +883,18 @@ export function TrainsDashboard({
   /** Palette-row labels for every paint surface. */
   const ruleLabels = useMemo(
     () =>
-      Object.fromEntries(
-        DAY_RULE_PALETTE.map((entry) => [
-          entry.id,
-          ruleLabelText(conductorRuleLabelKey(entry.rule ?? ruleForPaletteSelection(entry.id, defaultScopeForPaletteId(entry.id))), tRules, tEventEvidence),
-        ]),
-      ) as Record<DayRulePaletteId, string>,
-    [tRules],
+      ({
+        ...Object.fromEntries(
+          DAY_RULE_PALETTE.map((entry) => [
+            entry.id,
+            ruleLabelText(conductorRuleLabelKey(entry.rule ?? ruleForPaletteSelection(entry.id, defaultScopeForPaletteId(entry.id))), tRules, tEventEvidence),
+          ]),
+        ),
+        // Non-paintable ids still need labels for history and event rules.
+        event_top_x: tRules("eventTopX"),
+        event_scores: tEventEvidence("title"),
+      }) as Record<DayRulePaletteId, string>,
+    [tRules, tEventEvidence],
   );
 
   const ruleTemplates = data.ruleTemplates;
@@ -1151,22 +1177,94 @@ export function TrainsDashboard({
     [applySnapshot, t],
   );
 
-  const runRoll = async (role: "conductor" | "vip") => {
+  const runRoll = async (
+    role: "conductor" | "vip",
+    options?: { acknowledgePollFallback?: boolean },
+  ) => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     // Don't let page hotkeys / spin run "behind" open schedule dialogs.
     setTemplatePickerOpen(false);
     setError(null);
     setWheelBlocked(null);
+    setPollFallbackConfirm(null);
     setRollingRole(role);
     try {
+      const eventRule =
+        role === "vip" ? selectedVipRule : selectedConductorRule;
+      let eventCandidates: RollCandidate[] | null = null;
+      let eventFallbackCount = 0;
+      const requestBody: Record<string, unknown> = {
+        role,
+        date: selectedDate,
+      };
+      if (eventRule?.kind === "event_scores") {
+        // Fenced draw: preview first for the fingerprint + wheel candidates,
+        // then roll with a fresh request id.
+        const previewRes = await coverageFetch(
+          "/api/trains/event-eligibility",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              date: selectedDate,
+              role,
+              rule: eventRule,
+            }),
+          },
+        );
+        const previewBody = (await previewRes.json().catch(() => null)) as {
+          preview?: EventEligibilityPreview;
+        } | null;
+        const preview = previewBody?.preview ?? null;
+        if (!previewRes.ok || !preview) {
+          setError(tEventEvidence("actionFailed"));
+          return;
+        }
+        if (!preview.eligibility.ok || !preview.fingerprint) {
+          setWheelBlocked({
+            code:
+              !preview.eligibility.ok &&
+              preview.eligibility.reason === "unbound"
+                ? "EVENT_NOT_SELECTED"
+                : "PENDING_EVIDENCE",
+          });
+          setWheelBlockedRole(role);
+          return;
+        }
+        eventCandidates = preview.eligibility.candidates.map(
+          (candidate) => ({
+            memberId: candidate.memberId,
+            memberName: candidate.memberName ?? "",
+            eventScore: candidate.eventScore,
+            eventStage: candidate.stage,
+            eventEvidenceKind: candidate.evidenceKind,
+          }),
+        );
+        eventFallbackCount = preview.eligibility.fallback.count;
+        requestBody.requestId = crypto.randomUUID();
+        requestBody.expectedEligibilityFingerprint = preview.fingerprint;
+        if (options?.acknowledgePollFallback) {
+          requestBody.acknowledgePollFallback = true;
+        }
+      }
+
       const res = await coverageFetch("/api/trains/conductor/roll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, date: selectedDate }),
+        body: JSON.stringify(requestBody),
       });
       const body = (await res.json()) as RollResponse;
       if (!res.ok || !body.result) {
         const blocked = parseTrainRollError(body);
+        if (blocked?.code === "CONFIRM_POLL_FALLBACK") {
+          setPollFallbackConfirm({ role, count: eventFallbackCount });
+          return;
+        }
+        if (blocked?.code === "ELIGIBILITY_CHANGED") {
+          // Stale preview — the next spin re-fetches it.
+          setError(tEventEvidence("eligibilityChanged"));
+          return;
+        }
         if (isWheelBlockedError(blocked)) {
           setWheelBlocked(blocked);
           setWheelBlockedRole(role);
@@ -1221,14 +1319,16 @@ export function TrainsDashboard({
         result: body.result,
       };
       setWheelCandidates(
-        body.result.wheelCandidates?.length
-          ? body.result.wheelCandidates
-          : [
-              {
-                memberId: body.result.memberId,
-                memberName: body.result.memberName,
-              },
-            ],
+        eventCandidates?.length
+          ? eventCandidates
+          : body.result.wheelCandidates?.length
+            ? body.result.wheelCandidates
+            : [
+                {
+                  memberId: body.result.memberId,
+                  memberName: body.result.memberName,
+                },
+              ],
       );
       setWheelWinner(body.result);
       setWheelStats(body.stats ?? null);
@@ -2180,7 +2280,6 @@ export function TrainsDashboard({
       )}
     </div>
   ) : null;
-  const selectedConductorRule = selectedDayConfig?.conductorRule ?? null;
   const ruleLabelForRule = useCallback(
     (rule: ConductorRule | null) => {
       const scope = scopeForRule(rule);
@@ -2312,7 +2411,149 @@ export function TrainsDashboard({
     }
   }
 
-  const selectedVipRule = selectedDayConfig?.vipRule ?? null;
+  const selectedEventRule =
+    selectedConductorRule?.kind === "event_scores"
+      ? selectedConductorRule
+      : selectedVipRule?.kind === "event_scores"
+        ? selectedVipRule
+        : null;
+  const eventRuleOccurrenceHref = selectedEventRule?.source.occurrenceId
+    ? `/events/${selectedEventRule.source.occurrenceId}`
+    : "/events";
+
+  const eventRuleKey =
+    selectedConductorRule?.kind === "event_scores"
+      ? JSON.stringify(selectedConductorRule)
+      : null;
+
+  const eventRuleOccurrenceIds = useMemo(() => {
+    const ids = new Set<string>();
+    const collect = (configs: typeof data.dayConfigs) => {
+      for (const day of configs) {
+        for (const rule of [day.conductorRule, day.vipRule]) {
+          if (rule?.kind === "event_scores" && rule.source.occurrenceId) {
+            ids.add(rule.source.occurrenceId);
+          }
+        }
+      }
+    };
+    collect(data.dayConfigs);
+    collect(viewedWeek.dayConfigs);
+    collect(viewedMonth.dayConfigs);
+    return [...ids].sort().join(",");
+  }, [data.dayConfigs, viewedWeek.dayConfigs, viewedMonth.dayConfigs]);
+
+  const [eventRuleOccurrenceNames, setEventRuleOccurrenceNames] = useState<
+    Record<
+      string,
+      { name: string; startDate: string | null; target: EventTarget | null }
+    >
+  >({});
+
+  useEffect(() => {
+    const ids = eventRuleOccurrenceIds.split(",").filter(Boolean);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    void Promise.all(
+      ids.map(async (id) => {
+        try {
+          const res = await fetch(`/api/hq-events/${id}`, {
+            cache: "no-store",
+          });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) return null;
+          return {
+            id,
+            name: (body?.event?.name as string) ?? "",
+            startDate: (body?.event?.startDate as string | null) ?? null,
+            target: (body?.event?.eventFamily as EventTarget | null) ?? null,
+          };
+        } catch {
+          return null;
+        }
+      }),
+    ).then((rows) => {
+      if (cancelled) return;
+      setEventRuleOccurrenceNames((current) => {
+        const next = { ...current };
+        for (const row of rows) {
+          if (row) next[row.id] = row;
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventRuleOccurrenceIds]);
+
+  const eventRuleSummary = useCallback(
+    (rule: ConductorRule | VipRule | null): string | null => {
+      if (rule?.kind !== "event_scores") return null;
+      const occurrence = rule.source.occurrenceId
+        ? eventRuleOccurrenceNames[rule.source.occurrenceId]
+        : null;
+      const familyKey = FAMILY_LABEL_KEY[rule.source.target];
+      const familyLabel = familyKey
+        ? familyKey.ns === "nav"
+          ? tNav(familyKey.key)
+          : tEventEvidence(familyKey.key)
+        : tEventEvidence("title");
+      const eventLabel = occurrence
+        ? `${occurrence.name || familyLabel}${occurrence.startDate ? ` · ${occurrence.startDate}` : ""}`
+        : familyLabel;
+      const scope =
+        rule.eligibility === "participants"
+          ? tEventEvidence("allParticipants")
+          : rule.topN === "all"
+            ? tEventEvidence("allScored")
+            : t("topNScope.scopeLabel", { count: rule.topN });
+      return tRules("eventScoresSummary", {
+        event: eventLabel,
+        scope,
+      });
+    },
+    [eventRuleOccurrenceNames, t, tEventEvidence, tNav, tRules],
+  );
+
+  useEffect(() => {
+    if (!eventRuleKey || !data.canManageTrains) return;
+    const ruleKey = eventRuleKey;
+    let cancelled = false;
+    fetch("/api/trains/event-eligibility", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: selectedDate,
+        role: "conductor",
+        rule: JSON.parse(eventRuleKey),
+      }),
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => null)) as {
+          preview?: EventEligibilityPreview;
+        } | null;
+        if (cancelled) return;
+        if (!res.ok || !body?.preview) {
+          setEventEvidenceGate({ ruleKey, ready: null, eventId: null });
+          return;
+        }
+        setEventEvidenceGate({
+          ruleKey,
+          ready: body.preview.eligibility.ok,
+          eventId: body.preview.sourceIdentity.occurrenceId,
+        });
+      })
+      .catch(() => {
+        if (!cancelled)
+          setEventEvidenceGate({ ruleKey, ready: null, eventId: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventRuleKey, selectedDate, data.canManageTrains]);
+
   const canPaintTemplate =
     data.canPaintPastDays ||
     canOfficerChangeTemplateForDate(selectedDate, data.today);
@@ -2608,17 +2849,20 @@ export function TrainsDashboard({
   }, [targetTrainWeekEnd, targetTrainWeekStart, viewedWeek, weekViewSeed]);
   const selectedPoolDetailOptions = useMemo((): PoolDetailsOption[] => {
     const options: PoolDetailsOption[] = [];
-    if (isPoolSpinSource(selectedConductorSpinSource)) {
-      options.push({
-        role: "conductor",
-        poolType: selectedConductorSpinSource.poolType,
-      });
+    // event_scores rules preview through the event pool endpoint.
+    const poolTypeForSource = (source: SpinSource): PoolType | null =>
+      source?.kind === "event_leaderboard"
+        ? "event_top_x"
+        : isPoolSpinSource(source)
+          ? source.poolType
+          : null;
+    const conductorPoolType = poolTypeForSource(selectedConductorSpinSource);
+    const vipPoolType = poolTypeForSource(selectedVipSpinSource);
+    if (conductorPoolType) {
+      options.push({ role: "conductor", poolType: conductorPoolType });
     }
-    if (isPoolSpinSource(selectedVipSpinSource)) {
-      options.push({
-        role: "vip",
-        poolType: selectedVipSpinSource.poolType,
-      });
+    if (vipPoolType) {
+      options.push({ role: "vip", poolType: vipPoolType });
     }
     return options;
   }, [selectedConductorSpinSource, selectedVipSpinSource]);
@@ -2915,6 +3159,7 @@ export function TrainsDashboard({
               displayWeekStartDow={displayWeekStartDow}
               ruleTextLabels={ruleTextLabels}
               ruleLabels={ruleLabels}
+              eventRuleSummary={eventRuleSummary}
               canPaintDays={data.canManageTrains}
               isDatePaintable={(date) =>
                 data.canPaintPastDays ||
@@ -2957,6 +3202,7 @@ export function TrainsDashboard({
               canPaint={data.canManageTrains && canPaintTemplate}
               ruleTextLabels={ruleTextLabels}
               ruleLabels={ruleLabels}
+              eventRuleSummary={eventRuleSummary}
               vrReporterCount={data.vrReporterCount}
               navLabels={{
                 previousMonth: t("monthNavPrevious"),
@@ -3129,6 +3375,16 @@ export function TrainsDashboard({
               <>
               <TrainsGuidedConductorFlow
                 conductorRule={selectedConductorRule}
+                eventEvidence={
+                  selectedConductorRule?.kind === "event_scores"
+                    ? (eventEvidenceGateState?.ruleKey === eventRuleKey
+                        ? {
+                            ready: eventEvidenceGateState.ready,
+                            eventId: eventEvidenceGateState.eventId,
+                          }
+                        : { ready: null, eventId: null })
+                    : null
+                }
                 vsDataStatus={
                   selectedDate === data.today ? data.vsDataStatus : null
                 }
@@ -3812,11 +4068,54 @@ export function TrainsDashboard({
         onSpin={spinFromScoresReadyPrompt}
       />
 
+      <Dialog
+        open={pollFallbackConfirm != null}
+        onOpenChange={(next) => {
+          if (!next) setPollFallbackConfirm(null);
+        }}
+        title={tEventEvidence("title")}
+      >
+        {pollFallbackConfirm ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm leading-relaxed text-hq-fg">
+              {tEventEvidence("confirmPollFallback", {
+                count: pollFallbackConfirm.count,
+              })}
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPollFallbackConfirm(null)}
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              >
+                {t("templatePicker.cancel")}
+              </button>
+              <button
+                type="button"
+                data-testid="trains-event-fallback-confirm"
+                onClick={() => {
+                  const role = pollFallbackConfirm.role;
+                  setPollFallbackConfirm(null);
+                  void runRollRef.current(role, {
+                    acknowledgePollFallback: true,
+                  });
+                }}
+                className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400"
+              >
+                {t("templatePicker.apply")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
+
       <WheelBlockedDialog
         open={wheelBlocked != null}
         details={wheelBlocked}
         uploadHref={guidedVideoUploadHref}
         rule={selectedConductorRule}
+        eventHref={eventRuleOccurrenceHref}
+        onConfigureEvent={() => setDayMechanismPickerOpen(true)}
         fallbackPoolType={
           wheelBlockedRole === "vip" &&
           isPoolSpinSource(selectedVipSpinSource)
@@ -3900,6 +4199,7 @@ export function TrainsDashboard({
         weightingEnabled={data.priceIsRightWeightingEnabled}
         onWeightingEnabledChange={handleWeightingEnabledChange}
         onClose={() => setDayMechanismPickerOpen(false)}
+        initialEventId={initialEventId}
         onSelect={(patch) => {
           setDayMechanismPickerOpen(false);
           void paintDates([dayMechanismPickerTargetDate(selectedDate)], patch);

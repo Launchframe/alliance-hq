@@ -146,6 +146,28 @@ describe("currentGuidedStep", () => {
     ).toBe("prerequisites");
   });
 
+  it("blocks on prerequisites when an event rule's evidence is not ready", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasConductor: false,
+        locked: false,
+        eventEvidenceRequired: true,
+        eventEvidenceReady: false,
+      }),
+    ).toBe("prerequisites");
+    // VIP evidence never blocks the conductor step ordering.
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasConductor: false,
+        locked: false,
+        eventEvidenceRequired: true,
+        eventEvidenceReady: true,
+      }),
+    ).toBe("conductor");
+  });
+
   it("returns vip when locked with missing VIP even if scores are missing", () => {
     expect(
       currentGuidedStep({
@@ -236,6 +258,39 @@ describe("guidedFlowPrerequisitesBlocking", () => {
         vsDataRequired: true,
         vsDataReady: false,
         conductorManualPickAvailable: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("is true when an event rule's evidence is not ready", () => {
+    expect(
+      guidedFlowPrerequisitesBlocking({
+        ...base,
+        locked: false,
+        eventEvidenceRequired: true,
+        eventEvidenceReady: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("is false while event readiness is unknown (loading stays non-blocking)", () => {
+    expect(
+      guidedFlowPrerequisitesBlocking({
+        ...base,
+        locked: false,
+        eventEvidenceRequired: true,
+        eventEvidenceReady: undefined,
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when event evidence is ready", () => {
+    expect(
+      guidedFlowPrerequisitesBlocking({
+        ...base,
+        locked: false,
+        eventEvidenceRequired: true,
+        eventEvidenceReady: true,
       }),
     ).toBe(false);
   });

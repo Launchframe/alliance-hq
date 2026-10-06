@@ -45,9 +45,10 @@ export type DayRulePaletteEntry = {
   isFreeChoice?: boolean;
 };
 
-// `event_scores` has a palette id so labels/styles/identity stay exhaustive,
-// but it is deliberately NOT a selectable entry: it requires an occurrence
-// binding from the event rule picker (Phase 3), not a scope list.
+// `event_scores` and legacy `event_top_x` keep palette ids so labels, styles
+// and identities stay exhaustive, but neither is a selectable entry: the
+// former requires an occurrence binding from the event rule picker, the
+// latter stays decodable for history only — new days use `event_scores`.
 export const DAY_RULE_PALETTE: readonly DayRulePaletteEntry[] = [
   { id: "free_choice", rule: null, isFreeChoice: true },
   { id: "vs_top_n", rule: null, scopes: VS_TOP_N_SCOPES },
@@ -68,10 +69,6 @@ export const DAY_RULE_PALETTE: readonly DayRulePaletteEntry[] = [
     rule: { kind: "rank_pool", pool: "heavy_hitter", draw: "wheel" },
   },
   { id: "donations_top", rule: { kind: "donations_top" } },
-  {
-    id: "event_top_x",
-    rule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
-  },
 ];
 
 export function paletteEntry(

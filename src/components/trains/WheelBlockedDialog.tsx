@@ -29,6 +29,10 @@ type Props = {
   rosterSyncBusy?: boolean;
   rosterSyncNotice?: string | null;
   rosterSyncNoticeTone?: "success" | "warning" | "error";
+  /** Event workspace link for event-evidence blockers. */
+  eventHref?: string;
+  /** Open the day rule picker to (re)configure the event rule. */
+  onConfigureEvent?: () => void;
   /** Manual pick is available for today's role. */
   canPickManually?: boolean;
   canSyncRoster?: boolean;
@@ -41,6 +45,18 @@ type Props = {
   onRetrySpin?: () => void;
   onSyncRoster?: () => void;
 };
+
+const EVENT_BODY_KEYS: Partial<Record<TrainRollErrorDetails["code"], string>> = {
+  EVENT_NOT_SELECTED: "eventNotSelected",
+  EVENT_NOT_READY: "pendingEvidence",
+  PENDING_EVIDENCE: "pendingEvidence",
+  READINESS_INVALIDATED: "readinessInvalidated",
+  REQUEST_CONFLICT: "actionFailed",
+};
+
+function isEventDetails(details: TrainRollErrorDetails): boolean {
+  return details.code in EVENT_BODY_KEYS;
+}
 
 function bodyMessageKey(details: TrainRollErrorDetails): string {
   switch (details.code) {
@@ -156,6 +172,8 @@ function formatScoreWeekdayForLocale(scoreDate: string, locale: string): string 
 export function WheelBlockedDialog({
   open,
   details,
+  eventHref,
+  onConfigureEvent,
   fallbackPoolType = null,
   rule = null,
   uploadHref,
@@ -172,19 +190,25 @@ export function WheelBlockedDialog({
   onSyncRoster,
 }: Props) {
   const t = useTranslations("trains");
+  const tEvent = useTranslations("eventEvidence");
   const locale = useLocale();
 
   if (!details) return null;
 
   const dialogBusy = busy || rosterSyncBusy;
   const rosterSyncSucceeded = rosterSyncNoticeTone === "success";
+  const eventBodyKey = EVENT_BODY_KEYS[details.code] ?? null;
   const bodyKey = bodyMessageKey(details);
+  const bodyText = eventBodyKey ? tEvent(eventBodyKey) : null;
   const reseedPoolType = resolveWheelBlockedReseedPoolType(
     details,
     fallbackPoolType,
     { rule },
   );
-  const showReseed = reseedPoolType != null && onReseedAndRespin != null;
+  const showReseed =
+    reseedPoolType != null &&
+    onReseedAndRespin != null &&
+    !isEventDetails(details);
   const reseedLabelKey = wheelBlockedReseedLabelKey(details);
   const linkCta = primaryLinkCta(details, {
     canSyncRoster,
@@ -232,7 +256,8 @@ export function WheelBlockedDialog({
             className="mt-2 text-sm leading-relaxed text-hq-fg-muted"
             data-testid="trains-wheel-blocked-body"
           >
-            {bodyParams ? t(bodyKey, bodyParams) : t(bodyKey)}
+            {bodyText ??
+              (bodyParams ? t(bodyKey, bodyParams) : t(bodyKey))}
           </p>
         </div>
 
@@ -315,6 +340,34 @@ export function WheelBlockedDialog({
             >
               {t("wheelBlocked.syncRoster")}
             </button>
+          ) : null}
+
+          {details.code === "EVENT_NOT_SELECTED" && onConfigureEvent ? (
+            <button
+              type="button"
+              disabled={dialogBusy}
+              onClick={() => {
+                onClose();
+                onConfigureEvent();
+              }}
+              className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
+              data-testid="trains-wheel-blocked-configure-event"
+            >
+              {t("dayTemplateMenu.title")}
+            </button>
+          ) : null}
+
+          {isEventDetails(details) &&
+          details.code !== "EVENT_NOT_SELECTED" &&
+          eventHref ? (
+            <Link
+              href={eventHref}
+              onClick={onClose}
+              className="inline-flex justify-center rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
+              data-testid="trains-wheel-blocked-review-event"
+            >
+              {tEvent("reviewEvent")}
+            </Link>
           ) : null}
 
           {linkCta ? (

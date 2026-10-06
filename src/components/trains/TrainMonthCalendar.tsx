@@ -23,6 +23,7 @@ import {
   conductorRuleLabelKey,
   vipRuleLabelKey,
   type ConductorRule,
+  type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
   paletteIdForRule,
@@ -49,6 +50,8 @@ type Props = {
   ruleTextLabels: Record<string, string>;
   /** Palette-row labels for the paint toolbar. */
   ruleLabels: Record<DayRulePaletteId, string>;
+  /** Per-occurrence summary for `event_scores` cells (family/scope label). */
+  eventRuleSummary?: (rule: ConductorRule | VipRule | null) => string | null;
   vrReporterCount?: number;
   navLabels: {
     previousMonth: string;
@@ -118,6 +121,7 @@ export function TrainMonthCalendar({
   canPaint,
   ruleTextLabels,
   ruleLabels,
+  eventRuleSummary,
   navLabels,
   externalMonth,
   onSelectDate,
@@ -476,14 +480,21 @@ export function TrainMonthCalendar({
             const dayNumber = date.slice(8);
             const scope = day ? scopeForRule(day.conductorRule) : null;
             const mechLabel = day
-              ? `${
+              ? day.conductorRule?.kind === "event_scores"
+                ? (eventRuleSummary?.(day.conductorRule) ??
                   ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
-                  paletteIdForRule(day.conductorRule)
-                }${scope != null ? ` ${scope}` : ""}`
+                  paletteIdForRule(day.conductorRule))
+                : `${
+                    ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
+                    paletteIdForRule(day.conductorRule)
+                  }${scope != null ? ` ${scope}` : ""}`
               : null;
             const vipLabel =
               day && day.vipRule?.kind !== "none"
-                ? (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null)
+                ? ((day.vipRule?.kind === "event_scores"
+                    ? (eventRuleSummary?.(day.vipRule) ?? null)
+                    : null) ??
+                  (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null))
                 : null;
 
             const inSelectionPreview = Boolean(selectionPreviewDates?.has(date));
