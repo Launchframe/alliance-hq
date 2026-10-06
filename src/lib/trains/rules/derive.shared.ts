@@ -20,7 +20,15 @@ export type DonationsLeaderboardSpinSource = {
   kind: "donations_leaderboard";
   rank: 1 | 2;
 };
-export type EventLeaderboardSpinSource = { kind: "event_leaderboard" };
+/**
+ * Event-rules board. Carries the full source/policy identity so two rules
+ * pointing at different occurrences, boards, teams, or scopes never share a
+ * candidate set.
+ */
+export type EventLeaderboardSpinSource = {
+  kind: "event_leaderboard";
+  rule: Extract<ConductorRule | VipRule, { kind: "event_scores" }>;
+};
 /** Price Is Freight weekday raffle — with replacement, not a depleting pool. */
 export type PriceIsRightWeekdaySpinSource = { kind: "price_is_right_raffle" };
 /** Price Is Freight max-ticket draw — with replacement, not a depleting pool. */
@@ -145,6 +153,8 @@ export function spinSourceForConductorRule(
       return { kind: "donations_leaderboard", rank: 1 };
     case "event_top_x":
       return { kind: "pool", poolType: "event_top_x" };
+    case "event_scores":
+      return { kind: "event_leaderboard", rule };
   }
 }
 
@@ -152,6 +162,9 @@ export function spinSourceForVipRule(rule: VipRule | null): SpinSource {
   if (!rule || rule.kind === "none") return null;
   if (rule.kind === "donations_second") {
     return { kind: "donations_leaderboard", rank: 2 };
+  }
+  if (rule.kind === "event_scores") {
+    return { kind: "event_leaderboard", rule };
   }
   return { kind: "pool", poolType: "event_top_x" };
 }
@@ -218,7 +231,11 @@ export function canSpinVipForRule(
   locked: boolean,
 ): boolean {
   if (!locked || !rule || rule.kind === "none") return false;
-  return rule.kind === "donations_second" || rule.kind === "event_top_x";
+  return (
+    rule.kind === "donations_second" ||
+    rule.kind === "event_top_x" ||
+    rule.kind === "event_scores"
+  );
 }
 
 /** Officer manual VIP / Guardian pick — open roster assign unless skipped. */

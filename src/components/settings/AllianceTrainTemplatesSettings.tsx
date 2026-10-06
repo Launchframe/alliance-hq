@@ -5,7 +5,10 @@ import { useTranslations } from "next-intl";
 
 import { TemplateWeekShapeStrip } from "@/components/trains/TemplateWeekShapeStrip";
 import { TrainRuleTemplateEditor } from "@/components/settings/TrainRuleTemplateEditor";
-import { conductorRuleLabelKey } from "@/lib/trains/rules/catalog.shared";
+import {
+  conductorRuleLabelKey,
+  ruleLabelText,
+} from "@/lib/trains/rules/catalog.shared";
 import { DAY_RULE_PALETTE, ruleForPaletteSelection, defaultScopeForPaletteId } from "@/lib/trains/rules/palette.shared";
 import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
 import type { TemplateWeekRules } from "@/lib/trains/rules/template-days.shared";
@@ -48,6 +51,7 @@ export function AllianceTrainTemplatesSettings({
   const t = useTranslations("settings.trainTemplates");
   const tTrains = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
+  const tEventEvidence = useTranslations("eventEvidence");
 
   const [templates, setTemplates] = useState<RuleTemplate[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -74,13 +78,13 @@ export function AllianceTrainTemplatesSettings({
       const key = conductorRuleLabelKey(
         ruleForPaletteSelection(entry.id, defaultScopeForPaletteId(entry.id)),
       );
-      labels[key] = tRules(key);
+      labels[key] = ruleLabelText(key, tRules, tEventEvidence);
     }
     for (const key of ["vsTop1", "vsTopN", "vrTopN"] as const) {
       labels[key] = tRules(key);
     }
     return labels;
-  }, [tRules]);
+  }, [tRules, tEventEvidence]);
 
   const load = useCallback(
     async (signal?: { cancelled: boolean }) => {

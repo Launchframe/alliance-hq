@@ -22,7 +22,10 @@ import type {
   VsPlanPreview,
   VsWeekPayload,
 } from "@/lib/vs-performance/weekly-view.shared";
-import { conductorRuleLabelKey } from "@/lib/trains/rules/catalog.shared";
+import {
+  conductorRuleLabelKey,
+  ruleLabelText,
+} from "@/lib/trains/rules/catalog.shared";
 import { scopeForRule } from "@/lib/trains/rules/palette.shared";
 import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 
@@ -94,6 +97,7 @@ export function WeeklyVsPlan({
 }: Props) {
   const t = useTranslations("vsPerformance");
   const tRules = useTranslations("trains.rules");
+  const tEventEvidence = useTranslations("eventEvidence");
   const tPlatform = useTranslations("trains.help.weekGoals");
   const tVsDays = useTranslations("trains.poolDetails.vsWeekDays");
   const locale = useLocale();
@@ -179,7 +183,11 @@ export function WeeklyVsPlan({
   }, [editing, draft, payload.days]);
 
   function ruleLabel(rule: ConductorRule | null): string {
-    const label = tRules(conductorRuleLabelKey(rule));
+    const label = ruleLabelText(
+      conductorRuleLabelKey(rule),
+      tRules,
+      tEventEvidence,
+    );
     const scope = scopeForRule(rule);
     return scope != null ? `${label} ${scope}` : label;
   }

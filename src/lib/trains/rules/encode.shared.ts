@@ -112,6 +112,11 @@ export function decodeConductorRule(
       return { kind: "donations_top" };
     case "event_top_x_lottery":
       return { kind: "event_top_x", eventKey: "capitol_war", topN: 10 };
+    case "event_scores":
+      // Not representable in the legacy vocabulary — rows written after the
+      // event-evidence feature carry the typed rule column, which is read
+      // instead. A mechanism-only decode is a legacy-row path only.
+      return null;
     case "custom":
     case "officer_pick":
     default:
@@ -148,6 +153,8 @@ export function decodeVipRule(input: LegacyVipInput): VipRule | null {
       return { kind: "donations_second" };
     case "event_top_x_lottery":
       return { kind: "event_top_x", ...eventConfig(input.config) };
+    case "event_scores":
+      return null;
     case "conductor_pick":
     default:
       return null;
@@ -177,11 +184,14 @@ export function encodeLegacyConductorMechanism(
       return "donations_top";
     case "event_top_x":
       return "event_top_x_lottery";
+    case "event_scores":
+      return "event_scores";
   }
 }
 
 export function encodeLegacyVipMechanism(rule: VipRule | null): string {
   if (!rule) return "conductor_pick";
   if (rule.kind === "event_top_x") return "event_top_x_lottery";
+  if (rule.kind === "event_scores") return "event_scores";
   return rule.kind;
 }

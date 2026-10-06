@@ -4835,6 +4835,7 @@
       "priceIsFreightHeavyHitter": "Takedown eligibility",
       "donationsTop": "Top donor",
       "eventTopX": "Event top X",
+      "eventScoresSummary": "{event} · {scope}",
       "vipConductorPick": "Conductor's pick",
       "vipDonationsSecond": "Second donor",
       "vipEventTopX": "Event top X",
@@ -8361,6 +8362,10 @@
       "legacyVersion": "Earlier weekly-minimum policy",
       "dailyVersion": "Daily-consistency policy"
     }
+  },
+  "eventEvidence": {
+    "title": "Event results",
+    "chooseOccurrenceHint": "Select the event date whose results should count."
   },
   "activity": {
     "title": "Activity",

@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import type { ConductorTopN } from "@/lib/trains/conductor-top-n.shared";
 import {
   conductorRuleLabelKey,
+  ruleLabelText,
   vipRuleIdentity,
   vipRuleLabelKey,
   type ConductorRule,
@@ -65,6 +66,7 @@ export function DayMechanismPickerDialog({
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
   const tDayMenu = useTranslations("trains.dayTemplateMenu");
+  const tEventEvidence = useTranslations("eventEvidence");
   const [target, setTarget] = useState<PaintTarget>("conductor");
   const [selected, setSelected] = useState<ConductorRule | null>(currentRule);
   const [selectedVip, setSelectedVip] = useState<VipRule | null>(
@@ -100,7 +102,7 @@ export function DayMechanismPickerDialog({
       paletteId === selectedPaletteId ? scopeForRule(selected) : null,
     );
     if (paletteId === "free_choice") return tRules("freeChoice");
-    return tRules(conductorRuleLabelKey(rule));
+    return ruleLabelText(conductorRuleLabelKey(rule), tRules, tEventEvidence);
   }
 
   function apply() {
@@ -199,7 +201,12 @@ export function DayMechanismPickerDialog({
                       const isSelected = selectedPaletteId === entry.id;
                       const scope = isSelected ? scopeForRule(selected) : null;
                       const detailKey = `ruleDetails.${entry.id}` as const;
-                      const detail = t.has(detailKey) ? t(detailKey) : null;
+                      const detail =
+                        entry.id === "event_scores"
+                          ? tEventEvidence("chooseOccurrenceHint")
+                          : t.has(detailKey)
+                            ? t(detailKey)
+                            : null;
 
                       return (
                         <div
@@ -331,7 +338,7 @@ export function DayMechanismPickerDialog({
                             onClick={() => setSelectedVip(rule)}
                             className="w-full text-left text-sm font-medium text-hq-fg disabled:opacity-50"
                           >
-                            {tRules(vipRuleLabelKey(rule))}
+                            {ruleLabelText(vipRuleLabelKey(rule), tRules, tEventEvidence)}
                           </button>
                         </div>
                       );

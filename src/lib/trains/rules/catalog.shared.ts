@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import {
+  EVENT_FAMILY_POLICY,
+  EVENT_TARGETS,
+  EVENT_TEAM_SCOPES,
+} from "@/lib/hq-events/event-types.shared";
+import {
   VR_TOP_N_SCOPES,
   VS_TOP_N_SCOPES,
 } from "@/lib/trains/conductor-top-n.shared";
@@ -23,6 +28,7 @@ export const CONDUCTOR_RULE_KINDS = [
   "price_is_freight",
   "donations_top",
   "event_top_x",
+  "event_scores",
 ] as const;
 
 export type ConductorRuleKind = (typeof CONDUCTOR_RULE_KINDS)[number];
@@ -44,6 +50,93 @@ export type RankPoolDraw = (typeof RANK_POOL_DRAWS)[number];
 export const PRICE_IS_FREIGHT_BOARDS = ["weekday", "heavy_hitter"] as const;
 
 export type PriceIsFreightBoard = (typeof PRICE_IS_FREIGHT_BOARDS)[number];
+
+/**
+ * Reviewed-event scopes. `all` is the participation board (leaderboard
+ * members plus, for participants rules, Yes respondents); numeric scopes
+ * rank only real scores — poll credits never fill slots.
+ */
+export const EVENT_SCORE_SCOPES = [1, 3, 5, 10, "all"] as const;
+
+export type EventScoreScope = (typeof EVENT_SCORE_SCOPES)[number];
+
+export const eventScoresSourceSchema = z.object({
+  target: z.enum(EVENT_TARGETS),
+  seriesId: z.string().max(128).nullable(),
+  occurrenceId: z.string().max(128).nullable(),
+  boardKey: z.string().max(128).nullable(),
+  teamScope: z.enum(EVENT_TEAM_SCOPES).nullable(),
+});
+
+const eventScoresRuleShape = z.object({
+  kind: z.literal("event_scores"),
+  source: eventScoresSourceSchema.strict(),
+  eligibility: z.enum(["scored", "participants"]),
+  topN: z.union([
+    z.literal(1),
+    z.literal(3),
+    z.literal(5),
+    z.literal(10),
+    z.literal("all"),
+  ]),
+  fallback: z.enum(["none", "confirmed_poll_yes"]),
+}).strict();
+
+export type EventScoresRule = z.infer<typeof eventScoresRuleShape>;
+
+/**
+ * Cross-field policy on an `event_scores` rule, shared by conductor and VIP:
+ * participants mode is Warzone-only with `all` scope and no fallback; the
+ * confirmed-empty poll fallback is a Warzone scored rule only; Storm targets
+ * require a team scope and no other family carries one.
+ */
+function validateEventScoresRule(
+  rule: { kind: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (rule.kind !== "event_scores") return;
+  const eventRule = rule as EventScoresRule;
+  const policy = EVENT_FAMILY_POLICY[eventRule.source.target];
+  if (policy.teamScoped && eventRule.source.teamScope == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "storm targets require teamScope A, B, or both",
+      path: ["source", "teamScope"],
+    });
+  }
+  if (!policy.teamScoped && eventRule.source.teamScope != null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "teamScope applies only to storm events",
+      path: ["source", "teamScope"],
+    });
+  }
+  if (eventRule.eligibility === "participants") {
+    if (
+      eventRule.source.target !== "warzone-duel" ||
+      eventRule.topN !== "all" ||
+      eventRule.fallback !== "none"
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "participants mode requires the warzone-duel target, topN 'all', and fallback 'none'",
+      });
+    }
+  }
+  if (
+    eventRule.fallback === "confirmed_poll_yes" &&
+    (eventRule.source.target !== "warzone-duel" ||
+      eventRule.eligibility !== "scored")
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "confirmed_poll_yes fallback requires the warzone-duel target and scored eligibility",
+      path: ["fallback"],
+    });
+  }
+}
 
 export const conductorRuleSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -74,7 +167,8 @@ export const conductorRuleSchema = z.discriminatedUnion("kind", [
     eventKey: z.string().min(1).max(64),
     topN: z.number().int().min(1).max(100),
   }),
-]);
+  eventScoresRuleShape,
+]).superRefine(validateEventScoresRule);
 
 export type ConductorRule = z.infer<typeof conductorRuleSchema>;
 
@@ -85,9 +179,22 @@ export const vipRuleSchema = z.discriminatedUnion("kind", [
     eventKey: z.string().min(1).max(64),
     topN: z.number().int().min(1).max(100),
   }),
+  eventScoresRuleShape,
   /** VIP intentionally skipped for this day (old `vip_mechanism = "none"`). */
   z.object({ kind: z.literal("none") }),
-]);
+]).superRefine((rule, ctx) => {
+  validateEventScoresRule(rule, ctx);
+  if (
+    rule.kind === "event_scores" &&
+    (rule as EventScoresRule).fallback !== "none"
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "poll fallback is a scored conductor rule only",
+      path: ["fallback"],
+    });
+  }
+});
 
 export type VipRule = z.infer<typeof vipRuleSchema>;
 
@@ -160,13 +267,38 @@ export function conductorRuleIdentity(rule: ConductorRule | null): string {
       return "donations_top";
     case "event_top_x":
       return `event_top_x:${rule.eventKey}:${rule.topN}`;
+    case "event_scores":
+      return eventScoresRuleIdentity(rule);
   }
+}
+
+/**
+ * Event rule identity covers every source and policy field — a different
+ * occurrence, board, team, eligibility mode, scope or fallback is a
+ * different rule, never "the same event".
+ */
+function eventScoresRuleIdentity(rule: EventScoresRule): string {
+  const source = rule.source;
+  const parts = [
+    source.target,
+    source.seriesId ?? "",
+    source.occurrenceId ?? "",
+    source.boardKey ?? "",
+    source.teamScope ?? "",
+    rule.eligibility,
+    String(rule.topN),
+    rule.fallback,
+  ];
+  return `event_scores:${parts.join(":")}`;
 }
 
 export function vipRuleIdentity(rule: VipRule | null): string {
   if (!rule) return "free_choice";
   if (rule.kind === "event_top_x") {
     return `event_top_x:${rule.eventKey}:${rule.topN}`;
+  }
+  if (rule.kind === "event_scores") {
+    return eventScoresRuleIdentity(rule);
   }
   return rule.kind;
 }
@@ -199,6 +331,8 @@ export function conductorRuleLabelKey(rule: ConductorRule | null): string {
       return "donationsTop";
     case "event_top_x":
       return "eventTopX";
+    case "event_scores":
+      return "eventScores";
   }
 }
 
@@ -209,9 +343,30 @@ export function vipRuleLabelKey(rule: VipRule | null): string {
       return "vipDonationsSecond";
     case "event_top_x":
       return "vipEventTopX";
+    case "event_scores":
+      return "eventScores";
     case "none":
       return "vipNone";
   }
+}
+
+/**
+ * Label key that resolves outside `trains.rules`: `event_scores` reuses the
+ * approved `eventEvidence.title` copy instead of a duplicated rules entry.
+ */
+export const EVENT_SCORES_LABEL_KEY = "eventScores";
+
+type RuleLabelTranslate = (key: string) => string;
+
+/** Resolve a rule label key, routing `eventScores` to `eventEvidence.title`. */
+export function ruleLabelText(
+  labelKey: string,
+  tRules: RuleLabelTranslate,
+  tEventEvidence: RuleLabelTranslate,
+): string {
+  return labelKey === EVENT_SCORES_LABEL_KEY
+    ? tEventEvidence("title")
+    : tRules(labelKey);
 }
 
 export { VR_TOP_N_SCOPES, VS_TOP_N_SCOPES };

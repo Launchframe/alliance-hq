@@ -268,7 +268,8 @@ describe("round trip", () => {
     ];
     for (const rule of rules) {
       const mechanism = encodeLegacyConductorMechanism(rule);
-      const topN = "topN" in rule ? rule.topN : null;
+      const topN =
+        "topN" in rule && typeof rule.topN === "number" ? rule.topN : null;
       expect(decodeConductorRule({ mechanism, topN })).toEqual(rule);
     }
   });
