@@ -216,6 +216,7 @@ async function ensureEventBoard(
   const boardId = nanoid(16);
   await db.insert(schema.hqEventBoards).values({
     id: boardId,
+    allianceId: hqEvent.allianceId,
     hqEventId: hqEvent.id,
     boardKey,
     name: eventName,
