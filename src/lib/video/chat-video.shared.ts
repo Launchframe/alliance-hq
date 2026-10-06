@@ -13,6 +13,10 @@ export const CHAT_VIDEO_EXTRACTION_CONFIG = {
 
 export const CHAT_VIDEO_MAX_SELECTED_FRAMES = 240;
 
+export const CHAT_MEDIA_MAX_OBSERVATIONS = 240;
+
+export const CHAT_VIDEO_SOURCE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const CHAT_VIDEO_CONTENT_TYPES = [
   "video/mp4",
   "video/quicktime",

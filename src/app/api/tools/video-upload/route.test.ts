@@ -17,9 +17,10 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/rbac/require-permission", () => ({
   requireSessionPermission: mocks.requireSessionPermission,
 }));
-vi.mock("@/lib/rbac/constants", () => ({
-  VIDEO_ENQUEUE_PERMISSION: "hq:video:enqueue",
-}));
+vi.mock("@/lib/rbac/constants", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/rbac/constants")>();
+  return { ...mod, VIDEO_ENQUEUE_PERMISSION: "hq:video:enqueue" };
+});
 vi.mock("@/lib/storage", () => ({
   putObject: vi.fn(async () => {}),
   videoStorageKey: vi.fn(() => "videos/k"),
@@ -46,7 +47,10 @@ vi.mock("@/lib/banks/resolve-deposit-slip-upload-bank-id.server", () => ({
 vi.mock("@/lib/video/video-job-ownership.server", () => ({
   videoJobsOwnedByViewerInAllianceWhere: vi.fn(),
 }));
-vi.mock("@/lib/db", () => ({ getDb: vi.fn(), schema: {} }));
+vi.mock("@/lib/db", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/db")>();
+  return { ...mod, getDb: vi.fn() };
+});
 
 import { POST } from "./route";
 

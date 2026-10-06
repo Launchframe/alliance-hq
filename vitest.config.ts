@@ -20,7 +20,7 @@ export default defineConfig({
     environment: "node",
     server: {
       deps: {
-        inline: ["next-intl"],
+        inline: ["next-auth", "next-intl"],
       },
     },
     include: [

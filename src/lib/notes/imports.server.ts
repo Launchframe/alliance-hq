@@ -6,12 +6,13 @@ import { getDb, schema } from "@/lib/db";
 import { deleteObject, putObject, r2Configured } from "@/lib/storage";
 import { abortR2MultipartUpload, presignR2PutObject } from "@/lib/storage/r2";
 import type { KnowledgeWebActor } from "./access.server";
-import { createKnowledgeResource, grantOfficersReadAccess, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
+import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { knowledgeHash, knowledgePrincipalKey, withKnowledgeReceipt } from "./mutations.server";
 import { assertHistoryStorage, historyByteHash, readHistoryObject, readHistoryStream, validateHistoryBytes } from "./import-storage.server";
 import { HISTORY_IMPORT_PAGE_SIZE, historyInitSchema, historyReviewSchema, type HistoryImportDetail, type HistoryImportPage, type HistoryInit, type HistoryListCursor, type HistoryMessageMediaDto } from "./imports.shared";
 import { redactIntakeText } from "./intake.shared";
 import { historyMemberMayProcess, queueHistoryJob } from "./jobs.server";
+import { CHAT_MEDIA_MAX_OBSERVATIONS, CHAT_VIDEO_SOURCE_RETENTION_MS } from "@/lib/video/chat-video.shared";
 
 const imports = schema.knowledgeHistoryImports;
 const assets = schema.knowledgeHistoryAssets;
@@ -189,9 +190,18 @@ export async function commandHistoryImport(actor: KnowledgeWebActor, id: string,
       }).from(messages).where(and(eq(messages.sessionId, id), eq(messages.allianceId, actor.allianceId)));
       const [mediaTotals] = await tx.select({ unreviewed: sql<number>`count(*) filter (where not reviewed)`, reviewed: sql<number>`count(*) filter (where reviewed)` }).from(media).where(and(eq(media.sessionId, id), eq(media.allianceId, actor.allianceId)));
       if (Number(totals.unreviewed) || Number(totals.emptyEnglish) || Number(mediaTotals.unreviewed) || (!Number(totals.included) && !Number(mediaTotals.reviewed))) throw new KnowledgeAccessError("invalid");
-      await tx.update(imports).set({ state: "committed", updatedAt: new Date() }).where(eq(imports.id, id));
-      await tx.update(schema.officerChatSessions).set({ status: "imported", updatedAt: new Date() }).where(eq(schema.officerChatSessions.id, id));
-      if (record.audience === "officers_read") await grantOfficersReadAccess(tx, actor, record.resourceId);
+      const now = new Date();
+      if (record.kind === "video") {
+        await tx.update(imports).set({ state: "committed", sourceDeleteAfter: new Date(now.getTime() + CHAT_VIDEO_SOURCE_RETENTION_MS), sourceDeletedAt: null, updatedAt: now }).where(eq(imports.id, id));
+        await tx.update(schema.videoJobs).set({ status: "complete", updatedAt: now })
+          .where(and(eq(schema.videoJobs.knowledgeImportId, id), eq(schema.videoJobs.status, "review")));
+      } else {
+        await tx.update(imports).set({ state: "committed", updatedAt: now }).where(eq(imports.id, id));
+      }
+      await tx.update(schema.officerChatSessions).set({ status: "imported", updatedAt: now }).where(eq(schema.officerChatSessions.id, id));
+      if (record.audience === "officers_read") {
+        await tx.insert(schema.knowledgeResourceGrants).values({ id: nanoid(), resourceId: record.resourceId, allianceId: actor.allianceId, subjectKind: "officers", subjectId: actor.allianceId, role: "read", createdByHqUserId: actor.hqUserId }).onConflictDoNothing();
+      }
     } else if (input.command === "cancel") {
       if (record.state === "committed") throw new KnowledgeAccessError("changed");
       if (record.kind === "video") cleanup = await tx
@@ -245,7 +255,7 @@ export async function reviewHistoryMessages(actor: KnowledgeWebActor, id: string
     const mediaReviews = input.mediaReviews ?? [];
     if (!input.edits.length && !mediaReviews.length) throw new KnowledgeAccessError("invalid");
     if (input.edits.length > 50 || new Set(input.edits.map((edit) => edit.id)).size !== input.edits.length) throw new KnowledgeAccessError("invalid");
-    if (mediaReviews.length > 100 || new Set(mediaReviews.map((item) => item.id)).size !== mediaReviews.length) throw new KnowledgeAccessError("invalid");
+    if (mediaReviews.length > CHAT_MEDIA_MAX_OBSERVATIONS || new Set(mediaReviews.map((item) => item.id)).size !== mediaReviews.length) throw new KnowledgeAccessError("invalid");
     for (const item of mediaReviews) {
       const saved = await tx.update(media).set({ reviewed: item.reviewed })
         .where(and(eq(media.id, item.id), eq(media.sessionId, id), eq(media.allianceId, actor.allianceId))).returning({ id: media.id });
