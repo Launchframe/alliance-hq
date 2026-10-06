@@ -2,8 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { uploadVideoFile, type UploadConfig } from "./client-upload";
 
-import { uploadVideoFile, type UploadConfig } from "./client-upload";
-
 const config: UploadConfig = {
   mode: "r2",
   maxUploadBytes: 500 * 1024 * 1024,
@@ -153,11 +151,11 @@ const r2Config: UploadConfig = {
   multipartPartBytes: 8 * 1024 * 1024,
   legacyDirectPostMaxBytes: 64 * 1024 * 1024,
 };
-const directConfig: UploadConfig = { ...r2Config, mode: "direct" };
+const abortDirectConfig: UploadConfig = { ...r2Config, mode: "direct" };
 const file = new File([new Uint8Array(16)], "chat.mp4", { type: "video/mp4" });
 const base = { file, scoreTarget: "officer-chat-video", knowledgeImportId: "import-1" };
 
-const jsonResponse = (body: object, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const abortJsonResponse = (body: object, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 class FakeXhr {
   static instances: FakeXhr[] = [];
@@ -181,18 +179,18 @@ describe("uploadVideoFile abort lifecycle", () => {
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     controller.abort();
-    await expect(uploadVideoFile({ ...base, uploadConfig: directConfig, signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    await expect(uploadVideoFile({ ...base, uploadConfig: abortDirectConfig, signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("passes the signal through the direct upload fetch", async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       expect(init?.signal).toBeInstanceOf(AbortSignal);
-      return jsonResponse({ ok: true, jobId: "job-1", status: "pending_approval" });
+      return abortJsonResponse({ ok: true, jobId: "job-1", status: "pending_approval" });
     });
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
-    const result = await uploadVideoFile({ ...base, uploadConfig: directConfig, signal: controller.signal });
+    const result = await uploadVideoFile({ ...base, uploadConfig: abortDirectConfig, signal: controller.signal });
     expect(result.jobId).toBe("job-1");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -202,9 +200,9 @@ describe("uploadVideoFile abort lifecycle", () => {
     const seen: Array<AbortSignal | null | undefined> = [];
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       seen.push(init?.signal);
-      if (url.endsWith("/init")) return jsonResponse({ mode: "r2_multipart", jobId: "job-2", uploadId: "up-1", presignedParts: [{ partNumber: 1, url: "https://parts/1", start: 0, end: 15 }] });
+      if (url.endsWith("/init")) return abortJsonResponse({ mode: "r2_multipart", jobId: "job-2", uploadId: "up-1", presignedParts: [{ partNumber: 1, url: "https://parts/1", start: 0, end: 15 }] });
       if (url === "https://parts/1") return new Response(null, { status: 200, headers: { ETag: '"tag"' } });
-      return jsonResponse({ ok: true, jobId: "job-2", status: "pending_approval" });
+      return abortJsonResponse({ ok: true, jobId: "job-2", status: "pending_approval" });
     });
     vi.stubGlobal("fetch", fetchMock);
     const result = await uploadVideoFile({ ...base, uploadConfig: r2Config, signal: controller.signal });
@@ -216,8 +214,8 @@ describe("uploadVideoFile abort lifecycle", () => {
   it("aborts the in-flight XHR and rejects AbortError while removing the listener", async () => {
     vi.stubGlobal("XMLHttpRequest", FakeXhr);
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.endsWith("/init")) return jsonResponse({ mode: "r2_put", jobId: "job-3", putUrl: "https://put/object", contentType: "video/mp4" });
-      return jsonResponse({ ok: true, jobId: "job-3" });
+      if (url.endsWith("/init")) return abortJsonResponse({ mode: "r2_put", jobId: "job-3", putUrl: "https://put/object", contentType: "video/mp4" });
+      return abortJsonResponse({ ok: true, jobId: "job-3" });
     });
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();

@@ -1750,15 +1750,15 @@
       "previousMonth": "Previous month",
       "viewDay": "Daily",
       "viewMonth": "Bulan",
-      "weekdayHeaders": {
-        "0": "Min",
-        "1": "Sen",
-        "2": "Sel",
-        "3": "Rab",
-        "4": "Kam",
-        "5": "Jum",
-        "6": "Sab"
-      }
+      "weekdayHeaders": [
+        "Sun",
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat"
+      ]
     },
     "errors": {
       "saveFailed": "Could not save battle plan changes."
@@ -2648,12 +2648,12 @@
       "rosterMissVerified": "Last War shows your commander as **{gameName}**, but our **{tag}** roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "rosterMissVerifiedGeneric": "Last War shows your commander as **{gameName}**, but our roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer to refresh the roster or help with setup.",
-      "steps": {
-        "0": "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
-        "1": "Copy your player UID from that screen — you can copy your own player ID.",
-        "2": "Double-check every digit before you confirm.",
-        "3": "Run `/link-commander` again on Discord to open the secure link."
-      },
+      "steps": [
+        "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
+        "Copy your player UID from that screen — you can copy your own player ID.",
+        "Double-check every digit before you confirm.",
+        "Run `/link-commander` again on Discord to open the secure link."
+      ],
       "updated": "Updated your commander link for **{name}**.",
       "usage": "Run `/link-commander` (or `/link-last-war-profile`) for a secure link to enter your player ID. Use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
@@ -3812,13 +3812,13 @@
     "rosterMissVerifiedGeneric": "Last War shows your commander as {gameName}, but our roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
     "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer for help.",
     "selfServiceLinkedFootnote": "Your Last War profile was verified and your commander is now linked.",
-    "steps": {
-      "0": "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
-      "1": "Copy your UID from that screen — you can copy your own player ID.",
-      "2": "Last War does not let you copy your own name. Ask an alliance mate to open your profile and tap Copy next to your name, then message you.",
-      "3": "Type your name exactly as they sent it (spelling and capitalization matter), or paste if they copied it for you.",
-      "4": "Return here and submit that name with your UID."
-    },
+    "steps": [
+      "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
+      "Copy your UID from that screen — you can copy your own player ID.",
+      "Last War does not let you copy your own name. Ask an alliance mate to open your profile and tap Copy next to your name, then message you.",
+      "Type your name exactly as they sent it (spelling and capitalization matter), or paste if they copied it for you.",
+      "Return here and submit that name with your UID."
+    ],
     "updated": "Updated your link for {name}.",
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "walkthroughDone": "Great. Submit your name and UID again when ready.",
@@ -4649,7 +4649,8 @@
         "discord_json": "Discord JSON",
         "markdown": "Markdown",
         "screenshots": "Screenshots",
-        "text": "Plain text"
+        "text": "Plain text",
+        "video": "Chat video"
       },
       "limits": "Text, Markdown, or JSON: one file up to 5 MiB. Screenshots: up to 12 PNG, JPEG, or WebP files, 20 MiB each and 60 MiB total. Each batch contains at most 5,000 messages.",
       "new": "New import",
@@ -4676,11 +4677,40 @@
         "processing": "Processing",
         "queued": "Antri",
         "review": "Ready for review",
-        "uploading": "Awaiting upload"
+        "uploading": "Awaiting upload",
+        "pending_approval": "Waiting for processor approval"
       },
       "title": "History imports",
       "unknown": "Unknown",
-      "unreviewed": "Needs review"
+      "unreviewed": "Needs review",
+      "intro": "Upload in-game chat videos or screenshots, review the extracted conversation, and keep the final log in HQ.",
+      "uploadScreenshots": "Upload chat screenshots",
+      "audience": "Who can see this chat log?",
+      "audiencePrivate": "Only me",
+      "audienceOfficers": "Current alliance officers can read",
+      "reviewTitle": "Review transcript",
+      "reviewGuidance": "Review every message, translation, reply, coordinate, and image before committing.",
+      "englishText": "English text",
+      "originalText": "Original text",
+      "replyTo": "Reply to",
+      "noLinkedMessage": "No linked message",
+      "coordinate": "Coordinate",
+      "coordServer": "Server",
+      "coordX": "X",
+      "coordY": "Y",
+      "mediaEmbedded": "Embedded image",
+      "mediaFullscreen": "Full-screen image",
+      "showOriginal": "Show original",
+      "replyingTo": "Replying to {name}",
+      "missingReply": "Referenced message unavailable",
+      "openFullImage": "Open full image",
+      "imageFromVideo": "Image extracted from video",
+      "uploadChatVideo": "Upload chat video",
+      "videoExtracting": "Extracting chat",
+      "videoLimits": "Chat videos can be up to 2 minutes and {size} MB.",
+      "videoDisclosure": "HQ sends selected video frames to OpenAI for multilingual text and layout extraction and sends non-English text to Google Translate. Review the result before saving.",
+      "videoQuality": "Images are saved at the highest quality available in your recording.",
+      "videoRetention": "The original video is deleted seven days after you commit the chat log."
     },
     "intake": {
       "analyzing": "Looking for actions…",
@@ -4907,7 +4937,9 @@
       "shared": "Shared with me",
       "studio": "AI studio",
       "tasks": "Tasks",
-      "teams": "Teams"
+      "chatLogs": "Chat logs",
+      "teams": "Teams",
+      "workQueue": "Work queue"
     },
     "workspace": {
       "capturePlaceholder": "A thought, an observation, a follow-up…",
@@ -6193,7 +6225,24 @@
     "title": "Support teams",
     "unknown": "Unknown",
     "unlinked": "Not linked to HQ",
-    "unsorted": "Unsorted"
+    "unsorted": "Unsorted",
+    "createTeam": "Create team",
+    "createTeamTitle": "Create a team",
+    "teamLead": "Team lead",
+    "chooseLead": "Choose an R4 or R5 lead",
+    "assignmentProgress": "{assigned} of {total} members assigned",
+    "publishIncomplete": "Assign every active member and fill each team to its target before publishing.",
+    "publishTeams": "Publish teams",
+    "publishTitle": "Publish these teams?",
+    "publishHint": "Publishing makes team assignments visible to alliance members and starts routing officer work to team leads.",
+    "deleteTeam": "Delete team",
+    "deleteTitle": "Delete {team}?",
+    "deleteHint": "The team must be empty. Its lead will return to Unassigned.",
+    "addNote": "Add note",
+    "viewNotes": "View notes",
+    "noteAudienceTitle": "Who can see this note about {member}?",
+    "noteAudiencePrivate": "Only me",
+    "noteAudienceOfficers": "Current alliance officers can read"
   },
   "team": {
     "ashedNote": "Alliance admins: to add or remove maintainers from Ashed sync, update collaborators in Ashed → Alliances, then refresh here.",
@@ -6432,7 +6481,19 @@
     "leadUnlinked": "This lead is not linked to HQ. Work is routed to alliance leadership.",
     "reassign": "Reassign duty",
     "title": "Team work",
-    "yourTeam": "Your team is {team}; your lead is {lead}."
+    "yourTeam": "Your team is {team}; your lead is {lead}.",
+    "subtitle": "Officer actions from duty coverage and VS compliance.",
+    "myAssignments": "My assignments",
+    "allAssignments": "All assignments",
+    "allTeams": "All teams",
+    "allTypes": "All types",
+    "coverageType": "Duty coverage",
+    "emptyMine": "No work is assigned to you.",
+    "emptyAll": "No outstanding officer work.",
+    "showDetails": "Show evidence details",
+    "hideDetails": "Hide evidence details",
+    "vsReviewTitle": "VS review needed",
+    "coverageReviewTitle": "Duty coverage needs review"
   },
   "terms": {
     "acceptableUseBody1": "Use Alliance HQ and <link>ashed.online</link> reasonably and lawfully. Alliance HQ is a convenience layer on top of Ashed — it does not grant rights beyond what you already have on Ashed itself.",
@@ -6468,15 +6529,15 @@
       "more": "+{count} more",
       "nextMonth": "Next month",
       "previousMonth": "Previous month",
-      "weekdayHeaders": {
-        "0": "Sen",
-        "1": "Sel",
-        "2": "Rab",
-        "3": "Kam",
-        "4": "Jum",
-        "5": "Sab",
-        "6": "Min"
-      }
+      "weekdayHeaders": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ]
     },
     "entry": {
       "cancel": "Cancel this entry",
@@ -7814,7 +7875,8 @@
       "memberRosterVideo": "Anggota",
       "seasonal": "Seasonal",
       "vsPerformance": "VS",
-      "zombieSiege": "Pengepungan Zombie"
+      "zombieSiege": "Pengepungan Zombie",
+      "chatLogs": "Chat logs"
     },
     "title": "Video queue"
   },
