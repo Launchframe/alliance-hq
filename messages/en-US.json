@@ -8365,7 +8365,12 @@
   },
   "eventEvidence": {
     "title": "Event results",
-    "chooseOccurrenceHint": "Select the event date whose results should count."
+    "chooseOccurrenceHint": "Select the event date whose results should count.",
+    "readinessInvalidated": "Event evidence changed. Review it again before the next draw.",
+    "pendingEvidence": "Evidence is still being processed or reviewed.",
+    "confirmPollFallback": "No leaderboard members qualify. Draw equally from all {count} available Yes respondents?",
+    "eventNotSelected": "Choose the event before spinning.",
+    "eligibilityChanged": "Eligibility changed. Review the updated list before spinning."
   },
   "activity": {
     "title": "Activity",

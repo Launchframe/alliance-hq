@@ -4,13 +4,14 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import type { TrainsDb } from "@/lib/trains/repository";
 
 /** Member ids already drawn from today's non-deterministic conductor spin. */
 export async function listDaySpinExcludedMemberIds(
   allianceId: string,
   date: string,
+  db: TrainsDb = getDb(),
 ): Promise<string[]> {
-  const db = getDb();
   const rows = await db
     .select({ memberId: schema.trainDaySpinExclusions.memberId })
     .from(schema.trainDaySpinExclusions)
@@ -29,8 +30,9 @@ export async function recordDaySpinExclusion(input: {
   date: string;
   memberId: string;
   memberName: string;
+  tx?: TrainsDb;
 }): Promise<void> {
-  const db = getDb();
+  const db = input.tx ?? getDb();
   await db
     .insert(schema.trainDaySpinExclusions)
     .values({

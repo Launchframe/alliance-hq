@@ -2126,6 +2126,7 @@ export const trainEventDraws = pgTable(
     date: text("date").notNull(),
     role: text("role").$type<"conductor" | "vip">().notNull(),
     requestId: text("request_id").notNull(),
+    requestSignature: text("request_signature").notNull(),
     ruleIdentity: text("rule_identity").notNull(),
     rule: jsonb("rule"),
     hqEventId: text("hq_event_id").notNull(),

@@ -6,7 +6,14 @@ export type TrainRollErrorCode =
   | "POOL_UNAVAILABLE"
   | "POOL_BUSY"
   | "NO_WHEEL_CANDIDATES"
-  | "ASHED_REQUIRED";
+  | "ASHED_REQUIRED"
+  | "EVENT_NOT_SELECTED"
+  | "EVENT_NOT_READY"
+  | "ELIGIBILITY_CHANGED"
+  | "READINESS_INVALIDATED"
+  | "PENDING_EVIDENCE"
+  | "CONFIRM_POLL_FALLBACK"
+  | "REQUEST_CONFLICT";
 
 export type WheelCandidateKind = "vs" | "vr" | "event" | "donation";
 

@@ -6,6 +6,10 @@ const mocks = vi.hoisted(() => ({
   getConductorStats: vi.fn(),
   rollForConductor: vi.fn(),
   rollForVip: vi.fn(),
+  resolveTrainSeasonKey: vi.fn(),
+  resolveRollDayConfig: vi.fn(),
+  rollEventForTrain: vi.fn(),
+  resolveTrainActorHqUserId: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -35,9 +39,22 @@ vi.mock("@/lib/trains/repository", () => ({
 
 vi.mock("@/lib/trains/service", () => ({
   getServerCalendarDate: vi.fn().mockReturnValue("2026-09-09"),
+  resolveTrainSeasonKey: mocks.resolveTrainSeasonKey,
   rollForConductor: mocks.rollForConductor,
   rollForVip: mocks.rollForVip,
   trainActionErrorResponse: () => ({ status: 400, body: { error: "fail" } }),
+}));
+
+vi.mock("@/lib/trains/day-config-resolve.server", () => ({
+  resolveRollDayConfig: mocks.resolveRollDayConfig,
+}));
+
+vi.mock("@/lib/trains/event-draw.server", () => ({
+  rollEventForTrain: mocks.rollEventForTrain,
+}));
+
+vi.mock("@/lib/trains/train-ownership.server", () => ({
+  resolveTrainActorHqUserId: mocks.resolveTrainActorHqUserId,
 }));
 
 vi.mock("@/lib/trains/roll-errors.server", () => ({
@@ -55,6 +72,13 @@ describe("conductor roll POST audit", () => {
       memberId: "m-boggle",
       memberName: "BOGGLE",
     });
+    mocks.resolveTrainSeasonKey.mockResolvedValue("S1");
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: null,
+      vipRule: null,
+      dayConfigId: null,
+    });
+    mocks.resolveTrainActorHqUserId.mockResolvedValue("hq-1");
   });
 
   it("audits the first wheel landing as routine", async () => {
@@ -121,5 +145,59 @@ describe("conductor roll POST audit", () => {
         }),
       }),
     );
+  });
+});
+
+describe("event_scores dispatch", () => {
+  it("routes event rules through rollEventForTrain with the fingerprint", async () => {
+    vi.clearAllMocks();
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: {
+        kind: "event_scores",
+        source: {
+          target: "warzone-duel",
+          seriesId: null,
+          occurrenceId: "ev-1",
+          boardKey: "main",
+          teamScope: null,
+        },
+        eligibility: "scored",
+        topN: 10,
+        fallback: "none",
+      },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    });
+    mocks.getConductorRecord.mockResolvedValue(null);
+    mocks.rollEventForTrain.mockResolvedValue({
+      result: { memberId: "m-1", memberName: "ONE", mechanism: "event_scores" },
+      draw: { id: "draw-1" },
+      idempotentReplay: false,
+    });
+    mocks.writeTrainsOfficerAudit.mockResolvedValue(undefined);
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/roll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: "2026-09-09",
+          requestId: "req-1",
+          expectedEligibilityFingerprint: "fp-1",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.rollEventForTrain).toHaveBeenCalledWith(
+      expect.objectContaining({ allianceId: "ally-1" }),
+      expect.objectContaining({
+        date: "2026-09-09",
+        role: "conductor",
+        requestId: "req-1",
+        expectedEligibilityFingerprint: "fp-1",
+      }),
+    );
+    expect(mocks.rollForConductor).not.toHaveBeenCalled();
   });
 });

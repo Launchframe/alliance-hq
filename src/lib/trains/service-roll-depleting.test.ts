@@ -326,118 +326,16 @@ describe("rollForVip depleting pool release ordering", () => {
       vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       dayConfigId: "dc1",
     });
-    mocks.getPoolSummary.mockResolvedValue({
-      total: 3,
-      selected: 1,
-      remaining: 2,
-      exhausted: false,
-    });
-    mocks.listUnselectedPoolEntries.mockResolvedValue([
-      { id: "e-bob", memberId: "m-bob", memberName: "Bob", allianceRank: 4 },
-    ]);
-    mocks.listPoolEntries.mockResolvedValue([
-      { id: "e-alice", memberId: "m-alice", memberName: "Alice", allianceRank: 4 },
-      { id: "e-bob", memberId: "m-bob", memberName: "Bob", allianceRank: 4 },
-    ]);
-    mocks.pickUniformPoolEntry.mockReturnValue({
-      id: "e-bob",
-      memberId: "m-bob",
-      memberName: "Bob",
-      allianceRank: 4,
-    });
-    mocks.markPoolEntrySelected.mockResolvedValue(true);
-    mocks.getMemberRankAsOf.mockResolvedValue({ id: "rank-1" });
-    mocks.assignVipOnLockedConductor.mockResolvedValue({
-      vipMemberId: "m-bob",
-      lockedAt: new Date("2099-06-20T12:00:00Z"),
-    });
-    mocks.refreshExhaustedPoolIfNeeded.mockResolvedValue(false);
   });
 
-  it("does not consume or reset an event VIP rotation while its remaining member is away", async () => {
-    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-bob"]) });
-
-    await expect(rollForVip({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+  it("blocks legacy event_top_x VIP spins without touching pool state", async () => {
+    await expect(
+      rollForVip({ allianceId: "a1", date: "2099-06-20" }),
+    ).rejects.toMatchObject({ details: { code: "EVENT_NOT_SELECTED" } });
 
     expect(mocks.markPoolEntrySelected).not.toHaveBeenCalled();
     expect(mocks.startNewPoolGeneration).not.toHaveBeenCalled();
     expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalled();
     expect(mocks.assignVipOnLockedConductor).not.toHaveBeenCalled();
-  });
-
-  it("releases the prior VIP only after assignVipOnLockedConductor", async () => {
-    await rollForVip({ allianceId: "a1", date: "2099-06-20" });
-
-    expect(mocks.markPoolEntrySelected).toHaveBeenCalledWith("e-bob", "2099-06-20");
-    expect(mocks.assignVipOnLockedConductor).toHaveBeenCalled();
-    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith(
-      "a1",
-      "2099-06-20",
-      "m-alice",
-    );
-    expect(
-      mocks.markPoolEntrySelected.mock.invocationCallOrder[0],
-    ).toBeLessThan(mocks.assignVipOnLockedConductor.mock.invocationCallOrder[0]!);
-    expect(
-      mocks.assignVipOnLockedConductor.mock.invocationCallOrder[0],
-    ).toBeLessThan(mocks.releasePoolSelectionForDate.mock.invocationCallOrder[0]!);
-  });
-
-  it("releases the newly claimed VIP when assignVipOnLockedConductor fails", async () => {
-    mocks.assignVipOnLockedConductor.mockRejectedValue(
-      new Error("Lock the conductor before assigning VIP."),
-    );
-
-    await expect(
-      rollForVip({ allianceId: "a1", date: "2099-06-20" }),
-    ).rejects.toThrow("Lock the conductor before assigning VIP.");
-
-    expect(mocks.markPoolEntrySelected).toHaveBeenCalledWith("e-bob", "2099-06-20");
-    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith(
-      "a1",
-      "2099-06-20",
-      "m-bob",
-    );
-    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalledWith(
-      "a1",
-      "2099-06-20",
-      "m-alice",
-    );
-  });
-
-  it("keeps claim+assign+prior-release inside one pool claim lock", async () => {
-    const order: string[] = [];
-    mocks.withConductorPoolClaimLock.mockImplementation(
-      async (_key: unknown, run: () => Promise<unknown>) => {
-        order.push("lock");
-        const value = await run();
-        order.push("unlock");
-        return value;
-      },
-    );
-    mocks.markPoolEntrySelected.mockImplementation(async () => {
-      order.push("claim");
-      return true;
-    });
-    mocks.assignVipOnLockedConductor.mockImplementation(async () => {
-      order.push("assign");
-      return {
-        vipMemberId: "m-bob",
-        lockedAt: new Date("2099-06-20T12:00:00Z"),
-      };
-    });
-    mocks.releasePoolSelectionForDate.mockImplementation(async () => {
-      order.push("release-prior");
-    });
-
-    await rollForVip({ allianceId: "a1", date: "2099-06-20" });
-
-    expect(order).toEqual([
-      "lock",
-      "claim",
-      "assign",
-      "release-prior",
-      "unlock",
-    ]);
   });
 });

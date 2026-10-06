@@ -213,6 +213,13 @@ export async function nominateConductorForDate(input: {
       memberName: existing.conductorMemberName,
       mechanism: existing.conductorMechanism,
     };
+  } else if (
+    dayConfig.conductorRule?.kind === "event_scores" ||
+    dayConfig.conductorRule?.kind === "event_top_x"
+  ) {
+    // Event-backed days are interactive-only: an officer previews and spins
+    // from the reviewed evidence ledger. Background nomination never draws.
+    return { ok: false, reason: "event_action_required" };
   } else {
     const roll = await rollForConductor({
       allianceId: input.allianceId,

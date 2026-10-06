@@ -8,10 +8,14 @@ import {
 } from "@/lib/trains/repository";
 import {
   getServerCalendarDate,
+  resolveTrainSeasonKey,
   rollForConductor,
   rollForVip,
   trainActionErrorResponse,
 } from "@/lib/trains/service";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import { rollEventForTrain } from "@/lib/trains/event-draw.server";
+import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 import { trainRollErrorResponse } from "@/lib/trains/roll-errors.server";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
@@ -33,23 +37,54 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     date?: string;
     role?: "conductor" | "vip";
+    requestId?: string;
+    expectedEligibilityFingerprint?: string;
+    acknowledgePollFallback?: boolean;
   };
 
   const date = body.date?.trim() || getServerCalendarDate();
   const role = body.role ?? "conductor";
 
   try {
+    const seasonKey = await resolveTrainSeasonKey(ctx.allianceId);
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
+    const dayRule =
+      role === "vip" ? dayConfig.vipRule : dayConfig.conductorRule;
+
     const previous = await getConductorRecord(ctx.allianceId, date);
     const result =
-      role === "vip"
-        ? await rollForVip({
-            allianceId: ctx.allianceId,
-            date,
-          })
-        : await rollForConductor({
-            allianceId: ctx.allianceId,
-            date,
-          });
+      dayRule?.kind === "event_scores"
+        ? (
+            await rollEventForTrain(
+              {
+                allianceId: ctx.allianceId,
+                hqUserId: await resolveTrainActorHqUserId(session.id),
+                sessionId: session.id,
+              },
+              {
+                date,
+                role,
+                requestId: body.requestId ?? "",
+                expectedEligibilityFingerprint:
+                  body.expectedEligibilityFingerprint ?? "",
+                acknowledgePollFallback: body.acknowledgePollFallback,
+                seasonKey,
+              },
+            )
+          ).result
+        : role === "vip"
+          ? await rollForVip({
+              allianceId: ctx.allianceId,
+              date,
+            })
+          : await rollForConductor({
+              allianceId: ctx.allianceId,
+              date,
+            });
 
     const previousMemberId =
       role === "vip" ? previous?.vipMemberId : previous?.conductorMemberId;
