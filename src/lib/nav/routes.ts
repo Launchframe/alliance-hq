@@ -324,6 +324,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
     labelKey: "eventsOperations",
     pages: [
       {
+        id: "event-results",
+        labelKey: "eventResults",
+        href: "/events",
+        kind: "native",
+        requiredPermission: "events:read",
+      },
+      {
         id: "desert-storm",
         labelKey: "desertStorm",
         href: "/desert-storm",
