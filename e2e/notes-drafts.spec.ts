@@ -79,6 +79,37 @@ test("draft CAS, owner-only grants, and explicit commit receipts preserve one ca
   expect(count.count).toBe(1);
 });
 
+test("officers-read audience grants read access on creation commit exactly once and never edit", async ({ request }) => {
+  const { author, peer, alliance } = await createNotesFixture("officer");
+  const headers = { Cookie: authCookieHeader(author) };
+  const peerHeaders = { Cookie: authCookieHeader(peer) };
+  const sql = getE2eSql();
+  const id = nanoid();
+  const state = { fields: { body: "Officer-visible member note", priorityMode: "manual" }, revision: 0, audience: "officers_read", tasks: [] };
+  const stored = await (await request.put(`/api/notes/drafts/${id}`, { headers, data: { expectedVersion: 0, state } })).json();
+  expect(stored.state.audience).toBe("officers_read");
+  const payload = { ...stored.state.fields, requestId: nanoid(), draftId: id, expectedDraftVersion: stored.version };
+  const saved = await request.post("/api/notes/capture", { headers, data: payload });
+  expect(saved.status(), await saved.text()).toBe(200);
+  const outcome = await saved.json();
+  const replay = await request.post("/api/notes/capture", { headers, data: payload });
+  expect(replay.status()).toBe(200);
+  expect((await replay.json()).noteId).toBe(outcome.noteId);
+  const grants = await sql`SELECT role FROM knowledge_resource_grants WHERE alliance_id = ${alliance.allianceId} AND subject_kind = 'officers'`;
+  expect(grants.map((grant) => grant.role)).toEqual(["read"]);
+  const shared = await request.get(`/api/notes/${outcome.noteId}`, { headers: peerHeaders });
+  expect(shared.status()).toBe(200);
+  const peerEdit = await request.patch(`/api/notes/${outcome.noteId}`, { headers: peerHeaders, data: { expectedVersion: (await shared.json()).note.version, body: "Peer should not edit" } });
+  expect(peerEdit.status()).toBe(404);
+
+  const privateId = nanoid();
+  const privateDraft = await (await request.put(`/api/notes/drafts/${privateId}`, { headers, data: { expectedVersion: 0, state: { fields: { body: "Stays private", priorityMode: "manual" }, revision: 0 } } })).json();
+  expect(privateDraft.state.audience).toBe("private");
+  const privateNote = await request.post("/api/notes/capture", { headers, data: { ...privateDraft.state.fields, requestId: nanoid(), draftId: privateId, expectedDraftVersion: privateDraft.version } });
+  expect(privateNote.status()).toBe(200);
+  expect((await request.get(`/api/notes/${(await privateNote.json()).noteId}`, { headers: peerHeaders })).status()).toBe(404);
+});
+
 test("an editor draft cannot update or reveal the shared source after revocation", async ({ request }) => {
   const { author, peer } = await createNotesFixture("officer");
   const headers = { Cookie: authCookieHeader(author) }; const peerHeaders = { Cookie: authCookieHeader(peer) };

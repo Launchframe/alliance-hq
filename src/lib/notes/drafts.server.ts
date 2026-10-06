@@ -4,7 +4,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { createPerformanceNoteInTransaction, getPerformanceNoteForAlliance, updatePerformanceNoteInTransaction } from "@/lib/performance-notes/repository.server";
 import type { KnowledgeActor } from "./policy.shared";
-import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
+import { createKnowledgeResource, grantOfficersReadAccess, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { knowledgeHash, knowledgePrincipalKey, withKnowledgeReceipt } from "./mutations.server";
 import { draftStateSchema, reviewedDraftTasks, type CaptureDraft, type CaptureDraftState, type CaptureProvenance } from "./drafts.shared";
 import { createNoteTaskInTransaction } from "./tasks.server";
@@ -130,7 +130,10 @@ export async function commitCaptureDraft(actor: KnowledgeActor & { canCreate?: b
       ownsNote = source.isOwner;
       const { notebook, inbox, excludedMemberIds, ...sharedFields } = fields;
       await updatePerformanceNoteInTransaction(tx, actor, noteId, { ...sharedFields, documentType: state.fields.documentType, keyDecisions: state.fields.keyDecisions, openQuestions: state.fields.openQuestions, ...(source.isOwner ? { notebook, inbox, excludedMemberIds, ...(state.archive !== null ? { archived: state.archive } : {}) } : {}), expectedVersion: liveVersion });
-    } else noteId = await createPerformanceNoteInTransaction(tx, { ...fields, actor, captureSource: draft.source, captureDiscordUserId: resource.ownerDiscordUserId, intakeMode: fields.kind === "note" ? "thought" : "batch" });
+    } else {
+      noteId = await createPerformanceNoteInTransaction(tx, { ...fields, actor, captureSource: draft.source, captureDiscordUserId: resource.ownerDiscordUserId, intakeMode: fields.kind === "note" ? "thought" : "batch" });
+      if (state.audience === "officers_read") await grantOfficersReadAccess(tx, actor, `note:${noteId}`);
+    }
     if (ownsNote) await tx.update(schema.performanceNotes).set({ intakeProvenance: await provenance(tx, actor, draft, resource.version, state) }).where(eq(schema.performanceNotes.id, noteId));
     const taskIds: string[] = [];
     for (const task of selected) {

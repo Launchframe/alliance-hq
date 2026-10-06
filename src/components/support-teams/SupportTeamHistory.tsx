@@ -50,7 +50,8 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
     const n = names(event);
     const actor = actorName(event);
     if (event.kind === "scheduleDraft" || event.kind === "extendDraft") return t("history.draftChanged", { actor });
-    if (event.kind === "publishDraft" || event.kind === "publishProposal") return [t("history.published", { actor }), event.context.ownerOverride ? t("proposals.override") : null].filter(Boolean).join(" · ");
+    if (event.kind === "publishDraft" || event.kind === "publishProposal" || event.kind === "publishSetup") return [t("history.published", { actor }), event.context.ownerOverride ? t("proposals.override") : null].filter(Boolean).join(" · ");
+    if (event.kind === "deleteTeam") return `${actor} · ${tr(historyKindLabels.deleteTeam)}`;
     if (event.kind === "approveProposal") return t("history.approved", { actor, version: event.context.proposalVersion?.toLocaleString(locale) ?? t("unknown") });
     if (event.context.mode === "proposal" && event.kind !== "undo" && event.kind !== "moveProposal" && event.kind !== "swapProposal") return `${actor} · ${tr(historyKindLabels[event.kind])}`;
     if (event.kind === "draftPick") return t("history.moved", { actor, member: n.member(event.memberIds[0]), from: t("unsorted"), to: n.team(event.teamIds[0]) });

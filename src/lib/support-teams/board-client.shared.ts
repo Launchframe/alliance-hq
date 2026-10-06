@@ -97,6 +97,7 @@ export function supportErrorKey(code: string | undefined, history = false) {
   if (code === "forbidden") return "readOnly";
   if (code === "notOpen") return "draft.notOpen";
   if (code === "dependencies" || code === "invalid" || code === "undone") return `history.${code}` as const;
+  if (code === "incomplete") return "publishIncomplete";
   if (code === "memberUnavailable" || code === "leadRequired" || code === "teamFull" || code === "nameRequired" || code === "nameLimit") return code;
   return history ? "history.changed" : "changed";
 }

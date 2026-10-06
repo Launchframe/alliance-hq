@@ -25,8 +25,7 @@ function fixture() {
     return result.event;
   };
   reconcile();
-  run({ kind: "createTeam", teamId: "team", leadId: "lead" });
-  run({ kind: "rename", teamId: "team", name: "Persistent" }, officer);
+  run({ kind: "createTeam", teamId: "team", name: "Persistent", leadId: "lead" });
   board = { ...board, published: true };
   run({ kind: "move", memberId: "member", from: null, to: "team" });
   return { get board() { return board; }, set board(value: SupportBoard) { board = value; }, get roster() { return roster; }, set roster(value: SupportRosterMember[]) { roster = value; }, get stints() { return stints; }, set stints(value: Record<string, string>) { stints = value; }, events, run, reconcile, project: () => projectMemberships(board, roster, stints) };
@@ -87,7 +86,7 @@ describe("current-stint maintenance", () => {
   });
   it("allows the owner to add a lead after publication but denies another officer and locks construction", () => {
     const f = fixture();
-    const command = { kind: "createTeam" as const, teamId: "next-team", leadId: "next" };
+    const command = { kind: "createTeam" as const, teamId: "next-team", name: "Next", leadId: "next" };
     expect(() => f.run(command, officer)).toThrow("forbidden");
     f.board = { ...f.board, construction: { kind: "draft", id: "draft" } };
     expect(() => f.run(command)).toThrow("changed");

@@ -50,11 +50,10 @@ export async function createPublishedSupportTeamFixture(request: APIRequestConte
   const teams = [`a-${nanoid(8)}`, `b-${nanoid(8)}`];
   let version = 0;
   for (const [index, teamId] of teams.entries()) {
-    for (const command of [{ kind: "createTeam", teamId, leadId: fixture.leads[index].ashedMemberId }, { kind: "rename", teamId, name: index === 0 ? "Cedar" : "Harbor" }]) {
-      const response = await request.post("/api/support-teams", { headers: { Cookie: authCookieHeader(fixture.owner) }, data: { command: { ...command, expectedVersion: version }, idempotencyKey: nanoid() } });
-      if (!response.ok()) throw new Error("Support fixture setup failed");
-      version = (await response.json()).event.boardVersion;
-    }
+    const command = { kind: "createTeam", teamId, name: index === 0 ? "Cedar" : "Harbor", leadId: fixture.leads[index].ashedMemberId };
+    const response = await request.post("/api/support-teams", { headers: { Cookie: authCookieHeader(fixture.owner) }, data: { command: { ...command, expectedVersion: version }, idempotencyKey: nanoid() } });
+    if (!response.ok()) throw new Error("Support fixture setup failed");
+    version = (await response.json()).event.boardVersion;
   }
   version = await seedPublishedSupportBoard(fixture.sql, fixture.allianceId);
   await fixture.sql`UPDATE alliances SET game_server_number = 0, game_server_id = (SELECT id FROM game_servers WHERE server_number = 0) WHERE id = ${fixture.allianceId}`;

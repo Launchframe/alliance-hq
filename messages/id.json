@@ -4906,7 +4906,8 @@
       "search": "Cari",
       "shared": "Shared with me",
       "studio": "AI studio",
-      "tasks": "Tasks"
+      "tasks": "Tasks",
+      "teams": "Teams"
     },
     "workspace": {
       "capturePlaceholder": "A thought, an observation, a follow-up…",
@@ -6075,6 +6076,23 @@
   "supportTeams": {
     "addLead": "Add team lead",
     "addMember": "Add member",
+    "addNote": "Add note",
+    "assignmentProgress": "{assigned} of {total} members assigned",
+    "chooseLead": "Choose an R4 or R5 lead",
+    "createTeam": "Create team",
+    "createTeamTitle": "Create a team",
+    "deleteHint": "The team must be empty. Its lead will return to Unassigned.",
+    "deleteTeam": "Delete team",
+    "deleteTitle": "Delete {team}?",
+    "noteAudienceOfficers": "Current alliance officers can read",
+    "noteAudiencePrivate": "Only me",
+    "noteAudienceTitle": "Who can see this note about {member}?",
+    "publishHint": "Publishing makes team assignments visible to alliance members and starts routing officer work to team leads.",
+    "publishIncomplete": "Assign every active member and fill each team to its target before publishing.",
+    "publishTeams": "Publish teams",
+    "publishTitle": "Publish these teams?",
+    "teamLead": "Team lead",
+    "viewNotes": "View notes",
     "balanceHint": "Group by country/language first, compare game metrics next, and use officer judgment for interpersonal fit.",
     "baseLevel": "Base/HQ level",
     "basePower": "Base power",
