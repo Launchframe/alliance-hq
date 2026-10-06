@@ -1,5 +1,6 @@
 import type { VsVideoContext } from "@/lib/vs-performance/video-evidence.shared";
 import type { EventUploadContext } from "@/lib/video/warzone-evidence.shared";
+import { isOfficerChatVideoTarget } from "@/lib/video/chat-video.shared";
 
 export type UploadConfig = {
   mode: "r2" | "direct";
@@ -52,6 +53,7 @@ export async function uploadVideoFile(options: {
   boardKey?: string;
   hqEventId?: string;
   bankId?: string | null;
+  knowledgeImportId?: string;
   vsContext?: VsVideoContext;
   /** "image" for event-evidence still uploads (PNG/JPEG). */
   mediaKind?: "video" | "image";
@@ -67,6 +69,13 @@ export async function uploadVideoFile(options: {
   const vsContext =
     scoreTarget === "vs-performance" ? options.vsContext : undefined;
 
+  if (options.knowledgeImportId && !isOfficerChatVideoTarget(scoreTarget)) {
+    throw new Error("knowledgeImportId is only valid for chat video uploads");
+  }
+  if (isOfficerChatVideoTarget(scoreTarget) && !options.knowledgeImportId) {
+    throw new Error("knowledgeImportId is required for chat video uploads");
+  }
+
   if (uploadConfig.mode === "direct") {
     const formData = new FormData();
     formData.set("video", file);
@@ -81,9 +90,15 @@ export async function uploadVideoFile(options: {
     if (vsContext) {
       formData.set("vsContext", JSON.stringify(vsContext));
     }
+    if (options.knowledgeImportId) {
+      formData.set("knowledgeImportId", options.knowledgeImportId);
+    }
 
+    const marker = isOfficerChatVideoTarget(scoreTarget)
+      ? `?${new URLSearchParams({ scoreTarget, knowledgeImportId: options.knowledgeImportId! })}`
+      : "";
     onProgress?.(0, file.size);
-    const res = await fetch("/api/tools/video-upload", {
+    const res = await fetch(`/api/tools/video-upload${marker}`, {
       method: "POST",
       body: formData,
     });
@@ -113,6 +128,7 @@ export async function uploadVideoFile(options: {
       boardKey: boardKey ?? null,
       hqEventId: options.hqEventId ?? null,
       bankId: options.bankId ?? null,
+      knowledgeImportId: options.knowledgeImportId ?? null,
       vsContext: vsContext ?? null,
       mediaKind: options.mediaKind ?? "video",
       eventContext: options.eventContext ?? null,

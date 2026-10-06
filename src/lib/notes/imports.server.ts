@@ -4,7 +4,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNull, or, sql } from "drizzle
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject, putObject, r2Configured } from "@/lib/storage";
-import { presignR2PutObject } from "@/lib/storage/r2";
+import { abortR2MultipartUpload, presignR2PutObject } from "@/lib/storage/r2";
 import type { KnowledgeWebActor } from "./access.server";
 import { createKnowledgeResource, grantOfficersReadAccess, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { knowledgeHash, knowledgePrincipalKey, withKnowledgeReceipt } from "./mutations.server";
@@ -64,6 +64,9 @@ export async function historyImportDetail(actor: KnowledgeWebActor, id: string, 
   const rows = await db.select().from(messages).where(and(eq(messages.sessionId, id), eq(messages.allianceId, actor.allianceId))).orderBy(messages.sequenceOrder).limit(50).offset(offset);
   const mediaRows = rows.length ? await db.select().from(media).where(and(eq(media.sessionId, id), eq(media.allianceId, actor.allianceId), inArray(media.messageId, rows.map((row) => row.id)))).orderBy(media.sequenceOrder) : [];
   const sessionMedia = await db.select().from(media).where(and(eq(media.sessionId, id), eq(media.allianceId, actor.allianceId), isNull(media.messageId))).orderBy(media.sequenceOrder);
+  const [videoJob] = owned && record.sourceVideoJobId
+    ? await db.select({ id: schema.videoJobs.id, status: schema.videoJobs.status, errorMessage: schema.videoJobs.errorMessage }).from(schema.videoJobs).where(eq(schema.videoJobs.id, record.sourceVideoJobId))
+    : [];
   const legacyImages = owned && !files.length
     ? await db.select({ id: schema.officerChatSessionImages.id }).from(schema.officerChatSessionImages)
         .where(and(eq(schema.officerChatSessionImages.sessionId, id), eq(schema.officerChatSessionImages.allianceId, actor.allianceId))).orderBy(schema.officerChatSessionImages.sequenceOrder)
@@ -84,6 +87,7 @@ export async function historyImportDetail(actor: KnowledgeWebActor, id: string, 
     }),
     sessionMedia: sessionMedia.map(mediaDto),
     evidence: legacyImages.map((image) => ({ id: image.id, href: `/api/officer-intel/sessions/${id}/images/${image.id}` })),
+    videoJob: videoJob ?? null,
   };
 }
 export async function listHistoryImports(actor: KnowledgeWebActor, cursor: HistoryListCursor | null = null): Promise<HistoryImportPage> {
@@ -110,10 +114,10 @@ export async function initializeHistoryImport(actor: KnowledgeWebActor, raw: His
   return withKnowledgeReceipt(actor, "notes.import_create", input.requestId, input, async (tx) => {
     if (!await historyMemberMayProcess(tx, { allianceId: actor.allianceId, ownerHqUserId: actor.hqUserId! })) throw new KnowledgeAccessError("forbidden");
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`history:${actor.allianceId}:${knowledgePrincipalKey(actor)}`}, 0))`);
-    const [existing] = await tx.select({ id: imports.id }).from(imports).where(and(ownerAccess(actor), eq(imports.sourceHash, sourceHash), inArray(imports.state, ["uploading", "queued", "processing", "review", "failed"]))).limit(1);
+    const [existing] = await tx.select({ id: imports.id }).from(imports).where(and(ownerAccess(actor), eq(imports.sourceHash, sourceHash), inArray(imports.state, ["uploading", "queued", "processing", "pending_approval", "review", "failed"]))).limit(1);
     if (existing) return { importId: existing.id };
     const [daily] = await tx.select({ value: count() }).from(imports).where(and(ownerAccess(actor), gt(imports.createdAt, new Date(Date.now() - 86_400_000))));
-    const [pending] = await tx.select({ value: count() }).from(imports).where(and(ownerAccess(actor), inArray(imports.state, ["uploading", "queued", "processing", "review", "failed"])));
+    const [pending] = await tx.select({ value: count() }).from(imports).where(and(ownerAccess(actor), inArray(imports.state, ["uploading", "queued", "processing", "pending_approval", "review", "failed"])));
     if (Number(daily.value) >= 20 || Number(pending.value) >= 5) throw new KnowledgeAccessError("rate_limited");
     const id = nanoid();
     const resourceId = await createKnowledgeResource(tx, actor, "source", id);
@@ -133,6 +137,7 @@ async function uploadAsset(actor: KnowledgeWebActor, id: string, assetId: string
 export async function historyUploadTarget(actor: KnowledgeWebActor, id: string, assetId: string) {
   assertHistoryStorage();
   const { record, asset } = await uploadAsset(actor, id, assetId);
+  if (record.kind === "video") throw new KnowledgeAccessError("invalid");
   if (record.state !== "uploading" || asset.sealedKey) throw new KnowledgeAccessError("changed");
   return { url: r2Configured() ? await presignR2PutObject(asset.stagingKey, asset.contentType, 300, asset.size) : `/api/notes/imports/${id}/assets/${assetId}`, contentType: asset.contentType };
 }
@@ -140,6 +145,7 @@ export async function putLocalHistoryAsset(actor: KnowledgeWebActor, id: string,
   assertHistoryStorage();
   if (r2Configured()) throw new KnowledgeAccessError("forbidden");
   const { record, asset } = await uploadAsset(actor, id, assetId);
+  if (record.kind === "video") throw new KnowledgeAccessError("invalid");
   if (record.state !== "uploading" || asset.sealedKey) throw new KnowledgeAccessError("changed");
   if (request.headers.get("content-type")?.split(";")[0].trim() !== asset.contentType) throw new KnowledgeAccessError("invalid");
   const bytes = await readHistoryStream(request.body, asset.size);
@@ -149,6 +155,7 @@ export async function putLocalHistoryAsset(actor: KnowledgeWebActor, id: string,
 }
 export async function sealHistoryAsset(actor: KnowledgeWebActor, id: string, assetId: string) {
   const { record, asset } = await uploadAsset(actor, id, assetId);
+  if (record.kind === "video") throw new KnowledgeAccessError("invalid");
   if (asset.sealedKey) return;
   if (record.state !== "uploading") throw new KnowledgeAccessError("changed");
   const bytes = await readHistoryObject(asset.stagingKey, asset.size, asset.contentType, asset.sha256, true);
@@ -169,7 +176,8 @@ export async function sealHistoryAsset(actor: KnowledgeWebActor, id: string, ass
 }
 export async function commandHistoryImport(actor: KnowledgeWebActor, id: string, input: { requestId: string; expectedVersion: number; command: "finalize" | "commit" | "cancel" | "retry" }) {
   if (!actor.canCreate) throw new KnowledgeAccessError("forbidden");
-  return withKnowledgeReceipt(actor, `notes.import_${input.command}`, input.requestId, { id, ...input }, async (tx) => {
+  let cleanup: Array<{ storageKey: string | null; uploadId: string | null }> = [];
+  const result = await withKnowledgeReceipt(actor, `notes.import_${input.command}`, input.requestId, { id, ...input }, async (tx) => {
     const { record, resource } = await lockHistoryImport(tx, actor, id);
     if (input.command === "commit" && record.state === "committed" || input.command === "finalize" && ["queued", "processing", "review", "committed"].includes(record.state)) return { importId: id };
     if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
@@ -186,12 +194,29 @@ export async function commandHistoryImport(actor: KnowledgeWebActor, id: string,
       if (record.audience === "officers_read") await grantOfficersReadAccess(tx, actor, record.resourceId);
     } else if (input.command === "cancel") {
       if (record.state === "committed") throw new KnowledgeAccessError("changed");
+      if (record.kind === "video") cleanup = await tx
+        .select({ storageKey: schema.videoJobs.storageKey, uploadId: schema.videoJobs.r2UploadId })
+        .from(schema.videoJobs)
+        .where(and(eq(schema.videoJobs.knowledgeImportId, id), inArray(schema.videoJobs.status, ["pending_upload", "pending_approval", "queued", "extracting", "parsing", "review", "failed"])));
       await tx.update(imports).set({ state: "cancelled", updatedAt: new Date() }).where(eq(imports.id, id));
       await tx.update(schema.knowledgeProcessingJobs).set({ state: "cancelled", leaseToken: null, leaseExpiresAt: null, updatedAt: new Date() }).where(eq(schema.knowledgeProcessingJobs.importId, id));
+      await tx.update(schema.videoJobs).set({ status: "discarded", updatedAt: new Date() })
+        .where(and(eq(schema.videoJobs.knowledgeImportId, id), inArray(schema.videoJobs.status, ["pending_upload", "pending_approval", "queued", "extracting", "parsing", "review", "failed"])));
     } else {
       if (input.command === "finalize" ? record.state !== "uploading" : !["failed", "cancelled"].includes(record.state)) throw new KnowledgeAccessError("changed");
       const files = await tx.select().from(assets).where(and(eq(assets.importId, id), eq(assets.allianceId, actor.allianceId)));
-      if (!files.length || files.some((file) => !file.sealedKey)) {
+      if (record.kind === "video" && input.command === "finalize") throw new KnowledgeAccessError("invalid");
+      if (record.kind === "video" && input.command !== "finalize") {
+        const preCommitJobStatuses = ["pending_upload", "pending_approval", "queued", "extracting", "parsing", "review", "failed", "discarded"] as const;
+        cleanup = await tx
+          .select({ storageKey: schema.videoJobs.storageKey, uploadId: schema.videoJobs.r2UploadId })
+          .from(schema.videoJobs)
+          .where(and(eq(schema.videoJobs.knowledgeImportId, id), inArray(schema.videoJobs.status, [...preCommitJobStatuses])));
+        await tx.update(schema.videoJobs).set({ status: "discarded", knowledgeImportId: null, updatedAt: new Date() })
+          .where(and(eq(schema.videoJobs.knowledgeImportId, id), inArray(schema.videoJobs.status, [...preCommitJobStatuses])));
+        await tx.update(imports).set({ state: "uploading", sourceVideoJobId: null, updatedAt: new Date() }).where(eq(imports.id, id));
+        await tx.update(assets).set({ sealedKey: null, sealedAt: null, r2UploadId: null }).where(and(eq(assets.importId, id), eq(assets.allianceId, actor.allianceId)));
+      } else if (!files.length || files.some((file) => !file.sealedKey)) {
         if (input.command !== "retry") throw new KnowledgeAccessError("invalid");
         await tx.update(imports).set({ state: "uploading", updatedAt: new Date() }).where(eq(imports.id, id));
       } else {
@@ -202,6 +227,15 @@ export async function commandHistoryImport(actor: KnowledgeWebActor, id: string,
     await touchKnowledgeResource(tx, resource.id);
     return { importId: id };
   });
+  for (const target of cleanup) {
+    if (target.uploadId && target.storageKey) {
+      await abortR2MultipartUpload(target.storageKey, target.uploadId).catch(() => undefined);
+    }
+    if (target.storageKey) {
+      await deleteObject(target.storageKey).catch(() => undefined);
+    }
+  }
+  return result;
 }
 export async function reviewHistoryMessages(actor: KnowledgeWebActor, id: string, input: { requestId: string; expectedVersion: number; edits: Array<{ id: string } & Record<string, unknown>>; mediaReviews?: Array<{ id: string; reviewed: boolean }> }) {
   if (!actor.canCreate) throw new KnowledgeAccessError("forbidden");
