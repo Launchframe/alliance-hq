@@ -72,6 +72,8 @@ export async function completeHistoryStep(lease: HistoryJob, proposed: HistoryMe
       await tx.insert(schema.officerChatMessages).values(rows.slice(offset, offset + 100).map((row, index) => ({
         id: `${job.importId}:${job.cursor}:${offset + index}`, sessionId: job.importId, allianceId: job.allianceId,
         senderName: row.sender, originalText: row.body, localeText: row.body, localeCode: "und", sourceImageIndex: row.sourceImageIndex,
+        senderAllianceTag: row.senderAllianceTag ?? null, senderLevel: row.senderLevel ?? null, senderVipLevel: row.senderVipLevel ?? null,
+        inGameTranslatedText: row.inGameTranslatedText ?? null, isReply: row.isReply ?? false, replyToName: row.replyToName ?? null,
         sourceLocator: row.locator, externalMessageId: row.externalId, sentAt: row.sentAt ? new Date(row.sentAt) : null,
         sequenceOrder: existing.length + offset + index, historyIncluded: !!row.body.trim(), historyReviewed: false,
       })));

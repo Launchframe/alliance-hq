@@ -74,7 +74,7 @@ function makeTx() {
   return {
     select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(async () => [mockState.sessionRow]) })) })),
     delete: vi.fn(() => ({ where: vi.fn(async () => undefined) })),
-    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+    insert: vi.fn(() => ({ values: vi.fn(() => ({ onConflictDoNothing: vi.fn(async () => undefined) })) })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn(async () => undefined) })),
     })),
@@ -145,7 +145,7 @@ describe("importOfficerChatSession", () => {
     expect(result).toEqual({ ok: true });
     expect(mockPutObject).toHaveBeenCalledTimes(1);
     expect(tx.delete).toHaveBeenCalledTimes(2);
-    expect(tx.insert).toHaveBeenCalledTimes(2);
+    expect(tx.insert).toHaveBeenCalledTimes(3);
     expect(tx.update).toHaveBeenCalledTimes(1);
 
     // Old R2 objects are only removed after the DB transaction commits.

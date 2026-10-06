@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import type { loadTeamWorkDashboard } from "@/lib/support-teams/work-service.server";
+import { filterOfficerWorkQueueItems, workQueueShowsEmpty, type TeamWorkDashboard, type TeamWorkDashboardItem } from "@/lib/support-teams/work-dashboard.shared";
 import { CoveragePanel } from "@/components/time-off/CoveragePanel";
 
-type Dashboard = Awaited<ReturnType<typeof loadTeamWorkDashboard>>;
-type Item = Dashboard["items"][number];
+type Item = TeamWorkDashboardItem;
 
 function VsWorkCard({ item }: { item: Item }) {
   const t = useTranslations("teamWork");
@@ -38,7 +37,7 @@ export function NotesWorkQueuePanel() {
   const timeOff = useTranslations("timeOff");
   const vs = useTranslations("vsCompliance");
   const locale = useLocale();
-  const [data, setData] = useState<Dashboard | null>(null);
+  const [data, setData] = useState<TeamWorkDashboard | null>(null);
   const [personal, setPersonal] = useState(true);
   const [team, setTeam] = useState("");
   const [kind, setKind] = useState("");
@@ -62,7 +61,7 @@ export function NotesWorkQueuePanel() {
     return () => { active = false; controller.abort(); clearInterval(interval); window.removeEventListener("focus", onFocus); };
   }, [personal, revision, support]);
   const teamName = useCallback((id: string) => data?.teams.find((entry) => entry.id === id)?.name ?? support("defaultName", { number: ((data?.teams.findIndex((entry) => entry.id === id) ?? 0) + 1).toLocaleString(locale) }), [data, support, locale]);
-  const items = (data?.items ?? []).filter((item) => (item.kind === "coverage" || item.kind === "vs") && (!team || item.teamId === team) && (!kind || item.kind === kind));
+  const items = filterOfficerWorkQueueItems(data?.items ?? [], { team, kind });
   const vsItems = items.filter((item) => item.kind === "vs");
   const coverageIds = items.filter((item) => item.kind === "coverage").map((item) => item.memberId);
   if (error && !data) return <section className="min-w-0 flex-1 p-4 sm:p-6" data-testid="team-work"><p role="alert" className="text-sm text-hq-danger">{error}</p></section>;
@@ -87,7 +86,7 @@ export function NotesWorkQueuePanel() {
         <option value="vs">{vs("title")}</option>
       </select>
     </div>
-    {!items.length ? <p>{personal ? t("emptyMine") : t("emptyAll")}</p> : null}
+    {workQueueShowsEmpty(data !== null, items.length) ? <p>{personal ? t("emptyMine") : t("emptyAll")}</p> : null}
     <section className="space-y-3" data-testid="team-work-items">
       {vsItems.map((item) => <VsWorkCard key={item.id} item={item} />)}
     </section>

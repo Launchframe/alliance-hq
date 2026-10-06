@@ -295,12 +295,13 @@ describe("hotkey registry integrity", () => {
     const supportTeams = getHotkeyAction("nav.supportTeams");
     expect(teamWork?.href).toBe("/notes?view=workQueue");
     expect(supportTeams?.href).toBe("/notes?view=teams");
-    const perms = new Set(["members:read"]);
-    for (const action of [teamWork, supportTeams]) {
-      expect(isHotkeyActionAllowed(action!, perms, { operatingMode: "native" })).toBe(true);
-      expect(isHotkeyActionAllowed(action!, perms, { operatingMode: "ashed" })).toBe(true);
-      expect(isHotkeyActionAllowed(action!, new Set(), { operatingMode: "native" })).toBe(false);
-    }
+    expect(isHotkeyActionAllowed(teamWork!, new Set(["members:read"]), { operatingMode: "native" })).toBe(false);
+    expect(isHotkeyActionAllowed(teamWork!, new Set(["notes:create"]), { operatingMode: "native" })).toBe(true);
+    expect(isHotkeyActionAllowed(teamWork!, new Set(["notes:create"]), { operatingMode: "ashed" })).toBe(true);
+    const teamPerms = new Set(["members:read"]);
+    expect(isHotkeyActionAllowed(supportTeams!, teamPerms, { operatingMode: "native" })).toBe(true);
+    expect(isHotkeyActionAllowed(supportTeams!, teamPerms, { operatingMode: "ashed" })).toBe(true);
+    expect(isHotkeyActionAllowed(supportTeams!, new Set(), { operatingMode: "native" })).toBe(false);
   });
 
   it("hides my-vr, my-thp, and my-kills hotkeys without an alliance member link", () => {

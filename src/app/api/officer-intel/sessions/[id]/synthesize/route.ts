@@ -33,7 +33,7 @@ export async function POST(_request: Request, { params }: Props) {
     allianceId: context.allianceId,
     actor: context.actor,
   });
-  if (!chatSession) {
+  if (!chatSession || chatSession.createdByHqUserId !== context.session.hqUserId) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
   }
   if (chatSession.status !== "imported") {

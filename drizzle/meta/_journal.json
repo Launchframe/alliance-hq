@@ -1366,6 +1366,13 @@
       "when": 1791900000211,
       "tag": "0211_officer_hq_events_write",
       "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1791900000212,
+      "tag": "0212_notes_chat_logs",
+      "breakpoints": true
     }
   ]
 }

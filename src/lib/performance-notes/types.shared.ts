@@ -70,7 +70,7 @@ export type NotesWorkspacePayload = NotesListPage & {
   roster: PerformanceNoteRosterMember[];
   canCreate: boolean;
   canReadBoards: boolean;
-  canReadWorkQueue?: boolean;
+  canReadWorkQueue: boolean;
   draftCount: number;
 };
 
