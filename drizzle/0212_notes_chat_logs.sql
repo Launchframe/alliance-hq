@@ -21,15 +21,15 @@ ALTER TABLE "officer_chat_messages" ADD CONSTRAINT "officer_chat_messages_review
 ALTER TABLE "officer_chat_messages" DROP CONSTRAINT IF EXISTS "officer_chat_messages_coordinates_check";--> statement-breakpoint
 ALTER TABLE "officer_chat_messages" ADD CONSTRAINT "officer_chat_messages_coordinates_check" CHECK ("officer_chat_messages"."coordinates" is null or (jsonb_typeof("officer_chat_messages"."coordinates") = 'object' and ("officer_chat_messages"."coordinates" -> 'server' is null or jsonb_typeof("officer_chat_messages"."coordinates" -> 'server') in ('number', 'null')) and jsonb_typeof("officer_chat_messages"."coordinates" -> 'x') = 'number' and jsonb_typeof("officer_chat_messages"."coordinates" -> 'y') = 'number' and ("officer_chat_messages"."coordinates" -> 'label' is null or jsonb_typeof("officer_chat_messages"."coordinates" -> 'label') in ('null', 'string'))));--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "officer_chat_sessions" ADD CONSTRAINT "officer_chat_sessions_id_alliance_unique" UNIQUE("id","alliance_id");
-EXCEPTION
-	WHEN duplicate_object THEN null;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'officer_chat_sessions'::regclass AND conname = 'officer_chat_sessions_id_alliance_unique') THEN
+		ALTER TABLE "officer_chat_sessions" ADD CONSTRAINT "officer_chat_sessions_id_alliance_unique" UNIQUE("id","alliance_id");
+	END IF;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "officer_chat_messages" ADD CONSTRAINT "officer_chat_messages_id_session_alliance_unique" UNIQUE("id","session_id","alliance_id");
-EXCEPTION
-	WHEN duplicate_object THEN null;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'officer_chat_messages'::regclass AND conname = 'officer_chat_messages_id_session_alliance_unique') THEN
+		ALTER TABLE "officer_chat_messages" ADD CONSTRAINT "officer_chat_messages_id_session_alliance_unique" UNIQUE("id","session_id","alliance_id");
+	END IF;
 END $$;
 --> statement-breakpoint
 ALTER TABLE "officer_chat_messages" DROP CONSTRAINT IF EXISTS "officer_chat_messages_reply_fk";--> statement-breakpoint
