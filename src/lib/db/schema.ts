@@ -1133,6 +1133,8 @@ export const videoUploadGroups = pgTable("video_upload_groups", {
   scoreTarget: text("score_target"),
   boardKey: text("board_key"),
   hqEventId: text("hq_event_id"),
+  /** Typed event binding ({ eventId, boardId }) for event-evidence uploads. */
+  eventContext: jsonb("event_context"),
   /** FK to video_jobs.id — not enforced by Drizzle to avoid circular dep */
   primaryJobId: text("primary_job_id"),
   selectedJobId: text("selected_job_id"),
@@ -1176,6 +1178,12 @@ export const videoJobs = pgTable("video_jobs", {
   /** HQ native event occurrence */
   hqEventId: text("hq_event_id"),
   ingestMethod: text("ingest_method").notNull().default("video"),
+  /**
+   * Typed event binding for event-evidence uploads
+   * ({ eventId, boardId }) — validated for tenant ownership at enqueue and
+   * carried to every pass so reprocessing cannot drift.
+   */
+  eventContext: jsonb("event_context"),
   frameCount: integer("frame_count"),
   uploadedFrameCount: integer("uploaded_frame_count"),
   errorMessage: text("error_message"),
@@ -1517,6 +1525,11 @@ export const parsedRows = pgTable("parsed_rows", {
   edited: integer("edited").notNull().default(0),
   /** 1 when row was manually added by the user on the review page */
   manuallyAdded: integer("manually_added").notNull().default(0),
+  /**
+   * Warzone event-evidence review contract (`WarzoneReviewRow`): evidence
+   * kind, detected poll option, crop region, source frame metadata.
+   */
+  eventEvidence: jsonb("event_evidence"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

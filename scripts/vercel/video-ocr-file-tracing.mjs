@@ -133,6 +133,8 @@ export const videoOcrTracedRoutes = {
   "/api/vs-performance/captures/parse": videoOcrFileTracing,
   "/api/tools/video-upload/[jobId]/vs-evidence/process": videoOcrFileTracing,
   "/api/tools/video-upload/[jobId]/vs-evidence/image": sharpNativeFileTracing,
+  // Event-evidence review serves sharp-cropped foreground regions only.
+  "/api/tools/video-jobs/[jobId]/frames/[frameIndex]": sharpNativeFileTracing,
   "/api/internal/vs-video-evidence/[jobId]": videoOcrFileTracing,
   "/api/internal/notes/process": videoOcrFileTracing,
   "/api/notes/imports/[id]/process": videoOcrFileTracing,

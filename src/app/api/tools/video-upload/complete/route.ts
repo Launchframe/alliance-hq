@@ -88,7 +88,29 @@ export async function POST(request: Request) {
 
     const actualSize = await headR2ObjectSize(job.storageKey);
 
-    if (isVideoUploadOverLimit(actualSize)) {
+    if (job.ingestMethod === "image") {
+      // Images are validated fully (magic bytes, size, megapixels, EXIF
+      // orientation decodable) before the job becomes approvable.
+      const { getObject } = await import("@/lib/storage");
+      const { normalizeEventImage, ImageMediaError, EVENT_IMAGE_MAX_BYTES } =
+        await import("@/lib/video/image-media.server");
+      if (actualSize > EVENT_IMAGE_MAX_BYTES) {
+        return NextResponse.json(
+          { error: "invalid", code: "image_too_large" },
+          { status: 400 },
+        );
+      }
+      try {
+        await normalizeEventImage(await getObject(job.storageKey));
+      } catch (error) {
+        const code =
+          error instanceof ImageMediaError ? error.code : "invalid_image";
+        return NextResponse.json(
+          { error: "invalid", code },
+          { status: 400 },
+        );
+      }
+    } else if (isVideoUploadOverLimit(actualSize)) {
       return NextResponse.json(
         {
           error: `Uploaded video exceeds the ${Math.round(getMaxVideoUploadBytes() / (1024 * 1024))} MB limit.`,

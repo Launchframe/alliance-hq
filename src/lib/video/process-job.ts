@@ -90,6 +90,12 @@ import {
   dedupeFrontlineMatchedEntries,
 } from "@/lib/video/frontline-breakthrough.shared";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
+import {
+  isWarzoneEvidenceTarget,
+  type WarzoneEvidenceTargetId,
+  type WarzoneFrameResult,
+} from "@/lib/video/warzone-evidence.shared";
+import { getObject } from "@/lib/storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import { VIDEO_JOB_FAIL_PROTECTED_STATUSES } from "@/lib/video/video-lifecycle.shared";
 import { claimVideoJobForProcessing } from "@/lib/video/claim-video-job-for-processing.server";
@@ -150,7 +156,9 @@ export async function processVideoJob(
   };
   const ocrEngine = resolveVideoOcrEngineForJob(
     scoreTargetId,
-    isRosterTarget,
+    // Warzone evidence targets also use the native engine on local deploys —
+    // the mock engine never produces usable evidence rows for them.
+    isRosterTarget || isWarzoneEvidenceTarget(scoreTargetId),
     ocrContext,
     { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
   );
@@ -380,6 +388,28 @@ export async function processVideoJob(
         metadata: { fileName: job.fileName },
       });
 
+      const isImageIngest = job.ingestMethod === "image";
+      if (isImageIngest) {
+        // Image ingest: one normalized frame, null timestamp/duration — no
+        // ffmpeg, no archive, no scroll sampling.
+        const normalized = await timer.measureStep(
+          "image.normalize",
+          async () => {
+            const { normalizeEventImage } = await import(
+              "@/lib/video/image-media.server"
+            );
+            return normalizeEventImage(await getObject(videoStorageKey));
+          },
+        );
+        frames = [
+          {
+            index: 0,
+            filePath: "",
+            buffer: normalized.buffer,
+            videoTimestampSeconds: null,
+          },
+        ];
+      } else {
       const tmpVideo = path.join(
         os.tmpdir(),
         `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
@@ -417,6 +447,7 @@ export async function processVideoJob(
         await timer.measureStep("storage.delete_temp_video", () =>
           fs.unlink(tmpVideo).catch(() => undefined),
         );
+      }
       }
 
       frameCount = frames.length;
@@ -486,7 +517,8 @@ export async function processVideoJob(
       if (
         shouldEnqueueAshedOcrShadowPasses(ocrEngine) &&
         !isRosterTarget &&
-        !isDepositSlipTarget
+        !isDepositSlipTarget &&
+        job.ingestMethod !== "image"
       ) {
         try {
           const earlyShadowJob = {
@@ -723,6 +755,233 @@ export async function processVideoJob(
           { frameCount: frames.length },
         );
       }
+    } else if (isWarzoneEvidenceTarget(scoreTargetId)) {
+      // Warzone event evidence: typed frame contract + evidence-aware dedup —
+      // the generic seasonal merge/twin-collapse never touches these rows.
+      allianceId = await timer.measureStep("alliance.resolve_hq", async () => {
+        const fromJob = await resolveHqAllianceIdFromStoredAllianceId(
+          job.allianceId,
+        );
+        if (fromJob) return fromJob;
+        return resolveHqAllianceIdFromSession(processingSessionId);
+      });
+      const allianceTag = await timer.measureStep("alliance.load_tag", () =>
+        loadJobAllianceTag(),
+      );
+
+      let warzoneFrames: WarzoneFrameResult[];
+      if (ocrEngine === "mock") {
+        // No production mock fallback for evidence targets — the review
+        // page shows unsupportedLayout and offers manual entry.
+        warzoneFrames = frames.map((frame) => ({
+          frameIndex: frame.index,
+          videoTimestampSeconds: frame.videoTimestampSeconds ?? null,
+          frame: { kind: "unknown" as const, reason: "ocr_unavailable" },
+          safeCrop: null,
+          formatMismatch: false,
+        }));
+      } else if (ocrEngine === "native") {
+        const { ocrWarzoneNativeFrames } = await import(
+          "@/lib/video/ocr-warzone-native"
+        );
+        const result = await timer.measureStep("native.ocr_total", () =>
+          ocrWarzoneNativeFrames(frames, {
+            targetId: scoreTargetId as WarzoneEvidenceTargetId,
+            ownAllianceTag: allianceTag,
+            onProgress: emitOcrFrameProgress,
+          }),
+        );
+        warzoneFrames = result.warzoneFrames;
+        ocrFrameMs = result.frameTimings.map((f) => f.ms);
+        ocrConcurrency = result.concurrency;
+        ashedUploadTotalMs = 0;
+        ashedExtractTotalMs = 0;
+        totalRawOcrRows = result.entries.length;
+        await Promise.all(
+          result.frameTimings.map((timing) =>
+            db
+              .update(schema.videoFrames)
+              .set({
+                uploadMs: timing.uploadMs,
+                extractMs: timing.extractMs,
+                ocrEntryCount: timing.entryCount,
+                ocrError: timing.error,
+                ocrRawJson: timing.rawResult ?? null,
+              })
+              .where(
+                and(
+                  eq(schema.videoFrames.jobId, jobId),
+                  eq(schema.videoFrames.frameIndex, timing.frameIndex),
+                ),
+              ),
+          ),
+        );
+      } else {
+        const ashedResult = await timer.measureStep(
+          "ashed.ocr_total",
+          () =>
+            ocrAllFrames(
+              connection!,
+              target,
+              frames.map((f) => ({ index: f.index, buffer: f.buffer })),
+              { timer, jobId, onProgress: emitOcrFrameProgress },
+            ),
+          (r) => ({ frameCount: frames.length, rowCount: r.entries.length }),
+        );
+        const { parseWarzoneExtractResult } = await import(
+          "@/lib/video/ocr-warzone-native"
+        );
+        warzoneFrames = ashedResult.frameTimings.map((timing) => ({
+          frameIndex: timing.frameIndex,
+          videoTimestampSeconds:
+            frames.find((f) => f.index === timing.frameIndex)
+              ?.videoTimestampSeconds ?? null,
+          frame: parseWarzoneExtractResult(timing.rawResult),
+          safeCrop: null,
+          formatMismatch: false,
+        }));
+        ocrFrameMs = ashedResult.frameTimings.map((f) => f.ms);
+        ocrConcurrency = ashedResult.concurrency;
+        ashedUploadTotalMs = ashedResult.frameTimings.reduce(
+          (sum, f) => sum + f.uploadMs,
+          0,
+        );
+        ashedExtractTotalMs = ashedResult.frameTimings.reduce(
+          (sum, f) => sum + f.extractMs,
+          0,
+        );
+        totalRawOcrRows = ashedResult.frameTimings.reduce(
+          (sum, f) => sum + (f.entryCount ?? 0),
+          0,
+        );
+        await Promise.all(
+          ashedResult.frameTimings.map((timing) =>
+            db
+              .update(schema.videoFrames)
+              .set({
+                uploadMs: timing.uploadMs,
+                extractMs: timing.extractMs,
+                ocrEntryCount: timing.entryCount,
+                ocrError: timing.error,
+                ocrRawJson: timing.rawResult ?? null,
+              })
+              .where(
+                and(
+                  eq(schema.videoFrames.jobId, jobId),
+                  eq(schema.videoFrames.frameIndex, timing.frameIndex),
+                ),
+              ),
+          ),
+        );
+      }
+
+      const { dedupeWarzoneEvidence } = await import(
+        "@/lib/video/event-evidence-dedup.shared"
+      );
+      const deduped = dedupeWarzoneEvidence(warzoneFrames, { allianceTag });
+      rowCount = deduped.rows.length;
+      unresolvedConflicts = [
+        ...deduped.conflicts,
+        ...deduped.pollConflicts,
+        ...deduped.reviewFlags,
+      ];
+
+      const members = await timer.measureStep("hq.list_members", () =>
+        loadMembersForApiContext({
+          operatingMode: "native",
+          hqAllianceId: allianceId,
+          ashedAllianceId: allianceId,
+          connection: null,
+        }),
+      );
+
+      await timer.measureStep("storage.cleanup_frame_temp", () =>
+        cleanupFrameTempDir(frames),
+        { frameCount: frames.length },
+      );
+
+      await setStatus(
+        "parsing",
+        { uploadedFrameCount: frames.length },
+        undefined,
+        "finalizing_rows",
+      );
+
+      parseSessionId = nanoid(16);
+      await timer.measureStep("db.create_parse_session", async () => {
+        await db.insert(schema.parseSessions).values({
+          id: parseSessionId,
+          jobId,
+          sessionId: job.sessionId,
+          scoreTarget: scoreTargetId,
+          allianceId,
+          rowCount,
+          matchedCount: 0,
+          status: "open",
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+
+      const { sanitizedNameKey } = await import("@/lib/video/normalize-rows");
+      const conflictKeys = new Set([
+        ...deduped.conflicts,
+        ...deduped.pollConflicts,
+      ]);
+      const memberIndex = members.length ? buildMemberIndex(members) : null;
+      await timer.measureStep("parse.match_and_persist", async () => {
+        matchedCount = 0;
+        for (const row of deduped.rows) {
+          const match = memberIndex
+            ? matchMemberName(row.ocrName, memberIndex, { allianceTag })
+            : {
+                ocrName: row.ocrName,
+                memberId: null,
+                memberName: null,
+                confidence: 0,
+                matchMethod: "none" as const,
+              };
+          if (match.memberId) matchedCount++;
+          await db.insert(schema.parsedRows).values({
+            id: nanoid(16),
+            parseSessionId,
+            ocrName: row.ocrName,
+            score: row.realScore,
+            rank: row.observedRank,
+            memberId: match.memberId,
+            memberName: match.memberName,
+            matchConfidence: match.confidence,
+            matchMethod: match.matchMethod,
+            scoreConflict:
+              row.needsReview ||
+              conflictKeys.has(sanitizedNameKey(row.ocrName, allianceTag))
+                ? 1
+                : 0,
+            frameIndex: row.frameIndex,
+            eventEvidence: {
+              kind: row.kind,
+              pollOption: row.pollOption,
+              crop: row.crop,
+              frameIndex: row.frameIndex,
+              videoTimestampSeconds: row.videoTimestampSeconds,
+              formatMismatch: row.formatMismatch,
+              unresolvedOption: row.unresolvedOption,
+              reviewReason: row.reviewReason,
+            },
+            deleted: 0,
+            edited: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      });
+
+      await timer.measureStep("db.update_parse_session", async () => {
+        await db
+          .update(schema.parseSessions)
+          .set({ matchedCount, rowCount, updatedAt: new Date() })
+          .where(eq(schema.parseSessions.id, parseSessionId));
+      });
     } else {
       const firstFrameBuffer = frames[0]?.buffer
         ? Buffer.from(frames[0].buffer)
@@ -1263,7 +1522,9 @@ export async function processVideoJob(
       void notifyEurVideoEvidence(allianceId).catch(() => {});
     }
 
-    void dispatchVideoArchive(jobId);
+    if (job.ingestMethod !== "image") {
+      void dispatchVideoArchive(jobId);
+    }
 
     timer.log(`job ${jobId} complete`, {
       scoreTarget: scoreTargetId,
@@ -1324,7 +1585,10 @@ export async function processVideoJob(
     };
 
     try {
-      if (shouldEnqueueAshedOcrShadowPasses(ocrEngine)) {
+      if (
+        shouldEnqueueAshedOcrShadowPasses(ocrEngine) &&
+        job.ingestMethod !== "image"
+      ) {
         await maybeEnqueueShadowPass({
           job: shadowEnqueueJob,
           totalMs: timings.totalMs,
