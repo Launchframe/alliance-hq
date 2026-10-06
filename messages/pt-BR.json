@@ -7307,7 +7307,19 @@
     "waived": "Semana perdoada."
   },
   "teamWork": {
-    "title": "Trabalho em equipe",
+    "title": "Fila de trabalho",
+    "subtitle": "Ações de oficiais sobre cobertura de tarefas e conformidade de VS.",
+    "myAssignments": "Minhas atribuições",
+    "allAssignments": "Todas as atribuições",
+    "allTeams": "Todas as equipes",
+    "allTypes": "Todos os tipos",
+    "coverageType": "Cobertura de tarefas",
+    "emptyMine": "Nenhum trabalho está atribuído a você.",
+    "emptyAll": "Nenhum trabalho de oficial pendente.",
+    "showDetails": "Mostrar detalhes da evidência",
+    "hideDetails": "Ocultar detalhes da evidência",
+    "vsReviewTitle": "Revisão de VS necessária",
+    "coverageReviewTitle": "Cobertura de tarefas precisa de revisão",
     "empty": "Nenhum trabalho em equipe pendente.",
     "assignedTo": "Atribuído a {name}.",
     "coverageConflict": "{member} está ausente durante {duty} em {date}.",
@@ -7622,7 +7634,8 @@
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
       "archived": "Arquivadas",
-      "teams": "Equipes"
+      "teams": "Equipes",
+      "workQueue": "Fila de trabalho"
     },
     "workspace": {
       "navigation": "Visualizações de notas",

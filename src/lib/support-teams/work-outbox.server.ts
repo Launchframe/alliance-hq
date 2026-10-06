@@ -54,7 +54,7 @@ export async function deliverTeamWorkDigests(limit = 5) {
     if (!prepared) continue;
     const t = createDiscordTranslator(prepared.locale);
     const appUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://frontline.gay";
-    const result = await sendPrivateWorkDigest({ token, discordUserId: prepared.discordUserId, content: `${t("teamWork.digest")}\n${appUrl}/${prepared.locale}/team-work`, nonce: prepared.id.slice(0, 24),
+    const result = await sendPrivateWorkDigest({ token, discordUserId: prepared.discordUserId, content: `${t("teamWork.digest")}\n${appUrl}/${prepared.locale}/notes?view=workQueue`, nonce: prepared.id.slice(0, 24),
       authorizeSend: async (channelId) => !!await prepareDigest(prepared, prepared.leaseToken, channelId),
     });
     await getDb().transaction(async (tx) => {

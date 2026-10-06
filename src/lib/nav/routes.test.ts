@@ -53,6 +53,15 @@ describe("ashedUrlForPath", () => {
   });
 });
 
+describe("NAV_GROUPS consolidation", () => {
+  it("keeps team work and support teams inside Notes instead of standalone sidebar entries", () => {
+    const hrefs = NAV_GROUPS.flatMap((group) => group.pages.map((page) => page.href));
+    expect(hrefs).not.toContain("/team-work");
+    expect(hrefs).not.toContain("/support-teams");
+    expect(hrefs).toContain("/notes");
+  });
+});
+
 describe("resolveIframePage", () => {
   it("resolves known iframe pages", () => {
     expect(resolveIframePage("desert-storm")?.href).toBe("/desert-storm");
