@@ -4639,6 +4639,11 @@
         "subtitle": "Prior-day VS from {day} — highest scores first.",
         "podiumAria": "Top three prior-day VS scores"
       },
+      "vrPush": {
+        "title": "Top VR scores",
+        "subtitle": "Season VR standings — highest scores first.",
+        "podiumAria": "Top three season VR scores"
+      },
       "donations": {
         "unavailableTitle": "Donation scores not available yet",
         "unavailableBody": "HQ does not store donation totals yet. Use manual conductor picks until donation scoring is wired."

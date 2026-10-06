@@ -161,55 +161,60 @@ export function restingViewportNames(
 }
 
 /**
- * Pad a short share viewport to `surroundingCount + 1` slots while keeping the
- * winner near center. Front-padding must bump `winnerIndex` so the highlight
- * stays on the winner name.
+ * Winner plus unique neighbor names. Never clones a name to fill empty slots —
+ * a short roster yields a short reel instead of "BOGGLE / BOGGLE".
  */
-function finalizeShareViewport(
-  names: string[],
-  winnerIndex: number,
-  surroundingCount: number,
+export function uniqueCenteredShareViewport(
+  winnerName: string,
+  preferredNeighbors: readonly string[],
+  surroundingCount = 4,
 ): { names: string[]; winnerIndex: number } {
-  const targetLength = surroundingCount + 1;
-  if (names.length >= targetLength) {
-    return { names: names.slice(0, targetLength), winnerIndex };
-  }
+  const half = Math.ceil(surroundingCount / 2);
+  const seen = new Set<string>([winnerName]);
+  const above: string[] = [];
+  const below: string[] = [];
 
-  const desiredWinnerIndex = Math.ceil(surroundingCount / 2);
-  const padded = [...names];
-  let adjustedWinnerIndex = winnerIndex;
-
-  // Pad above until the winner sits at the centered slot (or we run out of room).
-  while (
-    adjustedWinnerIndex < desiredWinnerIndex &&
-    padded.length < targetLength
-  ) {
-    padded.unshift(padded[0]!);
-    adjustedWinnerIndex += 1;
-  }
-
-  // Pad below (or further above if still short and winner is already centered).
-  while (padded.length < targetLength) {
-    padded.push(padded[padded.length - 1]!);
+  for (const name of preferredNeighbors) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    if (above.length <= below.length && above.length < half) {
+      above.push(name);
+    } else if (below.length < half) {
+      below.push(name);
+    } else if (above.length < half) {
+      above.push(name);
+    }
+    if (above.length >= half && below.length >= half) break;
   }
 
   return {
-    names: padded.slice(0, targetLength),
-    winnerIndex: adjustedWinnerIndex,
+    names: [...above, winnerName, ...below],
+    winnerIndex: above.length,
   };
 }
 
-/** Winner plus surrounding names for share images (default: 2 above + 2 below). */
+function namesOutwardFromWinner(session: ReelSession): string[] {
+  const preferred: string[] = [];
+  for (let distance = 1; distance < session.items.length; distance += 1) {
+    const left = session.winnerIdx - distance;
+    const right = session.winnerIdx + distance;
+    if (left >= 0) preferred.push(session.items[left]!);
+    if (right < session.items.length) preferred.push(session.items[right]!);
+  }
+  return preferred;
+}
+
+/** Winner plus surrounding unique names for share images (default: up to 2 above + 2 below). */
 export function restingShareViewport(
   session: ReelSession,
   surroundingCount = 4,
 ): { names: string[]; winnerIndex: number } {
-  const half = Math.ceil(surroundingCount / 2);
-  const start = Math.max(0, session.winnerIdx - half);
-  const end = Math.min(session.items.length - 1, session.winnerIdx + half);
-  const names = session.items.slice(start, end + 1);
-  const winnerIndex = session.winnerIdx - start;
-  return finalizeShareViewport(names, winnerIndex, surroundingCount);
+  const winnerName = session.items[session.winnerIdx] ?? "";
+  return uniqueCenteredShareViewport(
+    winnerName,
+    namesOutwardFromWinner(session),
+    surroundingCount,
+  );
 }
 
 /**
@@ -225,7 +230,6 @@ export function buildShareViewportForWinner(
   options?: { surroundingCount?: number; seed?: string },
 ): { names: string[]; winnerIndex: number } {
   const surroundingCount = options?.surroundingCount ?? 4;
-  const half = Math.ceil(surroundingCount / 2);
   const others = seededShuffle(
     uniqueWheelCandidateNames(
       candidates.filter(
@@ -236,10 +240,11 @@ export function buildShareViewportForWinner(
     ),
     options?.seed ?? `${winner.memberId}:${winner.memberName}`,
   );
-  const above = others.slice(0, half);
-  const below = others.slice(half, half + half);
-  const names = [...above, winner.memberName, ...below];
-  return finalizeShareViewport(names, above.length, surroundingCount);
+  return uniqueCenteredShareViewport(
+    winner.memberName,
+    others,
+    surroundingCount,
+  );
 }
 
 export function restingShareViewportNames(

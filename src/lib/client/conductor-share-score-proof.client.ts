@@ -8,6 +8,12 @@ export type ConductorShareScoreProof = {
   priorDayVsScore: number | null;
   leaderboardRank: number | null;
   winProbability: number | null;
+  leaderboard: Array<{
+    memberId: string;
+    memberName: string;
+    rank: number;
+    score: number;
+  }>;
 };
 
 type TicketsBoardPayload = {
@@ -44,6 +50,7 @@ export async function fetchConductorShareScoreProof(input: {
         leaderboardRank: null,
         winProbability:
           row.winProbability > 0 ? row.winProbability : null,
+        leaderboard: [],
       };
     } catch {
       return emptyProof();
@@ -61,11 +68,26 @@ export async function fetchConductorShareScoreProof(input: {
     if (!res.ok) return emptyProof();
     const body = (await res.json()) as ScoreLeaderboardPayload;
     const row = body.entries.find((entry) => entry.memberId === input.memberId);
-    if (!row) return emptyProof();
+    const leaderboard = body.entries
+      .filter((entry) => entry.score > 0)
+      .slice(0, 10)
+      .map((entry) => ({
+        memberId: entry.memberId,
+        memberName: entry.memberName,
+        rank: entry.rank,
+        score: entry.score,
+      }));
+    if (!row) {
+      return {
+        ...emptyProof(),
+        leaderboard,
+      };
+    }
     return {
       priorDayVsScore: row.score > 0 ? row.score : null,
       leaderboardRank: row.rank >= 1 ? row.rank : null,
       winProbability: null,
+      leaderboard,
     };
   } catch {
     return emptyProof();
@@ -77,5 +99,6 @@ function emptyProof(): ConductorShareScoreProof {
     priorDayVsScore: null,
     leaderboardRank: null,
     winProbability: null,
+    leaderboard: [],
   };
 }

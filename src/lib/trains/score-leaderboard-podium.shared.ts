@@ -3,7 +3,7 @@ import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/rules/derive.s
 import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
 
 /** Discriminator for score-based rule podiums on the trains dashboard. */
-export type ScoreLeaderboardKind = "tpif" | "vs_push" | "donations";
+export type ScoreLeaderboardKind = "tpif" | "vs_push" | "vr_push" | "donations";
 
 export type ScoreLeaderboardEntry = {
   rank: number;
@@ -32,6 +32,7 @@ function nativeKindForRule(
   if (!rule) return null;
   if (conductorRuleUsesPriceIsFreightRoll(rule)) return "tpif";
   if (rule.kind === "vs_top_n") return "vs_push";
+  if (rule.kind === "vr_top_n") return "vr_push";
   if (rule.kind === "donations_top") return "donations";
   return null;
 }
