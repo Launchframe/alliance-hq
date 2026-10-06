@@ -18,7 +18,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS "hq_events_alliance_id_unique" ON "hq_events"(
 ALTER TABLE "hq_event_boards" ADD COLUMN IF NOT EXISTS "alliance_id" text;
 UPDATE "hq_event_boards" b SET "alliance_id" = e."alliance_id" FROM "hq_events" e WHERE b."hq_event_id" = e."id" AND b."alliance_id" IS NULL;
 ALTER TABLE "hq_event_boards" ALTER COLUMN "alliance_id" SET NOT NULL;
-ALTER TABLE "hq_event_boards" ADD CONSTRAINT "hq_event_boards_alliance_fk" FOREIGN KEY ("alliance_id") REFERENCES "alliances"("id") ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'hq_event_boards_alliance_fk'
+      AND conrelid = 'hq_event_boards'::regclass
+  ) THEN
+    ALTER TABLE "hq_event_boards"
+      ADD CONSTRAINT "hq_event_boards_alliance_fk"
+      FOREIGN KEY ("alliance_id") REFERENCES "alliances"("id") ON DELETE CASCADE;
+  END IF;
+END
+$$;
 CREATE UNIQUE INDEX IF NOT EXISTS "hq_event_boards_alliance_id_unique" ON "hq_event_boards"("alliance_id", "id");
 ALTER TABLE "hq_event_boards" ADD COLUMN IF NOT EXISTS "evidence_version" integer NOT NULL DEFAULT 0;
 ALTER TABLE "hq_event_boards" ADD COLUMN IF NOT EXISTS "ready_version" integer;

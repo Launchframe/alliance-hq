@@ -1312,56 +1312,56 @@
       "breakpoints": true
     },
     {
-      "idx": 185,
+      "idx": 187,
       "version": "7",
       "when": 1791900000204,
       "tag": "0204_vs_manual_score_edits",
       "breakpoints": true
     },
     {
-      "idx": 186,
+      "idx": 188,
       "version": "7",
       "when": 1791900000205,
       "tag": "0205_vs_policy_v2_required_fields",
       "breakpoints": true
     },
     {
-      "idx": 187,
+      "idx": 189,
       "version": "7",
       "when": 1791900000206,
       "tag": "0206_indonesian_locale_constraints",
       "breakpoints": true
     },
     {
-      "idx": 188,
+      "idx": 190,
       "version": "7",
       "when": 1791900000207,
       "tag": "0207_event_evidence",
       "breakpoints": true
     },
     {
-      "idx": 189,
+      "idx": 191,
       "version": "7",
       "when": 1791900000208,
       "tag": "0208_train_event_draw_signature",
       "breakpoints": true
     },
     {
-      "idx": 190,
+      "idx": 192,
       "version": "7",
       "when": 1791900000209,
       "tag": "0209_event_evidence_media",
       "breakpoints": true
     },
     {
-      "idx": 191,
+      "idx": 193,
       "version": "7",
       "when": 1791900000210,
       "tag": "0210_event_sync_uncertain",
       "breakpoints": true
     },
     {
-      "idx": 192,
+      "idx": 194,
       "version": "7",
       "when": 1791900000211,
       "tag": "0211_officer_hq_events_write",
