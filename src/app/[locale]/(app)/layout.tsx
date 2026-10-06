@@ -14,6 +14,7 @@ import {
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { rethrowNavigationError } from "@/lib/navigation";
 import { getPageSessionState } from "@/lib/session";
+import { loadNavigationPreferences } from "@/lib/nav/preferences.server";
 import { sessionCanReadAllianceVideoQueue, sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 
 export const dynamic = "force-dynamic";
@@ -97,10 +98,13 @@ export default async function AppLayout({
     return null;
   });
 
+  const navigationPreferences = await loadNavigationPreferences(state.hqUserId);
+
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
       <ShellActivityBoundary>
         <AshedShell
+          navigationPreferences={navigationPreferences}
         sessionId={state.sessionId}
         userLabel={state.userLabel}
         displayName={state.rbac?.displayName ?? null}
@@ -119,7 +123,6 @@ export default async function AppLayout({
         showVideoQueue={showVideoQueue}
         showVideoJobsOps={showVideoJobsOps}
         showVideoProcessorsNav={state.showVideoProcessorsNav}
-        showAllianceSettings={Boolean(state.currentAllianceId)}
         currentAllianceId={
           state.currentAllianceId ?? state.allianceId ?? null
         }

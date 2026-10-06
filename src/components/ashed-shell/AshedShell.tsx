@@ -26,7 +26,12 @@ import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
 import { ShellProfileMenu } from "@/components/ashed-shell/ShellProfileMenu";
 import { DevQuickSwitch } from "@/components/dev/DevQuickSwitch";
-import { findActiveNavGroupId } from "@/lib/nav/routes";
+import {
+  findActiveDestination,
+  findActiveFamily,
+  type NavContext,
+} from "@/lib/nav/registry";
+import type { NavigationPreferences } from "@/lib/nav/preferences.shared";
 import {
   AllianceTokenExpiryBanner,
   TokenExpiryBanner,
@@ -58,7 +63,7 @@ type Props = {
   showVideoQueue?: boolean;
   showVideoJobsOps?: boolean;
   showVideoProcessorsNav?: boolean;
-  showAllianceSettings?: boolean;
+  navigationPreferences: NavigationPreferences;
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
   isPlatformMaintainer?: boolean;
@@ -92,7 +97,7 @@ export function AshedShell({
   showVideoQueue = false,
   showVideoJobsOps = false,
   showVideoProcessorsNav = false,
-  showAllianceSettings = false,
+  navigationPreferences,
   currentAllianceId = null,
   membershipAlliances = [],
   isPlatformMaintainer = false,
@@ -126,24 +131,33 @@ export function AshedShell({
     dismissed: ashedConnectDismissed,
   });
 
+  const context: NavContext = pathname.startsWith("/admin") ? "admin" : "app";
+
   const closeMobileNav = React.useCallback(() => {
     setMobileNavOpen(false);
   }, []);
 
   const openMobileNav = React.useCallback(() => {
-    setExpandedGroupId(
-      findActiveNavGroupId(pathname, {
-        showAdminPortal,
-        showTeamAccess,
-        showAllianceSettings,
-      }),
-    );
+    setExpandedGroupId(findActiveFamily(pathname, context)?.id ?? null);
     setMobileNavOpen(true);
-  }, [pathname, showAdminPortal, showTeamAccess, showAllianceSettings]);
+  }, [pathname, context]);
 
   const toggleGroup = React.useCallback((groupId: string) => {
     setExpandedGroupId((current) => (current === groupId ? null : groupId));
   }, []);
+
+  // Record recent destination for the current page.
+  React.useEffect(() => {
+    const destination = findActiveDestination(pathname);
+    if (!destination || !destination.favoriteable) return;
+    fetch("/api/account/navigation-preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destinationId: destination.id }),
+    }).catch(() => {
+      // Silent: recent tracking is best-effort.
+    });
+  }, [pathname]);
 
   React.useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -197,11 +211,14 @@ export function AshedShell({
             )}
           >
             <SidebarNav
+              key={navigationPreferences.showAshedPages ? "ashed-on" : "ashed-off"}
+              context={context}
+              navigationPreferences={navigationPreferences}
               showAdminPortal={showAdminPortal}
               showTeamAccess={showTeamAccess}
-            showVideoQueue={showVideoQueue}
-            showVideoJobsOps={showVideoJobsOps}
-            showVideoProcessorsNav={showVideoProcessorsNav}
+              showVideoQueue={showVideoQueue}
+              showVideoJobsOps={showVideoJobsOps}
+              showVideoProcessorsNav={showVideoProcessorsNav}
               operatingMode={operatingMode}
               canUseAshedEmbeds={canUseAshedEmbeds}
               currentAllianceId={currentAllianceId}
@@ -209,7 +226,6 @@ export function AshedShell({
               isPlatformMaintainer={isPlatformMaintainer}
               hasAllianceMemberLink={hasAllianceMemberLink}
               sessionPermissions={sessionPermissions}
-              mobileCollapsible
               expandedGroupId={expandedGroupId}
               onToggleGroup={toggleGroup}
               onNavigate={closeMobileNav}
