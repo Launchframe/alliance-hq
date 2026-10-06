@@ -314,6 +314,7 @@ export async function historyMediaTarget(actor: KnowledgeWebActor, id: string, m
   await getHistoryImport(actor, id);
   const [item] = await getDb().select().from(media).where(and(eq(media.id, mediaId), eq(media.sessionId, id), eq(media.allianceId, actor.allianceId)));
   if (!item) throw new KnowledgeAccessError("not_found");
-  const storageKey = thumbnail ? item.thumbnailStorageKey ?? item.storageKey : item.storageKey;
-  return { storageKey, contentType: item.contentType };
+  const useThumbnail = thumbnail && item.thumbnailStorageKey != null;
+  const storageKey = useThumbnail ? item.thumbnailStorageKey! : item.storageKey;
+  return { storageKey, contentType: useThumbnail ? "image/webp" : item.contentType };
 }

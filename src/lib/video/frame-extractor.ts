@@ -131,9 +131,9 @@ async function ffmpegAvailable(): Promise<boolean> {
   }
 }
 
-export function listFrameJpegFiles(files: string[]): string[] {
+export function listFrameJpegFiles(files: string[], imageFormat: "jpg" | "png" = "jpg"): string[] {
   return files
-    .filter((file) => file.startsWith("frame_") && file.endsWith(".jpg"))
+    .filter((file) => file.startsWith("frame_") && file.endsWith(`.${imageFormat}`))
     .sort();
 }
 
@@ -262,8 +262,11 @@ export function mergeSceneFramesWithBookends(
   return kept.map((frame, index) => ({ ...frame, index }));
 }
 
-async function listExtractedFrameFiles(tmpDir: string): Promise<string[]> {
-  return listFrameJpegFiles(await fs.readdir(tmpDir));
+async function listExtractedFrameFiles(
+  tmpDir: string,
+  imageFormat: "jpg" | "png" = "jpg",
+): Promise<string[]> {
+  return listFrameJpegFiles(await fs.readdir(tmpDir), imageFormat);
 }
 
 type FfmpegRunResult = {
@@ -345,10 +348,11 @@ async function extractSceneBookendFrames(
   tmpDir: string,
   videoDurationSeconds: number | null,
   sampleFps: number,
+  imageFormat: "jpg" | "png" = "jpg",
 ): Promise<ExtractedFrame[]> {
   const bookends: ExtractedFrame[] = [];
-  const openingPath = path.join(tmpDir, "bookend_opening.jpg");
-  const closingPath = path.join(tmpDir, "bookend_closing.jpg");
+  const openingPath = path.join(tmpDir, `bookend_opening.${imageFormat}`);
+  const closingPath = path.join(tmpDir, `bookend_closing.${imageFormat}`);
 
   try {
     const openingResult = await extractBookendFrame(
@@ -427,7 +431,13 @@ async function probeVideo(ffmpeg: string, videoPath: string): Promise<string> {
 export async function extractLeaderboardFrames(
   videoPath: string,
   extractionConfig?: ExtractionConfig,
+  options?: { imageFormat?: "jpg" | "png"; maxOutputFps?: number },
 ): Promise<ExtractLeaderboardFramesResult> {
+  const imageFormat = options?.imageFormat === "png" ? "png" : "jpg";
+  const maxOutputFps = options?.maxOutputFps;
+  if (maxOutputFps != null && (!Number.isFinite(maxOutputFps) || maxOutputFps <= 0)) {
+    throw new Error("maxOutputFps must be a positive finite number");
+  }
   const config = extractionConfig ?? { mode: "scene", sceneThreshold: 0.25, sampleFps: 1 };
   const sceneThreshold =
     Number.isFinite(config.sceneThreshold) && (config.sceneThreshold as number) > 0
@@ -456,9 +466,10 @@ export async function extractLeaderboardFrames(
       : null;
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hq-frames-"));
-  const pattern = path.join(tmpDir, "frame_%04d.jpg");
+  const pattern = path.join(tmpDir, `frame_%04d.${imageFormat}`);
   const ffmpeg = resolveFfmpegBinary();
 
+  try {
   let mode: FrameExtractMode = config.mode === "fps" ? "fps" : "scene";
   let lastStderr = "";
   let effectiveSampleFps = sampleFps;
@@ -476,7 +487,7 @@ export async function extractLeaderboardFrames(
       lastStderr = result.stderr;
       logPipelineStep("ffmpeg.fps_extract", Date.now() - fpsStarted, {
         fps: sampleFps,
-        frameCount: (await listExtractedFrameFiles(tmpDir)).length,
+        frameCount: (await listExtractedFrameFiles(tmpDir, imageFormat)).length,
       });
     } catch (fpsError) {
       const fpsMessage = fpsError instanceof Error ? fpsError.message : String(fpsError);
@@ -498,10 +509,11 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        buildSceneSelectFilter(sceneThreshold, supplementFrameInterval),
+        buildSceneSelectFilter(sceneThreshold, supplementFrameInterval) +
+          (maxOutputFps != null ? `,fps=${maxOutputFps}` : ""),
       );
       lastStderr = result.stderr;
-      const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
+      const sceneFrameCount = (await listExtractedFrameFiles(tmpDir, imageFormat)).length;
       logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
         mode: "scene",
         sceneThreshold,
@@ -535,7 +547,7 @@ export async function extractLeaderboardFrames(
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
           fps: denseFallbackFps,
           reason: "scene_detect_error",
-          frameCount: (await listExtractedFrameFiles(tmpDir)).length,
+          frameCount: (await listExtractedFrameFiles(tmpDir, imageFormat)).length,
         });
       } catch (fallbackError) {
         const fallbackMessage =
@@ -557,7 +569,7 @@ export async function extractLeaderboardFrames(
     }
   }
 
-  const files = await listExtractedFrameFiles(tmpDir);
+  const files = await listExtractedFrameFiles(tmpDir, imageFormat);
   if (files.length === 0 && mode !== "scene") {
     const probe = await probeVideo(ffmpeg, videoPath);
     throw new Error(
@@ -594,6 +606,7 @@ export async function extractLeaderboardFrames(
       tmpDir,
       videoDurationSeconds,
       sampleFps,
+      imageFormat,
     );
     frames = mergeSceneFramesWithBookends(frames, bookends);
     logPipelineStep("ffmpeg.scene_bookends", Date.now() - bookendStarted, {
@@ -626,7 +639,7 @@ export async function extractLeaderboardFrames(
         `fps=${denseFallbackFps}`,
       );
       lastStderr = fallback.stderr;
-      const fallbackFiles = await listExtractedFrameFiles(tmpDir);
+      const fallbackFiles = await listExtractedFrameFiles(tmpDir, imageFormat);
       const fallbackRaw: Omit<ExtractedFrame, "videoTimestampSeconds">[] = [];
       for (let i = 0; i < fallbackFiles.length; i++) {
         const filePath = path.join(tmpDir, fallbackFiles[i]!);
@@ -659,6 +672,10 @@ export async function extractLeaderboardFrames(
   const framesSkipped = computeFramesSkipped(denseFrameCount, frames.length);
 
   return { frames, videoDurationSeconds, denseFrameCount, framesSkipped };
+  } catch (error) {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function cleanupFrameTempDir(frames: ExtractedFrame[]) {

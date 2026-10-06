@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   maybeEnqueueShadowPass: vi.fn(), maybeEnqueueShadowPassEarly: vi.fn(),
   getObject: vi.fn(), normalizeEventImage: vi.fn(),
   ocrWarzoneNativeFrames: vi.fn(),
+  processChatVideoJob: vi.fn(),
 }));
 vi.mock("@/lib/db", async () => ({
   schema: await import("@/lib/db/schema"),
@@ -39,6 +40,9 @@ vi.mock("@/lib/video/ocr-pipeline", () => ({ ...mocks, defaultAshFrameConcurrenc
 vi.mock("@/lib/video/ocr-mock", () => mocks);
 vi.mock("@/lib/video/enqueue-shadow-pass", () => mocks);
 vi.mock("@/lib/video/run-deposit-slip-ocr-phase.server", () => ({}));
+vi.mock("@/lib/video/process-chat-video-job.server", () => ({
+  processChatVideoJob: mocks.processChatVideoJob,
+}));
 vi.mock("@/lib/video/resolve-job-video-storage", () => ({ resolveJobVideoStorageKey: vi.fn().mockResolvedValue("videos/test/source.mp4") }));
 vi.mock("@/lib/storage", () => ({
   streamObjectToFile: vi.fn().mockResolvedValue(10), putObject: vi.fn(),
@@ -318,5 +322,24 @@ describe("processVideoJob Warzone evidence image ingest", () => {
     expect(mocks.ocrWarzoneNativeFrames).not.toHaveBeenCalled();
     expect(mocks.ocrAllFrames).not.toHaveBeenCalled();
     expect(mocks.mockOcrScoreFrames).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("processVideoJob chat video dispatch", () => {
+  it("dispatches chat-target jobs to the chat parser before OCR/Ashed setup", async () => {
+    mocks.selectLimit.mockReset();
+    mocks.selectLimit.mockResolvedValue([
+      { ...job, scoreTarget: "officer-chat-video", category: "officer-chat-video" },
+    ]);
+    mocks.processChatVideoJob.mockResolvedValue({ jobId: job.id, totalMs: 1 });
+
+    const result = await processVideoJob(job.id);
+
+    expect(mocks.processChatVideoJob).toHaveBeenCalledWith(job.id);
+    expect(result.totalMs).toBe(1);
+    expect(mocks.loadAllianceVideoOcrContext).not.toHaveBeenCalled();
+    expect(mocks.getAshedConnection).not.toHaveBeenCalled();
+    expect(mocks.loadMembersForApiContext).not.toHaveBeenCalled();
   });
 });
