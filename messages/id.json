@@ -7303,6 +7303,11 @@
         "subtitle": "R3 prior-day VS from {day} — ranked nearest 7.2M from above.",
         "title": "Closest to 7.2M"
       },
+      "vrPush": {
+        "podiumAria": "Top three season VR scores",
+        "subtitle": "Season VR standings — highest scores first.",
+        "title": "Top VR scores"
+      },
       "vsPush": {
         "podiumAria": "Top three prior-day VS scores",
         "subtitle": "Prior-day VS from {day} — highest scores first.",
