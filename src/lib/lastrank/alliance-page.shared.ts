@@ -329,9 +329,15 @@ export function applyProfessionBadgesToMembers(
 ): LastRankAllianceMember[] {
   if (badges.size === 0) return members;
   return members.map((member) => {
-    if (member.profession != null) return member;
     const badge = badges.get(member.publicId);
-    return badge ? { ...member, ...badge } : member;
+    if (!badge) return member;
+    const profession = member.profession ?? badge.profession;
+    const levelMatches = member.profession == null || member.profession === badge.profession;
+    return {
+      ...member,
+      profession,
+      professionLevel: member.professionLevel ?? (levelMatches ? badge.professionLevel : null),
+    };
   });
 }
 

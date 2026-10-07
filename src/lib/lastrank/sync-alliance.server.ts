@@ -49,7 +49,10 @@ import {
   appendCommanderPowerLevelEventIfChanged,
   appendMemberProfessionLevelEventIfChanged,
 } from "@/lib/members/member-stat-history.server";
-import { loadLatestProfessionChangeByCommander } from "@/lib/professions/repository";
+import {
+  LASTRANK_SYNC_PROFESSION_SOURCE,
+  loadLatestProfessionChangeByCommander,
+} from "@/lib/professions/repository";
 import {
   switchProfession,
   updateCommanderProfession,
@@ -495,7 +498,7 @@ async function applyMatchedRows(
         commanderId: row.hq.commanderId,
         fromProfession: priorProfession,
         toProfession: lastRankProfession,
-        source: "lastrank_sync",
+        source: LASTRANK_SYNC_PROFESSION_SOURCE,
       });
       row.hq.hqProfession = lastRankProfession;
       counts.professionSwitched += 1;

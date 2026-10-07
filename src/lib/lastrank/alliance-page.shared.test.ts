@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyInteractiveMatches,
+  applyProfessionBadgesToMembers,
   buildInteractiveHqChoices,
   decideLastRankProfessionApply,
   formatLastRankPowerLevel,
@@ -15,6 +16,7 @@ import {
   parseLastRankSectionRanks,
   resolveHqNameToRosterRow,
   resolveInteractiveHqNameAnswer,
+  type LastRankAllianceMember,
   type LastRankHqRosterRow,
 } from "@/lib/lastrank/alliance-page.shared";
 
@@ -216,6 +218,51 @@ describe("parseLastRankProfessionBadges", () => {
     expect(badges.get(1)).toEqual({ profession: "War Leader", professionLevel: 100 });
     expect(badges.get(2)).toEqual({ profession: "Engineer", professionLevel: 30 });
     expect(badges.has(3)).toBe(false);
+  });
+});
+
+describe("applyProfessionBadgesToMembers", () => {
+  const member = (
+    publicId: number,
+    profession: "War Leader" | "Engineer" | null,
+    professionLevel: number | null,
+  ): LastRankAllianceMember => ({
+    publicId,
+    name: `P${publicId}`,
+    country: null,
+    power: null,
+    heroPower: null,
+    allianceRank: null,
+    baseLevel: null,
+    profession,
+    professionLevel,
+    originServerId: null,
+  });
+  const badges = new Map([
+    [1, { profession: "War Leader" as const, professionLevel: 100 }],
+    [2, { profession: "Engineer" as const, professionLevel: 30 }],
+    [3, { profession: "Engineer" as const, professionLevel: 40 }],
+    [4, { profession: "Engineer" as const, professionLevel: 50 }],
+  ]);
+
+  it("fills a missing level from the badge when the payload already has the profession", () => {
+    const [out] = applyProfessionBadgesToMembers([member(1, "War Leader", null)], badges);
+    expect(out).toMatchObject({ profession: "War Leader", professionLevel: 100 });
+  });
+
+  it("fills both fields when the payload has neither", () => {
+    const [out] = applyProfessionBadgesToMembers([member(2, null, null)], badges);
+    expect(out).toMatchObject({ profession: "Engineer", professionLevel: 30 });
+  });
+
+  it("keeps payload values that are present", () => {
+    const [out] = applyProfessionBadgesToMembers([member(3, "Engineer", 45)], badges);
+    expect(out).toMatchObject({ profession: "Engineer", professionLevel: 45 });
+  });
+
+  it("does not borrow a level from a badge for a different profession", () => {
+    const [out] = applyProfessionBadgesToMembers([member(4, "War Leader", null)], badges);
+    expect(out).toMatchObject({ profession: "War Leader", professionLevel: null });
   });
 });
 

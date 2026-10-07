@@ -72,6 +72,9 @@ export async function getProfessionSince(
  * Latest profession change per commander, across alliances (profession is
  * per commander). Commanders without a `profession_switched` event are absent.
  */
+export const LASTRANK_SYNC_PROFESSION_SOURCE = "lastrank_sync";
+
+/** Latest HQ-made profession switch per commander; sync-made switches don't count. */
 export async function loadLatestProfessionChangeByCommander(
   commanderIds: readonly string[],
 ): Promise<Map<string, Date>> {
@@ -88,6 +91,7 @@ export async function loadLatestProfessionChangeByCommander(
       and(
         eq(schema.wlTeamEvents.eventKind, "profession_switched"),
         inArray(schema.wlTeamEvents.actorCommanderId, [...commanderIds]),
+        sql`coalesce(${schema.wlTeamEvents.detailsJson}->>'source', '') <> ${LASTRANK_SYNC_PROFESSION_SOURCE}`,
       ),
     )
     .groupBy(schema.wlTeamEvents.actorCommanderId);
