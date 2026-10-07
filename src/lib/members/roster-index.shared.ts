@@ -17,6 +17,8 @@ export type RosterColumnId =
   | "powerLevel"
   | "thp"
   | "mainSquad"
+  | "profession"
+  | "professionLevel"
   | "inGameRank"
   | "vr"
   | "hqLinked"
@@ -31,6 +33,8 @@ export const ROSTER_COLUMN_IDS: readonly RosterColumnId[] = [
   "powerLevel",
   "thp",
   "mainSquad",
+  "profession",
+  "professionLevel",
   "inGameRank",
   "vr",
   "hqLinked",
@@ -64,13 +68,15 @@ export function defaultRosterColumnVisibility(
 ): Record<RosterColumnId, boolean> {
   return {
     name: true,
-    previousNames: options.canWrite,
+    previousNames: false,
     allianceRank: true,
     rankTitle: false,
     status: true,
     powerLevel: true,
     thp: true,
     mainSquad: true,
+    profession: true,
+    professionLevel: true,
     inGameRank: false,
     vr: true,
     hqLinked: true,
@@ -155,11 +161,26 @@ export type RosterSortKey =
   | "powerLevel"
   | "thp"
   | "squad"
+  | "profession"
+  | "professionLevel"
   | "vr"
   | "allianceRank"
   | "status";
 
 export type RosterSortDir = "asc" | "desc";
+
+/** Members without a value stay at the bottom in either direction. */
+function compareNullsLast<T>(
+  a: T | null,
+  b: T | null,
+  compare: (a: T, b: T) => number,
+  sortDir: RosterSortDir,
+): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return sortDir === "asc" ? 1 : -1;
+  if (b == null) return sortDir === "asc" ? -1 : 1;
+  return compare(a, b);
+}
 
 export function sortRosterRows(
   rows: RosterMergedRow[],
@@ -195,6 +216,22 @@ export function sortRosterRows(
         cmp =
           (squadOrder[rosterRowMainSquad(a) ?? ""] ?? 3) -
           (squadOrder[rosterRowMainSquad(b) ?? ""] ?? 3);
+        break;
+      case "profession":
+        cmp = compareNullsLast(
+          a.commander?.profession ?? null,
+          b.commander?.profession ?? null,
+          (x, y) => x.localeCompare(y),
+          sortDir,
+        );
+        break;
+      case "professionLevel":
+        cmp = compareNullsLast(
+          a.commander?.professionLevel ?? null,
+          b.commander?.professionLevel ?? null,
+          (x, y) => x - y,
+          sortDir,
+        );
         break;
       case "vr":
         cmp =

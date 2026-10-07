@@ -17,6 +17,10 @@ import {
 } from "@/lib/members/alliance-rank";
 import type { RosterColumnId, RosterMergedRow } from "@/lib/members/roster-index.shared";
 import {
+  professionLabelKey,
+  professionLevelDisplay,
+} from "@/lib/professions/profession-label.shared";
+import {
   rosterRowPowerLevel,
   rosterRowThpDisplay,
   visibleRosterColumns,
@@ -79,6 +83,7 @@ export function RosterMemberRow({
 }: Props) {
   const tMembers = useTranslations("members");
   const tCommanders = useTranslations("commandersIndex");
+  const tProfessions = useTranslations("professions");
   const visibleColumns = visibleRosterColumns(columnVisibility);
   const { member, commander } = row;
   const unknown = tMembers("noPreviousNames");
@@ -178,6 +183,19 @@ export function RosterMemberRow({
           </>
         ) : (
           <span className="text-[#484f58]">{tCommanders("unreportedShort")}</span>
+        );
+      case "profession": {
+        const labelKey = professionLabelKey(commander?.profession);
+        if (labelKey) return tProfessions(labelKey);
+        return commander?.profession ?? (
+          <span className="text-[#484f58]">—</span>
+        );
+      }
+      case "professionLevel":
+        return (
+          <span className="font-mono">
+            {professionLevelDisplay(commander?.professionLevel)}
+          </span>
         );
       case "inGameRank":
         return (
@@ -304,12 +322,16 @@ export function RosterMemberRow({
               : columnId === "name"
                 ? "font-medium"
                 : "text-hq-fg-muted"
-          } ${columnId === "previousNames" ? "wrap-break-word" : ""}`}
+          }`}
         >
           {columnId === "name" ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {renderCell(columnId)}
               {nameBadges}
+            </div>
+          ) : columnId === "previousNames" ? (
+            <div className="w-max max-w-[24ch] [overflow-wrap:anywhere]">
+              {renderCell(columnId)}
             </div>
           ) : (
             renderCell(columnId)

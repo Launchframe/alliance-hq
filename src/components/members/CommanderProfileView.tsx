@@ -32,13 +32,19 @@ import {
   commanderPowerLevelDisplay,
   formatThpDisplay,
 } from "@/lib/commanders/power-stats.shared";
+import {
+  professionLabelKey,
+  professionLevelDisplay,
+} from "@/lib/professions/profession-label.shared";
 
 export function CommanderProfileView({ initial, donationLaunchError }: Props) {
   const t = useTranslations("members.profile");
   const locale = useLocale();
   const tInvites = useTranslations("team.invites");
   const tNotes = useTranslations("notes");
+  const tProfessions = useTranslations("professions");
   const { member, alliance } = initial;
+  const professionKey = professionLabelKey(member.profession);
   const membersListHref = useSyncExternalStore(
     () => () => {},
     () => membersListHrefFromFilters(readStoredMembersListFilters()),
@@ -198,6 +204,24 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
             </dt>
             <dd className="mt-1 text-sm text-hq-fg">
               {member.memberLevel ?? "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
+              {t("profession")}
+            </dt>
+            <dd className="mt-1 text-sm text-hq-fg">
+              {professionKey
+                ? tProfessions(professionKey)
+                : member.profession ?? "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
+              {t("professionLevel")}
+            </dt>
+            <dd className="mt-1 text-sm text-hq-fg">
+              {professionLevelDisplay(member.professionLevel)}
             </dd>
           </div>
           <div>

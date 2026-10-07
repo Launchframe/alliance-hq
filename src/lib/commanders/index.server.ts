@@ -65,6 +65,8 @@ export async function loadCommanderIndex(
         currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
         mainSquad: schema.commanders.mainSquad,
         mainSquadSource: schema.commanders.mainSquadSource,
+        profession: schema.commanders.profession,
+        professionLevel: schema.commanders.professionalLevel,
       })
       .from(schema.commanderAllianceMemberships)
       .innerJoin(
@@ -118,6 +120,8 @@ export async function loadCommanderIndex(
       mainSquad: row.mainSquad,
       mainSquadSource: row.mainSquadSource,
       highestBaseVr: row.highestBaseVr,
+      profession: stats?.profession ?? null,
+      professionLevel: stats?.professionLevel ?? null,
       hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
       oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
     };

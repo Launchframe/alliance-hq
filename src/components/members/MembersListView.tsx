@@ -71,6 +71,8 @@ const SORTABLE_COLUMNS: Partial<Record<RosterColumnId, RosterSortKey>> = {
   powerLevel: "powerLevel",
   thp: "thp",
   mainSquad: "squad",
+  profession: "profession",
+  professionLevel: "professionLevel",
   inGameRank: "allianceRank",
   vr: "vr",
   allianceRank: "allianceRank",
