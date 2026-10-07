@@ -105,6 +105,23 @@ export function isLastRankSelfServiceImportAllowed(
   return findByAllianceId(lastrankAllianceId, entries)?.selfServiceImport ?? false;
 }
 
+export type GameDataSyncStatus =
+  | { linked: false }
+  | { linked: true; autoSync: boolean };
+
+/** Read-only settings view of an HQ alliance's registry entry, keyed by server + tag. */
+export function resolveGameDataSyncStatus(
+  gameServerNumber: number | null | undefined,
+  tag: string | null | undefined,
+  entries: readonly LastRankSyncRegistryEntry[] = LASTRANK_SYNC_REGISTRY,
+): GameDataSyncStatus {
+  if (gameServerNumber == null || gameServerNumber <= 0 || !tag?.trim()) {
+    return { linked: false };
+  }
+  const row = findByServerAndTag(gameServerNumber, tag, entries);
+  return row ? { linked: true, autoSync: row.autoSync } : { linked: false };
+}
+
 /** Targets for the nightly cron (`autoSync: true`). */
 export function listLastRankAutoSyncTargets(
   entries: readonly LastRankSyncRegistryEntry[] = LASTRANK_SYNC_REGISTRY,

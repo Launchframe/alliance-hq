@@ -6,6 +6,7 @@ import {
   listLastRankAutoSyncTargets,
   lookupLastRankSyncByAllianceId,
   lookupLastRankSyncByServerAndTag,
+  resolveGameDataSyncStatus,
   resolveLastRankSyncCliTarget,
   type LastRankSyncRegistryEntry,
 } from "@/lib/lastrank/sync-registry.shared";
@@ -140,6 +141,28 @@ describe("registry flags", () => {
       false,
     );
     expect(isLastRankSelfServiceImportAllowed(UNKNOWN_ID, entries)).toBe(false);
+  });
+});
+
+describe("resolveGameDataSyncStatus", () => {
+  it("reports nightly sync on for LFgo (case-insensitive tag)", () => {
+    expect(resolveGameDataSyncStatus(1203, "lfgo")).toEqual({ linked: true, autoSync: true });
+  });
+
+  it("reports linked with nightly sync off for registry alliances not on the cron", () => {
+    expect(resolveGameDataSyncStatus(1203, "BigD")).toEqual({ linked: true, autoSync: false });
+  });
+
+  it("is not linked for unknown alliances or a tag on the wrong server", () => {
+    expect(resolveGameDataSyncStatus(1203, "NOPE")).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(1211, "LFgo")).toEqual({ linked: false });
+  });
+
+  it("is not linked without a server number or tag", () => {
+    expect(resolveGameDataSyncStatus(null, "LFgo")).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(0, "LFgo")).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(1203, null)).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(1203, "  ")).toEqual({ linked: false });
   });
 });
 

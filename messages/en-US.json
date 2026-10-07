@@ -2958,6 +2958,17 @@
       "readOnlyHint": "Only alliance owners, train officers, and platform maintainers can add or register Discord servers. Ask an R4+ officer or platform maintainer to complete setup.",
       "gettingStartedLink": "Getting started for R5",
       "guideLink": "Discord bot setup guide"
+    },
+    "gameData": {
+      "title": "Game data sync",
+      "autoSync": {
+        "label": "Nightly sync",
+        "on": "On",
+        "off": "Off",
+        "tooltip": "Each night around 06:30 server time, HQ updates ranks, THP, HQ level, power, country, and profession from game data. A profession changed in HQ within the last 7 days is kept."
+      },
+      "notLinked": "Game data sync isn’t available for this alliance.",
+      "readOnlyHint": "These settings can’t be changed here yet."
     }
   },
   "credentialShare": {
