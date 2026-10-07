@@ -5670,6 +5670,17 @@
       "registeredCount": "{count, plural, one {# Discord server is registered for this alliance} other {# Discord servers are registered for this alliance}}",
       "title": "Discord bot — add another server"
     },
+    "gameData": {
+      "autoSync": {
+        "label": "Nightly sync",
+        "off": "Off",
+        "on": "On",
+        "tooltip": "Each night around 06:30 server time, HQ updates ranks, THP, HQ level, power, country, and profession from game data. A profession changed in HQ within the last 7 days is kept."
+      },
+      "notLinked": "Game data sync isn’t available for this alliance.",
+      "readOnlyHint": "These settings can’t be changed here yet.",
+      "title": "Game data sync"
+    },
     "gameSeason": {
       "autoSyncActive": "Auto sync active ({source})",
       "clearFailed": "Could not clear season override.",
