@@ -21,6 +21,8 @@ export type CommanderProfilePayload = {
     powerLevel: string | null;
     totalHeroPower: number | null;
     memberLevel: number | null;
+    profession: string | null;
+    professionLevel: number | null;
     mainSquad: MainSquadType | null;
     mainSquadSource: MainSquadSource | null;
     canEditMainSquad: boolean;

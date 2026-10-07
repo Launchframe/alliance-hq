@@ -30,6 +30,8 @@ async function insertAllianceMember(
     currentTotalHeroPower?: number;
     mainSquad?: string | null;
     gameUid?: string;
+    profession?: string | null;
+    professionLevel?: number | null;
   },
 ) {
   const now = new Date();
@@ -58,7 +60,8 @@ async function insertAllianceMember(
     await sql`
       INSERT INTO commanders (
         id, primary_name, primary_name_normalized, current_alliance_id,
-        current_total_hero_power, main_squad, created_at, updated_at
+        current_total_hero_power, main_squad, profession, professional_level,
+        created_at, updated_at
       ) VALUES (
         ${commanderId},
         ${input.currentName},
@@ -66,6 +69,8 @@ async function insertAllianceMember(
         ${input.allianceId},
         ${input.currentTotalHeroPower},
         ${input.mainSquad ?? null},
+        ${input.profession ?? null},
+        ${input.professionLevel ?? null},
         ${now},
         ${now}
       )
@@ -107,6 +112,8 @@ test.describe("Commanders index", () => {
         currentTotalHeroPower: 5_000_000 - i * 100_000,
         mainSquad: i % 3 === 0 ? "aircraft" : i % 3 === 1 ? "tank" : "missile",
         gameUid: i === 0 ? secretUid : undefined,
+        profession: i === 0 ? "War Leader" : null,
+        professionLevel: i === 0 ? 37 : null,
       });
     }
 
@@ -149,6 +156,30 @@ test.describe("Commanders index", () => {
     await expect(page.getByRole("link", { name: "CI Fighter 0" })).toBeVisible();
     await expect(page.getByText(secretUid)).toHaveCount(0);
 
+    await expect(
+      page.getByRole("columnheader", { name: /^profession$/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: /^profession level$/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: /^previous names$/i }),
+    ).toHaveCount(0);
+    const warLeaderRow = page
+      .getByRole("row")
+      .filter({ has: page.getByRole("link", { name: "CI Fighter 0" }) });
+    await expect(
+      warLeaderRow.getByRole("cell", { name: "War Leader", exact: true }),
+    ).toBeVisible();
+    await expect(
+      warLeaderRow.getByRole("cell", { name: "37", exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/members/ci-member-0");
+    await expect(page.getByText("War Leader", { exact: true })).toBeVisible();
+    await expect(page.getByText("37", { exact: true })).toBeVisible();
+
+    await page.goto("/members");
     await expect(
       page.getByRole("heading", { name: /takedown team builder/i }),
     ).toBeVisible();

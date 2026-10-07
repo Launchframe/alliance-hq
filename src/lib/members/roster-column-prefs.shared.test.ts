@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  LEGACY_ROSTER_COLUMN_PREFS_KEY,
+  migrateLegacyRosterColumnPrefs,
   ROSTER_COLUMN_PREFS_KEY,
   readStoredRosterColumnPrefs,
   resolveRosterColumnVisibility,
@@ -17,7 +19,18 @@ describe("resolveRosterColumnVisibility", () => {
     expect(resolved.name).toBe(true);
     expect(resolved.thp).toBe(false);
     expect(resolved.vr).toBe(true);
-    expect(resolved.previousNames).toBe(true);
+    expect(resolved.previousNames).toBe(false);
+    expect(resolved.profession).toBe(true);
+    expect(resolved.professionLevel).toBe(true);
+  });
+
+  it("shows new columns for users whose saved prefs predate them", () => {
+    const resolved = resolveRosterColumnVisibility(
+      { canWrite: true, showSquadEdit: false },
+      { thp: true, vr: false },
+    );
+    expect(resolved.profession).toBe(true);
+    expect(resolved.professionLevel).toBe(true);
   });
 
   it("drops squad edit when not allowed", () => {
@@ -81,6 +94,41 @@ describe("localStorage column prefs", () => {
       JSON.stringify({ thp: "yes", bogus: true, vr: false }),
     );
     expect(readStoredRosterColumnPrefs()).toEqual({ vr: false });
+  });
+
+  it("migrates v1 prefs without the old previous-names choice", () => {
+    store.set(
+      LEGACY_ROSTER_COLUMN_PREFS_KEY,
+      JSON.stringify({ previousNames: true, thp: false, vr: true }),
+    );
+    expect(readStoredRosterColumnPrefs()).toEqual({ thp: false, vr: true });
+    expect(
+      resolveRosterColumnVisibility({ canWrite: true, showSquadEdit: false })
+        .previousNames,
+    ).toBe(false);
+  });
+
+  it("prefers v2 prefs and clears v1 on write", () => {
+    store.set(
+      LEGACY_ROSTER_COLUMN_PREFS_KEY,
+      JSON.stringify({ thp: false }),
+    );
+    const visibility = resolveRosterColumnVisibility({
+      canWrite: true,
+      showSquadEdit: false,
+    });
+    writeStoredRosterColumnPrefs({ ...visibility, previousNames: true });
+    expect(store.has(LEGACY_ROSTER_COLUMN_PREFS_KEY)).toBe(false);
+    expect(readStoredRosterColumnPrefs()).toMatchObject({
+      previousNames: true,
+      thp: false,
+    });
+  });
+});
+
+describe("migrateLegacyRosterColumnPrefs", () => {
+  it("returns null for missing prefs", () => {
+    expect(migrateLegacyRosterColumnPrefs(null)).toBeNull();
   });
 });
 

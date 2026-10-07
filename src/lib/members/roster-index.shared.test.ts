@@ -33,6 +33,8 @@ function commanderRow(
     mainSquad: null,
     mainSquadSource: null,
     highestBaseVr: null,
+    profession: null,
+    professionLevel: null,
     hqLinked: false,
     oauthIdentitySplit: false,
     ...overrides,
@@ -40,13 +42,15 @@ function commanderRow(
 }
 
 describe("defaultRosterColumnVisibility", () => {
-  it("shows officer-only columns when canWrite", () => {
+  it("hides previous names and shows profession columns by default", () => {
     expect(
       defaultRosterColumnVisibility({ canWrite: true, showSquadEdit: false }),
     ).toMatchObject({
       name: true,
-      previousNames: true,
+      previousNames: false,
       thp: true,
+      profession: true,
+      professionLevel: true,
       squadEdit: false,
     });
   });
@@ -151,6 +155,35 @@ describe("sortRosterRows", () => {
     );
     const sorted = sortRosterRows(rows, "thp", "desc");
     expect(sorted.map((row) => row.ashedMemberId)).toEqual(["b", "a"]);
+  });
+
+  const professionRows = mergeMembersWithCommanderIndex(
+    [member("a", "A"), member("b", "B"), member("c", "C"), member("d", "D")],
+    [
+      commanderRow("a", { profession: "War Leader", professionLevel: 3 }),
+      commanderRow("b", { profession: "Engineer", professionLevel: 9 }),
+      commanderRow("c", { profession: null, professionLevel: null }),
+    ],
+  );
+
+  it("sorts profession level with unset members last in both directions", () => {
+    const ids = (dir: "asc" | "desc") =>
+      sortRosterRows(professionRows, "professionLevel", dir).map(
+        (row) => row.ashedMemberId,
+      );
+    expect(ids("asc")).toEqual(["a", "b", "c", "d"]);
+    expect(ids("desc")).toEqual(["b", "a", "c", "d"]);
+  });
+
+  it("sorts profession alphabetically with unset members last", () => {
+    const ids = (dir: "asc" | "desc") =>
+      sortRosterRows(professionRows, "profession", dir).map(
+        (row) => row.ashedMemberId,
+      );
+    expect(ids("asc").slice(0, 2)).toEqual(["b", "a"]);
+    expect(ids("desc").slice(0, 2)).toEqual(["a", "b"]);
+    expect(ids("asc").slice(2)).toEqual(["c", "d"]);
+    expect(ids("desc").slice(2)).toEqual(["c", "d"]);
   });
 });
 
