@@ -563,6 +563,19 @@ export async function switchProfession(input: {
     );
     if (assignment) {
       await updateAssignmentStatus(assignment.assignmentId, "self_removed");
+      await logWlTeamEvent({
+        allianceId: input.allianceId,
+        wlTeamId: assignment.wlTeamId,
+        eventKind: "eng_self_removed",
+        actorCommanderId: input.commanderId,
+        subjectCommanderId: assignment.wlCommanderId,
+      });
+      await notifyProfessionEvent({
+        kind: "eng_self_removed",
+        allianceId: input.allianceId,
+        engCommanderId: input.commanderId,
+        wlCommanderId: assignment.wlCommanderId,
+      });
     }
   }
 
@@ -587,6 +600,14 @@ export async function switchProfession(input: {
     from: input.fromProfession,
     to: input.toProfession,
   });
+
+  if (input.toProfession === "War Leader") {
+    await notifyProfessionEvent({
+      kind: "more_engs_requested",
+      allianceId: input.allianceId,
+      wlCommanderId: input.commanderId,
+    });
+  }
 
   return { freedEngs };
 }

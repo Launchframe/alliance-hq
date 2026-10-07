@@ -8,16 +8,28 @@ const mockRepo = vi.hoisted(() => ({
   createEngAssignment: vi.fn(),
   reactivateEngAssignment: vi.fn(),
   logWlTeamEvent: vi.fn(),
+  getWlTeam: vi.fn(),
+  getActiveAssignmentsForTeam: vi.fn(),
+  updateAssignmentStatus: vi.fn(),
 }));
 
 vi.mock("./repository", () => mockRepo);
+
+vi.mock("@/lib/db", () => {
+  const where = vi.fn(async () => undefined);
+  const set = vi.fn(() => ({ where }));
+  return {
+    getDb: () => ({ update: vi.fn(() => ({ set })) }),
+    schema: { commanders: { id: "id" } },
+  };
+});
 
 vi.mock("./notifications.server", () => ({
   notifyProfessionEvent: vi.fn(async () => undefined),
 }));
 
 import { notifyProfessionEvent } from "./notifications.server";
-import { assignEngToWl } from "./service";
+import { assignEngToWl, switchProfession } from "./service";
 
 function mockProfessions(
   eng: { profession: string | null } | null,
@@ -148,5 +160,83 @@ describe("assignEngToWl", () => {
       "assignment-old", undefined,
     );
     expect(mockRepo.createEngAssignment).not.toHaveBeenCalled();
+  });
+});
+
+describe("switchProfession", () => {
+  const notifiedKinds = () =>
+    vi.mocked(notifyProfessionEvent).mock.calls.map(([payload]) => payload.kind);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRepo.logWlTeamEvent.mockResolvedValue(undefined);
+    mockRepo.updateAssignmentStatus.mockResolvedValue(undefined);
+  });
+
+  it("Engineer → War Leader notifies the War Leader they left and asks officers for Engineers", async () => {
+    mockRepo.getEngActiveAssignment.mockResolvedValue({
+      assignmentId: "assignment-1",
+      wlTeamId: "wl-team-1",
+      wlCommanderId: "wl-1",
+    });
+
+    await switchProfession({
+      allianceId: "alliance-a",
+      commanderId: "eng-1",
+      fromProfession: "Engineer",
+      toProfession: "War Leader",
+    });
+
+    expect(mockRepo.updateAssignmentStatus).toHaveBeenCalledWith("assignment-1", "self_removed");
+    expect(mockRepo.logWlTeamEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKind: "eng_self_removed",
+        wlTeamId: "wl-team-1",
+        actorCommanderId: "eng-1",
+        subjectCommanderId: "wl-1",
+      }),
+    );
+    expect(notifyProfessionEvent).toHaveBeenCalledWith({
+      kind: "eng_self_removed",
+      allianceId: "alliance-a",
+      engCommanderId: "eng-1",
+      wlCommanderId: "wl-1",
+    });
+    expect(notifyProfessionEvent).toHaveBeenCalledWith({
+      kind: "more_engs_requested",
+      allianceId: "alliance-a",
+      wlCommanderId: "eng-1",
+    });
+  });
+
+  it("unassigned Engineer → War Leader still asks officers for Engineers", async () => {
+    mockRepo.getEngActiveAssignment.mockResolvedValue(null);
+
+    await switchProfession({
+      allianceId: "alliance-a",
+      commanderId: "eng-1",
+      fromProfession: "Engineer",
+      toProfession: "War Leader",
+    });
+
+    expect(notifiedKinds()).toEqual(["profession_switched", "more_engs_requested"]);
+  });
+
+  it("War Leader → Engineer notifies each freed Engineer and does not ask for Engineers", async () => {
+    mockRepo.getWlTeam.mockResolvedValue({ id: "wl-team-1" });
+    mockRepo.getActiveAssignmentsForTeam.mockResolvedValue([
+      { assignmentId: "a-1", engCommanderId: "eng-1" },
+      { assignmentId: "a-2", engCommanderId: "eng-2" },
+    ]);
+
+    const result = await switchProfession({
+      allianceId: "alliance-a",
+      commanderId: "wl-1",
+      fromProfession: "War Leader",
+      toProfession: "Engineer",
+    });
+
+    expect(result.freedEngs).toEqual(["eng-1", "eng-2"]);
+    expect(notifiedKinds()).toEqual(["eng_dismissed", "eng_dismissed", "profession_switched"]);
   });
 });
