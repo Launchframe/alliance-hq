@@ -3,6 +3,8 @@ import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.se
 import { getTranslations } from "next-intl/server";
 import { AllianceSettingsSetupGuideSection } from "@/components/settings/AllianceSettingsSetupGuideSection";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
+import { GameDataSyncCard } from "@/components/settings/GameDataSyncCard";
+import { loadGameDataSyncStatus } from "@/lib/lastrank/game-data-sync-status.server";
 import { buildAllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
 import { requireAllianceSettingsSession, resolveAllianceTagForSession, shouldShowTeamAccessNavForSession } from "@/lib/settings/alliance-settings-access.server";
 import { requirePageSession } from "@/lib/session";
@@ -45,6 +47,9 @@ export default async function SettingsPage({
           sessionId: access.session.id,
         })
       : null;
+  const gameDataSync = access.session.currentAllianceId
+    ? await loadGameDataSyncStatus(access.session.currentAllianceId)
+    : null;
 
   return (
     <div className="mx-auto max-w-lg space-y-6 min-w-0 w-full">
@@ -54,6 +59,7 @@ export default async function SettingsPage({
         showTeamLink={showTeamLink}
         showComplianceLink={showComplianceLink}
       />
+      {gameDataSync ? <GameDataSyncCard status={gameDataSync} /> : null}
     </div>
   );
 }

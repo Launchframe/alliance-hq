@@ -97,6 +97,50 @@ export async function appendMemberPowerLevelEventIfChanged(input: {
   return true;
 }
 
+export async function appendMemberProfessionLevelEventIfChanged(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  memberName: string;
+  value: number;
+  recordedDate?: string;
+  source: MemberStatSource;
+  recordedByHqUserId?: string | null;
+}): Promise<boolean> {
+  const recordedDate = input.recordedDate ?? getServerCalendarDate();
+  const db = getDb();
+
+  const [existing] = await db
+    .select({ value: schema.memberProfessionLevelEvents.value })
+    .from(schema.memberProfessionLevelEvents)
+    .where(
+      and(
+        eq(schema.memberProfessionLevelEvents.allianceId, input.allianceId),
+        eq(
+          schema.memberProfessionLevelEvents.ashedMemberId,
+          input.ashedMemberId,
+        ),
+        eq(schema.memberProfessionLevelEvents.recordedDate, recordedDate),
+      ),
+    )
+    .limit(1);
+
+  if (existing?.value === input.value) {
+    return false;
+  }
+
+  await db.insert(schema.memberProfessionLevelEvents).values({
+    id: nanoid(),
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    memberName: input.memberName,
+    value: input.value,
+    recordedDate,
+    source: input.source,
+    recordedByHqUserId: input.recordedByHqUserId ?? null,
+  });
+  return true;
+}
+
 export async function appendCommanderPowerLevelEventIfChanged(input: {
   commanderId: string;
   allianceId: string;

@@ -209,6 +209,8 @@ export async function createAllianceMemberFromLastRank(input: {
       hqPowerLevel: powerLevel,
       hqAllianceRank:
         rank != null && rank >= 1 && rank <= 5 ? Math.round(rank) : null,
+      hqProfession: null,
+      hqProfessionLevel: null,
       existingCanonicalName: name,
       lastrankPublicId: input.lastRank.publicId,
       lastrankCountry: input.lastRank.country,

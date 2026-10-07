@@ -68,6 +68,41 @@ export async function getProfessionSince(
   return null;
 }
 
+/**
+ * Latest profession change per commander, across alliances (profession is
+ * per commander). Commanders without a `profession_switched` event are absent.
+ */
+export const LASTRANK_SYNC_PROFESSION_SOURCE = "lastrank_sync";
+
+/** Latest HQ-made profession switch per commander; sync-made switches don't count. */
+export async function loadLatestProfessionChangeByCommander(
+  commanderIds: readonly string[],
+): Promise<Map<string, Date>> {
+  if (commanderIds.length === 0) return new Map();
+  const rows = await getDb()
+    .select({
+      commanderId: schema.wlTeamEvents.actorCommanderId,
+      changedAt: sql<Date>`max(${schema.wlTeamEvents.createdAt})`.mapWith(
+        (value: string | Date) => new Date(value),
+      ),
+    })
+    .from(schema.wlTeamEvents)
+    .where(
+      and(
+        eq(schema.wlTeamEvents.eventKind, "profession_switched"),
+        inArray(schema.wlTeamEvents.actorCommanderId, [...commanderIds]),
+        sql`coalesce(${schema.wlTeamEvents.detailsJson}->>'source', '') <> ${LASTRANK_SYNC_PROFESSION_SOURCE}`,
+      ),
+    )
+    .groupBy(schema.wlTeamEvents.actorCommanderId);
+
+  const out = new Map<string, Date>();
+  for (const row of rows) {
+    if (row.commanderId) out.set(row.commanderId, row.changedAt);
+  }
+  return out;
+}
+
 async function getEngNamesByTeamIds(
   teamIds: string[],
 ): Promise<Map<string, string[]>> {

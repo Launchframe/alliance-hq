@@ -11,8 +11,10 @@ import {
 } from "@/lib/lastrank/alliance-resolve.server";
 import {
   applyInteractiveMatches,
+  decideLastRankProfessionApply,
   formatLastRankPowerLevel,
   isLastRankUnranked,
+  LASTRANK_PROFESSION_HQ_RECENT_DAYS,
   lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
@@ -43,7 +45,18 @@ import {
 } from "@/lib/lastrank/roster-diff.shared";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
-import { appendCommanderPowerLevelEventIfChanged } from "@/lib/members/member-stat-history.server";
+import {
+  appendCommanderPowerLevelEventIfChanged,
+  appendMemberProfessionLevelEventIfChanged,
+} from "@/lib/members/member-stat-history.server";
+import {
+  LASTRANK_SYNC_PROFESSION_SOURCE,
+  loadLatestProfessionChangeByCommander,
+} from "@/lib/professions/repository";
+import {
+  switchProfession,
+  updateCommanderProfession,
+} from "@/lib/professions/service";
 import { upsertCommanderThp } from "@/lib/thp/repository";
 import { upsertCommanderLevel } from "@/lib/member-level/repository";
 import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
@@ -58,6 +71,16 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   levelSkipped: number;
   levelConflict: number;
   powerUpdated: number;
+  professionApplied: number;
+  professionUnchanged: number;
+  /** HQ profession was stale — switched to LastRank's (tears down WL/Eng pairings). */
+  professionSwitched: number;
+  /** HQ changed profession recently — kept over LastRank's possibly older snapshot. */
+  professionConflict: number;
+  professionLevelApplied: number;
+  professionLevelSkipped: number;
+  /** LastRank level is lower than HQ's — treated as stale, not applied. */
+  professionLevelConflict: number;
   rankApplied: number;
   rankUnchanged: number;
   rankSkippedMissing: number;
@@ -101,6 +124,12 @@ export type LastRankAllianceSyncResult = {
 
 export type LastRankInteractiveMatchResolved = (row: LastRankMatchedRow) => Promise<void>;
 
+function isHqProfession(
+  value: string | null,
+): value is "Engineer" | "War Leader" {
+  return value === "Engineer" || value === "War Leader";
+}
+
 function emptyApplyCounts(): LastRankSyncApplyCounts {
   return {
     membersCreated: 0,
@@ -116,6 +145,13 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     levelSkipped: 0,
     levelConflict: 0,
     powerUpdated: 0,
+    professionApplied: 0,
+    professionUnchanged: 0,
+    professionSwitched: 0,
+    professionConflict: 0,
+    professionLevelApplied: 0,
+    professionLevelSkipped: 0,
+    professionLevelConflict: 0,
     rankApplied: 0,
     rankUnchanged: 0,
     rankSkippedMissing: 0,
@@ -193,6 +229,8 @@ export async function loadHqRosterForLastRankMatch(
       hqThp: schema.commanders.currentTotalHeroPower,
       hqLevel: schema.commanders.memberLevel,
       hqPowerLevel: schema.commanders.powerLevel,
+      hqProfession: schema.commanders.profession,
+      hqProfessionLevel: schema.commanders.professionalLevel,
       hqAllianceRank: schema.allianceMembers.allianceRank,
     })
     .from(schema.allianceMembers)
@@ -237,6 +275,8 @@ export async function loadHqRosterForLastRankMatch(
       row.hqAllianceRank <= 5
         ? Math.round(row.hqAllianceRank)
         : null,
+    hqProfession: row.hqProfession,
+    hqProfessionLevel: row.hqProfessionLevel,
     existingCanonicalName: row.canonicalName,
     lastrankPublicId: row.lastrankPublicId,
     lastrankCountry: row.lastrankCountry,
@@ -325,6 +365,9 @@ async function applyMatchedRows(
   const db = getDb();
   const effectiveDate = getServerCalendarDate();
   let ranksChanged = false;
+  const professionChangedAt = await loadLatestProfessionChangeByCommander(
+    rows.map((row) => row.hq.commanderId),
+  );
 
   for (const row of rows) {
     // Belt-and-suspenders: sole fuzzy auto-match is refused in
@@ -423,6 +466,74 @@ async function applyMatchedRows(
         source: "lastrank_sync",
         recordedDate: effectiveDate,
       });
+    }
+
+    const professionDecision = decideLastRankProfessionApply(
+      row.hq,
+      row.lastRank,
+      { hqProfessionChangedAt: professionChangedAt.get(row.hq.commanderId) ?? null },
+    );
+    const lastRankProfession = row.lastRank.profession;
+    const priorProfession = row.hq.hqProfession;
+    if (
+      lastRankProfession &&
+      (professionDecision.profession === "apply" ||
+        (professionDecision.profession === "switch" &&
+          !isHqProfession(priorProfession)))
+    ) {
+      await updateCommanderProfession(
+        row.hq.commanderId,
+        lastRankProfession,
+        hqAllianceId,
+      );
+      row.hq.hqProfession = lastRankProfession;
+      counts.professionApplied += 1;
+    } else if (
+      lastRankProfession &&
+      professionDecision.profession === "switch" &&
+      isHqProfession(priorProfession)
+    ) {
+      await switchProfession({
+        allianceId: hqAllianceId,
+        commanderId: row.hq.commanderId,
+        fromProfession: priorProfession,
+        toProfession: lastRankProfession,
+        source: LASTRANK_SYNC_PROFESSION_SOURCE,
+      });
+      row.hq.hqProfession = lastRankProfession;
+      counts.professionSwitched += 1;
+      console.error(
+        `Profession switched: ${row.lastRank.name} ${priorProfession} → ${lastRankProfession} (HQ entry older than ${LASTRANK_PROFESSION_HQ_RECENT_DAYS} days).`,
+      );
+    } else if (professionDecision.profession === "unchanged") {
+      counts.professionUnchanged += 1;
+    } else if (professionDecision.profession === "conflict") {
+      counts.professionConflict += 1;
+      console.error(
+        `Profession kept: ${row.lastRank.name} is ${lastRankProfession} on LastRank but changed to ${priorProfession} in HQ within ${LASTRANK_PROFESSION_HQ_RECENT_DAYS} days.`,
+      );
+    }
+
+    const professionLevel = row.lastRank.professionLevel;
+    if (professionDecision.level === "apply" && professionLevel != null) {
+      await db
+        .update(schema.commanders)
+        .set({ professionalLevel: professionLevel, updatedAt: new Date() })
+        .where(eq(schema.commanders.id, row.hq.commanderId));
+      await appendMemberProfessionLevelEventIfChanged({
+        allianceId: hqAllianceId,
+        ashedMemberId: row.hq.ashedMemberId,
+        memberName: row.lastRank.name,
+        value: professionLevel,
+        source: "lastrank_sync",
+        recordedDate: effectiveDate,
+      });
+      row.hq.hqProfessionLevel = professionLevel;
+      counts.professionLevelApplied += 1;
+    } else if (professionDecision.level === "conflict") {
+      counts.professionLevelConflict += 1;
+    } else {
+      counts.professionLevelSkipped += 1;
     }
   }
 

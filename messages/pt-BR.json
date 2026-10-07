@@ -2904,6 +2904,17 @@
       "title": "Member onboarding",
       "body": "Control how new members join, who can send invites, and who reviews commander links.",
       "link": "Open member onboarding settings"
+    },
+    "gameData": {
+      "title": "Sincronização de dados do jogo",
+      "autoSync": {
+        "label": "Sincronização noturna",
+        "on": "Ativada",
+        "off": "Desativada",
+        "tooltip": "Toda noite, por volta das 06:30 no horário do servidor, o HQ atualiza ranks, THP, nível do QG, poder, país e profissão a partir dos dados do jogo. Uma profissão alterada no HQ nos últimos 7 dias é mantida."
+      },
+      "notLinked": "A sincronização de dados do jogo não está disponível para esta aliança.",
+      "readOnlyHint": "Estas configurações ainda não podem ser alteradas aqui."
     }
   },
   "account": {

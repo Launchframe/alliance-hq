@@ -2,17 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyInteractiveMatches,
+  applyProfessionBadgesToMembers,
   buildInteractiveHqChoices,
+  decideLastRankProfessionApply,
   formatLastRankPowerLevel,
   isLastRankUnranked,
+  LASTRANK_PROFESSION_HQ_RECENT_DAYS,
   lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
+  parseLastRankProfessionBadges,
   parseLastRankSectionRanks,
-  parseLastRankSyncMap,
   resolveHqNameToRosterRow,
   resolveInteractiveHqNameAnswer,
+  type LastRankAllianceMember,
   type LastRankHqRosterRow,
 } from "@/lib/lastrank/alliance-page.shared";
 
@@ -49,6 +53,8 @@ function hqRow(
     hqLevel: null,
     hqPowerLevel: null,
     hqAllianceRank: null,
+    hqProfession: null,
+    hqProfessionLevel: null,
     existingCanonicalName: null,
     lastrankPublicId: null,
     lastrankCountry: null,
@@ -120,6 +126,8 @@ describe("parseLastRankAllianceHtml", () => {
       heroPower: 253849850,
       power: 394409538,
       baseLevel: 35,
+      profession: null,
+      professionLevel: null,
     });
   });
 
@@ -148,6 +156,194 @@ describe("parseLastRankAllianceHtml", () => {
       ),
     ).toThrow(/Cloudflare/);
   });
+
+  it("maps career_type / career_lv to profession and level", () => {
+    const base = {
+      country: "US",
+      power: 1,
+      hero_power: 2,
+      alliance_rank: 4,
+      base_level: 35,
+      origin_server_id: 1218,
+    };
+    const page = parseLastRankAllianceHtml(
+      htmlWithMembers([
+        { ...base, public_id: 1, name: "Wl", career_type: 102, career_lv: 100 },
+        { ...base, public_id: 2, name: "Eng", career_type: 101, career_lv: 30 },
+        { ...base, public_id: 3, name: "None", career_type: 0, career_lv: 0 },
+      ]),
+      "e7d1eaefdcfc42c8ac6c84247d2dad9b",
+    );
+    expect(
+      page.members.map((m) => [m.name, m.profession, m.professionLevel]),
+    ).toEqual([
+      ["Wl", "War Leader", 100],
+      ["Eng", "Engineer", 30],
+      ["None", null, null],
+    ]);
+  });
+
+  it("falls back to the rendered badge when the payload omits career fields", () => {
+    const html = htmlWithMembers([
+      {
+        public_id: 1314756,
+        name: "Redd",
+        country: "US",
+        power: 1,
+        hero_power: 2,
+        alliance_rank: 5,
+        base_level: 35,
+        origin_server_id: 1218,
+      },
+    ]).replace(
+      "</body>",
+      `<table><tbody><tr><td><a href="/p/1314756">Redd</a></td><td><span title="Líder de Guerra · Nv 100"><span aria-hidden="true">⚔</span><span class="font-bold">WL</span><span class="hidden sm:inline">· Nv <!-- -->100</span></span></td><td>Nv 35</td></tr></tbody></table></body>`,
+    );
+    const page = parseLastRankAllianceHtml(html, "e7d1eaefdcfc42c8ac6c84247d2dad9b");
+    expect(page.members[0]).toMatchObject({
+      profession: "War Leader",
+      professionLevel: 100,
+    });
+  });
+});
+
+describe("parseLastRankProfessionBadges", () => {
+  it("accepts Lv or Nv and ignores the HQ Lv cell", () => {
+    const html = [
+      `<tr><td><a href="/p/1">A</a></td><td><span title="War Leader · Lv 100"><span aria-hidden="true">⚔</span><span class="font-bold">WL</span><span>· Lv 100</span></span></td><td>Lv 35</td></tr>`,
+      `<tr><td><a href="/p/2">B</a></td><td><span title="Engenheiro · Nv 30"><span aria-hidden="true">🛠</span><span class="font-bold">ENG</span><span>· Nv <!-- -->30</span></span></td><td>Nv 35</td></tr>`,
+      `<tr><td><a href="/p/3">C</a></td><td></td><td>Nv 20</td></tr>`,
+    ].join("");
+    const badges = parseLastRankProfessionBadges(html);
+    expect(badges.get(1)).toEqual({ profession: "War Leader", professionLevel: 100 });
+    expect(badges.get(2)).toEqual({ profession: "Engineer", professionLevel: 30 });
+    expect(badges.has(3)).toBe(false);
+  });
+});
+
+describe("applyProfessionBadgesToMembers", () => {
+  const member = (
+    publicId: number,
+    profession: "War Leader" | "Engineer" | null,
+    professionLevel: number | null,
+  ): LastRankAllianceMember => ({
+    publicId,
+    name: `P${publicId}`,
+    country: null,
+    power: null,
+    heroPower: null,
+    allianceRank: null,
+    baseLevel: null,
+    profession,
+    professionLevel,
+    originServerId: null,
+  });
+  const badges = new Map([
+    [1, { profession: "War Leader" as const, professionLevel: 100 }],
+    [2, { profession: "Engineer" as const, professionLevel: 30 }],
+    [3, { profession: "Engineer" as const, professionLevel: 40 }],
+    [4, { profession: "Engineer" as const, professionLevel: 50 }],
+  ]);
+
+  it("fills a missing level from the badge when the payload already has the profession", () => {
+    const [out] = applyProfessionBadgesToMembers([member(1, "War Leader", null)], badges);
+    expect(out).toMatchObject({ profession: "War Leader", professionLevel: 100 });
+  });
+
+  it("fills both fields when the payload has neither", () => {
+    const [out] = applyProfessionBadgesToMembers([member(2, null, null)], badges);
+    expect(out).toMatchObject({ profession: "Engineer", professionLevel: 30 });
+  });
+
+  it("keeps payload values that are present", () => {
+    const [out] = applyProfessionBadgesToMembers([member(3, "Engineer", 45)], badges);
+    expect(out).toMatchObject({ profession: "Engineer", professionLevel: 45 });
+  });
+
+  it("does not borrow a level from a badge for a different profession", () => {
+    const [out] = applyProfessionBadgesToMembers([member(4, "War Leader", null)], badges);
+    expect(out).toMatchObject({ profession: "War Leader", professionLevel: null });
+  });
+});
+
+describe("decideLastRankProfessionApply", () => {
+  const wl100 = { profession: "War Leader" as const, professionLevel: 100 };
+
+  it("fills an empty HQ profession and level", () => {
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: null, hqProfessionLevel: null },
+        wl100,
+      ),
+    ).toEqual({ profession: "apply", level: "apply" });
+  });
+
+  const now = new Date("2026-10-06T12:00:00Z");
+  const daysAgo = (days: number) =>
+    new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+  it("keeps a recent HQ profession change and skips the level", () => {
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "Engineer", hqProfessionLevel: 20 },
+        wl100,
+        { hqProfessionChangedAt: daysAgo(2), now },
+      ),
+    ).toEqual({ profession: "conflict", level: "missing" });
+  });
+
+  it("switches a stale HQ profession and adopts the LastRank level", () => {
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "Engineer", hqProfessionLevel: 120 },
+        wl100,
+        {
+          hqProfessionChangedAt: daysAgo(LASTRANK_PROFESSION_HQ_RECENT_DAYS),
+          now,
+        },
+      ),
+    ).toEqual({ profession: "switch", level: "apply" });
+  });
+
+  it("treats an undated HQ profession as stale", () => {
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "Engineer", hqProfessionLevel: 20 },
+        wl100,
+        { hqProfessionChangedAt: null, now },
+      ).profession,
+    ).toBe("switch");
+  });
+
+  it("raises level but treats a lower LastRank level as stale", () => {
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "War Leader", hqProfessionLevel: 90 },
+        wl100,
+      ),
+    ).toEqual({ profession: "unchanged", level: "apply" });
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "War Leader", hqProfessionLevel: 100 },
+        wl100,
+      ).level,
+    ).toBe("unchanged");
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "War Leader", hqProfessionLevel: 110 },
+        wl100,
+      ).level,
+    ).toBe("conflict");
+  });
+
+  it("does nothing when LastRank has no profession", () => {
+    expect(
+      decideLastRankProfessionApply(
+        { hqProfession: "Engineer", hqProfessionLevel: 30 },
+        { profession: null, professionLevel: null },
+      ),
+    ).toEqual({ profession: "missing", level: "missing" });
+  });
 });
 
 describe("matchLastRankMembersToHq cascade", () => {
@@ -159,6 +355,8 @@ describe("matchLastRankMembersToHq cascade", () => {
     heroPower: 2 as number | null,
     allianceRank: 3 as number | null,
     baseLevel: 35 as number | null,
+    profession: null,
+    professionLevel: null,
     originServerId: 1203 as number | null,
   };
 
@@ -225,6 +423,8 @@ describe("matchLastRankMembersToHq cascade", () => {
           ashedMemberId: "m1",
           currentNames: ["LilBelly"],
           hqAllianceRank: 3,
+          hqProfession: null,
+          hqProfessionLevel: null,
         }),
       ],
     );
@@ -273,6 +473,8 @@ describe("matchLastRankMembersToHq cascade", () => {
           ashedMemberId: "m-mike",
           currentNames: ["Mike"],
           hqAllianceRank: 1,
+          hqProfession: null,
+          hqProfessionLevel: null,
         }),
       ],
     );
@@ -415,6 +617,8 @@ describe("resolveHqNameToRosterRow + interactive apply", () => {
       heroPower: 1,
       allianceRank: null,
       baseLevel: null,
+      profession: null,
+      professionLevel: null,
       originServerId: null,
     };
     const base = matchLastRankMembersToHq([lastRank], [hq], {
@@ -432,16 +636,6 @@ describe("resolveHqNameToRosterRow + interactive apply", () => {
     expect(next.matched).toHaveLength(1);
     expect(next.matched[0].matchMethod).toBe("interactive");
     expect(next.unmatched).toHaveLength(0);
-  });
-});
-
-describe("parseLastRankSyncMap", () => {
-  it("parses tag=hex pairs", () => {
-    expect(
-      parseLastRankSyncMap("LFgo=e7d1eaefdcfc42c8ac6c84247d2dad9b"),
-    ).toEqual([
-      { tag: "LFgo", lastrankAllianceId: "e7d1eaefdcfc42c8ac6c84247d2dad9b" },
-    ]);
   });
 });
 

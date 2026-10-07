@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { resolveLastRankSyncMapTargets } from "@/lib/lastrank/sync-registry.shared";
+import { listLastRankAutoSyncTargets } from "@/lib/lastrank/sync-registry.shared";
 import { syncLastRankAlliance } from "@/lib/lastrank/sync-alliance.server";
 
 export const dynamic = "force-dynamic";
@@ -18,21 +18,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let targets;
-  try {
-    targets = resolveLastRankSyncMapTargets(process.env.LASTRANK_SYNC_MAP);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "invalid map" },
-      { status: 500 },
-    );
-  }
-
+  const targets = listLastRankAutoSyncTargets();
   if (targets.length === 0) {
     return NextResponse.json({
       ok: true,
       skipped: true,
-      reason: "LASTRANK_SYNC_MAP unset",
+      reason: "no autoSync alliances in LASTRANK_SYNC_REGISTRY",
     });
   }
 

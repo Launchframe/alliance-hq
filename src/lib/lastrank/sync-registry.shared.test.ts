@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatLastRankSyncMapEnv,
+  isLastRankSelfServiceImportAllowed,
   LASTRANK_SYNC_REGISTRY,
+  listLastRankAutoSyncTargets,
   lookupLastRankSyncByAllianceId,
   lookupLastRankSyncByServerAndTag,
+  resolveGameDataSyncStatus,
   resolveLastRankSyncCliTarget,
-  resolveLastRankSyncMapTargets,
+  type LastRankSyncRegistryEntry,
 } from "@/lib/lastrank/sync-registry.shared";
+
+const UNKNOWN_ID = "aabbccddeeff00112233445566778899";
 
 describe("LASTRANK_SYNC_REGISTRY", () => {
   it("includes LFgo on server 1203", () => {
@@ -20,8 +24,13 @@ describe("LASTRANK_SYNC_REGISTRY", () => {
     });
   });
 
-  it("whitelists all 19 requested alliances plus LFgo", () => {
+  it("lists the 19 requested alliances plus LFgo", () => {
     expect(LASTRANK_SYNC_REGISTRY).toHaveLength(20);
+  });
+
+  it("has unique alliance ids", () => {
+    const ids = LASTRANK_SYNC_REGISTRY.map((row) => row.lastrankAllianceId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
@@ -48,6 +57,45 @@ describe("resolveLastRankSyncCliTarget", () => {
     });
   });
 
+  it("accepts an unregistered id with server + tag", () => {
+    expect(
+      resolveLastRankSyncCliTarget({
+        lastrankAllianceId: UNKNOWN_ID,
+        gameServerNumber: 1300,
+        tag: "NeW",
+      }),
+    ).toEqual({
+      gameServerNumber: 1300,
+      tag: "NeW",
+      lastrankAllianceId: UNKNOWN_ID,
+    });
+  });
+
+  it("lets explicit server/tag override registry metadata", () => {
+    expect(
+      resolveLastRankSyncCliTarget({
+        lastrankAllianceId: "605b91e26dcc4e33b82d114b1846900c",
+        tag: "BigX",
+      }),
+    ).toEqual({
+      gameServerNumber: 1203,
+      tag: "BigX",
+      lastrankAllianceId: "605b91e26dcc4e33b82d114b1846900c",
+    });
+  });
+
+  it("asks for server + tag when an unregistered id is passed alone", () => {
+    expect(() =>
+      resolveLastRankSyncCliTarget({ lastrankAllianceId: UNKNOWN_ID }),
+    ).toThrow(/--server and --tag/);
+  });
+
+  it("asks for --id when server + tag are not in the registry", () => {
+    expect(() =>
+      resolveLastRankSyncCliTarget({ gameServerNumber: 1300, tag: "NeW" }),
+    ).toThrow(/--id/);
+  });
+
   it("requires server when tag alone is ambiguous across servers", () => {
     expect(() =>
       resolveLastRankSyncCliTarget({ tag: "LFgo" }),
@@ -55,35 +103,66 @@ describe("resolveLastRankSyncCliTarget", () => {
   });
 });
 
-describe("resolveLastRankSyncMapTargets", () => {
-  it("enriches cron map with registry server numbers", () => {
-    const targets = resolveLastRankSyncMapTargets(
-      "LFgo=e7d1eaefdcfc42c8ac6c84247d2dad9b,Roar=b1cf340c642947579ccbb753e7410c37",
-    );
-    expect(targets).toHaveLength(2);
-    expect(targets[0]).toMatchObject({ gameServerNumber: 1203, tag: "LFgo" });
-    expect(targets[1]).toMatchObject({ gameServerNumber: 1211, tag: "Roar" });
+describe("registry flags", () => {
+  const entries: LastRankSyncRegistryEntry[] = [
+    {
+      gameServerNumber: 1,
+      tag: "A",
+      lastrankAllianceId: "0".repeat(32),
+      selfServiceImport: true,
+      autoSync: true,
+    },
+    {
+      gameServerNumber: 1,
+      tag: "B",
+      lastrankAllianceId: "1".repeat(32),
+      selfServiceImport: false,
+      autoSync: false,
+    },
+  ];
+
+  it("lists only autoSync entries for cron", () => {
+    expect(listLastRankAutoSyncTargets(entries)).toEqual([
+      { gameServerNumber: 1, tag: "A", lastrankAllianceId: "0".repeat(32) },
+    ]);
   });
 
-  it("rejects unknown ids not in registry", () => {
-    expect(() =>
-      resolveLastRankSyncMapTargets(
-        "X=aabbccddeeff00112233445566778899",
-      ),
-    ).toThrow(/not in LASTRANK_SYNC_REGISTRY/);
+  it("auto-syncs LFgo by default", () => {
+    expect(listLastRankAutoSyncTargets().map((row) => row.tag)).toContain(
+      "LFgo",
+    );
+  });
+
+  it("gates self-service import on the flag", () => {
+    expect(isLastRankSelfServiceImportAllowed("0".repeat(32), entries)).toBe(
+      true,
+    );
+    expect(isLastRankSelfServiceImportAllowed("1".repeat(32), entries)).toBe(
+      false,
+    );
+    expect(isLastRankSelfServiceImportAllowed(UNKNOWN_ID, entries)).toBe(false);
   });
 });
 
-describe("formatLastRankSyncMapEnv", () => {
-  it("emits TAG=id pairs for cron", () => {
-    const map = formatLastRankSyncMapEnv([
-      {
-        gameServerNumber: 1203,
-        tag: "LFgo",
-        lastrankAllianceId: "e7d1eaefdcfc42c8ac6c84247d2dad9b",
-      },
-    ]);
-    expect(map).toBe("LFgo=e7d1eaefdcfc42c8ac6c84247d2dad9b");
+describe("resolveGameDataSyncStatus", () => {
+  it("reports nightly sync on for LFgo (case-insensitive tag)", () => {
+    expect(resolveGameDataSyncStatus(1203, "lfgo")).toEqual({ linked: true, autoSync: true });
+  });
+
+  it("reports linked with nightly sync off for registry alliances not on the cron", () => {
+    expect(resolveGameDataSyncStatus(1203, "BigD")).toEqual({ linked: true, autoSync: false });
+  });
+
+  it("is not linked for unknown alliances or a tag on the wrong server", () => {
+    expect(resolveGameDataSyncStatus(1203, "NOPE")).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(1211, "LFgo")).toEqual({ linked: false });
+  });
+
+  it("is not linked without a server number or tag", () => {
+    expect(resolveGameDataSyncStatus(null, "LFgo")).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(0, "LFgo")).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(1203, null)).toEqual({ linked: false });
+    expect(resolveGameDataSyncStatus(1203, "  ")).toEqual({ linked: false });
   });
 });
 
