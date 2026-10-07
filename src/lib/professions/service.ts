@@ -532,6 +532,8 @@ export async function switchProfession(input: {
   commanderId: string;
   fromProfession: "Engineer" | "War Leader";
   toProfession: "Engineer" | "War Leader";
+  /** Recorded on the team event when the switch is not self-initiated (e.g. `lastrank_sync`). */
+  source?: string;
 }): Promise<{ freedEngs: string[] }> {
   const freedEngs: string[] = [];
 
@@ -571,7 +573,11 @@ export async function switchProfession(input: {
     allianceId: input.allianceId,
     eventKind: "profession_switched",
     actorCommanderId: input.commanderId,
-    details: { from: input.fromProfession, to: input.toProfession },
+    details: {
+      from: input.fromProfession,
+      to: input.toProfession,
+      ...(input.source ? { source: input.source } : {}),
+    },
   });
 
   await notifyProfessionEvent({

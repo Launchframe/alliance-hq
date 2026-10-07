@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   syncLastRankAlliance: vi.fn(),
-  resolveLastRankSyncMapTargets: vi.fn(),
+  listLastRankAutoSyncTargets: vi.fn(),
 }));
 
 vi.mock("@/lib/lastrank/sync-alliance.server", () => ({
@@ -10,7 +10,7 @@ vi.mock("@/lib/lastrank/sync-alliance.server", () => ({
 }));
 
 vi.mock("@/lib/lastrank/sync-registry.shared", () => ({
-  resolveLastRankSyncMapTargets: mocks.resolveLastRankSyncMapTargets,
+  listLastRankAutoSyncTargets: mocks.listLastRankAutoSyncTargets,
 }));
 
 import { GET } from "./route";
@@ -19,8 +19,7 @@ describe("internal lastrank sync GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("CRON_SECRET", "cron-test-secret");
-    vi.stubEnv("LASTRANK_SYNC_MAP", "LFgo=e7d1eaefdcfc42c8ac6c84247d2dad9b");
-    mocks.resolveLastRankSyncMapTargets.mockReturnValue([
+    mocks.listLastRankAutoSyncTargets.mockReturnValue([
       {
         gameServerNumber: 1203,
         tag: "LFgo",
@@ -41,8 +40,8 @@ describe("internal lastrank sync GET", () => {
     expect(mocks.syncLastRankAlliance).not.toHaveBeenCalled();
   });
 
-  it("skips when LASTRANK_SYNC_MAP resolves to no targets", async () => {
-    mocks.resolveLastRankSyncMapTargets.mockReturnValue([]);
+  it("skips when no registry entries have autoSync", async () => {
+    mocks.listLastRankAutoSyncTargets.mockReturnValue([]);
 
     const res = await GET(
       new Request("http://localhost/api/internal/lastrank/sync", {

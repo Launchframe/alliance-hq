@@ -29,7 +29,10 @@ function printHelp(): void {
 Target (required — one of):
   --server <number>   Game server number (with --tag)
   --tag <tag>         Alliance tag on that server (with --server)
-  --id <hex>          LastRank alliance id (32-char hex)
+  --id <hex>          LastRank alliance id (32-char hex, from lastrank.fun/a/<id>)
+
+  Any alliance works. --server + --tag alone needs a LASTRANK_SYNC_REGISTRY entry;
+  otherwise pass --id --server --tag. Explicit --server/--tag override the registry.
 
   Env fallbacks: LASTRANK_SYNC_SERVER + LASTRANK_SYNC_TAG, or LASTRANK_ALLIANCE_ID
 

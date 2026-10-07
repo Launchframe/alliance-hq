@@ -7,38 +7,43 @@ This is **not** scraping LastRank’s `/api/` (robots disallows it). We fetch th
 
 Kills are **not** on the alliance page (only in the meta total). Skip kills until we have a game RPC or a cheaper path than 90+ player pages.
 
-## Whitelist registry
+## Registry
 
 Maintainer-curated mappings live in `src/lib/lastrank/sync-registry.shared.ts` (`LASTRANK_SYNC_REGISTRY`). Each entry is `[serverNumber] tag: lastrankAllianceId` — **tag may change; server number is stable**.
 
-| Server | Tag | LastRank id |
-| --- | --- | --- |
-| 1203 | LFgo | `e7d1eaefdcfc42c8ac6c84247d2dad9b` |
-| 1203 | BigD | `605b91e26dcc4e33b82d114b1846900c` |
-| 1211 | Roar | `b1cf340c642947579ccbb753e7410c37` |
-| 1203 | B1GG | `3eb55e69381b459db332262f187a7d9a` |
-| 1203 | MOT0 | `4dfb6edfc33e4b2a935d0dbb70a42fe5` |
-| 1203 | OMFG | `56467f87fc80423ba5faefd2c99f2976` |
-| 1203 | TKW | `72ae5db534b34514917db77df889092e` |
-| 1203 | S2BY | `ea191fe2028643b98c8fa541123e97d8` |
-| 1203 | ChPs | `0689eb17f5234f8cbddcfe6d76351c14` |
-| 1203 | Drtm | `b42f41e783084de5b0a5edb3020fa16c` |
-| 1203 | KCaP | `5e5de3f03f644b60bcae81597e3fcc9b` |
-| 1211 | bOoM | `9b495998c41d42a4a2fc38971e9c4b35` |
-| 1211 | bOND | `806be0616a5544888e42e7a95b3fc16b` |
-| 1211 | TFw | `81883dfc87b0490384cd0a24decd96cc` |
-| 1211 | CuT3 | `dc5ce8fef23c408f9de64c6ea0eb96e3` |
-| 1211 | KiLR | `703295dbb69d490887627fcf2d6c2918` |
-| 1211 | RIsE | `c8e8098e9d0b49f49a6f57cb11b49315` |
-| 1211 | 99BR | `3d74df8221cc464ea912d28fe6ddf358` |
-| 1211 | XNES | `7b423cee715741198b578ec4c07d1280` |
-| 1211 | MsFt | `03739bfcb6834511a294dfe1ef95d032` |
+The registry does **not** gate the maintainer CLI. It controls only:
 
-Generate a full cron `LASTRANK_SYNC_MAP` value from the registry:
+| Flag | Effect |
+| --- | --- |
+| `selfServiceImport` | Officers may import this alliance from LastRank once self-service import ships (`isLastRankSelfServiceImportAllowed`). |
+| `autoSync` | Included in the nightly cron (`listLastRankAutoSyncTargets`). |
 
-```bash
-node -e "import('./src/lib/lastrank/sync-registry.shared.ts').then(m=>console.log(m.formatLastRankSyncMapEnv()))"
-```
+The CLI uses the registry only as a shortcut: for a registered alliance, `--server` + `--tag` resolve the LastRank id (and `--id` resolves server + tag). For any other alliance, pass `--id` together with `--server` and `--tag`.
+
+| Server | Tag | LastRank id | Auto-sync |
+| --- | --- | --- | --- |
+| 1203 | LFgo | `e7d1eaefdcfc42c8ac6c84247d2dad9b` | yes |
+| 1203 | BigD | `605b91e26dcc4e33b82d114b1846900c` | |
+| 1211 | Roar | `b1cf340c642947579ccbb753e7410c37` | |
+| 1203 | B1GG | `3eb55e69381b459db332262f187a7d9a` | |
+| 1203 | MOT0 | `4dfb6edfc33e4b2a935d0dbb70a42fe5` | |
+| 1203 | OMFG | `56467f87fc80423ba5faefd2c99f2976` | |
+| 1203 | TKW | `72ae5db534b34514917db77df889092e` | |
+| 1203 | S2BY | `ea191fe2028643b98c8fa541123e97d8` | |
+| 1203 | ChPs | `0689eb17f5234f8cbddcfe6d76351c14` | |
+| 1203 | Drtm | `b42f41e783084de5b0a5edb3020fa16c` | |
+| 1203 | KCaP | `5e5de3f03f644b60bcae81597e3fcc9b` | |
+| 1211 | bOoM | `9b495998c41d42a4a2fc38971e9c4b35` | |
+| 1211 | bOND | `806be0616a5544888e42e7a95b3fc16b` | |
+| 1211 | TFw | `81883dfc87b0490384cd0a24decd96cc` | |
+| 1211 | CuT3 | `dc5ce8fef23c408f9de64c6ea0eb96e3` | |
+| 1211 | KiLR | `703295dbb69d490887627fcf2d6c2918` | |
+| 1211 | RIsE | `c8e8098e9d0b49f49a6f57cb11b49315` | |
+| 1211 | 99BR | `3d74df8221cc464ea912d28fe6ddf358` | |
+| 1211 | XNES | `7b423cee715741198b578ec4c07d1280` | |
+| 1211 | MsFt | `03739bfcb6834511a294dfe1ef95d032` | |
+
+All current entries have `selfServiceImport: true`.
 
 ## Matching (LastRank name is canon)
 
@@ -65,6 +70,19 @@ On each matched row (after auto or interactive mapping):
 | `public_id` | `commanders.lastrank_public_id` |
 | `country` | `commanders.lastrank_country` — **always upsert** |
 | profile URL | `commanders.lastrank_profile_url` (`https://lastrank.fun/p/{public_id}`) |
+| Profession (`career_type` / `⚔ WL · Nv 100` badge) | `commanders.profession` — see **Professions** below |
+| Profession level (`career_lv` / `Nv`·`Lv` badge) | `commanders.professional_level` + `member_profession_level_events` — see **Professions** below |
+
+**Professions:** LastRank can lag behind the game, so a recent HQ change wins over it:
+
+| HQ profession | Result |
+| --- | --- |
+| Empty | Set from LastRank. |
+| Same as LastRank | Unchanged; level applies only when LastRank's is higher (a lower LastRank level is reported, not written). |
+| Different, changed in HQ within the last 7 days (`LASTRANK_PROFESSION_HQ_RECENT_DAYS`) | **Kept.** Reported as a conflict; level is not touched. |
+| Different, older than 7 days or no recorded change | **Switched** to LastRank via `switchProfession` (`source: lastrank_sync`) — same as an HQ switch, so War Leader/Engineer pairings are torn down. LastRank's level replaces HQ's. |
+
+"Changed in HQ" is the latest `profession_switched` event for the commander in `wl_team_events`.
 
 **Ranks:** collapsible HTML sections are headed by an exact `R1`–`R5` badge; every `/p/{publicId}` link in that section inherits that rank (preferred over the RSC `alliance_rank` field). Matched-member rank writes are HQ audit events; new members created with Ashed dual-write also get an Ashed rank PUT.
 
@@ -111,7 +129,7 @@ npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo \
 
 ## Profile links from a power paste
 
-Turn an officer paste list (`Name - 142M`, optional notes) into Markdown LastRank profile links. Fetches the live alliance HTML (no HQ DB write). Whitelisted `--server` + `--tag` (or `--id`); optional `--name` only labels the heading.
+Turn an officer paste list (`Name - 142M`, optional notes) into Markdown LastRank profile links. Fetches the live alliance HTML (no HQ DB write). Registered `--server` + `--tag`, or `--id` (plus `--server` + `--tag` when unregistered); optional `--name` only labels the heading.
 
 ```bash
 npx tsx scripts/lastrank/profile-links.ts --help
@@ -134,16 +152,22 @@ CLI flags (`--apply`, `--create-all`, `--interactive`, target options):
 npx tsx scripts/lastrank/sync-alliance.ts --help
 ```
 
-By whitelisted server + tag:
+By registered server + tag:
 
 ```bash
 npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo
 ```
 
-Or by LastRank alliance id:
+Or by LastRank alliance id (registered):
 
 ```bash
 npx tsx scripts/lastrank/sync-alliance.ts --id e7d1eaefdcfc42c8ac6c84247d2dad9b
+```
+
+Any other alliance — take the id from `https://lastrank.fun/a/<id>`; server + tag find (or with `--apply`, create) the HQ alliance:
+
+```bash
+npx tsx scripts/lastrank/sync-alliance.ts --id <32charHex> --server 1300 --tag NeW
 ```
 
 Interactive mapping for unmatched names, fuzzy alliance tag, and retire prompts (requires a TTY). Each “No auto-match” prompt prints the LastRank profile URL (`https://lastrank.fun/p/<public_id>`). Unranked LastRank rows (not in an R1–R5 section) get a leaver hint — leave blank to skip; do not create.
@@ -165,7 +189,7 @@ Persistence:
 
 ## Nightly
 
-1. Set `LASTRANK_SYNC_MAP` in Vercel (comma-separated `TAG=32charHex`; ids must exist in `LASTRANK_SYNC_REGISTRY` so server numbers resolve).
+1. Set `autoSync: true` on the registry entries to sync (no env var; `LASTRANK_SYNC_MAP` is no longer read).
 2. Cron `GET /api/internal/lastrank/sync` at 08:30 UTC (`vercel.json`) with `CRON_SECRET`.
 3. Dry-run the deployed route with `?dryRun=1`.
 

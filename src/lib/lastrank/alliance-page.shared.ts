@@ -4,6 +4,8 @@ import {
   stringSimilarity,
 } from "@/lib/video/member-matcher";
 
+export type LastRankProfession = "War Leader" | "Engineer";
+
 /** LastRank's own catalog id — not a Last War game UID. */
 export type LastRankAllianceMember = {
   publicId: number;
@@ -13,6 +15,9 @@ export type LastRankAllianceMember = {
   heroPower: number | null;
   allianceRank: number | null;
   baseLevel: number | null;
+  /** `null` when LastRank reports no profession (`career_type: 0`) or omits it. */
+  profession: LastRankProfession | null;
+  professionLevel: number | null;
   originServerId: number | null;
 };
 
@@ -32,6 +37,8 @@ export type LastRankHqRosterRow = {
   hqLevel: number | null;
   hqPowerLevel: string | null;
   hqAllianceRank: number | null;
+  hqProfession: string | null;
+  hqProfessionLevel: number | null;
   existingCanonicalName: string | null;
   lastrankPublicId: number | null;
   lastrankCountry: string | null;
@@ -124,12 +131,28 @@ function asFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+/** LastRank RSC `career_type` codes (0 = no profession chosen). */
+const LASTRANK_CAREER_TYPE_PROFESSION: Record<number, LastRankProfession> = {
+  101: "Engineer",
+  102: "War Leader",
+};
+
+function normalizeProfessionLevel(value: number | null): number | null {
+  if (value == null || !Number.isFinite(value) || value < 1) return null;
+  return Math.round(value);
+}
+
 function parseRawMember(raw: unknown): LastRankAllianceMember | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
   const name = typeof row.name === "string" ? row.name.trim() : "";
   const publicId = asFiniteNumber(row.public_id);
   if (!name || publicId == null) return null;
+  const careerType = asFiniteNumber(row.career_type);
+  const profession =
+    careerType != null
+      ? (LASTRANK_CAREER_TYPE_PROFESSION[careerType] ?? null)
+      : null;
   return {
     publicId: Math.round(publicId),
     name,
@@ -138,6 +161,10 @@ function parseRawMember(raw: unknown): LastRankAllianceMember | null {
     heroPower: asFiniteNumber(row.hero_power),
     allianceRank: asFiniteNumber(row.alliance_rank),
     baseLevel: asFiniteNumber(row.base_level),
+    profession,
+    professionLevel: profession
+      ? normalizeProfessionLevel(asFiniteNumber(row.career_lv))
+      : null,
     originServerId: asFiniteNumber(row.origin_server_id),
   };
 }
@@ -261,6 +288,53 @@ export function applySectionRanksToMembers(
   });
 }
 
+/**
+ * Fallback for the rendered Profession badge (`⚔ WL · Lv 100` / `🛠 ENG · Nv 30`).
+ * The level abbreviation follows LastRank's locale (pt-BR renders "Nv"), so
+ * accept either. The `·` prefix keeps the separate "HQ Lv" cell out of it.
+ */
+export function parseLastRankProfessionBadges(
+  html: string,
+): Map<number, { profession: LastRankProfession; professionLevel: number | null }> {
+  const out = new Map<
+    number,
+    { profession: LastRankProfession; professionLevel: number | null }
+  >();
+  for (const rowMatch of html.matchAll(/<tr\b[\s\S]*?<\/tr>/gi)) {
+    const row = rowMatch[0];
+    const player = row.match(/href="\/p\/(\d+)"/);
+    if (!player?.[1]) continue;
+    const label =
+      row.match(/<span\b[^>]*>\s*(WL|ENG)\s*<\/span>/)?.[1] ??
+      row.match(/<span aria-hidden="true">\s*(⚔|🛠)\uFE0F?\s*<\/span>/u)?.[1];
+    if (!label) continue;
+    const profession: LastRankProfession =
+      label === "WL" || label === "⚔" ? "War Leader" : "Engineer";
+    const level = row.match(
+      /·\s*(?:Lv|Nv)\.?\s*(?:<!--\s*-->\s*)?(\d+)/i,
+    )?.[1];
+    out.set(Number(player[1]), {
+      profession,
+      professionLevel: normalizeProfessionLevel(
+        level != null ? Number(level) : null,
+      ),
+    });
+  }
+  return out;
+}
+
+export function applyProfessionBadgesToMembers(
+  members: LastRankAllianceMember[],
+  badges: ReturnType<typeof parseLastRankProfessionBadges>,
+): LastRankAllianceMember[] {
+  if (badges.size === 0) return members;
+  return members.map((member) => {
+    if (member.profession != null) return member;
+    const badge = badges.get(member.publicId);
+    return badge ? { ...member, ...badge } : member;
+  });
+}
+
 export function parseLastRankAllianceHtml(
   html: string,
   lastrankAllianceId: string,
@@ -291,7 +365,10 @@ export function parseLastRankAllianceHtml(
         const sectionRanks = parseLastRankSectionRanks(html);
         return {
           lastrankAllianceId: lastrankAllianceId.trim().toLowerCase(),
-          members: applySectionRanksToMembers(members, sectionRanks),
+          members: applyProfessionBadgesToMembers(
+            applySectionRanksToMembers(members, sectionRanks),
+            parseLastRankProfessionBadges(html),
+          ),
         };
       }
     } catch {
@@ -301,6 +378,66 @@ export function parseLastRankAllianceHtml(
   }
 
   throw new Error("LastRank HTML did not contain alliance member stats");
+}
+
+/**
+ * An HQ profession change newer than this outranks LastRank, whose snapshot may
+ * predate it. Older (or undated) HQ professions defer to LastRank.
+ */
+export const LASTRANK_PROFESSION_HQ_RECENT_DAYS = 7;
+
+export type LastRankProfessionDecision = {
+  /**
+   * `apply`: HQ has none. `switch`: HQ differs but is stale — adopt LastRank.
+   * `conflict`: HQ differs and changed recently — keep HQ.
+   */
+  profession: "apply" | "switch" | "unchanged" | "conflict" | "missing";
+  level: "apply" | "unchanged" | "conflict" | "missing";
+};
+
+/**
+ * `hqProfessionChangedAt` is the latest HQ profession change (null when unknown,
+ * which counts as stale). After a switch the LastRank level replaces HQ's, since
+ * the old level belongs to the other profession; otherwise the level never
+ * regresses, and is not written while HQ keeps a different profession.
+ */
+export function decideLastRankProfessionApply(
+  hq: Pick<LastRankHqRosterRow, "hqProfession" | "hqProfessionLevel">,
+  lastRank: Pick<LastRankAllianceMember, "profession" | "professionLevel">,
+  options: { hqProfessionChangedAt?: Date | null; now?: Date } = {},
+): LastRankProfessionDecision {
+  if (lastRank.profession == null) {
+    return { profession: "missing", level: "missing" };
+  }
+  let profession: LastRankProfessionDecision["profession"];
+  if (hq.hqProfession == null || hq.hqProfession === "") {
+    profession = "apply";
+  } else if (hq.hqProfession === lastRank.profession) {
+    profession = "unchanged";
+  } else {
+    const changedAt = options.hqProfessionChangedAt;
+    const now = options.now ?? new Date();
+    const recentMs = LASTRANK_PROFESSION_HQ_RECENT_DAYS * 24 * 60 * 60 * 1000;
+    profession =
+      changedAt != null && now.getTime() - changedAt.getTime() < recentMs
+        ? "conflict"
+        : "switch";
+  }
+
+  const nextLevel = lastRank.professionLevel;
+  let level: LastRankProfessionDecision["level"];
+  if (profession === "conflict" || nextLevel == null) {
+    level = "missing";
+  } else if (profession === "switch") {
+    level = nextLevel === hq.hqProfessionLevel ? "unchanged" : "apply";
+  } else if (hq.hqProfessionLevel == null || nextLevel > hq.hqProfessionLevel) {
+    level = "apply";
+  } else if (nextLevel === hq.hqProfessionLevel) {
+    level = "unchanged";
+  } else {
+    level = "conflict";
+  }
+  return { profession, level };
 }
 
 export function formatLastRankPowerLevel(power: number | null): string | null {
@@ -701,30 +838,4 @@ export function applyInteractiveMatches(
     unmatched: stillUnmatched,
     unmatchedHq: [...byId.values()].filter((row) => !matchedIds.has(row.commanderId)),
   };
-}
-
-export function parseLastRankSyncMap(
-  raw: string | undefined,
-): Array<{ tag: string; lastrankAllianceId: string }> {
-  if (!raw?.trim()) return [];
-  const out: Array<{ tag: string; lastrankAllianceId: string }> = [];
-  for (const part of raw.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq <= 0) {
-      throw new Error(
-        `Invalid LASTRANK_SYNC_MAP entry "${trimmed}" (expected TAG=32charHex)`,
-      );
-    }
-    const tag = trimmed.slice(0, eq).trim();
-    const lastrankAllianceId = trimmed.slice(eq + 1).trim().toLowerCase();
-    if (!tag || !isLastRankAllianceId(lastrankAllianceId)) {
-      throw new Error(
-        `Invalid LASTRANK_SYNC_MAP entry "${trimmed}" (expected TAG=32charHex)`,
-      );
-    }
-    out.push({ tag, lastrankAllianceId });
-  }
-  return out;
 }

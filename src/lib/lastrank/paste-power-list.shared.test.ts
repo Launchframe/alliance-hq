@@ -18,6 +18,8 @@ function member(
     heroPower: null,
     allianceRank: null,
     baseLevel: null,
+    profession: null,
+    professionLevel: null,
     originServerId: null,
     ...partial,
   };
