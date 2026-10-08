@@ -185,7 +185,28 @@ Persistence:
 
 `tsx` treats `import "server-only"` as a client import and throws unless the `react-server` export is used. The CLI registers `scripts/lastrank/register-server-only.cjs` (maps to `server-only/empty.js`). You can also run `npm run lastrank:sync -- --server 1203 --tag LFgo`.
 
-`--apply` writes matches (stats, ranks, profile fields, interactive renames above, and canonical via Last War confirm for auto-matches) and creates unmatched LastRank members when requested.
+`--apply` writes matches (stats, ranks, profile fields, interactive renames above, and canonical via Last War confirm for auto-matches) and creates unmatched LastRank members when requested. `--apply` alone never creates members — on a new or empty alliance every LastRank row is unmatched, so add `--create-all` (or `--interactive` and `C`). The CLI warns when an `--apply` run leaves unmatched members uncreated.
+
+## Target database
+
+The CLI resolves the database the same way as the app: `LOCAL_DATABASE_URL` wins whenever set, otherwise `DATABASE_URL`. Every run prints the resolved host first (`Database: <host> (local|REMOTE)`).
+
+Any run that writes (`--apply`, `--interactive`, `--save-ashed-credential`) against a non-localhost database must pass `--confirm-host <host>` equal to that printed host; otherwise it exits before touching the database. A mismatched `--confirm-host` always fails.
+
+Production runs:
+
+1. Rehearse on a Neon child branch of production with `--hq-only` (a branch's saved Ashed credentials are real).
+2. Take a fresh Neon branch of production as a restore point right before writing.
+3. Override the URL for one command — `LOCAL_DATABASE_URL` must be empty or it wins:
+
+```bash
+# Dry-run: note the printed host
+LOCAL_DATABASE_URL= DATABASE_URL='<prod url>' npx tsx scripts/lastrank/sync-alliance.ts --id <id> --server <n> --tag <tag>
+
+# Write
+LOCAL_DATABASE_URL= DATABASE_URL='<prod url>' npx tsx scripts/lastrank/sync-alliance.ts --id <id> --server <n> --tag <tag> \
+  --apply --interactive --confirm-host <printed host>
+```
 
 ## Nightly
 
