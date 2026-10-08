@@ -8,17 +8,22 @@ import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { config } from "dotenv";
 
+import { databaseHostFromUrl, resolveDatabaseUrl } from "@/lib/db/url";
 import {
   buildInteractiveHqChoices,
   resolveInteractiveHqNameAnswer,
 } from "@/lib/lastrank/alliance-page.shared";
+import {
+  assertCliDatabaseHostConfirmed,
+  isLocalDatabaseHost,
+} from "@/lib/lastrank/cli-database-guard.shared";
 import { resolveLastRankSyncCliTarget } from "@/lib/lastrank/sync-registry.shared";
 
 const require = createRequire(import.meta.url);
 require("./register-server-only.cjs");
 
-config({ path: ".env.local" });
-config();
+config({ path: ".env.local", quiet: true });
+config({ quiet: true });
 
 function printHelp(): void {
   console.log(`Usage:
@@ -53,9 +58,18 @@ Flags:
   --save-ashed-credential
                       Persist --ashed-connection-key even without --apply
   --hq-only           Never dual-write to Ashed (HQ DB only). Use on Neon clones.
+  --confirm-host <host>
+                      Required to write (--apply, --interactive, --save-ashed-credential)
+                      to a non-localhost database; must equal the host printed at startup.
   -h, --help          Show this help and exit
 
+Database: same resolution as the app — LOCAL_DATABASE_URL wins when set, else
+DATABASE_URL. Every run prints the resolved host first. For production:
+  LOCAL_DATABASE_URL= DATABASE_URL='<prod url>' npx tsx scripts/lastrank/sync-alliance.ts \\
+    ... --apply --confirm-host <prod host>
+
 Every run prints a roster diff (excess HQ / missing from HQ / ambiguous) before writes.
+--apply alone never creates members: use --create-all (new/empty alliance) or --interactive.
 
 Examples:
   # Dry-run: see excess leavers and missing joins
@@ -262,6 +276,16 @@ async function main() {
     throw new Error("Do not pass --ashed-connection-key with --hq-only.");
   }
 
+  const databaseHost = databaseHostFromUrl(resolveDatabaseUrl(process.env));
+  console.error(
+    `Database: ${databaseHost} (${isLocalDatabaseHost(databaseHost) ? "local" : "REMOTE"})`,
+  );
+  assertCliDatabaseHostConfirmed({
+    host: databaseHost,
+    writes: apply || wantInteractive || saveAshedCredential,
+    confirmHost: arg("--confirm-host"),
+  });
+
   const lastrankAllianceId = arg("--id") ?? process.env.LASTRANK_ALLIANCE_ID;
   const tag = arg("--tag") ?? process.env.LASTRANK_SYNC_TAG;
   const gameServerNumber =
@@ -315,6 +339,15 @@ async function main() {
         ? "Ashed dual-write: available."
         : "Ashed dual-write: unavailable (native or missing bot credential).",
     );
+    const unmatchedCount = result.match.unmatched.filter(
+      (r) => r.status === "unmatched",
+    ).length;
+    if (apply && !createAll && unmatchedCount > 0) {
+      console.error(
+        `${unmatchedCount} LastRank member(s) unmatched and NOT created — --apply only updates matches. ` +
+          "Re-run with --create-all (new/empty alliance) or --interactive to map/create.",
+      );
+    }
 
     console.log(
       JSON.stringify(
