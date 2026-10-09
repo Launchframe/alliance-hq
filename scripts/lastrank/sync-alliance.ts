@@ -143,6 +143,8 @@ function createTtyPrompts(): {
   onPlanChanged: LastRankSyncPlanListener;
   onDispatchStart: LastRankSyncPlanListener;
   close: () => void;
+  /** Removes the write-phase SIGINT listener after sync completes or aborts. */
+  clearWritePhaseSigint: () => void;
 } | null {
   if (!input.isTTY || !output.isTTY) {
     console.error(
@@ -155,6 +157,7 @@ function createTtyPrompts(): {
   let closed = false;
   let latest: LastRankSyncPlanStats | null = null;
   let interruptArmed = false;
+  let writePhaseSigintHandler: (() => void) | null = null;
 
   // Answers are only queued in memory, so an accidental Ctrl+C would discard
   // them. Warn once; a second press quits.
@@ -178,8 +181,16 @@ function createTtyPrompts(): {
     rl.close();
   };
 
+  const clearWritePhaseSigint = () => {
+    if (writePhaseSigintHandler) {
+      process.removeListener("SIGINT", writePhaseSigintHandler);
+      writePhaseSigintHandler = null;
+    }
+  };
+
   return {
     close,
+    clearWritePhaseSigint,
     onPlanChanged: (stats) => {
       latest = stats;
       interruptArmed = false;
@@ -194,8 +205,9 @@ function createTtyPrompts(): {
           ? `Writing ${queued} queued change(s) (${stats.mapped} mapped, ${stats.creates} to create, ${stats.retires} to retire)…`
           : "No queued changes from prompts; writing remaining sync updates…",
       );
+      clearWritePhaseSigint();
       let abortArmed = false;
-      process.on("SIGINT", () => {
+      writePhaseSigintHandler = () => {
         if (abortArmed) {
           console.error("\nAborted during writes — the sync is partially applied.");
           process.exit(130);
@@ -204,7 +216,8 @@ function createTtyPrompts(): {
         console.error(
           "\nWrites in progress — stopping now leaves a partial sync. Press Ctrl+C again to abort.",
         );
-      });
+      };
+      process.on("SIGINT", writePhaseSigintHandler);
     },
     interactivePrompt: async (ctx) => {
       const choices = buildInteractiveHqChoices({
@@ -457,6 +470,7 @@ async function main() {
       ),
     );
   } finally {
+    tty?.clearWritePhaseSigint();
     tty?.close();
   }
 }
