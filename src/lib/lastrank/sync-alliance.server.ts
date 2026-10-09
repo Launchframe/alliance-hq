@@ -133,8 +133,6 @@ export type LastRankAllianceSyncResult = {
   apply: LastRankSyncApplyCounts | null;
 };
 
-export type LastRankInteractiveMatchResolved = (row: LastRankMatchedRow) => Promise<void>;
-
 function isHqProfession(
   value: string | null,
 ): value is "Engineer" | "War Leader" {
