@@ -6,7 +6,10 @@ import {
   buildInteractiveHqChoices,
   decideLastRankProfessionApply,
   formatLastRankPowerLevel,
+  formatLastRankSuggestionSignals,
   isLastRankUnranked,
+  lastRankSuggestionSignals,
+  scoreLastRankSuggestion,
   LASTRANK_PROFESSION_HQ_RECENT_DAYS,
   lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
@@ -672,5 +675,166 @@ describe("lastRankMemberEligibleForCreate", () => {
     expect(lastRankMemberEligibleForCreate({ allianceRank: 1 })).toBe(true);
     expect(lastRankMemberEligibleForCreate({ allianceRank: 5 })).toBe(true);
     expect(lastRankMemberEligibleForCreate({ allianceRank: null })).toBe(false);
+  });
+});
+
+describe("LastRank suggestion scoring", () => {
+  const renamed: LastRankAllianceMember = {
+    publicId: 77,
+    name: "Jin",
+    country: "ID",
+    power: 120_000_000,
+    heroPower: 41_200_000,
+    allianceRank: 3,
+    baseLevel: 30,
+    profession: "War Leader",
+    professionLevel: 100,
+    originServerId: 1203,
+  };
+
+  it("ranks a renamed member by THP and country over name similarity", () => {
+    const result = matchLastRankMembersToHq(
+      [renamed],
+      [
+        hqRow({
+          commanderId: "c-jim",
+          ashedMemberId: "m-jim",
+          currentNames: ["Jim"],
+          hqThp: 18_000_000,
+          lastrankCountry: "US",
+          hqProfession: "War Leader",
+          hqProfessionLevel: 100,
+        }),
+        hqRow({
+          commanderId: "c-abdul",
+          ashedMemberId: "m-abdul",
+          currentNames: ["ABDUL C"],
+          hqThp: 40_800_000,
+          lastrankCountry: "ID",
+          hqProfession: "War Leader",
+          hqProfessionLevel: 100,
+        }),
+      ],
+    );
+    expect(result.matched).toHaveLength(0);
+    const [top, second] = result.unmatched[0]!.suggestions;
+    expect(top?.commanderId).toBe("c-abdul");
+    expect(top?.score).toBeGreaterThan(0.5);
+    expect(second?.commanderId).toBe("c-jim");
+    expect(top!.score).toBeGreaterThan(second!.score);
+  });
+
+  it("uses profession and level only to break otherwise equal candidates", () => {
+    const base = { hqThp: 41_000_000, lastrankCountry: "ID" };
+    const result = matchLastRankMembersToHq(
+      [renamed],
+      [
+        hqRow({
+          commanderId: "c-eng",
+          ashedMemberId: "m-eng",
+          currentNames: ["Zed"],
+          ...base,
+          hqProfession: "Engineer",
+          hqProfessionLevel: 80,
+        }),
+        hqRow({
+          commanderId: "c-wl",
+          ashedMemberId: "m-wl",
+          currentNames: ["Zed"],
+          ...base,
+          hqProfession: "War Leader",
+          hqProfessionLevel: 100,
+        }),
+      ],
+    );
+    expect(result.unmatched[0]?.suggestions[0]?.commanderId).toBe("c-wl");
+  });
+
+  it("does not let a shared profession outweigh a THP mismatch", () => {
+    const sameProfession = lastRankSuggestionSignals(
+      renamed,
+      hqRow({
+        commanderId: "a",
+        ashedMemberId: "a",
+        currentNames: ["x"],
+        hqThp: 10_000_000,
+        lastrankCountry: "ID",
+        hqProfession: "War Leader",
+        hqProfessionLevel: 100,
+      }),
+      0,
+    );
+    const closeThp = lastRankSuggestionSignals(
+      renamed,
+      hqRow({
+        commanderId: "b",
+        ashedMemberId: "b",
+        currentNames: ["y"],
+        hqThp: 41_000_000,
+        lastrankCountry: "ID",
+        hqProfession: "Engineer",
+        hqProfessionLevel: 60,
+      }),
+      0,
+    );
+    expect(scoreLastRankSuggestion(closeThp)).toBeGreaterThan(
+      scoreLastRankSuggestion(sameProfession),
+    );
+  });
+
+  it("scores on name alone when HQ has no stats", () => {
+    const signals = lastRankSuggestionSignals(
+      renamed,
+      hqRow({ commanderId: "a", ashedMemberId: "a", currentNames: ["Jin"] }),
+      0.9,
+    );
+    expect(signals).toEqual({
+      name: 0.9,
+      thpRelDiff: null,
+      sameCountry: null,
+      sameProfession: null,
+      sameProfessionLevel: null,
+    });
+    expect(scoreLastRankSuggestion(signals)).toBeCloseTo(0.9);
+  });
+
+  it("compares country case-insensitively and formats the breakdown", () => {
+    const signals = lastRankSuggestionSignals(
+      renamed,
+      hqRow({
+        commanderId: "a",
+        ashedMemberId: "a",
+        currentNames: ["x"],
+        hqThp: 40_800_000,
+        lastrankCountry: " id ",
+        hqProfession: "War Leader",
+        hqProfessionLevel: 100,
+      }),
+      0.12,
+    );
+    expect(signals.sameCountry).toBe(true);
+    expect(formatLastRankSuggestionSignals(signals)).toBe(
+      "name 0.12, THP ±1.0%, same country, same profession, same profession level",
+    );
+  });
+
+  it("carries the breakdown into interactive choices", () => {
+    const signals = lastRankSuggestionSignals(
+      renamed,
+      hqRow({
+        commanderId: "a",
+        ashedMemberId: "a",
+        currentNames: ["ABDUL C"],
+        hqThp: 41_200_000,
+      }),
+      0,
+    );
+    const choices = buildInteractiveHqChoices({
+      suggestions: [
+        { commanderId: "a", name: "ABDUL C", score: 0.47, signals },
+      ],
+      remainingHqNames: [],
+    });
+    expect(choices[0]?.detail).toBe("name 0.00, THP ±0.0%");
   });
 });
