@@ -19,6 +19,7 @@ import {
   lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   resolveHqNameToRosterRow,
+  type LastRankAllianceMember,
   type LastRankHqRosterRow,
   type LastRankInteractiveAnswer,
   type LastRankMatchedRow,
@@ -26,6 +27,12 @@ import {
   type LastRankUnmatchedRow,
 } from "@/lib/lastrank/alliance-page.shared";
 import type { LastRankSyncTarget } from "@/lib/lastrank/sync-registry.shared";
+import {
+  emptyLastRankSyncPlan,
+  lastRankSyncPlanStats,
+  type LastRankSyncPlan,
+  type LastRankSyncPlanListener,
+} from "@/lib/lastrank/sync-plan.shared";
 import {
   createAllianceMemberFromLastRank,
   listActiveMemberIdsNotInSet,
@@ -361,6 +368,7 @@ async function applyMatchedRows(
   hqAllianceId: string,
   rows: LastRankMatchedRow[],
   counts: LastRankSyncApplyCounts,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<boolean> {
   const db = getDb();
   const effectiveDate = getServerCalendarDate();
@@ -368,15 +376,22 @@ async function applyMatchedRows(
   const professionChangedAt = await loadLatestProfessionChangeByCommander(
     rows.map((row) => row.hq.commanderId),
   );
+  // Profession switches tear down alliance pairings; keep them one at a time.
+  let professionLock: Promise<void> = Promise.resolve();
+  const serializeProfession = (fn: () => Promise<void>): Promise<void> => {
+    const next = professionLock.then(fn);
+    professionLock = next.catch(() => undefined);
+    return next;
+  };
 
-  for (const row of rows) {
+  const applyRow = async (row: LastRankMatchedRow): Promise<void> => {
     // Belt-and-suspenders: sole fuzzy auto-match is refused in
     // matchLastRankMembersToHq; never write ranks/public ids from fuzzy rows.
     if (
       row.matchMethod === "fuzzy_current" ||
       row.matchMethod === "fuzzy_previous"
     ) {
-      continue;
+      return;
     }
 
     if (
@@ -468,6 +483,10 @@ async function applyMatchedRows(
       });
     }
 
+    await serializeProfession(() => applyRowProfession(row));
+  };
+
+  const applyRowProfession = async (row: LastRankMatchedRow): Promise<void> => {
     const professionDecision = decideLastRankProfessionApply(
       row.hq,
       row.lastRank,
@@ -535,9 +554,35 @@ async function applyMatchedRows(
     } else {
       counts.professionLevelSkipped += 1;
     }
-  }
+  };
 
+  await runWithConcurrency(rows, LASTRANK_APPLY_CONCURRENCY, applyRow, onProgress);
   return ranksChanged;
+}
+
+/** Below the app pool size (5) so the batch never starves other queries. */
+const LASTRANK_APPLY_CONCURRENCY = 4;
+
+async function runWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  let next = 0;
+  let done = 0;
+  const run = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      await worker(item);
+      done += 1;
+      onProgress?.(done, items.length);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => run()),
+  );
 }
 
 async function persistInteractiveMatchMapping(
@@ -549,16 +594,22 @@ async function persistInteractiveMatchMapping(
   }
 }
 
+function emitPlan(
+  plan: LastRankSyncPlan,
+  remaining: number,
+  listener: LastRankSyncPlanListener | undefined,
+): void {
+  listener?.(lastRankSyncPlanStats(plan, remaining));
+}
+
+/** Prompts only queue decisions on `plan`; nothing is written until dispatch. */
 async function runInteractiveResolutions(
   match: LastRankMatchResult,
   prompt: LastRankInteractivePrompt,
+  plan: LastRankSyncPlan,
   options: {
     apply: boolean;
-    onResolved?: LastRankInteractiveMatchResolved;
-    allianceId: string;
-    gameServerNumber: number;
-    ashed?: LastRankAshedWriteContext | null;
-    onMemberCreated?: (ashedCreated: boolean) => void;
+    onPlanChanged?: LastRankSyncPlanListener;
   },
 ): Promise<LastRankMatchResult> {
   let current = match;
@@ -567,10 +618,11 @@ async function runInteractiveResolutions(
     ...match.matched.map((row) => row.hq),
     ...match.unmatchedHq,
   ];
+  const pending = match.unmatched.filter(
+    (row) => row.status === "unmatched" || row.status === "ambiguous",
+  );
 
-  for (const row of match.unmatched) {
-    if (row.status !== "unmatched" && row.status !== "ambiguous") continue;
-
+  for (const [index, row] of pending.entries()) {
     const remainingHqNames = allHq
       .filter((hq) => !claimed.has(hq.commanderId))
       .map((hq) => hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId);
@@ -583,46 +635,29 @@ async function runInteractiveResolutions(
       suggestions: row.suggestions,
       remainingHqNames,
     });
-    if (answer.kind === "skip") continue;
+    const remaining = pending.length - index - 1;
+
+    if (answer.kind === "skip") {
+      plan.skipped += 1;
+      emitPlan(plan, remaining, options.onPlanChanged);
+      continue;
+    }
 
     if (answer.kind === "create") {
       if (!options.apply) {
         console.error(
           `Create skipped for "${row.lastRank.name}" (re-run with --apply to create HQ members).`,
         );
-        continue;
-      }
-      if (!lastRankMemberEligibleForCreate(row.lastRank)) {
+        plan.skipped += 1;
+      } else if (!lastRankMemberEligibleForCreate(row.lastRank)) {
         console.error(
           `Create skipped for "${row.lastRank.name}" (unranked — often a leaver; leave blank to skip).`,
         );
-        continue;
+        plan.skipped += 1;
+      } else {
+        plan.creates.push(row.lastRank);
       }
-      const created = await createAllianceMemberFromLastRank({
-        allianceId: options.allianceId,
-        gameServerNumber: options.gameServerNumber,
-        lastRank: row.lastRank,
-        ashed: options.ashed,
-      });
-      const hq = created.hq;
-      claimed.add(hq.commanderId);
-      allHq.push(hq);
-      options.onMemberCreated?.(created.ashedCreated);
-
-      current = applyInteractiveMatches(current, [
-        { lastRankPublicId: row.lastRank.publicId, hq },
-      ]);
-      const matchedRow = current.matched.find(
-        (matched) =>
-          matched.matchMethod === "interactive" &&
-          matched.lastRank.publicId === row.lastRank.publicId,
-      );
-      if (matchedRow) {
-        await options.onResolved?.(matchedRow);
-      }
-      console.error(
-        `Created: ${row.lastRank.name}${created.ashedCreated ? " (Ashed+HQ)" : " (HQ only)"}`,
-      );
+      emitPlan(plan, remaining, options.onPlanChanged);
       continue;
     }
 
@@ -631,27 +666,62 @@ async function runInteractiveResolutions(
       console.error(
         `Could not map "${row.lastRank.name}" → "${answer.hqName}" (${resolved.reason})`,
       );
+      plan.skipped += 1;
+      emitPlan(plan, remaining, options.onPlanChanged);
       continue;
     }
     claimed.add(resolved.hq.commanderId);
-
-    const resolution = {
-      lastRankPublicId: row.lastRank.publicId,
-      hq: resolved.hq,
-    };
-    current = applyInteractiveMatches(current, [resolution]);
-
+    current = applyInteractiveMatches(current, [
+      { lastRankPublicId: row.lastRank.publicId, hq: resolved.hq },
+    ]);
     const matchedRow = current.matched.find(
       (matched) =>
         matched.matchMethod === "interactive" &&
         matched.lastRank.publicId === row.lastRank.publicId,
     );
     if (matchedRow) {
-      await options.onResolved?.(matchedRow);
+      plan.mapped.push({
+        row: matchedRow,
+        priorHqName:
+          matchedRow.hq.currentNames[0] ??
+          matchedRow.hq.previousNames[0] ??
+          matchedRow.hq.commanderId,
+      });
     }
+    emitPlan(plan, remaining, options.onPlanChanged);
   }
 
   return current;
+}
+
+/** Creates HQ members for interactively queued LastRank rows. */
+async function createQueuedLastRankMembers(
+  hqAllianceId: string,
+  gameServerNumber: number,
+  match: LastRankMatchResult,
+  queued: LastRankAllianceMember[],
+  ashed: LastRankAshedWriteContext | null,
+): Promise<{ match: LastRankMatchResult; created: number; ashedCreated: number }> {
+  let current = match;
+  let created = 0;
+  let ashedCreated = 0;
+  for (const lastRank of queued) {
+    const result = await createAllianceMemberFromLastRank({
+      allianceId: hqAllianceId,
+      gameServerNumber,
+      lastRank,
+      ashed,
+    });
+    created += 1;
+    if (result.ashedCreated) ashedCreated += 1;
+    current = applyInteractiveMatches(current, [
+      { lastRankPublicId: lastRank.publicId, hq: result.hq },
+    ]);
+    console.error(
+      `Created: ${lastRank.name}${result.ashedCreated ? " (Ashed+HQ)" : " (HQ only)"}`,
+    );
+  }
+  return { match: current, created, ashedCreated };
 }
 
 async function createUnmatchedLastRankMembers(
@@ -715,10 +785,36 @@ async function createUnmatchedLastRankMembers(
   };
 }
 
+/** Queues retire choices on `plan`; nothing is written until dispatch. */
 async function runInteractiveRetires(
   hqAllianceId: string,
   match: LastRankMatchResult,
   prompt: LastRankRetirePrompt,
+  plan: LastRankSyncPlan,
+  onPlanChanged: LastRankSyncPlanListener | undefined,
+): Promise<void> {
+  const keepIds = new Set(match.matched.map((row) => row.hq.ashedMemberId));
+  const candidates = await listActiveMemberIdsNotInSet(hqAllianceId, keepIds);
+
+  for (const [index, member] of candidates.entries()) {
+    const shouldRetire = await prompt({
+      memberName: member.currentName,
+      ashedMemberId: member.ashedMemberId,
+    });
+    if (shouldRetire) {
+      plan.retires.push({
+        ashedMemberId: member.ashedMemberId,
+        memberName: member.currentName,
+      });
+    }
+    emitPlan(plan, candidates.length - index - 1, onPlanChanged);
+  }
+}
+
+async function dispatchQueuedRetires(
+  hqAllianceId: string,
+  match: LastRankMatchResult,
+  retires: LastRankSyncPlan["retires"],
   ashed: LastRankAshedWriteContext | null,
 ): Promise<{
   match: LastRankMatchResult;
@@ -726,41 +822,25 @@ async function runInteractiveRetires(
   ashedRetired: number;
   ashedSkipped: number;
 }> {
-  const keepIds = new Set(match.matched.map((row) => row.hq.ashedMemberId));
-  const candidates = await listActiveMemberIdsNotInSet(hqAllianceId, keepIds);
-  const toRetire: string[] = [];
-  let retired = 0;
-  let ashedRetired = 0;
-  let ashedSkipped = 0;
-
-  for (const member of candidates) {
-    const shouldRetire = await prompt({
-      memberName: member.currentName,
-      ashedMemberId: member.ashedMemberId,
-    });
-    if (!shouldRetire) continue;
-
-    const result = await retireAllianceMembers({
-      allianceId: hqAllianceId,
-      ashedMemberIds: [member.ashedMemberId],
-      ashed,
-    });
-    retired += result.retired;
-    ashedRetired += result.ashedRetired;
-    ashedSkipped += result.ashedSkipped;
-    toRetire.push(member.ashedMemberId);
-    console.error(`Retired: ${member.currentName}`);
+  if (retires.length === 0) {
+    return { match, retired: 0, ashedRetired: 0, ashedSkipped: 0 };
   }
-
+  const ids = new Set(retires.map((row) => row.ashedMemberId));
+  const result = await retireAllianceMembers({
+    allianceId: hqAllianceId,
+    ashedMemberIds: [...ids],
+    ashed,
+  });
+  for (const member of retires) {
+    console.error(`Retired: ${member.memberName}`);
+  }
   return {
-    retired,
-    ashedRetired,
-    ashedSkipped,
+    retired: result.retired,
+    ashedRetired: result.ashedRetired,
+    ashedSkipped: result.ashedSkipped,
     match: {
       ...match,
-      unmatchedHq: match.unmatchedHq.filter(
-        (row) => !toRetire.includes(row.ashedMemberId),
-      ),
+      unmatchedHq: match.unmatchedHq.filter((row) => !ids.has(row.ashedMemberId)),
     },
   };
 }
@@ -817,6 +897,10 @@ export async function syncLastRankAlliance(input: {
   interactivePrompt?: LastRankInteractivePrompt;
   alliancePrompt?: LastRankAllianceResolvePrompt;
   retirePrompt?: LastRankRetirePrompt;
+  /** Called after every interactive answer with the queued (unwritten) plan. */
+  onPlanChanged?: LastRankSyncPlanListener;
+  /** Called once prompts finish, just before any queued writes run. */
+  onDispatchStart?: LastRankSyncPlanListener;
 }): Promise<LastRankAllianceSyncResult> {
   const { allianceId: hqAllianceId, created: allianceCreated } =
     await resolveHqAllianceForLastRankSync({
@@ -865,66 +949,29 @@ export async function syncLastRankAlliance(input: {
   const hqRows = await loadHqRosterForLastRankMatch(hqAllianceId);
   let match = matchLastRankMembersToHq(page.members, hqRows);
 
-  const appliedDuringInteractive = new Set<string>();
   const trackApply =
     input.apply || Boolean(input.interactivePrompt);
   const applyCounts: LastRankSyncApplyCounts | null = trackApply
     ? emptyApplyCounts()
     : null;
 
-  const onInteractiveResolved: LastRankInteractiveMatchResolved = async (row) => {
-    const priorHqName =
-      row.hq.currentNames[0] ??
-      row.hq.previousNames[0] ??
-      row.hq.commanderId;
-    if (input.apply && applyCounts) {
-      const partial = emptyApplyCounts();
-      const nameResult = await applyInteractiveNameMapping({
-        allianceId: hqAllianceId,
-        ashedMemberId: row.hq.ashedMemberId,
-        commanderId: row.hq.commanderId,
-        lastRankName: row.lastRank.name,
-        ashed: ashed,
-      });
-      if (nameResult.renamed) partial.namesRenamed += 1;
-      if (nameResult.ashedSynced) partial.namesAshedSynced += 1;
-      if (nameResult.canonicalWritten) {
-        partial.canonicalWritten += 1;
-        row.hq.existingCanonicalName = row.lastRank.name;
-      }
-
-      const ranksChanged = await applyMatchedRows(hqAllianceId, [row], partial);
-      mergeApplyCounts(applyCounts, partial);
-      appliedDuringInteractive.add(row.hq.commanderId);
-      await syncRankPoolIfNeeded(hqAllianceId, ranksChanged);
-      console.error(
-        `Saved: ${priorHqName} → ${row.lastRank.name} (lastrank_public_id=${row.lastRank.publicId})`,
-      );
-      return;
-    }
-    if (applyCounts) {
-      await persistInteractiveMatchMapping(row, applyCounts);
-      console.error(
-        `Saved mapping: ${row.lastRank.name} → ${priorHqName} (lastrank_public_id only; re-run with --apply to rename HQ/Ashed)`,
-      );
-    }
-  };
-
+  // Interactive answers only queue decisions; writes happen in one dispatch
+  // below so each prompt does not wait on remote DB / Ashed round trips.
+  const plan = emptyLastRankSyncPlan();
   if (input.interactivePrompt && match.unmatched.length > 0) {
-    match = await runInteractiveResolutions(match, input.interactivePrompt, {
+    match = await runInteractiveResolutions(match, input.interactivePrompt, plan, {
       apply: input.apply,
-      onResolved: onInteractiveResolved,
-      allianceId: hqAllianceId,
-      gameServerNumber: input.target.gameServerNumber,
-      ashed: input.apply ? ashed : null,
-      onMemberCreated: (ashedCreated) => {
-        if (applyCounts) {
-          applyCounts.membersCreated += 1;
-          if (ashedCreated) applyCounts.ashedMembersCreated += 1;
-          else if (ashed) applyCounts.ashedSkipped += 1;
-        }
-      },
+      onPlanChanged: input.onPlanChanged,
     });
+  }
+  if (input.apply && !input.retireAllUnmatched && input.retirePrompt) {
+    await runInteractiveRetires(
+      hqAllianceId,
+      match,
+      input.retirePrompt,
+      plan,
+      input.onPlanChanged,
+    );
   }
 
   // Diff before create/retire so operators see excess/missing even on --apply.
@@ -933,7 +980,57 @@ export async function syncLastRankAlliance(input: {
     match,
   });
 
+  input.onDispatchStart?.(lastRankSyncPlanStats(plan, 0));
+
+  if (!input.apply && applyCounts && plan.mapped.length > 0) {
+    await runWithConcurrency(
+      plan.mapped,
+      LASTRANK_APPLY_CONCURRENCY,
+      async ({ row, priorHqName }) => {
+        await persistInteractiveMatchMapping(row, applyCounts);
+        console.error(
+          `Saved mapping: ${row.lastRank.name} → ${priorHqName} (lastrank_public_id only; re-run with --apply to rename HQ/Ashed)`,
+        );
+      },
+    );
+  }
+
   if (input.apply && applyCounts) {
+    for (const { row, priorHqName } of plan.mapped) {
+      const nameResult = await applyInteractiveNameMapping({
+        allianceId: hqAllianceId,
+        ashedMemberId: row.hq.ashedMemberId,
+        commanderId: row.hq.commanderId,
+        lastRankName: row.lastRank.name,
+        ashed,
+      });
+      if (nameResult.renamed) applyCounts.namesRenamed += 1;
+      if (nameResult.ashedSynced) applyCounts.namesAshedSynced += 1;
+      if (nameResult.canonicalWritten) {
+        applyCounts.canonicalWritten += 1;
+        row.hq.existingCanonicalName = row.lastRank.name;
+      }
+      console.error(
+        `Saved: ${priorHqName} → ${row.lastRank.name} (lastrank_public_id=${row.lastRank.publicId})`,
+      );
+    }
+
+    if (plan.creates.length > 0) {
+      const created = await createQueuedLastRankMembers(
+        hqAllianceId,
+        input.target.gameServerNumber,
+        match,
+        plan.creates,
+        ashed,
+      );
+      match = created.match;
+      applyCounts.membersCreated += created.created;
+      applyCounts.ashedMembersCreated += created.ashedCreated;
+      if (ashed && created.created > created.ashedCreated) {
+        applyCounts.ashedSkipped += created.created - created.ashedCreated;
+      }
+    }
+
     if (input.createAllUnmatched) {
       const created = await createUnmatchedLastRankMembers(
         hqAllianceId,
@@ -949,14 +1046,17 @@ export async function syncLastRankAlliance(input: {
       }
     }
 
-    const remaining = match.matched.filter(
-      (row) => !appliedDuringInteractive.has(row.hq.commanderId),
-    );
     const partial = emptyApplyCounts();
+    const progressEvery = Math.max(10, Math.ceil(match.matched.length / 10));
     const ranksChanged = await applyMatchedRows(
       hqAllianceId,
-      remaining,
+      match.matched,
       partial,
+      (done, total) => {
+        if (done % progressEvery === 0 || done === total) {
+          console.error(`Updated ${done}/${total} matched members…`);
+        }
+      },
     );
     mergeApplyCounts(applyCounts, partial);
     await syncRankPoolIfNeeded(hqAllianceId, ranksChanged);
@@ -967,11 +1067,11 @@ export async function syncLastRankAlliance(input: {
       applyCounts.membersRetired += retired.retired;
       applyCounts.ashedMembersRetired += retired.ashedRetired;
       applyCounts.ashedSkipped += retired.ashedSkipped;
-    } else if (input.retirePrompt) {
-      const retired = await runInteractiveRetires(
+    } else if (plan.retires.length > 0) {
+      const retired = await dispatchQueuedRetires(
         hqAllianceId,
         match,
-        input.retirePrompt,
+        plan.retires,
         ashed,
       );
       match = retired.match;
