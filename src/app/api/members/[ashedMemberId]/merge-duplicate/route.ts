@@ -77,6 +77,9 @@ export async function GET(request: Request, { params }: Props) {
 
     const duplicate = new URL(request.url).searchParams.get("duplicate")?.trim();
     if (duplicate) {
+      if (!(await allianceHasRosterMember(auth.allianceId, duplicate))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
       return resultResponse(
         await previewDuplicateMerge({
           allianceId: auth.allianceId,
@@ -106,6 +109,10 @@ export async function POST(request: Request, { params }: Props) {
       body = bodySchema.parse(await request.json());
     } catch {
       return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    }
+
+    if (!(await allianceHasRosterMember(auth.allianceId, body.duplicateAshedMemberId))) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     return resultResponse(

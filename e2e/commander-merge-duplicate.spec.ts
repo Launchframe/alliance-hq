@@ -21,6 +21,38 @@ function e2eBaseUrl(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
 }
 
+function hqSessionOnlyCookie(sessionId: string): string {
+  return `alliance_hq_session=${sessionId}`;
+}
+
+function parseAllianceHqSessionId(
+  setCookieHeader: string | string[] | undefined,
+): string {
+  const parts = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : setCookieHeader
+      ? [setCookieHeader]
+      : [];
+  for (const part of parts) {
+    const match = part.match(/alliance_hq_session=([^;]+)/);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+  throw new Error("Missing alliance_hq_session in Set-Cookie");
+}
+
+async function mintSessionViaBootstrap(
+  request: import("@playwright/test").APIRequestContext,
+): Promise<string> {
+  const bootstrap = await request.get("/api/auth/bootstrap?next=/", {
+    maxRedirects: 0,
+  });
+  expect(bootstrap.status()).toBeGreaterThanOrEqual(300);
+  expect(bootstrap.status()).toBeLessThan(400);
+  return parseAllianceHqSessionId(bootstrap.headers()["set-cookie"]);
+}
+
 function uniqueEmail(prefix: string): string {
   return `${prefix}-${randomBytes(4).toString("hex")}@e2e.test`;
 }
@@ -204,6 +236,76 @@ test.describe("Merge duplicate commander", () => {
       WHERE alliance_id = ${alliance.allianceId} AND ashed_member_id = ${duplicate.ashedMemberId}
     `;
     expect(duplicateRoster?.status).toBe("active");
+  });
+
+  test("bootstrap session cannot POST merge-duplicate", async ({ request }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `MB${nanoid(3)}`,
+      name: "Merge Bootstrap Alliance",
+    });
+    const kept = await seedRosterCommander(sql, {
+      allianceId: alliance.allianceId,
+      name: `E2E Bootstrap Keep ${nanoid(4)}`,
+    });
+    const duplicate = await seedRosterCommander(sql, {
+      allianceId: alliance.allianceId,
+      name: `E2E Bootstrap Dup ${nanoid(4)}`,
+    });
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const res = await request.post(
+      `${e2eBaseUrl()}/api/members/${kept.ashedMemberId}/merge-duplicate`,
+      {
+        headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+        data: { duplicateAshedMemberId: duplicate.ashedMemberId },
+      },
+    );
+    expect(res.status(), await res.text()).toBe(403);
+  });
+
+  test("officer gets 404 when duplicate is outside session alliance", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const allianceA = await createNativeAlliance(sql, {
+      tag: `MA${nanoid(3)}`,
+      name: "Merge Alliance A Dup404",
+    });
+    const allianceB = await createNativeAlliance(sql, {
+      tag: `MB${nanoid(3)}`,
+      name: "Merge Alliance B Dup404",
+    });
+    const kept = await seedRosterCommander(sql, {
+      allianceId: allianceA.allianceId,
+      name: `E2E Keep A ${nanoid(4)}`,
+    });
+    const foreignDuplicate = await seedRosterCommander(sql, {
+      allianceId: allianceB.allianceId,
+      name: `E2E Dup B ${nanoid(4)}`,
+    });
+    const officer = await signInToAlliance(sql, {
+      allianceId: allianceA.allianceId,
+      allianceTag: allianceA.tag,
+      roleName: "officer",
+      prefix: "merge-dup404",
+    });
+
+    const res = await request.post(
+      `${e2eBaseUrl()}/api/members/${kept.ashedMemberId}/merge-duplicate`,
+      {
+        headers: { Cookie: authCookieHeader(officer) },
+        data: { duplicateAshedMemberId: foreignDuplicate.ashedMemberId },
+      },
+    );
+    expect(res.status()).toBe(404);
+
+    const [foreignRoster] = await sql<{ status: string }[]>`
+      SELECT status FROM alliance_members
+      WHERE alliance_id = ${allianceB.allianceId}
+        AND ashed_member_id = ${foreignDuplicate.ashedMemberId}
+    `;
+    expect(foreignRoster?.status).toBe("active");
   });
 
   test("officer cannot merge members of another alliance", async ({ request }) => {

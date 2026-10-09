@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -610,6 +610,154 @@ async function moveHistory(
         eq(schema.commanderStoreTipLinks.allianceId, allianceId),
         eq(schema.commanderStoreTipLinks.ashedMemberId, dup.ashedMemberId),
         isNull(schema.commanderStoreTipLinks.revokedAt),
+      ),
+    );
+
+  for (const table of [
+    schema.memberGameLevelEvents,
+    schema.memberProfessionLevelEvents,
+    schema.memberPowerLevelEvents,
+    schema.memberTotalHeroPowerEvents,
+    schema.memberKillsEvents,
+  ] as const) {
+    count(
+      await tx
+        .update(table)
+        .set({ ashedMemberId: kept.ashedMemberId })
+        .where(
+          and(
+            eq(table.allianceId, allianceId),
+            eq(table.ashedMemberId, dup.ashedMemberId),
+          ),
+        )
+        .returning({ id: table.id }),
+    );
+  }
+
+  await tx.execute(sql`
+    DELETE FROM vs_score_heads AS dup
+    USING vs_score_heads AS kept
+    WHERE dup.alliance_id = ${allianceId}
+      AND dup.member_id = ${dup.ashedMemberId}
+      AND kept.alliance_id = dup.alliance_id
+      AND kept.member_id = ${kept.ashedMemberId}
+      AND kept.period = dup.period
+      AND kept.recorded_date = dup.recorded_date
+  `);
+  count(
+    await tx
+      .update(schema.vsScoreHeads)
+      .set({ memberId: kept.ashedMemberId, memberName: kept.currentName })
+      .where(
+        and(
+          eq(schema.vsScoreHeads.allianceId, allianceId),
+          eq(schema.vsScoreHeads.memberId, dup.ashedMemberId),
+        ),
+      )
+      .returning({ id: schema.vsScoreHeads.id }),
+  );
+
+  await tx.execute(sql`
+    DELETE FROM hq_event_members AS dup
+    WHERE dup.member_id = ${dup.ashedMemberId}
+      AND EXISTS (
+        SELECT 1
+        FROM hq_event_members AS kept
+        INNER JOIN hq_events AS e ON e.id = kept.hq_event_id
+        WHERE kept.member_id = ${kept.ashedMemberId}
+          AND kept.hq_event_id = dup.hq_event_id
+          AND e.alliance_id = ${allianceId}
+      )
+  `);
+  const remappedEventMembers = await tx.execute(sql`
+    UPDATE hq_event_members AS hem
+    SET member_id = ${kept.ashedMemberId}
+    FROM hq_events AS e
+    WHERE hem.hq_event_id = e.id
+      AND e.alliance_id = ${allianceId}
+      AND hem.member_id = ${dup.ashedMemberId}
+    RETURNING hem.id
+  `);
+  count([...remappedEventMembers]);
+
+  await tx.execute(sql`
+    DELETE FROM conductor_pool_entries AS dup
+    USING conductor_pool_entries AS kept
+    WHERE dup.alliance_id = ${allianceId}
+      AND dup.member_id = ${dup.ashedMemberId}
+      AND kept.alliance_id = dup.alliance_id
+      AND kept.pool_type = dup.pool_type
+      AND kept.generation = dup.generation
+      AND kept.member_id = ${kept.ashedMemberId}
+  `);
+  count(
+    await tx
+      .update(schema.conductorPoolEntries)
+      .set({ memberId: kept.ashedMemberId, memberName: kept.currentName })
+      .where(
+        and(
+          eq(schema.conductorPoolEntries.allianceId, allianceId),
+          eq(schema.conductorPoolEntries.memberId, dup.ashedMemberId),
+        ),
+      )
+      .returning({ id: schema.conductorPoolEntries.id }),
+  );
+
+  await tx.execute(sql`
+    DELETE FROM train_day_spin_exclusions AS dup
+    USING train_day_spin_exclusions AS kept
+    WHERE dup.alliance_id = ${allianceId}
+      AND dup.member_id = ${dup.ashedMemberId}
+      AND kept.alliance_id = dup.alliance_id
+      AND kept.date = dup.date
+      AND kept.member_id = ${kept.ashedMemberId}
+  `);
+  count(
+    await tx
+      .update(schema.trainDaySpinExclusions)
+      .set({ memberId: kept.ashedMemberId, memberName: kept.currentName })
+      .where(
+        and(
+          eq(schema.trainDaySpinExclusions.allianceId, allianceId),
+          eq(schema.trainDaySpinExclusions.memberId, dup.ashedMemberId),
+        ),
+      )
+      .returning({ id: schema.trainDaySpinExclusions.id }),
+  );
+
+  await tx
+    .update(schema.commanderStoreDonationReceipts)
+    .set({ recipientAshedMemberId: kept.ashedMemberId })
+    .where(
+      and(
+        eq(schema.commanderStoreDonationReceipts.allianceId, allianceId),
+        eq(
+          schema.commanderStoreDonationReceipts.recipientAshedMemberId,
+          dup.ashedMemberId,
+        ),
+      ),
+    );
+
+  const trainMemberId = eq(schema.trainConductorRecords.allianceId, allianceId);
+  await tx
+    .update(schema.trainConductorRecords)
+    .set({ conductorMemberId: kept.ashedMemberId })
+    .where(
+      and(trainMemberId, eq(schema.trainConductorRecords.conductorMemberId, dup.ashedMemberId)),
+    );
+  await tx
+    .update(schema.trainConductorRecords)
+    .set({ vipMemberId: kept.ashedMemberId })
+    .where(
+      and(trainMemberId, eq(schema.trainConductorRecords.vipMemberId, dup.ashedMemberId)),
+    );
+  await tx
+    .update(schema.trainConductorRecords)
+    .set({ substituteForMemberId: kept.ashedMemberId })
+    .where(
+      and(
+        trainMemberId,
+        eq(schema.trainConductorRecords.substituteForMemberId, dup.ashedMemberId),
       ),
     );
 
