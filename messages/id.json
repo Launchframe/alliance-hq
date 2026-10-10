@@ -4014,6 +4014,28 @@
     "loadFailed": "Could not refresh members.",
     "memberLinkHelpRequests": "Ask an officer help",
     "memberLinkHelpRequestsAttention": "{count} ask-an-officer help requests need attention",
+    "mergeCommander": {
+      "cancel": "Batal",
+      "confirm": "Gabungkan",
+      "description": "Gunakan ini jika satu orang tercatat sebagai dua anggota, misalnya setelah berganti nama. {name} mempertahankan riwayatnya; nama, data game, dan tautan duplikat dipindahkan ke sini, dan duplikat dinonaktifkan.",
+      "errors": {
+        "conflictingLinks": "Kedua anggota tertaut ke akun yang berbeda, jadi tidak dapat digabungkan.",
+        "differentServer": "Anggota ini berada di server game yang berbeda.",
+        "generic": "Tidak dapat menggabungkan anggota ini. Coba lagi.",
+        "notActive": "Kedua anggota harus aktif di aliansi ini.",
+        "sameMember": "Pilih anggota yang berbeda."
+      },
+      "irreversible": "Tindakan ini tidak dapat dibatalkan.",
+      "open": "Gabungkan duplikat",
+      "pickLabel": "Anggota duplikat",
+      "pickPlaceholder": "Cari anggota",
+      "previewHeading": "Setelah digabungkan",
+      "previewHistory": "{count} entri riwayat dipindahkan dari duplikat",
+      "previewName": "Nama menjadi {newName}; {oldName} disimpan sebagai nama sebelumnya",
+      "previewRetire": "{duplicate} dinonaktifkan",
+      "success": "{duplicate} digabungkan ke {name}.",
+      "title": "Gabungkan duplikat ke {name}"
+    },
     "missingTag": "Set your alliance tag in Settings so we know which roster to load from Ashed.",
     "noPreviousNames": "—",
     "onboardingReviews": "Onboarding review",

@@ -3451,6 +3451,28 @@
       "tipJarRevoke": "Revoke link",
       "tipJarNeedUid": "Link your Commander before creating a tip link.",
       "tipJarActionFailed": "Couldn’t update tip link. Try again."
+    },
+    "mergeCommander": {
+      "open": "Merge duplicate",
+      "title": "Merge a duplicate into {name}",
+      "description": "Use this when one person ended up as two members, for example after a name change. {name} keeps its history; the duplicate's name, game data, and links move here, and the duplicate is retired.",
+      "pickLabel": "Duplicate member",
+      "pickPlaceholder": "Search members",
+      "previewHeading": "After merging",
+      "previewName": "Name becomes {newName}; {oldName} is kept as a previous name",
+      "previewHistory": "{count} history entries move from the duplicate",
+      "previewRetire": "{duplicate} is retired",
+      "irreversible": "This can't be undone.",
+      "confirm": "Merge",
+      "cancel": "Cancel",
+      "success": "Merged {duplicate} into {name}.",
+      "errors": {
+        "sameMember": "Pick a different member.",
+        "notActive": "Both members must be active in this alliance.",
+        "differentServer": "These members are on different game servers.",
+        "conflictingLinks": "Both members are linked to different accounts, so they can't be merged.",
+        "generic": "Couldn't merge these members. Try again."
+      }
     }
   },
   "storeTipPublic": {

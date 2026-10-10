@@ -432,6 +432,8 @@ export async function loadCommanderProfile(
       viewerCanIssueClaimInvite: canOfficerOverrideMainSquad,
       viewerCanIssueOfficerInvite,
       viewerCanBreakGlassUnlink,
+      viewerCanMergeDuplicate:
+        canOfficerOverrideMainSquad && memberRow.status !== "former",
       canGiftStoreBricks,
       canManageTipJar,
       gameUid: viewerIsOwner ? gameUid : null,
