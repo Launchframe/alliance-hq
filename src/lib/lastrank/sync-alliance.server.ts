@@ -42,10 +42,12 @@ import {
   type LastRankUpsertCounts,
 } from "@/lib/lastrank/sync-upsert.server";
 import {
+  isSyntheticNativeAshedAllianceId,
   loadLastRankAshedWriteContext,
   upsertAllianceAshedCredentialFromConnectionKey,
   type LastRankAshedWriteContext,
 } from "@/lib/lastrank/ashed-credential.server";
+import { syncMemberRankToAshed } from "@/lib/trains/rank-sync";
 import {
   buildLastRankRosterDiff,
   type LastRankRosterDiff,
@@ -91,6 +93,10 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   rankApplied: number;
   rankUnchanged: number;
   rankSkippedMissing: number;
+  /** Rank changes also written to Ashed (so the next Ashed pull keeps them). */
+  rankAshedSynced: number;
+  /** Rank changes whose Ashed PUT failed — the next Ashed pull may revert them. */
+  rankAshedFailed: number;
   canonicalWritten: number;
   canonicalSkippedNoUid: number;
   canonicalSkippedMismatch: number;
@@ -160,6 +166,8 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     rankApplied: 0,
     rankUnchanged: 0,
     rankSkippedMissing: 0,
+    rankAshedSynced: 0,
+    rankAshedFailed: 0,
     canonicalWritten: 0,
     canonicalSkippedNoUid: 0,
     canonicalSkippedMismatch: 0,
@@ -322,13 +330,19 @@ async function writeCanonicalIfLastWarConfirms(
   counts.canonicalWritten += 1;
 }
 
+/**
+ * Records the rank in HQ and, for Ashed-linked members, mirrors it to Ashed so
+ * the next Ashed roster pull does not revert it. Returns whether Ashed was
+ * updated (`null` when the member is not Ashed-backed or no bot credential).
+ */
 async function writeLastRankAllianceRank(input: {
   allianceId: string;
   ashedMemberId: string;
   memberName: string;
   allianceRank: number;
   effectiveDate: string;
-}): Promise<void> {
+  ashed: LastRankAshedWriteContext | null;
+}): Promise<boolean | null> {
   const db = getDb();
   const eventId = nanoid();
   const now = new Date();
@@ -346,7 +360,7 @@ async function writeLastRankAllianceRank(input: {
     recordedByHqUserId: null,
   });
 
-  await db
+  const [member] = await db
     .update(schema.allianceMembers)
     .set({
       allianceRank: input.allianceRank,
@@ -359,13 +373,44 @@ async function writeLastRankAllianceRank(input: {
         eq(schema.allianceMembers.allianceId, input.allianceId),
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
+    )
+    .returning({ ashedAllianceId: schema.allianceMembers.ashedAllianceId });
+
+  if (
+    !input.ashed ||
+    !member ||
+    isSyntheticNativeAshedAllianceId(member.ashedAllianceId) ||
+    member.ashedAllianceId !== input.ashed.ashedAllianceId
+  ) {
+    return null;
+  }
+  try {
+    await syncMemberRankToAshed(
+      input.ashed.connection,
+      input.ashedMemberId,
+      input.allianceRank,
+      null,
     );
+    await db
+      .update(schema.memberAllianceRankEvents)
+      .set({ ashedSyncedAt: new Date() })
+      .where(eq(schema.memberAllianceRankEvents.id, eventId));
+    return true;
+  } catch (error) {
+    console.error(
+      `[lastrank] Ashed rank PUT failed for ${input.memberName}: ${
+        error instanceof Error ? error.message : "unknown"
+      }`,
+    );
+    return false;
+  }
 }
 
 async function applyMatchedRows(
   hqAllianceId: string,
   rows: LastRankMatchedRow[],
   counts: LastRankSyncApplyCounts,
+  ashed: LastRankAshedWriteContext | null,
   onProgress?: (done: number, total: number) => void,
 ): Promise<boolean> {
   const db = getDb();
@@ -416,14 +461,17 @@ async function applyMatchedRows(
       if (row.hq.hqAllianceRank === lastRankAllianceRank) {
         counts.rankUnchanged += 1;
       } else {
-        await writeLastRankAllianceRank({
+        const ashedSynced = await writeLastRankAllianceRank({
           allianceId: hqAllianceId,
           ashedMemberId: row.hq.ashedMemberId,
           memberName: row.lastRank.name,
           allianceRank: lastRankAllianceRank,
           effectiveDate,
+          ashed,
         });
         counts.rankApplied += 1;
+        if (ashedSynced === true) counts.rankAshedSynced += 1;
+        else if (ashedSynced === false) counts.rankAshedFailed += 1;
         ranksChanged = true;
       }
     } else {
@@ -899,13 +947,25 @@ export async function syncLastRankAlliance(input: {
   onPlanChanged?: LastRankSyncPlanListener;
   /** Called once prompts finish, just before any queued writes run. */
   onDispatchStart?: LastRankSyncPlanListener;
+  /** Defaults to `apply`; remote runs pass false so only existing alliances sync. */
+  allowAllianceCreate?: boolean;
+  /** Refuse to run (before any write) unless the target resolves to this HQ alliance. */
+  expectedHqAllianceId?: string;
 }): Promise<LastRankAllianceSyncResult> {
   const { allianceId: hqAllianceId, created: allianceCreated } =
     await resolveHqAllianceForLastRankSync({
       target: input.target,
-      allowCreate: input.apply,
+      allowCreate: input.allowAllianceCreate ?? input.apply,
       alliancePrompt: input.alliancePrompt,
     });
+  if (
+    input.expectedHqAllianceId != null &&
+    input.expectedHqAllianceId !== hqAllianceId
+  ) {
+    throw new Error(
+      `${input.target.tag} on server ${input.target.gameServerNumber} no longer resolves to the planned HQ alliance — re-run the plan.`,
+    );
+  }
 
   let ashedCredentialSaved = false;
   const shouldSaveCredential =
@@ -931,7 +991,7 @@ export async function syncLastRankAlliance(input: {
     : await loadLastRankAshedWriteContext(hqAllianceId);
   if (input.hqOnly) {
     console.error("Ashed dual-write forced off (--hq-only).");
-  } else if (input.apply && (input.createAllUnmatched || input.retireAllUnmatched)) {
+  } else if (input.apply) {
     if (ashed) {
       console.error(
         `Ashed dual-write enabled (alliance ${ashed.ashedAllianceId}).`,
@@ -1050,6 +1110,7 @@ export async function syncLastRankAlliance(input: {
       hqAllianceId,
       match.matched,
       partial,
+      ashed,
       (done, total) => {
         if (done % progressEvery === 0 || done === total) {
           console.error(`Updated ${done}/${total} matched members…`);
