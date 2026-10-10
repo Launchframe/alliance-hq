@@ -3397,7 +3397,29 @@
       "tipJarNeedUid": "Vincule seu Commander antes de criar um link de gorjeta.",
       "tipJarActionFailed": "Não foi possível atualizar o link de gorjeta. Tente de novo."
     },
-    "onboardingReviews": "Onboarding review"
+    "onboardingReviews": "Onboarding review",
+    "mergeCommander": {
+      "open": "Mesclar duplicado",
+      "title": "Mesclar um duplicado em {name}",
+      "description": "Use isto quando uma pessoa acabou aparecendo como dois membros, por exemplo após uma troca de nome. {name} mantém seu histórico; o nome, os dados do jogo e os vínculos do duplicado passam para cá, e o duplicado é aposentado.",
+      "pickLabel": "Membro duplicado",
+      "pickPlaceholder": "Buscar membros",
+      "previewHeading": "Após mesclar",
+      "previewName": "O nome passa a ser {newName}; {oldName} fica como nome anterior",
+      "previewHistory": "{count} registros de histórico vêm do duplicado",
+      "previewRetire": "{duplicate} é aposentado",
+      "irreversible": "Isso não pode ser desfeito.",
+      "confirm": "Mesclar",
+      "cancel": "Cancelar",
+      "success": "{duplicate} foi mesclado em {name}.",
+      "errors": {
+        "sameMember": "Escolha outro membro.",
+        "notActive": "Os dois membros precisam estar ativos nesta aliança.",
+        "differentServer": "Esses membros estão em servidores de jogo diferentes.",
+        "conflictingLinks": "Os dois membros estão vinculados a contas diferentes, então não podem ser mesclados.",
+        "generic": "Não foi possível mesclar esses membros. Tente novamente."
+      }
+    }
   },
   "storeTipPublic": {
     "tipPublicTitle": "Comprar tijolos de ouro para {name}",

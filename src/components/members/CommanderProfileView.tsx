@@ -22,6 +22,7 @@ import {
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { CommanderStoreDonationSection } from "@/components/members/CommanderStoreDonationSection";
 import { CommanderTipJarCard } from "@/components/members/CommanderTipJarCard";
+import { MergeDuplicateCommanderDialog } from "@/components/members/MergeDuplicateCommanderDialog";
 
 type Props = {
   initial: CommanderProfilePayload;
@@ -126,12 +127,20 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
             })}
           </p>
         </div>
-        <Link
-          href={membersListHref}
-          className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-[#c9d1d9] hover:bg-hq-surface"
-        >
-          {t("backToMembers")}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {member.viewerCanMergeDuplicate ? (
+            <MergeDuplicateCommanderDialog
+              ashedMemberId={member.ashedMemberId}
+              memberName={member.currentName}
+            />
+          ) : null}
+          <Link
+            href={membersListHref}
+            className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-[#c9d1d9] hover:bg-hq-surface"
+          >
+            {t("backToMembers")}
+          </Link>
+        </div>
       </div>
 
       <CommanderStoreDonationSection
