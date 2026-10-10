@@ -3166,7 +3166,10 @@
     "reminderBanner": "Seu token Ashed expira em {date}. Copie um novo comando cURL do ashed.online para manter a conexão.",
     "expiredBanner": "Seu token Ashed expirou em <date></date>.",
     "reconnectLink": "Reconectar com um novo comando cURL",
-    "updateLink": "Atualizar conexão"
+    "updateLink": "Atualizar conexão",
+    "allianceExpiredBanner": "A conexão da aliança {tag} com o Ashed expirou em <date></date>. A sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed estão pausadas.",
+    "allianceReminderBanner": "A conexão da aliança {tag} com o Ashed expira em <date></date>. A sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed serão pausadas quando isso acontecer.",
+    "allianceNextSteps": "<reconnect>Reconecte o Ashed</reconnect> com um novo comando cURL. O HQ atualiza a conexão da aliança automaticamente se foi você quem a instalou ou se você é dono da aliança no Ashed. Caso contrário, peça ao dono da aliança no Ashed para reinstalá-la em <team>Configurações da equipe</team>."
   },
   "members": {
     "title": "Membros",

@@ -27,6 +27,7 @@ import {
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
 } from "@/lib/connectionString";
+import { maybeRefreshAllianceAshedCredentialFromConnection } from "@/lib/ashed/alliance-credential-expiry.server";
 import { rebindAshedIdentityToSession } from "@/lib/ashed/rebind-session";
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
@@ -191,6 +192,22 @@ export async function POST(request: Request) {
       rbac.hqUserId,
       me.email,
     );
+
+    if (rbac.hqAllianceId) {
+      try {
+        await maybeRefreshAllianceAshedCredentialFromConnection({
+          allianceId: rbac.hqAllianceId,
+          ashedAllianceId: selected.id,
+          accessRole: selected.accessRole,
+          connection: parsed.connection,
+          ashedUser: { id: me.id, email: me.email },
+          hqUserId: rbac.hqUserId,
+          sessionId: session.id,
+        });
+      } catch (error) {
+        console.error("[connect] alliance credential refresh failed", error);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
