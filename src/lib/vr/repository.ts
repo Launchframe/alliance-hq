@@ -2542,6 +2542,8 @@ export async function upsertAllianceAshedCredential(input: {
         originUrl: input.originUrl,
         encryptedToken: input.encryptedToken,
         tokenExpiresAt: input.tokenExpiresAt ?? null,
+        expiryNoticeStage: null,
+        expiryNoticeSentAt: null,
         ...registrantPatch,
         updatedAt: now,
       },

@@ -248,6 +248,8 @@ export async function upsertAllianceAshedCredentialFromConnectionKey(input: {
         originUrl: parsed.connection.originUrl,
         encryptedToken: encryptSecret(parsed.connection.token),
         tokenExpiresAt,
+        expiryNoticeStage: null,
+        expiryNoticeSentAt: null,
         updatedAt: now,
       },
     });
