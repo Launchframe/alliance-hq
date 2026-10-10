@@ -63,7 +63,7 @@ On each matched row (after auto or interactive mapping):
 | LastRank field | HQ |
 | --- | --- |
 | `name` (canon) | `commanders.canonical_name` **only when** Last War lookup-by-UID `gameUserName` exact-matches the canon (`namesMatch`) |
-| Section `R1`–`R5` badge | Appends `member_alliance_rank_events` (`source: lastrank_sync`) and updates `alliance_members` — overwrites when different. Matched apply is HQ-local; `--create-all` also PUTs rank to Ashed when dual-write is on. |
+| Section `R1`–`R5` badge | Appends `member_alliance_rank_events` (`source: lastrank_sync`) and updates `alliance_members` — overwrites when different. When the member is in the credential's Ashed alliance, the rank is also PUT to Ashed (event gets `ashed_synced_at`) so the next Ashed roster pull does not revert it. |
 | `hero_power` | THP — **always upsert** from LastRank (`lastrank_sync`), including regressions |
 | `base_level` | HQ level — **always upsert** from LastRank |
 | `power` | `commanders.power_level` (e.g. `394.4M`) — **always upsert** when present |
@@ -84,7 +84,7 @@ On each matched row (after auto or interactive mapping):
 
 "Changed in HQ" is the latest `profession_switched` event for the commander in `wl_team_events`.
 
-**Ranks:** collapsible HTML sections are headed by an exact `R1`–`R5` badge; every `/p/{publicId}` link in that section inherits that rank (preferred over the RSC `alliance_rank` field). Matched-member rank writes are HQ audit events; new members created with Ashed dual-write also get an Ashed rank PUT.
+**Ranks:** collapsible HTML sections are headed by an exact `R1`–`R5` badge; every `/p/{publicId}` link in that section inherits that rank (preferred over the RSC `alliance_rank` field). Rank changes are HQ audit events and, for Ashed-backed members with a usable credential (and no `--hq-only`), an Ashed rank PUT. Before this, Ashed's roster pull (every 24h or on officer refresh) overwrote LastRank ranks, and the nightly cron rewrote them. A failed PUT is logged and counted as `rankAshedFailed`; the HQ write stands.
 
 Canonical write is skipped when the commander has no `game_uid`, the lookup fails, or the API name does not exact-match LastRank. Stats still apply on the roster match.
 
@@ -209,6 +209,35 @@ LOCAL_DATABASE_URL= DATABASE_URL='<prod url>' npx tsx scripts/lastrank/sync-alli
 LOCAL_DATABASE_URL= DATABASE_URL='<prod url>' npx tsx scripts/lastrank/sync-alliance.ts --id <id> --server <n> --tag <tag> \
   --apply --interactive --confirm-host <printed host>
 ```
+
+A local run against production can write HQ rows but **cannot use the saved Ashed credential** unless your `TOKEN_ENCRYPTION_KEY` matches production's. Do not "fix" that with `--ashed-connection-key`: it re-encrypts the credential with your local key and breaks it for production. Use remote mode instead.
+
+### Remote mode (`--remote`)
+
+Runs the plan and the writes on a deployed HQ, so production's database, encryption key, and saved Ashed credential are used. Only the prompts run on your machine.
+
+Setup, once per environment:
+
+1. Generate a token: `openssl rand -hex 32` (at least 32 characters; shorter values are treated as unset).
+2. Add it to Vercel as `LASTRANK_SYNC_TOKEN` (Production) and redeploy.
+3. Export the same value locally as `LASTRANK_SYNC_TOKEN`. The CLI reads it from the environment only — never pass it as a flag.
+
+```bash
+export LASTRANK_SYNC_TOKEN=...   # same value as Vercel
+
+# Plan only (no writes): prints the roster diff and how many prompts are waiting
+npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo --remote https://<hq origin>
+
+# Answer prompts locally, then the server writes everything in one batch
+npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo --remote https://<hq origin> \
+  --apply --interactive
+```
+
+- Endpoints: `POST /api/internal/lastrank/remote-sync/plan` and `/apply`. They accept only `Authorization: Bearer $LASTRANK_SYNC_TOKEN`; session cookies (even platform maintainer) are rejected. Unset token → every request is 403.
+- The alliance must already exist in HQ; remote mode never creates alliances. If the alliance resolved by apply differs from the plan, apply aborts before writing.
+- `--create-all`, `--retire-all`, and `--hq-only` work as locally. `--ashed-connection-key` and `--save-ashed-credential` are rejected.
+- Mappings that no longer match on the server (an HQ name changed between plan and apply) are listed after apply and not written.
+- The server also fetches LastRank HTML, so a Cloudflare challenge against Vercel IPs breaks remote mode the same way it would break the cron.
 
 ## Nightly
 

@@ -82,6 +82,7 @@ export function createE2eRuntimeEnv(source = process.env) {
     AUTH_DISCORD_ID: "e2e-discord-client-id",
     AUTH_DISCORD_SECRET: "e2e-discord-client-secret",
     OCR_WORKER_SECRET: "e2e-ocr-worker-secret-not-for-production",
+    LASTRANK_SYNC_TOKEN: "e2e-lastrank-sync-token-not-for-production",
     NOTES_INTAKE_TEST_PROVIDER: "true",
     NOTES_HISTORY_TEST_PROVIDER: "true",
     NOTES_KNOWLEDGE_TEST_PROVIDER: "1",
