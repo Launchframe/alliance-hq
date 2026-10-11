@@ -304,15 +304,9 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     await syncEventResults(f.actor, { eventId: f.eventId });
     expect((await syncItemFor(f))?.status).toBe("conflict");
 
-    seedRemote("SeasonalScore", [
-      {
-        id: "remote-1",
-        alliance_id: f.ashedAllianceId,
-        event_id: f.remoteEventId,
-        member_id: f.memberId,
-        score: 5000,
-      },
-    ]);
+    // seedRemote appends; correct the existing remote row in place.
+    const [remoteRow] = remoteRows.get("SeasonalScore")!;
+    remoteRow!.score = 5000;
     const second = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(second.synced).toBe(1);
     expect(posts).toHaveLength(0);
