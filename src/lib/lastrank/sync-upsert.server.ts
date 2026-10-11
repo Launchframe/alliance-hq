@@ -31,7 +31,7 @@ import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { upsertCommanderThp } from "@/lib/thp/repository";
 import { upsertCommanderLevel } from "@/lib/member-level/repository";
 import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
-import { syncMemberRankToAshed } from "@/lib/trains/rank-sync";
+import { writeLastRankRankToAshed } from "@/lib/lastrank/ashed-rank-writer.server";
 import { nextPreviousNames } from "@/lib/video/scoreboard-member-actions.shared";
 
 export type LastRankUpsertCounts = {
@@ -51,6 +51,8 @@ export async function createAllianceMemberFromLastRank(input: {
 }): Promise<{
   hq: LastRankHqRosterRow;
   ashedCreated: boolean;
+  /** Ashed rank PUT outcome; `null` when no Ashed member or no rank was written. */
+  ashedRankSynced: boolean | null;
 }> {
   const db = getDb();
   const now = new Date();
@@ -63,6 +65,7 @@ export async function createAllianceMemberFromLastRank(input: {
   let ashedMemberId = nanoid(16);
   let ashedAllianceId = nativeRosterAshedAllianceId(input.allianceId);
   let ashedCreated = false;
+  let ashedRankSynced: boolean | null = null;
 
   if (input.ashed) {
     ashedMemberId = await createAshedMember({
@@ -73,20 +76,12 @@ export async function createAllianceMemberFromLastRank(input: {
     ashedAllianceId = input.ashed.ashedAllianceId;
     ashedCreated = true;
     if (rank != null && rank >= 1 && rank <= 5) {
-      try {
-        await syncMemberRankToAshed(
-          input.ashed.connection,
-          ashedMemberId,
-          Math.round(rank),
-          null,
-        );
-      } catch (error) {
-        console.error(
-          `[lastrank] Ashed rank PUT failed for ${name}: ${
-            error instanceof Error ? error.message : "unknown"
-          }`,
-        );
-      }
+      ashedRankSynced = await writeLastRankRankToAshed(
+        input.ashed,
+        ashedMemberId,
+        Math.round(rank),
+        name,
+      );
     }
   }
 
@@ -195,6 +190,7 @@ export async function createAllianceMemberFromLastRank(input: {
 
   return {
     ashedCreated,
+    ashedRankSynced,
     hq: {
       commanderId: commanderId ?? ashedMemberId,
       ashedMemberId,
@@ -453,12 +449,15 @@ export async function retireAllianceMembers(input: {
 export async function listActiveMemberIdsNotInSet(
   allianceId: string,
   keepAshedMemberIds: Set<string>,
-): Promise<Array<{ ashedMemberId: string; currentName: string }>> {
+): Promise<
+  Array<{ ashedMemberId: string; currentName: string; previousNames: string[] }>
+> {
   const db = getDb();
   const rows = await db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
       currentName: schema.allianceMembers.currentName,
+      previousNamesJson: schema.allianceMembers.previousNamesJson,
     })
     .from(schema.allianceMembers)
     .where(
@@ -467,5 +466,19 @@ export async function listActiveMemberIdsNotInSet(
         ne(schema.allianceMembers.status, "former"),
       ),
     );
-  return rows.filter((row) => !keepAshedMemberIds.has(row.ashedMemberId));
+  return rows.flatMap((row) =>
+    keepAshedMemberIds.has(row.ashedMemberId)
+      ? []
+      : [
+          {
+            ashedMemberId: row.ashedMemberId,
+            currentName: row.currentName,
+            previousNames: Array.isArray(row.previousNamesJson)
+              ? row.previousNamesJson.filter(
+                  (name): name is string => typeof name === "string",
+                )
+              : [],
+          },
+        ],
+  );
 }

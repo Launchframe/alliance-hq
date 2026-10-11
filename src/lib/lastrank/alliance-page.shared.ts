@@ -21,9 +21,17 @@ export type LastRankAllianceMember = {
   originServerId: number | null;
 };
 
+/** Alliance tag + server as LastRank currently lists them for an alliance id. */
+export type LastRankAllianceIdentity = {
+  tag: string;
+  gameServerNumber: number;
+};
+
 export type LastRankAlliancePage = {
   lastrankAllianceId: string;
   members: LastRankAllianceMember[];
+  /** `null` when the page metadata could not be read. */
+  identity?: LastRankAllianceIdentity | null;
 };
 
 export type LastRankHqRosterRow = {
@@ -345,6 +353,40 @@ export function applyProfessionBadgesToMembers(
   });
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec: string) =>
+      String.fromCodePoint(Number.parseInt(dec, 10)),
+    )
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Reads `[TAG]` and server from the page description, e.g.
+ * `Alliance [LFgo] Live Free Die Hard on server 1203 — 100 members, …`.
+ */
+export function parseLastRankAllianceIdentity(
+  html: string,
+): LastRankAllianceIdentity | null {
+  const pattern =
+    /<meta\s+(?:name="description"|property="og:description"|name="twitter:description")\s+content="Alliance \[([^\]"]+)\][^"]*? on server (\d+)\b/g;
+  for (const match of html.matchAll(pattern)) {
+    const tag = decodeHtmlEntities(match[1]).trim();
+    const gameServerNumber = Number.parseInt(match[2], 10);
+    if (tag && Number.isFinite(gameServerNumber) && gameServerNumber > 0) {
+      return { tag, gameServerNumber };
+    }
+  }
+  return null;
+}
+
 export function parseLastRankAllianceHtml(
   html: string,
   lastrankAllianceId: string,
@@ -379,6 +421,7 @@ export function parseLastRankAllianceHtml(
             applySectionRanksToMembers(members, sectionRanks),
             parseLastRankProfessionBadges(html),
           ),
+          identity: parseLastRankAllianceIdentity(html),
         };
       }
     } catch {
@@ -913,6 +956,15 @@ export type LastRankInteractiveAnswer =
   | { kind: "skip" }
   | { kind: "create" }
   | { kind: "match"; hqName: string };
+
+/** 1-based position of a manual-match prompt among all prompts in this run. */
+export type LastRankPromptPosition = { current: number; total: number };
+
+export function formatLastRankPromptPosition(
+  position: LastRankPromptPosition | undefined,
+): string {
+  return position ? `[${position.current}/${position.total}] ` : "";
+}
 
 export function resolveInteractiveHqNameAnswer(
   answer: string,

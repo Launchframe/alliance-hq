@@ -27,12 +27,14 @@ export async function syncMemberRankToAshed(
   ashedMemberId: string,
   allianceRank: number,
   allianceRankTitle?: string | null,
+  options?: { signal?: AbortSignal },
 ): Promise<void> {
   await base44Json(connection, `/entities/Member/${ashedMemberId}`, {
     method: "PUT",
     body: JSON.stringify({
       rank: formatAshedMemberRankValue(allianceRank, allianceRankTitle),
     }),
+    signal: options?.signal,
   });
 }
 

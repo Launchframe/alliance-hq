@@ -22,6 +22,7 @@ import {
   type LastRankAllianceMember,
   type LastRankHqRosterRow,
   type LastRankInteractiveAnswer,
+  type LastRankPromptPosition,
   type LastRankMatchedRow,
   type LastRankMatchResult,
   type LastRankUnmatchedRow,
@@ -42,10 +43,12 @@ import {
   type LastRankUpsertCounts,
 } from "@/lib/lastrank/sync-upsert.server";
 import {
+  isSyntheticNativeAshedAllianceId,
   loadLastRankAshedWriteContext,
   upsertAllianceAshedCredentialFromConnectionKey,
   type LastRankAshedWriteContext,
 } from "@/lib/lastrank/ashed-credential.server";
+import { writeLastRankRankToAshed } from "@/lib/lastrank/ashed-rank-writer.server";
 import {
   buildLastRankRosterDiff,
   type LastRankRosterDiff,
@@ -91,6 +94,13 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   rankApplied: number;
   rankUnchanged: number;
   rankSkippedMissing: number;
+  /** Rank changes also written to Ashed (so the next Ashed pull keeps them). */
+  rankAshedSynced: number;
+  /**
+   * Rank writes (updates and creates) whose Ashed PUT failed or was skipped
+   * after repeated failures — the next Ashed pull may revert them.
+   */
+  rankAshedFailed: number;
   canonicalWritten: number;
   canonicalSkippedNoUid: number;
   canonicalSkippedMismatch: number;
@@ -100,15 +110,18 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   namesAshedSynced: number;
 };
 
-export type LastRankInteractivePrompt = (ctx: {
-  lastRankName: string;
-  publicId: number;
-  profileUrl: string;
-  /** True when not in an R1–R5 section — often a recent leaver still listed on LastRank. */
-  unranked: boolean;
-  suggestions: LastRankUnmatchedRow["suggestions"];
-  remainingHqNames: string[];
-}) => Promise<LastRankInteractiveAnswer>;
+export type LastRankInteractivePrompt = (
+  ctx: {
+    lastRankName: string;
+    publicId: number;
+    profileUrl: string;
+    /** True when not in an R1–R5 section — often a recent leaver still listed on LastRank. */
+    unranked: boolean;
+    suggestions: LastRankUnmatchedRow["suggestions"];
+    remainingHqNames: string[];
+  },
+  position?: LastRankPromptPosition,
+) => Promise<LastRankInteractiveAnswer>;
 
 export type LastRankRetirePrompt = (ctx: {
   memberName: string;
@@ -160,6 +173,8 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     rankApplied: 0,
     rankUnchanged: 0,
     rankSkippedMissing: 0,
+    rankAshedSynced: 0,
+    rankAshedFailed: 0,
     canonicalWritten: 0,
     canonicalSkippedNoUid: 0,
     canonicalSkippedMismatch: 0,
@@ -297,6 +312,11 @@ async function writeCanonicalIfLastWarConfirms(
   existingCanonicalName: string | null,
   lastRankCanon: string,
 ): Promise<void> {
+  // Nothing to write, so skip the (up to 8s) Last War lookup entirely.
+  if (existingCanonicalName === lastRankCanon) {
+    counts.canonicalUnchanged += 1;
+    return;
+  }
   if (!gameUid?.trim()) {
     counts.canonicalSkippedNoUid += 1;
     return;
@@ -310,10 +330,6 @@ async function writeCanonicalIfLastWarConfirms(
     counts.canonicalSkippedMismatch += 1;
     return;
   }
-  if (existingCanonicalName === lastRankCanon) {
-    counts.canonicalUnchanged += 1;
-    return;
-  }
   const db = getDb();
   await db
     .update(schema.commanders)
@@ -322,13 +338,19 @@ async function writeCanonicalIfLastWarConfirms(
   counts.canonicalWritten += 1;
 }
 
+/**
+ * Records the rank in HQ and, for Ashed-linked members, mirrors it to Ashed so
+ * the next Ashed roster pull does not revert it. Returns whether Ashed was
+ * updated (`null` when the member is not Ashed-backed or no bot credential).
+ */
 async function writeLastRankAllianceRank(input: {
   allianceId: string;
   ashedMemberId: string;
   memberName: string;
   allianceRank: number;
   effectiveDate: string;
-}): Promise<void> {
+  ashed: LastRankAshedWriteContext | null;
+}): Promise<boolean | null> {
   const db = getDb();
   const eventId = nanoid();
   const now = new Date();
@@ -346,7 +368,7 @@ async function writeLastRankAllianceRank(input: {
     recordedByHqUserId: null,
   });
 
-  await db
+  const [member] = await db
     .update(schema.allianceMembers)
     .set({
       allianceRank: input.allianceRank,
@@ -359,13 +381,37 @@ async function writeLastRankAllianceRank(input: {
         eq(schema.allianceMembers.allianceId, input.allianceId),
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
-    );
+    )
+    .returning({ ashedAllianceId: schema.allianceMembers.ashedAllianceId });
+
+  if (
+    !input.ashed ||
+    !member ||
+    isSyntheticNativeAshedAllianceId(member.ashedAllianceId) ||
+    member.ashedAllianceId !== input.ashed.ashedAllianceId
+  ) {
+    return null;
+  }
+  const synced = await writeLastRankRankToAshed(
+    input.ashed,
+    input.ashedMemberId,
+    input.allianceRank,
+    input.memberName,
+  );
+  if (synced) {
+    await db
+      .update(schema.memberAllianceRankEvents)
+      .set({ ashedSyncedAt: new Date() })
+      .where(eq(schema.memberAllianceRankEvents.id, eventId));
+  }
+  return synced;
 }
 
 async function applyMatchedRows(
   hqAllianceId: string,
   rows: LastRankMatchedRow[],
   counts: LastRankSyncApplyCounts,
+  ashed: LastRankAshedWriteContext | null,
   onProgress?: (done: number, total: number) => void,
 ): Promise<boolean> {
   const db = getDb();
@@ -416,14 +462,17 @@ async function applyMatchedRows(
       if (row.hq.hqAllianceRank === lastRankAllianceRank) {
         counts.rankUnchanged += 1;
       } else {
-        await writeLastRankAllianceRank({
+        const ashedSynced = await writeLastRankAllianceRank({
           allianceId: hqAllianceId,
           ashedMemberId: row.hq.ashedMemberId,
           memberName: row.lastRank.name,
           allianceRank: lastRankAllianceRank,
           effectiveDate,
+          ashed,
         });
         counts.rankApplied += 1;
+        if (ashedSynced === true) counts.rankAshedSynced += 1;
+        else if (ashedSynced === false) counts.rankAshedFailed += 1;
         ranksChanged = true;
       }
     } else {
@@ -625,14 +674,17 @@ async function runInteractiveResolutions(
       .filter((hq) => !claimed.has(hq.commanderId))
       .map((hq) => hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId);
 
-    const answer = await prompt({
-      lastRankName: row.lastRank.name,
-      publicId: row.lastRank.publicId,
-      profileUrl: lastRankPlayerProfileUrl(row.lastRank.publicId),
-      unranked: isLastRankUnranked(row.lastRank),
-      suggestions: row.suggestions,
-      remainingHqNames,
-    });
+    const answer = await prompt(
+      {
+        lastRankName: row.lastRank.name,
+        publicId: row.lastRank.publicId,
+        profileUrl: lastRankPlayerProfileUrl(row.lastRank.publicId),
+        unranked: isLastRankUnranked(row.lastRank),
+        suggestions: row.suggestions,
+        remainingHqNames,
+      },
+      { current: index + 1, total: pending.length },
+    );
     const remaining = pending.length - index - 1;
 
     if (answer.kind === "skip") {
@@ -692,6 +744,21 @@ async function runInteractiveResolutions(
   return current;
 }
 
+type CreatedLastRankMembers = {
+  match: LastRankMatchResult;
+  created: number;
+  ashedCreated: number;
+  rankAshed: { synced: number; failed: number };
+};
+
+function countAshedRankOutcome(
+  tally: { synced: number; failed: number },
+  synced: boolean | null,
+): void {
+  if (synced === true) tally.synced += 1;
+  else if (synced === false) tally.failed += 1;
+}
+
 /** Creates HQ members for interactively queued LastRank rows. */
 async function createQueuedLastRankMembers(
   hqAllianceId: string,
@@ -699,10 +766,11 @@ async function createQueuedLastRankMembers(
   match: LastRankMatchResult,
   queued: LastRankAllianceMember[],
   ashed: LastRankAshedWriteContext | null,
-): Promise<{ match: LastRankMatchResult; created: number; ashedCreated: number }> {
+): Promise<CreatedLastRankMembers> {
   let current = match;
   let created = 0;
   let ashedCreated = 0;
+  const rankAshed = { synced: 0, failed: 0 };
   for (const lastRank of queued) {
     const result = await createAllianceMemberFromLastRank({
       allianceId: hqAllianceId,
@@ -712,6 +780,7 @@ async function createQueuedLastRankMembers(
     });
     created += 1;
     if (result.ashedCreated) ashedCreated += 1;
+    countAshedRankOutcome(rankAshed, result.ashedRankSynced);
     current = applyInteractiveMatches(current, [
       { lastRankPublicId: lastRank.publicId, hq: result.hq },
     ]);
@@ -719,7 +788,7 @@ async function createQueuedLastRankMembers(
       `Created: ${lastRank.name}${result.ashedCreated ? " (Ashed+HQ)" : " (HQ only)"}`,
     );
   }
-  return { match: current, created, ashedCreated };
+  return { match: current, created, ashedCreated, rankAshed };
 }
 
 async function createUnmatchedLastRankMembers(
@@ -727,13 +796,10 @@ async function createUnmatchedLastRankMembers(
   gameServerNumber: number,
   match: LastRankMatchResult,
   ashed: LastRankAshedWriteContext | null,
-): Promise<{
-  match: LastRankMatchResult;
-  created: number;
-  ashedCreated: number;
-}> {
+): Promise<CreatedLastRankMembers> {
   let created = 0;
   let ashedCreated = 0;
+  const rankAshed = { synced: 0, failed: 0 };
   const matched = [...match.matched];
   const stillUnmatched: LastRankMatchResult["unmatched"] = [];
 
@@ -757,6 +823,7 @@ async function createUnmatchedLastRankMembers(
     });
     created += 1;
     if (result.ashedCreated) ashedCreated += 1;
+    countAshedRankOutcome(rankAshed, result.ashedRankSynced);
     matched.push({
       status: "matched",
       lastRank: row.lastRank,
@@ -773,6 +840,7 @@ async function createUnmatchedLastRankMembers(
   return {
     created,
     ashedCreated,
+    rankAshed,
     match: {
       matched,
       unmatched: stillUnmatched,
@@ -899,13 +967,25 @@ export async function syncLastRankAlliance(input: {
   onPlanChanged?: LastRankSyncPlanListener;
   /** Called once prompts finish, just before any queued writes run. */
   onDispatchStart?: LastRankSyncPlanListener;
+  /** Defaults to `apply`; remote runs pass false so only existing alliances sync. */
+  allowAllianceCreate?: boolean;
+  /** Refuse to run (before any write) unless the target resolves to this HQ alliance. */
+  expectedHqAllianceId?: string;
 }): Promise<LastRankAllianceSyncResult> {
   const { allianceId: hqAllianceId, created: allianceCreated } =
     await resolveHqAllianceForLastRankSync({
       target: input.target,
-      allowCreate: input.apply,
+      allowCreate: input.allowAllianceCreate ?? input.apply,
       alliancePrompt: input.alliancePrompt,
     });
+  if (
+    input.expectedHqAllianceId != null &&
+    input.expectedHqAllianceId !== hqAllianceId
+  ) {
+    throw new Error(
+      `${input.target.tag} on server ${input.target.gameServerNumber} no longer resolves to the planned HQ alliance — re-run the plan.`,
+    );
+  }
 
   let ashedCredentialSaved = false;
   const shouldSaveCredential =
@@ -931,7 +1011,7 @@ export async function syncLastRankAlliance(input: {
     : await loadLastRankAshedWriteContext(hqAllianceId);
   if (input.hqOnly) {
     console.error("Ashed dual-write forced off (--hq-only).");
-  } else if (input.apply && (input.createAllUnmatched || input.retireAllUnmatched)) {
+  } else if (input.apply) {
     if (ashed) {
       console.error(
         `Ashed dual-write enabled (alliance ${ashed.ashedAllianceId}).`,
@@ -1024,6 +1104,8 @@ export async function syncLastRankAlliance(input: {
       match = created.match;
       applyCounts.membersCreated += created.created;
       applyCounts.ashedMembersCreated += created.ashedCreated;
+      applyCounts.rankAshedSynced += created.rankAshed.synced;
+      applyCounts.rankAshedFailed += created.rankAshed.failed;
       if (ashed && created.created > created.ashedCreated) {
         applyCounts.ashedSkipped += created.created - created.ashedCreated;
       }
@@ -1039,6 +1121,8 @@ export async function syncLastRankAlliance(input: {
       match = created.match;
       applyCounts.membersCreated += created.created;
       applyCounts.ashedMembersCreated += created.ashedCreated;
+      applyCounts.rankAshedSynced += created.rankAshed.synced;
+      applyCounts.rankAshedFailed += created.rankAshed.failed;
       if (ashed && created.created > created.ashedCreated) {
         applyCounts.ashedSkipped += created.created - created.ashedCreated;
       }
@@ -1050,6 +1134,7 @@ export async function syncLastRankAlliance(input: {
       hqAllianceId,
       match.matched,
       partial,
+      ashed,
       (done, total) => {
         if (done % progressEvery === 0 || done === total) {
           console.error(`Updated ${done}/${total} matched members…`);
