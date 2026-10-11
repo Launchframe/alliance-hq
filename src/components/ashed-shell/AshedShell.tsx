@@ -27,7 +27,11 @@ import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
 import { ShellProfileMenu } from "@/components/ashed-shell/ShellProfileMenu";
 import { DevQuickSwitch } from "@/components/dev/DevQuickSwitch";
 import { findActiveNavGroupId } from "@/lib/nav/routes";
-import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
+import {
+  AllianceTokenExpiryBanner,
+  TokenExpiryBanner,
+} from "@/components/TokenExpiryNotice";
+import type { AllianceCredentialBanner } from "@/lib/ashed/alliance-credential-expiry.shared";
 import { ReleaseNoticeBanner } from "@/components/release-notes/ReleaseNoticeBanner";
 import { ReleaseNotesProvider } from "@/components/release-notes/ReleaseNotesProvider";
 import {
@@ -48,6 +52,7 @@ type Props = {
   canUseAshedEmbeds?: boolean;
   isAshedConnectAllowed?: boolean;
   ashed: AshedConnectionMeta | null;
+  allianceCredentialBanner?: AllianceCredentialBanner | null;
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
   showVideoQueue?: boolean;
@@ -81,6 +86,7 @@ export function AshedShell({
   canUseAshedEmbeds = true,
   isAshedConnectAllowed = true,
   ashed,
+  allianceCredentialBanner = null,
   showAdminPortal = false,
   showTeamAccess = false,
   showVideoQueue = false,
@@ -274,6 +280,9 @@ export function AshedShell({
             <ReleaseNoticeBanner />
             <ConnectAshedBanner show={showConnectNudge} />
             {ashed ? <TokenExpiryBanner ashed={ashed} /> : null}
+            {allianceCredentialBanner ? (
+              <AllianceTokenExpiryBanner banner={allianceCredentialBanner} />
+            ) : null}
             <VideoJobStatusBanners />
 
             <main

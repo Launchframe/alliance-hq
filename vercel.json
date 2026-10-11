@@ -69,6 +69,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/internal/alliance-ashed-credentials/expiry-notices",
+      "schedule": "15 15 * * *"
+    },
+    {
       "path": "/api/internal/lastrank/sync",
       "schedule": "30 8 * * *"
     },

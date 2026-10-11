@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
+import type { AllianceCredentialBanner } from "@/lib/ashed/alliance-credential-expiry.shared";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import {
   buildConnectHref,
@@ -60,6 +61,53 @@ export function TokenExpiryBanner({ ashed }: Props) {
             .
           </>
         )}
+      </p>
+    </div>
+  );
+}
+
+export function AllianceTokenExpiryBanner({
+  banner,
+}: {
+  banner: AllianceCredentialBanner;
+}) {
+  const t = useTranslations("tokenExpiry");
+  const pathname = usePathname();
+  const connectHref = buildConnectHref(pathname);
+  const date = () => <strong>{banner.expiresAtFormatted}</strong>;
+
+  return (
+    <div
+      role="status"
+      data-testid="alliance-token-expiry-banner"
+      className={`border-b px-6 py-3 text-sm ${
+        banner.expired
+          ? "border-hq-danger/40 bg-[#f8514915] text-hq-danger"
+          : "border-[#d29922]/40 bg-[#d2992215] text-hq-fg"
+      }`}
+    >
+      <p>
+        {banner.expired
+          ? t.rich("allianceExpiredBanner", { tag: banner.allianceTag, date })
+          : t.rich("allianceReminderBanner", { tag: banner.allianceTag, date })}
+      </p>
+      <p className="mt-1">
+        {t.rich("allianceNextSteps", {
+          reconnect: (chunks) => (
+            <Link
+              href={connectHref}
+              onClick={() => stashConnectReturnPath(pathname)}
+              className="text-hq-accent hover:underline"
+            >
+              {chunks}
+            </Link>
+          ),
+          team: (chunks) => (
+            <Link href="/settings/team" className="text-hq-accent hover:underline">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </div>
   );

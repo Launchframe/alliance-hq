@@ -3220,7 +3220,10 @@
     "reminderBanner": "Your Ashed token expires on {date}. Copy a fresh cURL command from ashed.online to stay connected.",
     "expiredBanner": "Your Ashed token expired on <date></date>.",
     "reconnectLink": "Reconnect with a fresh cURL command",
-    "updateLink": "Update connection"
+    "updateLink": "Update connection",
+    "allianceExpiredBanner": "{tag}'s Ashed alliance connection expired on <date></date>. VS score sync, roster updates, and Ashed checks are paused.",
+    "allianceReminderBanner": "{tag}'s Ashed alliance connection expires on <date></date>. VS score sync, roster updates, and Ashed checks will pause when it does.",
+    "allianceNextSteps": "<reconnect>Reconnect Ashed</reconnect> with a fresh cURL command. HQ refreshes the alliance connection automatically if you installed it or own the alliance on Ashed. Otherwise, ask your Ashed alliance owner to reinstall it in <team>Team settings</team>."
   },
   "members": {
     "title": "Members",

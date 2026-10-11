@@ -4,6 +4,7 @@ import { TimezoneProvider } from "@/components/timezone/TimezoneProvider";
 import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
 import { ShellActivityBoundary } from "@/components/ashed-shell/ShellActivityBoundary";
+import { loadAllianceCredentialBanner } from "@/lib/ashed/alliance-credential-expiry.server";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
 import {
   collectDatabaseErrorText,
@@ -85,6 +86,16 @@ export default async function AppLayout({
     state.permissions.includes("hq:video:read") ||
     (await sessionCanReadAllianceVideoQueue(state.sessionId));
   const showVideoJobsOps = await sessionCanProcessVideo(state.sessionId);
+  const allianceCredentialBanner = await loadAllianceCredentialBanner({
+    allianceId: state.currentAllianceId ?? state.allianceId ?? null,
+    hqUserId: state.hqUserId,
+    permissions: state.permissions,
+    locale,
+    timezoneId: state.timezone,
+  }).catch((error) => {
+    console.error("[app-layout] alliance credential banner failed:", error);
+    return null;
+  });
 
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
@@ -102,6 +113,7 @@ export default async function AppLayout({
         canUseAshedEmbeds={state.canUseAshedEmbeds}
         isAshedConnectAllowed={state.rbac?.isAshedConnectAllowed ?? false}
         ashed={state.ashed}
+        allianceCredentialBanner={allianceCredentialBanner}
         showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
         showVideoQueue={showVideoQueue}

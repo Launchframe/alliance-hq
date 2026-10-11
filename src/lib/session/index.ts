@@ -654,6 +654,7 @@ export async function getSessionStateFor(
 
   return {
     sessionId: session.id,
+    hqUserId: effectiveHqUserId ?? null,
     userLabel: session.userLabel,
     allianceId: session.allianceId,
     allianceTag: session.allianceTag,

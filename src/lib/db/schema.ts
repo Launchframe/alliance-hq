@@ -2836,6 +2836,9 @@ export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
   originUrl: text("origin_url").notNull(),
   encryptedToken: text("encrypted_token").notNull(),
   tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  /** Last expiry notice sent for this token: `upcoming` | `expired`. Cleared on upsert. */
+  expiryNoticeStage: text("expiry_notice_stage").$type<"upcoming" | "expired">(),
+  expiryNoticeSentAt: timestamp("expiry_notice_sent_at", { withTimezone: true }),
   registeredByDiscordUserId: text("registered_by_discord_user_id"),
   registeredByHqUserId: text("registered_by_hq_user_id").references(
     () => hqUsers.id,

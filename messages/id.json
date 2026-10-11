@@ -6716,6 +6716,9 @@
     }
   },
   "tokenExpiry": {
+    "allianceExpiredBanner": "Koneksi aliansi {tag} ke Ashed kedaluwarsa pada <date></date>. Sinkronisasi skor VS, pembaruan anggota, dan pemeriksaan Ashed dijeda.",
+    "allianceNextSteps": "<reconnect>Hubungkan ulang Ashed</reconnect> dengan perintah cURL baru. HQ memperbarui koneksi aliansi secara otomatis jika Anda yang memasangnya atau Anda pemilik aliansi di Ashed. Jika tidak, minta pemilik aliansi di Ashed untuk memasangnya ulang di <team>Pengaturan tim</team>.",
+    "allianceReminderBanner": "Koneksi aliansi {tag} ke Ashed kedaluwarsa pada <date></date>. Sinkronisasi skor VS, pembaruan anggota, dan pemeriksaan Ashed akan dijeda saat itu terjadi.",
     "connectedNotice": "Your Ashed token is set to expire on <date></date>. We'll remind you <days></days> before it's time to get a fresh token.",
     "expiredBanner": "Your Ashed token expired on <date></date>.",
     "logoutWarning": "Logging out of ashed.online could break your Alliance HQ connection, even if your token has not reached its expiration yet.",

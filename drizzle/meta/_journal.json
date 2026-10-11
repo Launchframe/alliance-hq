@@ -1380,6 +1380,13 @@
       "when": 1791900000213,
       "tag": "0213_notes_chat_video_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1791900000214,
+      "tag": "0214_alliance_ashed_credential_expiry_notices",
+      "breakpoints": true
     }
   ]
 }
