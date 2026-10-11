@@ -6,15 +6,20 @@ import {
   canInstallAshedBotCredentials,
   filterAccessibleAlliances,
 } from "@/lib/alliance/accessible";
-import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
+import {
+  requireActiveShareCapability,
+  resolveAshedConnectionForAlliance,
+} from "@/lib/ashed/credential-share.server";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
+import type { ParsedConnection } from "@/lib/connectionString";
 import { encryptSecret, decryptSecret } from "@/lib/crypto/encrypt";
 import { getDb, schema } from "@/lib/db";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 import {
+  getAshedConnection,
   getAshedCredentialRecord,
   loadSession,
   resolveEffectiveHqUserIdForSession,
@@ -44,22 +49,40 @@ export async function upsertAllianceAshedCredentialsFromSession(input: {
     hqUserId,
   );
 
-  const connection = ownsCredential
-    ? await (async () => {
-        const record = await getAshedCredentialRecord(input.sessionId);
-        if (!record?.encryptedToken) return null;
-        return {
-          appId: record.appId,
-          originUrl: record.originUrl,
-          token: decryptSecret(record.encryptedToken),
-        };
-      })()
-    : await loadAshedConnectionForAllianceCapability({
+  // Sticky #749 registrant must never be a credential-share *delegate*.
+  // Delegates install with a shared owner JWT (Ashed role=owner), so stamping
+  // the delegate lets them later overwrite the bot JWT via isSameRegistrant
+  // using their own collaborator connection.
+  let connection: ParsedConnection | null = null;
+  let registeredByHqUserId = hqUserId;
+
+  if (ownsCredential) {
+    const record = await getAshedCredentialRecord(input.sessionId);
+    if (record?.encryptedToken) {
+      connection = {
+        appId: record.appId,
+        originUrl: record.originUrl,
+        token: decryptSecret(record.encryptedToken),
+      };
+    }
+  } else {
+    const resolved = await resolveAshedConnectionForAlliance(
+      input.sessionId,
+      input.allianceId,
+    );
+    if (resolved?.isDelegated) {
+      const delegated = await requireActiveShareCapability({
         sessionId: input.sessionId,
         allianceId: input.allianceId,
         capability: "alliance_credentials:manage",
         delegatedAction: "alliance_credentials.upsert",
       });
+      connection = delegated.connection;
+      registeredByHqUserId = delegated.ownerHqUserId;
+    } else {
+      connection = await getAshedConnection(input.sessionId);
+    }
+  }
 
   if (!connection) {
     return {
@@ -152,7 +175,8 @@ export async function upsertAllianceAshedCredentialsFromSession(input: {
     encryptedToken: encryptSecret(connection.token),
     tokenExpiresAt,
     // Omit Discord registrant so web refresh cannot clear /link-alliance binding.
-    registeredByHqUserId: hqUserId,
+    // For delegated installs this is the share *owner*, never the delegate.
+    registeredByHqUserId,
   });
 
   return { ok: true };
