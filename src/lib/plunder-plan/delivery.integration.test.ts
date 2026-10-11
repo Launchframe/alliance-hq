@@ -68,6 +68,52 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Plunder Plan delivery
     const [row] = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
     expect(row.status).toBe("cancelled"); expect(transport.send).not.toHaveBeenCalled();
   });
+  it("revives a cancelled reminder tombstone after time off clears", async () => {
+    const f = await fixture();
+    await materializePlunderDeliveries(f.allianceId);
+    const absenceId = randomUUID();
+    await f.sql`INSERT INTO member_time_off (id, alliance_id, ashed_member_id, member_name, start_date, end_date, source, global_absence) VALUES (${absenceId}, ${f.allianceId}, ${f.memberId}, 'Friend', ${planClock(f.start, "Etc/GMT+2").date}, ${planClock(f.start, "Etc/GMT+2").date}, 'web', true)`;
+    await deliverPlunderPlans(20, f.allianceId);
+    const [cancelled] = await f.sql`SELECT id, status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(cancelled.status).toBe("cancelled");
+    expect(transport.send).not.toHaveBeenCalled();
+    await f.sql`UPDATE member_time_off SET cancelled_at = now() WHERE id = ${absenceId}`;
+    await materializePlunderDeliveries(f.allianceId);
+    const [revived] = await f.sql`SELECT id, status, attempts FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(revived.id).toBe(cancelled.id);
+    expect(revived.status).toBe("pending");
+    expect(revived.attempts).toBe(0);
+    await deliverPlunderPlans(20, f.allianceId);
+    const [sent] = await f.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(sent.status).toBe("sent");
+    expect(transport.send.mock.calls.filter(([input]) => input.target.discordUserId === f.discordUserId)).toHaveLength(1);
+  });
+  it("does not revive sent or uncertain delivery blockers on rematerialize", async () => {
+    const f = await fixture();
+    await materializePlunderDeliveries(f.allianceId);
+    await deliverPlunderPlans(20, f.allianceId);
+    const [sent] = await f.sql`SELECT id, status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(sent.status).toBe("sent");
+    await materializePlunderDeliveries(f.allianceId);
+    await deliverPlunderPlans(20, f.allianceId);
+    const afterSent = await f.sql`SELECT id, status FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(afterSent).toHaveLength(1);
+    expect(afterSent[0].id).toBe(sent.id);
+    expect(afterSent[0].status).toBe("sent");
+    expect(transport.send.mock.calls.filter(([input]) => input.target.discordUserId === f.discordUserId)).toHaveLength(1);
+
+    const uncertain = await fixture();
+    await materializePlunderDeliveries(uncertain.allianceId);
+    transport.send.mockImplementation(async (input) => { await input.authorize(snowflake()); return { status: "uncertain" }; });
+    await deliverPlunderPlans(20, uncertain.allianceId);
+    transport.send.mockClear();
+    transport.send.mockImplementation(async (input) => await input.authorize(snowflake()) ? { status: "sent", messageId: snowflake() } : { status: "cancelled" });
+    await materializePlunderDeliveries(uncertain.allianceId);
+    await deliverPlunderPlans(20, uncertain.allianceId);
+    const [stillUncertain] = await uncertain.sql`SELECT status FROM plunder_plan_deliveries WHERE alliance_id = ${uncertain.allianceId}`;
+    expect(stillUncertain.status).toBe("uncertain");
+    expect(transport.send).not.toHaveBeenCalled();
+  });
   it("expires queued reminders rather than sending late", async () => {
     const f = await fixture(); await materializePlunderDeliveries(f.allianceId);
     await f.sql`UPDATE plunder_plan_deliveries SET expires_at = now() - interval '1 second' WHERE alliance_id = ${f.allianceId}`;
