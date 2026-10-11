@@ -139,7 +139,7 @@ async function loadSide(
   };
 }
 
-function mergedCommanderFields(
+export function mergedCommanderFields(
   kept: typeof schema.commanders.$inferSelect,
   dup: typeof schema.commanders.$inferSelect,
   newName: string,
@@ -225,18 +225,17 @@ function mergedCommanderFields(
   return next;
 }
 
-/** Moves history from the duplicate onto the kept member; the kept side wins clashes. */
-async function moveHistory(
+/**
+ * Moves commander-keyed history from the duplicate commander onto the kept
+ * commander; the kept side wins clashes. `allianceId` scopes War Leader teams.
+ */
+export async function moveCommanderKeyedHistory(
   tx: Tx,
-  input: {
-    allianceId: string;
-    kept: LoadedSide & { commanderId: string };
-    dup: LoadedSide & { commanderId: string };
-  },
+  input: { allianceId: string; keptCommanderId: string; dupCommanderId: string },
 ): Promise<number> {
-  const { allianceId, kept, dup } = input;
-  const K = kept.commanderId;
-  const D = dup.commanderId;
+  const { allianceId } = input;
+  const K = input.keptCommanderId;
+  const D = input.dupCommanderId;
   let moved = 0;
   const count = (rows: unknown[]) => {
     moved += rows.length;
@@ -353,10 +352,6 @@ async function moveHistory(
     .update(schema.bankDepositSlips)
     .set({ commanderId: K })
     .where(eq(schema.bankDepositSlips.commanderId, D));
-  await tx
-    .update(schema.bankDepositSlips)
-    .set({ allianceMemberId: kept.rosterRowId })
-    .where(eq(schema.bankDepositSlips.allianceMemberId, dup.rosterRowId));
 
   // War Leader / Engineer pairing.
   const [keptTeam] = await tx
@@ -433,6 +428,33 @@ async function moveHistory(
     .update(schema.wlTeamEvents)
     .set({ subjectCommanderId: K })
     .where(eq(schema.wlTeamEvents.subjectCommanderId, D));
+
+  return moved;
+}
+
+/** Moves history from the duplicate onto the kept member; the kept side wins clashes. */
+async function moveHistory(
+  tx: Tx,
+  input: {
+    allianceId: string;
+    kept: LoadedSide & { commanderId: string };
+    dup: LoadedSide & { commanderId: string };
+  },
+): Promise<number> {
+  const { allianceId, kept, dup } = input;
+  let moved = await moveCommanderKeyedHistory(tx, {
+    allianceId,
+    keptCommanderId: kept.commanderId,
+    dupCommanderId: dup.commanderId,
+  });
+  const count = (rows: unknown[]) => {
+    moved += rows.length;
+  };
+
+  await tx
+    .update(schema.bankDepositSlips)
+    .set({ allianceMemberId: kept.rosterRowId })
+    .where(eq(schema.bankDepositSlips.allianceMemberId, dup.rosterRowId));
 
   // Roster-member-keyed history within this alliance.
   const dupMember = and(
