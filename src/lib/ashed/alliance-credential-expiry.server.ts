@@ -2,7 +2,13 @@ import "server-only";
 
 import { and, eq, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { createTranslator } from "next-intl";
 
+import enUS from "../../../messages/en-US.json";
+import idMessages from "../../../messages/id.json";
+import ptBR from "../../../messages/pt-BR.json";
+
+import type { AppLocale } from "@/i18n/routing";
 import type { AllianceAccessRole } from "@/lib/alliance/types";
 import { resolveAppOrigin } from "@/lib/app-origin";
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -10,6 +16,10 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import { getDb, schema } from "@/lib/db";
 import { decodeJwtPayload } from "@/lib/jwt/decode";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
+import {
+  formatNotificationDate,
+  resolveRecipientLocales,
+} from "@/lib/notifications/locale.server";
 import {
   claimOpsAlertFingerprint,
   emailPlatformMaintainers,
@@ -46,11 +56,11 @@ function hasConnectedAshedSql(hqUserIdColumn: unknown) {
 }
 
 /** Officers who can act on an alliance Ashed token: officer permissions + connected Ashed before. */
-export async function listAllianceCredentialOfficerEmails(
+export async function listAllianceCredentialOfficers(
   allianceId: string,
-): Promise<string[]> {
+): Promise<Array<{ email: string; hqUserId: string }>> {
   const rows = await getDb()
-    .selectDistinct({ email: schema.hqUsers.email })
+    .selectDistinct({ email: schema.hqUsers.email, hqUserId: schema.hqUsers.id })
     .from(schema.allianceMemberships)
     .innerJoin(schema.hqUsers, eq(schema.hqUsers.id, schema.allianceMemberships.hqUserId))
     .where(
@@ -67,7 +77,9 @@ export async function listAllianceCredentialOfficerEmails(
         hasConnectedAshedSql(schema.hqUsers.id),
       ),
     );
-  return rows.map((row) => row.email.trim()).filter(Boolean);
+  return rows
+    .map((row) => ({ email: row.email.trim(), hqUserId: row.hqUserId }))
+    .filter((row) => row.email);
 }
 
 async function hqUserHasConnectedAshed(hqUserId: string): Promise<boolean> {
@@ -277,36 +289,51 @@ export type AllianceCredentialNoticeContext = {
   officerCount: number;
 };
 
-function formatUtcDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(date);
+const OFFICER_EMAIL_MESSAGES: Record<AppLocale, typeof enUS.allianceCredentialEmail> = {
+  "en-US": enUS.allianceCredentialEmail,
+  "pt-BR": ptBR.allianceCredentialEmail,
+  id: idMessages.allianceCredentialEmail,
+};
+
+const URL_SLOT = "__HQ_EMAIL_URL__";
+
+function linkifiedStepHtml(step: string, url: string): string {
+  const [before = "", after = ""] = step.split(URL_SLOT);
+  return `${escapeHtml(before)}<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>${escapeHtml(after)}`;
 }
 
 export function buildOfficerAllianceCredentialEmail(
   ctx: AllianceCredentialNoticeContext,
+  locale: AppLocale = "en-US",
 ): { subject: string; text: string; html: string } {
-  const date = formatUtcDate(ctx.expiresAt);
+  const t = createTranslator({
+    locale,
+    messages: { email: OFFICER_EMAIL_MESSAGES[locale] ?? OFFICER_EMAIL_MESSAGES["en-US"] },
+    namespace: "email",
+  });
+  const date = formatNotificationDate(ctx.expiresAt, locale);
+  const tag = ctx.allianceTag;
   const connectUrl = `${resolveAppOrigin()}/connect`;
   const teamUrl = `${resolveAppOrigin()}/settings/team`;
   const expired = ctx.stage === "expired";
-  const subject = expired
-    ? `${ctx.allianceTag}: Ashed alliance connection expired`
-    : `${ctx.allianceTag}: Ashed alliance connection expires ${date}`;
-  const lead = expired
-    ? `${ctx.allianceTag}'s Ashed alliance connection expired on ${date}. VS score sync, roster updates, and Ashed checks in Alliance HQ are paused until it is refreshed.`
-    : `${ctx.allianceTag}'s Ashed alliance connection expires on ${date}. When it expires, VS score sync, roster updates, and Ashed checks in Alliance HQ will pause.`;
+  const subject = expired ? t("subjectExpired", { tag }) : t("subjectUpcoming", { tag, date });
+  const lead = expired ? t("leadExpired", { tag, date }) : t("leadUpcoming", { tag, date });
+  const heading = t("stepsHeading");
+  const signature = t("signature");
   const steps = [
-    `Reconnect Ashed with a fresh cURL command: ${connectUrl}. If you installed the alliance connection or own the alliance on Ashed, HQ refreshes it automatically.`,
-    `Otherwise, ask your Ashed alliance owner to reinstall bot credentials in Team settings: ${teamUrl}`,
+    { url: connectUrl, template: t("stepReconnect", { url: URL_SLOT }) },
+    { url: teamUrl, template: t("stepOwner", { url: URL_SLOT }) },
   ];
-  const text = `${lead}\n\nTo fix it:\n- ${steps.join("\n- ")}\n\n— Alliance HQ`;
+  const text = `${lead}\n\n${heading}\n- ${steps
+    .map((step) => step.template.split(URL_SLOT).join(step.url))
+    .join("\n- ")}\n\n${signature}`;
   const html = `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;">
 <p>${escapeHtml(lead)}</p>
-<p style="margin:16px 0 8px;font-weight:600;">To fix it:</p>
+<p style="margin:16px 0 8px;font-weight:600;">${escapeHtml(heading)}</p>
 <ul>
-<li><a href="${escapeHtml(connectUrl)}">Reconnect Ashed</a> with a fresh cURL command. If you installed the alliance connection or own the alliance on Ashed, HQ refreshes it automatically.</li>
-<li>Otherwise, ask your Ashed alliance owner to reinstall bot credentials in <a href="${escapeHtml(teamUrl)}">Team settings</a>.</li>
+${steps.map((step) => `<li>${linkifiedStepHtml(step.template, step.url)}</li>`).join("\n")}
 </ul>
-<p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">— Alliance HQ</p>
+<p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">${escapeHtml(signature)}</p>
 </div>`;
   return { subject, text, html };
 }
@@ -314,7 +341,7 @@ export function buildOfficerAllianceCredentialEmail(
 export function buildMaintainerAllianceCredentialEmail(
   ctx: AllianceCredentialNoticeContext,
 ): { subject: string; text: string; html: string } {
-  const date = formatUtcDate(ctx.expiresAt);
+  const date = formatNotificationDate(ctx.expiresAt, "en-US");
   const label = ctx.allianceName ? `${ctx.allianceTag} (${ctx.allianceName})` : ctx.allianceTag;
   const verb = ctx.stage === "expired" ? "expired on" : "expires on";
   const subject = `[Alliance HQ] ${ctx.allianceTag} alliance Ashed token ${verb} ${date}`;
@@ -385,7 +412,8 @@ export async function runAllianceCredentialExpiryNoticePass(now = new Date()): P
       .returning({ allianceId: schema.allianceAshedCredentials.allianceId });
     if (!claimed) continue;
 
-    const officers = await listAllianceCredentialOfficerEmails(row.allianceId);
+    const officers = await listAllianceCredentialOfficers(row.allianceId);
+    const officerLocales = await resolveRecipientLocales(officers.map((o) => o.hqUserId));
     const ctx: AllianceCredentialNoticeContext = {
       allianceId: row.allianceId,
       allianceTag: row.tag?.trim() || row.allianceId,
@@ -397,13 +425,13 @@ export async function runAllianceCredentialExpiryNoticePass(now = new Date()): P
 
     // Per-recipient fingerprints let a retry re-send only to recipients that failed.
     const fingerprint = `alliance-ashed-token:${row.allianceId}:${due}:${expiresAt.toISOString()}`;
-    const officerEmail = buildOfficerAllianceCredentialEmail(ctx);
     let delivered = true;
-    for (const to of officers) {
+    for (const { email: to, hqUserId } of officers) {
       const officerFingerprint = `${fingerprint}:officer:${to.toLowerCase()}`;
       if (!(await claimOpsAlertFingerprint(officerFingerprint))) continue;
       try {
-        await sendOfficerEmail({ to, ...officerEmail });
+        const locale = officerLocales.get(hqUserId) ?? "en-US";
+        await sendOfficerEmail({ to, ...buildOfficerAllianceCredentialEmail(ctx, locale) });
       } catch (error) {
         delivered = false;
         await releaseOpsAlertFingerprint(officerFingerprint);

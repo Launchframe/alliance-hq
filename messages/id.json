@@ -7,6 +7,8 @@
     "appearanceLight": "Light",
     "appearanceSection": "Appearance",
     "appearanceSystem": "Match system",
+    "communicationsBody": "Pilih bahasa yang digunakan Alliance HQ untuk email dan notifikasi yang dikirim kepada Anda. Mengubah pemilih bahasa di header juga memperbarui pengaturan ini.",
+    "communicationsSection": "Preferensi komunikasi",
     "connectAshedCta": "Connect Ashed",
     "disconnectBody": "Clears your stored connection key from our server. Your HQ sign-in stays active — you can reconnect Ashed anytime.",
     "disconnectButton": "Disconnect Ashed",
@@ -37,6 +39,10 @@
       "unlinkFailed": "Could not unlink this Commander.",
       "unlinking": "Unlinking…"
     },
+    "notificationLanguageAutomatic": "Otomatis ({language})",
+    "notificationLanguageHintDefault": "Default ke bahasa Inggris sampai Anda memilih bahasa.",
+    "notificationLanguageHintLastRank": "Berdasarkan negara LastRank Anda.",
+    "notificationLanguageLabel": "Bahasa notifikasi",
     "offerSaveNewMembers": "Offer to save new members seen on scoreboards",
     "offerUpdateMemberNames": "Offer to update member names seen on scoreboards",
     "reconnectAshedCta": "Reconnect Ashed",
@@ -1342,6 +1348,16 @@
     "subtitle": "Review member-submitted translation corrections.",
     "suggested": "Suggested translation",
     "title": "Laporan terjemahan"
+  },
+  "allianceCredentialEmail": {
+    "leadExpired": "Koneksi aliansi {tag} ke Ashed kedaluwarsa pada {date}. Sinkronisasi skor VS, pembaruan anggota, dan pemeriksaan Ashed di Alliance HQ dijeda sampai koneksi diperbarui.",
+    "leadUpcoming": "Koneksi aliansi {tag} ke Ashed kedaluwarsa pada {date}. Saat kedaluwarsa, sinkronisasi skor VS, pembaruan anggota, dan pemeriksaan Ashed di Alliance HQ akan dijeda.",
+    "signature": "— Alliance HQ",
+    "stepOwner": "Jika tidak, minta pemilik aliansi di Ashed untuk memasang ulang kredensial bot di Pengaturan tim: {url}",
+    "stepReconnect": "Hubungkan ulang Ashed dengan perintah cURL baru: {url}. Jika Anda yang memasang koneksi aliansi atau Anda pemilik aliansi di Ashed, HQ memperbaruinya secara otomatis.",
+    "stepsHeading": "Cara memperbaikinya:",
+    "subjectExpired": "{tag}: koneksi aliansi ke Ashed kedaluwarsa",
+    "subjectUpcoming": "{tag}: koneksi aliansi ke Ashed kedaluwarsa pada {date}"
   },
   "alliancePicker": {
     "activeBadge": "Aktif",
@@ -4997,6 +5013,156 @@
       "saved": "Note saved.",
       "search": "Search your notes…",
       "sort": "Sort notes"
+    }
+  },
+  "notificationMessages": {
+    "authCode": {
+      "expiry": "Kode ini kedaluwarsa dalam 10 menit. Jika Anda tidak memintanya, abaikan email ini.",
+      "verify": {
+        "subject": "{code} adalah kode verifikasi Alliance HQ Anda",
+        "heading": "Verifikasi email Anda",
+        "body": "Masukkan kode ini di Alliance HQ untuk memverifikasi email Anda dan menyelesaikan pembuatan akun.",
+        "text": "Kode verifikasi Alliance HQ Anda adalah {code}. Kode ini kedaluwarsa dalam 10 menit."
+      },
+      "merge": {
+        "subject": "{code} adalah kode penggabungan akun Alliance HQ Anda",
+        "heading": "Konfirmasi penggabungan akun",
+        "body": "Seseorang meminta untuk memindahkan akses aliansi dari akun ini ke login Alliance HQ lain. Masukkan kode ini hanya jika Anda yang memulai penggabungan tersebut.",
+        "text": "Kode penggabungan akun Alliance HQ Anda adalah {code}. Kode ini kedaluwarsa dalam 10 menit."
+      },
+      "emailChange": {
+        "subject": "{code} adalah kode perubahan email Alliance HQ Anda",
+        "heading": "Konfirmasi email baru Anda",
+        "body": "Masukkan kode ini di Alliance HQ untuk memperbarui email di akun Anda.",
+        "text": "Kode perubahan email Alliance HQ Anda adalah {code}. Kode ini kedaluwarsa dalam 10 menit."
+      }
+    },
+    "magicLink": {
+      "subject": "Masuk ke {host}",
+      "heading": "Masuk ke {host}",
+      "button": "Masuk",
+      "ignore": "Jika Anda tidak meminta email ini, Anda dapat mengabaikannya."
+    },
+    "professions": {
+      "engAssigned": {
+        "subject": "Anda telah ditugaskan ke tim War Leader",
+        "body": "Anda telah ditugaskan ke tim pendukung War Leader! Kunjungi {url} untuk mengatur jendela cakupan Anda."
+      },
+      "engJoined": {
+        "subject": "Engineer baru bergabung dengan tim Anda",
+        "body": "Engineer baru telah bergabung dengan tim pendukung Anda. Kunjungi {url} untuk melihat tim Anda."
+      },
+      "engDismissed": {
+        "subject": "Anda telah dikeluarkan dari tim War Leader",
+        "body": "Anda telah dikeluarkan dari tim pendukung War Leader. Kunjungi {url} untuk mencari War Leader baru.",
+        "bodyWithReason": "Anda telah dikeluarkan dari tim pendukung War Leader. Alasan: {reason} Kunjungi {url} untuk mencari War Leader baru."
+      },
+      "engLeft": {
+        "body": "Seorang Engineer telah meninggalkan tim pendukung Anda. Kunjungi {url} untuk melihat tim Anda saat ini."
+      },
+      "professionSwitched": {
+        "subject": "Profesi Anda telah diperbarui",
+        "body": "Profesi Anda telah diperbarui: {from} → {to}. Kunjungi {url} untuk memulai."
+      },
+      "profession": {
+        "engineer": "Engineer",
+        "warLeader": "War Leader"
+      }
+    },
+    "rosterLink": {
+      "owner": {
+        "subject": "Setujui tautan roster untuk {name} ({tag})",
+        "server": "server {number}",
+        "serverUnknown": "server tidak diketahui",
+        "intro": "Seorang pemain menerima undangan HQ Anda tetapi belum ada di roster {tag}. Last War menampilkan komandannya sebagai {name} di {server}. Mereka mengirimkan nama \"{reportedName}\".",
+        "reviewNote": "Seorang perwira harus masuk ke Alliance HQ, mencocokkan pemain ini dengan anggota roster yang benar, dan menyetujui tautannya di sana. Tombol Tinjau membuka halaman tersebut.",
+        "reminderNote": "Ini adalah pengingat — jika Anda menolak lewat email, gunakan hanya tautan Tolak di pesan ini. Tautan Tolak sebelumnya tidak berfungsi lagi saat kami mengirim ulang.",
+        "rotationNote": "Jika kami mengirim email lain tentang permintaan ini, gunakan hanya tautan Tolak terbaru — tautan Tolak sebelumnya tidak berfungsi lagi saat kami mengirim ulang.",
+        "heading": "Persetujuan tautan roster",
+        "review": "Tinjau di Alliance HQ",
+        "decline": "Tolak",
+        "unrecognized": "Jika Anda tidak mengenali pemain ini, tolak permintaannya."
+      },
+      "accepted": {
+        "subject": "Tautan roster disetujui — selesaikan penautan ({tag})",
+        "text": "Seorang perwira menyetujui tautan roster Anda untuk {tag}. Kembali ke Alliance HQ untuk menyelesaikan: {url}",
+        "heading": "Anda disetujui",
+        "body": "Seorang perwira menyetujui tautan roster Anda untuk {tag}. Kembali ke Alliance HQ untuk menyelesaikan penautan karakter Anda.",
+        "continue": "Lanjutkan di Alliance HQ"
+      },
+      "rejected": {
+        "subject": "Tautan roster tidak disetujui ({tag})",
+        "heading": "Permintaan ditolak",
+        "body": "Permintaan tautan roster Anda untuk {tag} ditolak. Jika menurut Anda ini keliru, hubungi R5 atau perwira Anda secara langsung."
+      }
+    },
+    "credentialShare": {
+      "fallbackAlliance": "aliansi Anda",
+      "fallbackOwner": "Seorang perwira aliansi",
+      "fallbackDelegate": "Seorang perwira",
+      "invite": {
+        "subject": "Undangan akses kredensial ({tag})",
+        "heading": "Undangan akses kredensial",
+        "body": "{owner} mengundang Anda untuk menggunakan kredensial Ashed miliknya di {tag}.",
+        "capabilities": "Kemampuan: {capabilities}",
+        "expires": "Akses berakhir: {expiresAt}",
+        "acceptText": "Terima di Alliance HQ: {url}",
+        "ignore": "Jika Anda tidak mengharapkan undangan ini, Anda dapat mengabaikan email ini.",
+        "review": "Tinjau undangan"
+      },
+      "accepted": {
+        "subject": "Akses kredensial diterima ({tag})",
+        "heading": "Akses kredensial diterima",
+        "body": "{delegate} menerima berbagi kredensial Anda di {tag}.",
+        "text": "{delegate} menerima berbagi kredensial Anda di {tag}. Anda dapat mencabut akses kapan saja dari Pengaturan tim: {url}"
+      },
+      "rejected": {
+        "subject": "Akses kredensial ditolak ({tag})",
+        "heading": "Akses kredensial ditolak",
+        "body": "{delegate} menolak undangan berbagi kredensial Anda di {tag}."
+      },
+      "revoked": {
+        "subject": "Akses kredensial dicabut ({tag})",
+        "heading": "Akses kredensial dicabut",
+        "body": "{owner} mencabut akses kredensial Ashed yang didelegasikan kepada Anda di {tag}."
+      },
+      "ended": {
+        "subject": "Akses kredensial berakhir ({tag})",
+        "heading": "Akses kredensial berakhir",
+        "ownerBody": "Akses kredensial yang didelegasikan di {tag} berakhir karena {reason}.",
+        "delegateBody": "Akses kredensial yang didelegasikan kepada Anda di {tag} berakhir karena {reason}.",
+        "historyText": "Lihat riwayat: {url}",
+        "reason": {
+          "ownerTokenExpired": "token Ashed milik pemilik telah kedaluwarsa",
+          "membershipEnded": "seorang perwira keluar dari aliansi",
+          "periodEnded": "periode akses telah berakhir"
+        }
+      },
+      "digest": {
+        "subject": "Aktivitas berbagi kredensial — {day} ({tag})",
+        "heading": "Ringkasan harian berbagi kredensial",
+        "body": "Kemarin ada {count} peristiwa berbagi kredensial yang tercatat atas akun Anda di {tag}.",
+        "text": "Kemarin ada {count} peristiwa berbagi kredensial yang tercatat atas akun Anda di {tag}. Tinjau riwayat: {url}",
+        "viewHistory": "Lihat riwayat"
+      }
+    },
+    "bankDrop": {
+      "subject": "Bank Jatuh: Lv{level} ({x}, {y}) — {duration}",
+      "textHeading": "Bank Jatuh — Lv{level} di ({x}, {y})",
+      "htmlHeading": "Bank Jatuh",
+      "location": "Level {level} di ({x}, {y})",
+      "durationOpen": "Lama dibuka",
+      "depositsProcessed": "Deposit diproses",
+      "depositsValue": "{count} dengan total {amount} CG",
+      "interestEarned": "Bunga diperoleh",
+      "interestValue": "{amount} CG ({roi}% ROI)",
+      "looted": "Crystal gold dijarah",
+      "amountCG": "{amount} CG",
+      "slippage": "Slippage",
+      "percent": "{value}%",
+      "stillDeposited": "Masih terdeposit saat jatuh",
+      "lockedValue": "{count} deposit ({amount} CG)",
+      "signature": "— Alliance HQ"
     }
   },
   "officerIntel": {

@@ -448,6 +448,166 @@
     "weekdayAt": "{weekday} às {time}",
     "lastWeekday": "{weekday} da semana passada"
   },
+  "allianceCredentialEmail": {
+    "subjectExpired": "{tag}: a conexão da aliança com o Ashed expirou",
+    "subjectUpcoming": "{tag}: a conexão da aliança com o Ashed expira em {date}",
+    "leadExpired": "A conexão da aliança {tag} com o Ashed expirou em {date}. A sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed no Alliance HQ estão pausadas até que ela seja renovada.",
+    "leadUpcoming": "A conexão da aliança {tag} com o Ashed expira em {date}. Quando expirar, a sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed no Alliance HQ serão pausadas.",
+    "stepsHeading": "Como resolver:",
+    "stepReconnect": "Reconecte o Ashed com um novo comando cURL: {url}. Se foi você quem instalou a conexão da aliança ou se você é dono da aliança no Ashed, o HQ a renova automaticamente.",
+    "stepOwner": "Caso contrário, peça ao dono da aliança no Ashed para reinstalar as credenciais do bot em Configurações da equipe: {url}",
+    "signature": "— Alliance HQ"
+  },
+  "notificationMessages": {
+    "authCode": {
+      "expiry": "Este código expira em 10 minutos. Se você não o solicitou, pode ignorar este e-mail.",
+      "verify": {
+        "subject": "{code} é seu código de verificação do Alliance HQ",
+        "heading": "Verifique seu e-mail",
+        "body": "Digite este código no Alliance HQ para verificar seu e-mail e concluir a criação da sua conta.",
+        "text": "Seu código de verificação do Alliance HQ é {code}. Ele expira em 10 minutos."
+      },
+      "merge": {
+        "subject": "{code} é seu código de mesclagem de conta do Alliance HQ",
+        "heading": "Confirme a mesclagem de contas",
+        "body": "Alguém pediu para mover o acesso à aliança desta conta para outro login do Alliance HQ. Digite este código somente se foi você quem iniciou essa mesclagem.",
+        "text": "Seu código de mesclagem de conta do Alliance HQ é {code}. Ele expira em 10 minutos."
+      },
+      "emailChange": {
+        "subject": "{code} é seu código de alteração de e-mail do Alliance HQ",
+        "heading": "Confirme seu novo e-mail",
+        "body": "Digite este código no Alliance HQ para atualizar o e-mail da sua conta.",
+        "text": "Seu código de alteração de e-mail do Alliance HQ é {code}. Ele expira em 10 minutos."
+      }
+    },
+    "magicLink": {
+      "subject": "Entrar em {host}",
+      "heading": "Entrar em {host}",
+      "button": "Entrar",
+      "ignore": "Se você não solicitou este e-mail, pode ignorá-lo com segurança."
+    },
+    "professions": {
+      "engAssigned": {
+        "subject": "Você foi designado para a equipe de um Líder de Guerra",
+        "body": "Você foi designado para a equipe de apoio de um Líder de Guerra! Acesse {url} para definir sua janela de cobertura."
+      },
+      "engJoined": {
+        "subject": "Um novo Engenheiro entrou na sua equipe",
+        "body": "Um novo Engenheiro entrou na sua equipe de apoio. Acesse {url} para ver sua equipe."
+      },
+      "engDismissed": {
+        "subject": "Você foi removido da equipe de um Líder de Guerra",
+        "body": "Você foi removido da equipe de apoio de um Líder de Guerra. Acesse {url} para encontrar um novo Líder de Guerra.",
+        "bodyWithReason": "Você foi removido da equipe de apoio de um Líder de Guerra. Motivo: {reason} Acesse {url} para encontrar um novo Líder de Guerra."
+      },
+      "engLeft": {
+        "body": "Um Engenheiro saiu da sua equipe de apoio. Acesse {url} para ver sua equipe atual."
+      },
+      "professionSwitched": {
+        "subject": "Sua profissão foi atualizada",
+        "body": "Sua profissão foi atualizada: {from} → {to}. Acesse {url} para começar."
+      },
+      "profession": {
+        "engineer": "Engenheiro",
+        "warLeader": "Líder de Guerra"
+      }
+    },
+    "rosterLink": {
+      "owner": {
+        "subject": "Aprove o vínculo ao roster de {name} ({tag})",
+        "server": "servidor {number}",
+        "serverUnknown": "servidor desconhecido",
+        "intro": "Um jogador aceitou seu convite do HQ, mas ainda não está no roster de {tag}. O Last War mostra o comandante dele como {name} no {server}. Ele informou o nome \"{reportedName}\".",
+        "reviewNote": "Um oficial precisa entrar no Alliance HQ, associar este jogador ao membro correto do roster e aprovar o vínculo por lá. O botão Revisar abre essa página.",
+        "reminderNote": "Este é um lembrete — se for recusar por e-mail, use apenas o link Recusar desta mensagem. Links Recusar anteriores param de funcionar quando reenviamos.",
+        "rotationNote": "Se enviarmos outro e-mail sobre este pedido, use apenas o link Recusar mais recente — links Recusar anteriores param de funcionar quando reenviamos.",
+        "heading": "Aprovação de vínculo ao roster",
+        "review": "Revisar no Alliance HQ",
+        "decline": "Recusar",
+        "unrecognized": "Se você não reconhece este jogador, recuse o pedido."
+      },
+      "accepted": {
+        "subject": "Vínculo ao roster aprovado — conclua a vinculação ({tag})",
+        "text": "Um oficial aprovou seu vínculo ao roster de {tag}. Volte ao Alliance HQ para concluir: {url}",
+        "heading": "Você foi aprovado",
+        "body": "Um oficial aprovou seu vínculo ao roster de {tag}. Volte ao Alliance HQ para concluir a vinculação do seu personagem.",
+        "continue": "Continuar no Alliance HQ"
+      },
+      "rejected": {
+        "subject": "Vínculo ao roster não aprovado ({tag})",
+        "heading": "Pedido recusado",
+        "body": "Seu pedido de vínculo ao roster de {tag} foi recusado. Se acha que foi um engano, fale diretamente com seu R5 ou com um oficial."
+      }
+    },
+    "credentialShare": {
+      "fallbackAlliance": "sua aliança",
+      "fallbackOwner": "Um oficial da aliança",
+      "fallbackDelegate": "Um oficial",
+      "invite": {
+        "subject": "Convite de acesso às credenciais ({tag})",
+        "heading": "Convite de acesso às credenciais",
+        "body": "{owner} convidou você para usar as credenciais do Ashed dele em {tag}.",
+        "capabilities": "Permissões: {capabilities}",
+        "expires": "O acesso expira em: {expiresAt}",
+        "acceptText": "Aceite no Alliance HQ: {url}",
+        "ignore": "Se você não esperava este convite, pode ignorar este e-mail.",
+        "review": "Revisar convite"
+      },
+      "accepted": {
+        "subject": "Acesso às credenciais aceito ({tag})",
+        "heading": "Acesso às credenciais aceito",
+        "body": "{delegate} aceitou seu compartilhamento de credenciais em {tag}.",
+        "text": "{delegate} aceitou seu compartilhamento de credenciais em {tag}. Você pode revogar o acesso a qualquer momento em Configurações da equipe: {url}"
+      },
+      "rejected": {
+        "subject": "Acesso às credenciais recusado ({tag})",
+        "heading": "Acesso às credenciais recusado",
+        "body": "{delegate} recusou seu convite de compartilhamento de credenciais em {tag}."
+      },
+      "revoked": {
+        "subject": "Acesso às credenciais revogado ({tag})",
+        "heading": "Acesso às credenciais revogado",
+        "body": "{owner} revogou seu acesso delegado às credenciais do Ashed em {tag}."
+      },
+      "ended": {
+        "subject": "Acesso às credenciais encerrado ({tag})",
+        "heading": "Acesso às credenciais encerrado",
+        "ownerBody": "O acesso delegado às credenciais em {tag} foi encerrado porque {reason}.",
+        "delegateBody": "Seu acesso delegado às credenciais em {tag} foi encerrado porque {reason}.",
+        "historyText": "Ver histórico: {url}",
+        "reason": {
+          "ownerTokenExpired": "o token do Ashed do dono expirou",
+          "membershipEnded": "um oficial saiu da aliança",
+          "periodEnded": "o período de acesso terminou"
+        }
+      },
+      "digest": {
+        "subject": "Atividade de compartilhamento de credenciais — {day} ({tag})",
+        "heading": "Resumo diário do compartilhamento de credenciais",
+        "body": "Ontem houve {count} eventos de compartilhamento de credenciais atribuídos à sua conta em {tag}.",
+        "text": "Ontem houve {count} eventos de compartilhamento de credenciais atribuídos à sua conta em {tag}. Revise o histórico: {url}",
+        "viewHistory": "Ver histórico"
+      }
+    },
+    "bankDrop": {
+      "subject": "Banco caiu: Nv{level} ({x}, {y}) — {duration}",
+      "textHeading": "Banco caiu — Nv{level} em ({x}, {y})",
+      "htmlHeading": "Banco caiu",
+      "location": "Nível {level} em ({x}, {y})",
+      "durationOpen": "Tempo aberto",
+      "depositsProcessed": "Depósitos processados",
+      "depositsValue": "{count} totalizando {amount} CG",
+      "interestEarned": "Juros obtidos",
+      "interestValue": "{amount} CG ({roi}% de ROI)",
+      "looted": "Ouro de cristal saqueado",
+      "amountCG": "{amount} CG",
+      "slippage": "Slippage",
+      "percent": "{value}%",
+      "stillDeposited": "Ainda depositado na queda",
+      "lockedValue": "{count} depósitos ({amount} CG)",
+      "signature": "— Alliance HQ"
+    }
+  },
   "language": {
     "label": "Idioma",
     "en-US": "English (US)",
@@ -2944,6 +3104,12 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
+    "communicationsSection": "Preferências de comunicação",
+    "communicationsBody": "Escolha o idioma que o Alliance HQ usa nos e-mails e notificações enviados a você. Alterar o seletor de idioma no cabeçalho também atualiza esta opção.",
+    "notificationLanguageLabel": "Idioma das notificações",
+    "notificationLanguageAutomatic": "Automático ({language})",
+    "notificationLanguageHintLastRank": "Com base no seu país no LastRank.",
+    "notificationLanguageHintDefault": "Inglês por padrão até você escolher um idioma.",
     "appearanceSection": "Aparência",
     "appearanceBody": "O Alliance HQ segue o modo claro ou escuro do seu dispositivo por padrão. Escolha Claro ou Escuro para substituir neste navegador.",
     "appearanceLabel": "Tema de cores",

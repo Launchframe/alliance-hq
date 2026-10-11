@@ -448,6 +448,166 @@
     "weekdayAt": "{weekday} at {time}",
     "lastWeekday": "Last {weekday}"
   },
+  "allianceCredentialEmail": {
+    "subjectExpired": "{tag}: Ashed alliance connection expired",
+    "subjectUpcoming": "{tag}: Ashed alliance connection expires {date}",
+    "leadExpired": "{tag}'s Ashed alliance connection expired on {date}. VS score sync, roster updates, and Ashed checks in Alliance HQ are paused until it is refreshed.",
+    "leadUpcoming": "{tag}'s Ashed alliance connection expires on {date}. When it expires, VS score sync, roster updates, and Ashed checks in Alliance HQ will pause.",
+    "stepsHeading": "To fix it:",
+    "stepReconnect": "Reconnect Ashed with a fresh cURL command: {url}. If you installed the alliance connection or own the alliance on Ashed, HQ refreshes it automatically.",
+    "stepOwner": "Otherwise, ask your Ashed alliance owner to reinstall bot credentials in Team settings: {url}",
+    "signature": "— Alliance HQ"
+  },
+  "notificationMessages": {
+    "authCode": {
+      "expiry": "This code expires in 10 minutes. If you did not request it, you can ignore this email.",
+      "verify": {
+        "subject": "{code} is your Alliance HQ verification code",
+        "heading": "Verify your email",
+        "body": "Enter this code on Alliance HQ to verify your email and finish creating your account.",
+        "text": "Your Alliance HQ verification code is {code}. It expires in 10 minutes."
+      },
+      "merge": {
+        "subject": "{code} is your Alliance HQ account merge code",
+        "heading": "Confirm account merge",
+        "body": "Someone asked to move alliance access from this account into another Alliance HQ login. Enter this code only if you started that merge.",
+        "text": "Your Alliance HQ account merge code is {code}. It expires in 10 minutes."
+      },
+      "emailChange": {
+        "subject": "{code} is your Alliance HQ email change code",
+        "heading": "Confirm your new email",
+        "body": "Enter this code on Alliance HQ to update the email on your account.",
+        "text": "Your Alliance HQ email change code is {code}. It expires in 10 minutes."
+      }
+    },
+    "magicLink": {
+      "subject": "Sign in to {host}",
+      "heading": "Sign in to {host}",
+      "button": "Sign in",
+      "ignore": "If you did not request this email you can safely ignore it."
+    },
+    "professions": {
+      "engAssigned": {
+        "subject": "You've been assigned to a War Leader team",
+        "body": "You've been assigned to a War Leader's support team! Visit {url} to set your coverage window."
+      },
+      "engJoined": {
+        "subject": "A new Engineer joined your team",
+        "body": "A new Engineer has joined your support team. Visit {url} to view your team."
+      },
+      "engDismissed": {
+        "subject": "You've been removed from a War Leader team",
+        "body": "You have been removed from a War Leader's support team. Visit {url} to find a new War Leader.",
+        "bodyWithReason": "You have been removed from a War Leader's support team. Reason: {reason} Visit {url} to find a new War Leader."
+      },
+      "engLeft": {
+        "body": "An Engineer has left your support team. Visit {url} to see your current team."
+      },
+      "professionSwitched": {
+        "subject": "Your profession has been updated",
+        "body": "Your profession has been updated: {from} → {to}. Visit {url} to get started."
+      },
+      "profession": {
+        "engineer": "Engineer",
+        "warLeader": "War Leader"
+      }
+    },
+    "rosterLink": {
+      "owner": {
+        "subject": "Approve roster link for {name} ({tag})",
+        "server": "server {number}",
+        "serverUnknown": "server unknown",
+        "intro": "A player accepted your HQ invite but is not on the {tag} roster yet. Last War shows their commander as {name} on {server}. They submitted the name \"{reportedName}\".",
+        "reviewNote": "An officer must sign in to Alliance HQ, match this player to the correct roster member, and approve the link there. The Review button opens that page.",
+        "reminderNote": "This is a reminder — if you decline by email, use only the Decline link in this message. Older Decline links stop working when we resend.",
+        "rotationNote": "If we send another email about this request, use only the newest Decline link — older Decline links stop working when we resend.",
+        "heading": "Roster link approval",
+        "review": "Review in Alliance HQ",
+        "decline": "Decline",
+        "unrecognized": "If you do not recognize this player, decline the request."
+      },
+      "accepted": {
+        "subject": "Roster link approved — finish linking ({tag})",
+        "text": "An officer approved your roster link for {tag}. Return to Alliance HQ to finish: {url}",
+        "heading": "You're approved",
+        "body": "An officer approved your roster link for {tag}. Return to Alliance HQ to finish linking your character.",
+        "continue": "Continue in Alliance HQ"
+      },
+      "rejected": {
+        "subject": "Roster link not approved ({tag})",
+        "heading": "Request declined",
+        "body": "Your roster link request for {tag} was declined. If you think this was a mistake, contact your R5 or an officer directly."
+      }
+    },
+    "credentialShare": {
+      "fallbackAlliance": "your alliance",
+      "fallbackOwner": "An alliance officer",
+      "fallbackDelegate": "An officer",
+      "invite": {
+        "subject": "Credential access invite ({tag})",
+        "heading": "Credential access invite",
+        "body": "{owner} invited you to use their Ashed credentials in {tag}.",
+        "capabilities": "Capabilities: {capabilities}",
+        "expires": "Access expires: {expiresAt}",
+        "acceptText": "Accept in Alliance HQ: {url}",
+        "ignore": "If you were not expecting this invite, you can ignore this email.",
+        "review": "Review invite"
+      },
+      "accepted": {
+        "subject": "Credential access accepted ({tag})",
+        "heading": "Credential access accepted",
+        "body": "{delegate} accepted your credential share in {tag}.",
+        "text": "{delegate} accepted your credential share in {tag}. You can revoke access any time from Team settings: {url}"
+      },
+      "rejected": {
+        "subject": "Credential access declined ({tag})",
+        "heading": "Credential access declined",
+        "body": "{delegate} declined your credential share invite in {tag}."
+      },
+      "revoked": {
+        "subject": "Credential access revoked ({tag})",
+        "heading": "Credential access revoked",
+        "body": "{owner} revoked your delegated Ashed credential access in {tag}."
+      },
+      "ended": {
+        "subject": "Credential access ended ({tag})",
+        "heading": "Credential access ended",
+        "ownerBody": "Delegated credential access in {tag} ended because {reason}.",
+        "delegateBody": "Your delegated credential access in {tag} ended because {reason}.",
+        "historyText": "View history: {url}",
+        "reason": {
+          "ownerTokenExpired": "the owner's Ashed token expired",
+          "membershipEnded": "an officer left the alliance",
+          "periodEnded": "the access period ended"
+        }
+      },
+      "digest": {
+        "subject": "Credential share activity — {day} ({tag})",
+        "heading": "Daily credential share digest",
+        "body": "Yesterday there were {count} credential share events attributed to your account in {tag}.",
+        "text": "Yesterday there were {count} credential share events attributed to your account in {tag}. Review history: {url}",
+        "viewHistory": "View history"
+      }
+    },
+    "bankDrop": {
+      "subject": "Bank Dropped: Lv{level} ({x}, {y}) — {duration}",
+      "textHeading": "Bank Dropped — Lv{level} at ({x}, {y})",
+      "htmlHeading": "Bank Dropped",
+      "location": "Level {level} at ({x}, {y})",
+      "durationOpen": "Duration open",
+      "depositsProcessed": "Deposits processed",
+      "depositsValue": "{count} totaling {amount} CG",
+      "interestEarned": "Interest earned",
+      "interestValue": "{amount} CG ({roi}% ROI)",
+      "looted": "Crystal gold looted",
+      "amountCG": "{amount} CG",
+      "slippage": "Slippage",
+      "percent": "{value}%",
+      "stillDeposited": "Still deposited at drop",
+      "lockedValue": "{count} deposits ({amount} CG)",
+      "signature": "— Alliance HQ"
+    }
+  },
   "language": {
     "label": "Language",
     "en-US": "English (US)",
@@ -3091,6 +3251,12 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
+    "communicationsSection": "Communication preferences",
+    "communicationsBody": "Choose the language Alliance HQ uses for emails and notifications sent to you. Changing the language picker in the header also updates this.",
+    "notificationLanguageLabel": "Notification language",
+    "notificationLanguageAutomatic": "Automatic ({language})",
+    "notificationLanguageHintLastRank": "Based on your LastRank country.",
+    "notificationLanguageHintDefault": "Defaults to English until you choose a language.",
     "appearanceSection": "Appearance",
     "appearanceBody": "Alliance HQ follows your device light or dark mode by default. Choose Light or Dark to override it on this browser.",
     "appearanceLabel": "Color theme",

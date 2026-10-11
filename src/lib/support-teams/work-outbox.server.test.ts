@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getTableName } from "drizzle-orm";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
-const mocks = vi.hoisted(() => ({ db: vi.fn(), reconcile: vi.fn(), send: vi.fn() }));
+const mocks = vi.hoisted(() => ({ db: vi.fn(), reconcile: vi.fn(), send: vi.fn(), recipientLocale: vi.fn() }));
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/notifications/locale.server", () => ({ resolveDiscordRecipientLocale: mocks.recipientLocale }));
 vi.mock("@/lib/db", async () => ({ ...(await vi.importActual("@/lib/db")), getDb: mocks.db }));
 vi.mock("./work-service.server", () => ({ reconcileTeamWork: mocks.reconcile, reconcileTeamWorkTx: mocks.reconcile }));
 vi.mock("./work-transport.server", () => ({ sendPrivateWorkDigest: mocks.send }));
@@ -27,6 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("DISCORD_BOT_TOKEN", "test-token");
   mocks.reconcile.mockResolvedValue(context());
+  mocks.recipientLocale.mockResolvedValue("pt-BR");
   mocks.send.mockImplementation(async (input) => await input.authorizeSend("dm") ? { status: "sent", messageId: "message", channelId: "dm" } : { status: "cancelled" });
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -37,6 +39,7 @@ describe("durable team digest lease and authorization", () => {
     expect(await deliverTeamWorkDigests()).toEqual({ delivered: 1 });
     expect(mocks.reconcile).toHaveBeenCalledTimes(2);
     expect(db.writes.map((write) => write.value.status)).toEqual(["leased", "posting", "sent"]);
+    expect(mocks.recipientLocale).toHaveBeenCalledWith("discord-lead");
     expect(mocks.send.mock.calls[0][0].content).toContain("Resumo do trabalho em equipe");
     expect(mocks.send.mock.calls[0][0].content).toContain("/notes?view=workQueue");
     expect(mocks.send.mock.calls[0][0].content).not.toContain("member");

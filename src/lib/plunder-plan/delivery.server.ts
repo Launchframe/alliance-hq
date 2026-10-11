@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { createDiscordTranslator, normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
+import { resolveDiscordRecipientLocales } from "@/lib/notifications/locale.server";
 import { escapeTimeOffDiscordText } from "@/lib/time-off/discord-workflow.shared";
 import { planClock, resolvePlanClock } from "./schedule.shared";
 import { lockPlans, readPlanDashboard } from "./service.server";
@@ -29,7 +30,7 @@ async function candidates(tx: PlanTx, allianceId: string, now: Date): Promise<Ca
   const ownerIds = plans.filter((plan) => plan.ownerId.startsWith("hq:")).map((plan) => plan.ownerId.slice(3));
   const links = ownerIds.length ? await tx.select().from(schema.discordHqLinks).where(inArray(schema.discordHqLinks.hqUserId, ownerIds)) : [];
   const recipients = [...new Set(plans.map((plan) => plan.ownerId.startsWith("discord:") ? plan.ownerId.slice(8) : links.find((link) => `hq:${link.hqUserId}` === plan.ownerId)?.discordUserId).filter(isDiscordId))];
-  const preferences = recipients.length ? await tx.select().from(schema.discordUserPrefs).where(inArray(schema.discordUserPrefs.discordUserId, recipients)) : [];
+  const recipientLocales = await resolveDiscordRecipientLocales(recipients);
   const result: Candidate[] = [];
   const guilds = await tx.select({ id: schema.discordGuildAlliances.guildId }).from(schema.discordGuildAlliances).where(eq(schema.discordGuildAlliances.allianceId, allianceId));
   for (const event of guilds.length ? events : []) {
@@ -39,7 +40,7 @@ async function candidates(tx: PlanTx, allianceId: string, now: Date): Promise<Ca
     if (!isDiscordId(recipientId)) continue;
     const start = Date.parse(event.startAt);
     if (start <= now.getTime() || start - 15 * MINUTE > now.getTime()) continue;
-    const locale = normalizeDiscordBotLocale(preferences.find((pref) => pref.discordUserId === recipientId)?.locale);
+    const locale = recipientLocales.get(recipientId) ?? "en-US";
     const t = createDiscordTranslator(locale);
     if (result.some((row) => row.kind === "reminder" && row.recipientId === recipientId && row.occurrenceKey === event.startAt)) continue;
     result.push({ kind: "reminder", recipientId, occurrenceKey: event.startAt, dueAt: new Date(start - 15 * MINUTE), expiresAt: new Date(start), target: { discordUserId: recipientId }, content: `${t("plunderPlan.notifications.reminder", { time: discordTime(event.startAt) })}\n${buildDiscordBotAppUrl(locale, "/plunder-plan")}` });

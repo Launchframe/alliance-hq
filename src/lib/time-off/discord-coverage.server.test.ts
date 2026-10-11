@@ -8,7 +8,7 @@ vi.mock("@/lib/trains/discord-bot-auth.server", () => ({ callerCanManageTrains: 
 vi.mock("@/lib/trains/discord-bot.server", () => ({ draftConductorForAlliance: mocks.draft, lockTrainAndAnnounce: mocks.lock }));
 vi.mock("@/lib/trains/train-ownership.server", () => ({ resolveDiscordHqUserId: async () => "officer" }));
 vi.mock("@/lib/vr/service", () => ({ resolveAllianceForGuild: async () => "alliance" }));
-vi.mock("@/lib/vr/repository", () => ({ getDiscordUserLocale: async () => "pt-BR" }));
+vi.mock("@/lib/vr/repository", () => ({ getDiscordHqLink: async () => null, getDiscordUserLocale: async () => "pt-BR" }));
 import { handleDiscordCoverage } from "./discord-coverage.server";
 
 const token = "123456789012345678901";

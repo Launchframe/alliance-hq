@@ -1387,6 +1387,13 @@
       "when": 1791900000214,
       "tag": "0214_alliance_ashed_credential_expiry_notices",
       "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1791900000215,
+      "tag": "0215_hq_user_preferred_locale",
+      "breakpoints": true
     }
   ]
 }

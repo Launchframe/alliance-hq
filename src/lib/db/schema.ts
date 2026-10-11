@@ -833,6 +833,11 @@ export const hqUsers = pgTable("hq_users", {
   ashedUserId: text("ashed_user_id"),
   /** null = Server Time (UTC−02:00); otherwise an IANA zone id */
   timezone: text("timezone"),
+  /**
+   * Manually picked notification/UI locale (web picker, settings, Discord
+   * /language). null = automatic: derived from LastRank country, else en-US.
+   */
+  preferredLocale: text("preferred_locale"),
   /** Trains calendar week start: 0 = Sunday, 1 = Monday */
   trainsDisplayWeekStartDow: integer("trains_display_week_start_dow")
     .notNull()
@@ -875,7 +880,12 @@ export const hqUsers = pgTable("hq_users", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => [
+  check(
+    "hq_users_preferred_locale_check",
+    sql`${table.preferredLocale} IS NULL OR ${table.preferredLocale} IN ('en-US','pt-BR','id')`,
+  ),
+]);
 
 /** OAuth identity rows for HQ web SSO (Google, Discord). */
 export const hqUserAuthProviders = pgTable(

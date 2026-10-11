@@ -2,8 +2,13 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import type { AppLocale } from "@/i18n/routing";
 import { resolveAppOrigin } from "@/lib/app-origin";
 import { getDb, schema } from "@/lib/db";
+import {
+  notificationTranslator,
+  resolveRecipientLocale,
+} from "@/lib/notifications/locale.server";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -26,6 +31,10 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function rosterLinkTranslator(locale: AppLocale) {
+  return notificationTranslator(locale, "notificationMessages.rosterLink");
+}
+
 function actionUrl(token: string): string {
   return `${resolveAppOrigin()}/api/roster-link-requests/action?token=${encodeURIComponent(token)}`;
 }
@@ -34,54 +43,68 @@ function resolveRequestUrl(requestId: string): string {
   return `${resolveAppOrigin()}/members/roster-link-requests?request=${encodeURIComponent(requestId)}`;
 }
 
-export function buildRosterLinkOwnerEmail(input: {
-  allianceTag: string;
-  gameUserName: string;
-  reportedName: string;
-  gameUid: string;
-  gameServerNumber: number | null;
-  requestId: string;
-  rejectToken: string;
-  /** Reminder emails rotate tokens; prior Approve/Decline links stop working. */
-  isReminder?: boolean;
-}): { subject: string; html: string; text: string } {
+export function buildRosterLinkOwnerEmail(
+  input: {
+    allianceTag: string;
+    gameUserName: string;
+    reportedName: string;
+    gameUid: string;
+    gameServerNumber: number | null;
+    requestId: string;
+    rejectToken: string;
+    /** Reminder emails rotate tokens; prior Approve/Decline links stop working. */
+    isReminder?: boolean;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = rosterLinkTranslator(locale);
   const acceptHref = resolveRequestUrl(input.requestId);
   const rejectHref = actionUrl(input.rejectToken);
-  const subject = `Approve roster link for ${input.gameUserName} (${input.allianceTag})`;
+  const subject = t("owner.subject", {
+    name: input.gameUserName,
+    tag: input.allianceTag,
+  });
   const serverLine =
     input.gameServerNumber != null
-      ? `server ${input.gameServerNumber}`
-      : "server unknown";
-  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} on ${serverLine}. They submitted the name "${input.reportedName}".`;
-  const reviewNote =
-    "An officer must sign in to Alliance HQ, match this player to the correct roster member, and approve the link there. The Review button opens that page.";
+      ? t("owner.server", { number: String(input.gameServerNumber) })
+      : t("owner.serverUnknown");
+  const intro = t("owner.intro", {
+    tag: input.allianceTag,
+    name: input.gameUserName,
+    server: serverLine,
+    reportedName: input.reportedName,
+  });
+  const reviewNote = t("owner.reviewNote");
   const linkRotationNote = input.isReminder
-    ? "This is a reminder — if you decline by email, use only the Decline link in this message. Older Decline links stop working when we resend."
-    : "If we send another email about this request, use only the newest Decline link — older Decline links stop working when we resend.";
+    ? t("owner.reminderNote")
+    : t("owner.rotationNote");
+  const reviewLabel = t("owner.review");
+  const declineLabel = t("owner.decline");
+  const unrecognized = t("owner.unrecognized");
 
   const text = `${intro}
 
 ${reviewNote}
 
-Review in Alliance HQ: ${acceptHref}
+${reviewLabel}: ${acceptHref}
 
-Decline: ${rejectHref}
+${declineLabel}: ${rejectHref}
 
-If you do not recognize this player, decline the request.
+${unrecognized}
 
 ${linkRotationNote}`;
 
   const html = `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px 24px 8px;font-size:20px;font-weight:600;">Roster link approval</td></tr>
+    <tr><td style="padding:24px 24px 8px;font-size:20px;font-weight:600;">${escapeHtml(t("owner.heading"))}</td></tr>
     <tr><td style="padding:0 24px 16px;line-height:1.5;">${escapeHtml(intro)}</td></tr>
     <tr><td style="padding:0 24px 12px;font-size:13px;color:#57606a;line-height:1.5;">${escapeHtml(reviewNote)}</td></tr>
     <tr><td style="padding:0 24px 12px;">
-      <a href="${acceptHref}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;margin-right:8px;">Review in Alliance HQ</a>
-      <a href="${rejectHref}" style="display:inline-block;background:#f6f8fa;color:#24292f;text-decoration:none;padding:10px 18px;border-radius:8px;border:1px solid #d0d7de;">Decline</a>
+      <a href="${acceptHref}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;margin-right:8px;">${escapeHtml(reviewLabel)}</a>
+      <a href="${rejectHref}" style="display:inline-block;background:#f6f8fa;color:#24292f;text-decoration:none;padding:10px 18px;border-radius:8px;border:1px solid #d0d7de;">${escapeHtml(declineLabel)}</a>
     </td></tr>
-    <tr><td style="padding:0 24px 12px;font-size:13px;color:#57606a;">If you do not recognize this player, decline the request.</td></tr>
+    <tr><td style="padding:0 24px 12px;font-size:13px;color:#57606a;">${escapeHtml(unrecognized)}</td></tr>
     <tr><td style="padding:0 24px 24px;font-size:13px;color:#57606a;">${escapeHtml(linkRotationNote)}</td></tr>
   </table>
 </body>`;
@@ -89,33 +112,43 @@ ${linkRotationNote}`;
   return { subject, html, text };
 }
 
-export function buildRosterLinkInviteeAcceptedEmail(input: {
-  allianceTag: string;
-  onboardUrl: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Roster link approved — finish linking (${input.allianceTag})`;
-  const text = `An officer approved your roster link for ${input.allianceTag}. Return to Alliance HQ to finish: ${input.onboardUrl}`;
+export function buildRosterLinkInviteeAcceptedEmail(
+  input: {
+    allianceTag: string;
+    onboardUrl: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = rosterLinkTranslator(locale);
+  const tag = input.allianceTag;
+  const subject = t("accepted.subject", { tag });
+  const text = t("accepted.text", { tag, url: input.onboardUrl });
   const html = `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">You're approved</td></tr>
-    <tr><td style="padding:0 24px 16px;line-height:1.5;">An officer approved your roster link for <strong>${escapeHtml(input.allianceTag)}</strong>. Return to Alliance HQ to finish linking your character.</td></tr>
-    <tr><td style="padding:0 24px 24px;"><a href="${input.onboardUrl}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">Continue in Alliance HQ</a></td></tr>
+    <tr><td style="padding:24px;font-size:18px;font-weight:600;">${escapeHtml(t("accepted.heading"))}</td></tr>
+    <tr><td style="padding:0 24px 16px;line-height:1.5;">${t("accepted.body", { tag: `<strong>${escapeHtml(tag)}</strong>` })}</td></tr>
+    <tr><td style="padding:0 24px 24px;"><a href="${input.onboardUrl}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">${escapeHtml(t("accepted.continue"))}</a></td></tr>
   </table>
 </body>`;
   return { subject, html, text };
 }
 
-export function buildRosterLinkInviteeRejectedEmail(input: {
-  allianceTag: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Roster link not approved (${input.allianceTag})`;
-  const text = `Your roster link request for ${input.allianceTag} was declined. If you think this was a mistake, contact your R5 or an officer directly.`;
+export function buildRosterLinkInviteeRejectedEmail(
+  input: {
+    allianceTag: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = rosterLinkTranslator(locale);
+  const tag = input.allianceTag;
+  const subject = t("rejected.subject", { tag });
+  const text = t("rejected.body", { tag });
   const html = `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">Request declined</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;">Your roster link request for <strong>${escapeHtml(input.allianceTag)}</strong> was declined. If you think this was a mistake, contact your R5 or an officer directly.</td></tr>
+    <tr><td style="padding:24px;font-size:18px;font-weight:600;">${escapeHtml(t("rejected.heading"))}</td></tr>
+    <tr><td style="padding:0 24px 24px;line-height:1.5;">${t("rejected.body", { tag: `<strong>${escapeHtml(tag)}</strong>` })}</td></tr>
   </table>
 </body>`;
   return { subject, html, text };
@@ -167,6 +200,13 @@ async function sendResendEmail(input: {
 export async function resolveAllianceOwnerEmail(
   allianceId: string,
 ): Promise<string | null> {
+  return (await resolveAllianceOwnerRecipient(allianceId))?.email ?? null;
+}
+
+/** Owner email plus the locale the owner reads notifications in. */
+export async function resolveAllianceOwnerRecipient(
+  allianceId: string,
+): Promise<{ email: string; locale: AppLocale } | null> {
   const db = getDb();
   const [row] = await db
     .select({
@@ -182,10 +222,15 @@ export async function resolveAllianceOwnerEmail(
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
-  const direct = row?.ownerEmail?.trim();
-  if (direct) return direct;
-  const userEmail = row?.ownerUserEmail?.trim();
-  return userEmail || null;
+  const email = row?.ownerEmail?.trim() || row?.ownerUserEmail?.trim();
+  if (!email) return null;
+  return {
+    email,
+    locale: await resolveRecipientLocale({
+      hqUserId: row?.ownerHqUserId,
+      email,
+    }),
+  };
 }
 
 export async function sendRosterLinkOwnerApprovalEmail(input: {
@@ -200,8 +245,8 @@ export async function sendRosterLinkOwnerApprovalEmail(input: {
   rejectToken: string;
   isReminder?: boolean;
 }): Promise<void> {
-  const to = await resolveAllianceOwnerEmail(input.allianceId);
-  if (!to) {
+  const owner = await resolveAllianceOwnerRecipient(input.allianceId);
+  if (!owner) {
     console.warn(
       "[alliance-hq] No owner email for alliance — roster link owner email skipped:",
       input.allianceId,
@@ -209,22 +254,30 @@ export async function sendRosterLinkOwnerApprovalEmail(input: {
     return;
   }
 
-  const payload = buildRosterLinkOwnerEmail(input);
-  await sendResendEmail({ to, ...payload });
+  const payload = buildRosterLinkOwnerEmail(input, owner.locale);
+  await sendResendEmail({ to: owner.email, ...payload });
 }
 
 export async function sendRosterLinkInviteeResolvedEmail(input: {
   to: string;
+  hqUserId?: string | null;
   allianceTag: string;
   accepted: boolean;
   onboardPath?: string;
 }): Promise<void> {
   const onboardUrl = `${resolveAppOrigin()}${input.onboardPath ?? "/onboard"}`;
+  const locale = await resolveRecipientLocale({
+    hqUserId: input.hqUserId,
+    email: input.to,
+  });
   const payload = input.accepted
-    ? buildRosterLinkInviteeAcceptedEmail({
-        allianceTag: input.allianceTag,
-        onboardUrl,
-      })
-    : buildRosterLinkInviteeRejectedEmail({ allianceTag: input.allianceTag });
+    ? buildRosterLinkInviteeAcceptedEmail(
+        { allianceTag: input.allianceTag, onboardUrl },
+        locale,
+      )
+    : buildRosterLinkInviteeRejectedEmail(
+        { allianceTag: input.allianceTag },
+        locale,
+      );
   await sendResendEmail({ to: input.to, ...payload });
 }
