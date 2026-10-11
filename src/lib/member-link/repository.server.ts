@@ -8,13 +8,17 @@ import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
-import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import {
+  resolveCommanderByUid,
+  syncCommanderIdentityFromMemberLink,
+} from "@/lib/members/commander-identity.server";
 import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   hasConflictingDiscordAshedMemberOccupancy,
   hasConflictingHqGameUidClaim,
 } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
+import { isCommanderReservedByPendingClaim } from "@/lib/native-alliance/claim-seat-reservation.server";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -256,6 +260,16 @@ export async function linkHqMember(input: {
     return { ok: false, reason: "member_linked_to_other_user" };
   }
 
+  if (
+    await isCommanderReservedByPendingClaim({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      allowedHqUserId: input.hqUserId,
+    })
+  ) {
+    return { ok: false, reason: "member_linked_to_other_user" };
+  }
+
   const existingMemberLink = await getHqMemberLinkByAllianceAndMember(
     input.allianceId,
     input.ashedMemberId,
@@ -284,6 +298,8 @@ export async function linkHqMember(input: {
     input.allianceId,
     input.hqUserId,
   );
+  const homeServerBeforeLink =
+    (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
 
   try {
     if (existingUserLink) {
@@ -313,6 +329,7 @@ export async function linkHqMember(input: {
         gameUid: input.gameUid,
         memberDisplayName: input.memberDisplayName,
         hqUserId: input.hqUserId,
+        homeServerBeforeLink,
       });
       await inheritHqMemberLinkToDiscordIfLinked({
         hqUserId: input.hqUserId,
@@ -356,6 +373,7 @@ export async function linkHqMember(input: {
       memberDisplayName: input.memberDisplayName,
       hqUserId: input.hqUserId,
       joinedAt: now,
+      homeServerBeforeLink,
     });
     await inheritHqMemberLinkToDiscordIfLinked({
       hqUserId: input.hqUserId,

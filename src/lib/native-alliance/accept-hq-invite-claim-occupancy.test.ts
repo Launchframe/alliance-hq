@@ -54,6 +54,8 @@ vi.mock("@/lib/db", async (importOriginal) => {
   };
 });
 
+import { ROLE_IDS } from "@/lib/rbac/constants";
+
 import {
   acceptHqInvite,
   CommanderClaimInviteError,
@@ -131,6 +133,46 @@ describe("acceptHqInvite claim occupancy", () => {
     expect(provisionAllianceMembership).not.toHaveBeenCalled();
   });
 
+  it("defers elevated RBAC to member while the claim seat is still free", async () => {
+    const invite = inviteRow();
+    const updateSet = vi.fn().mockReturnValue({
+      where: () => ({
+        returning: () => Promise.resolve([{ id: "inv-1" }]),
+      }),
+    });
+    getDb.mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve([invite]),
+          }),
+        }),
+      })),
+      update: vi.fn(() => ({ set: updateSet })),
+      delete: vi.fn(() => ({
+        where: () => Promise.resolve(undefined),
+      })),
+    });
+
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue(null);
+
+    const result = await acceptHqInvite({
+      token: "any-token",
+      sessionId: "sess-1",
+      hqUserId: "bob",
+      userEmail: "bob@example.com",
+      email: "bob@example.com",
+    });
+
+    expect(provisionAllianceMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: ROLE_IDS.member,
+        ownerEmail: null,
+      }),
+    );
+    expect(result.targetAshedMemberId).toBe("m-r5");
+  });
+
   it("soft-clears claim and still provisions when the acceptor already holds the seat", async () => {
     const invite = inviteRow();
     const updateSet = vi.fn().mockReturnValue({
@@ -165,7 +207,12 @@ describe("acceptHqInvite claim occupancy", () => {
       email: "bob@example.com",
     });
 
-    expect(provisionAllianceMembership).toHaveBeenCalledOnce();
+    expect(provisionAllianceMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: ROLE_IDS.owner,
+        ownerEmail: "bob@example.com",
+      }),
+    );
     expect(updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         targetAshedMemberId: null,

@@ -31,6 +31,7 @@ import {
   getLinkedMemberIds,
 } from "@/lib/vr/repository";
 
+import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
 import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
 
@@ -811,14 +812,22 @@ export async function acceptHqInvite(
     .delete(schema.ashedCredentials)
     .where(eq(schema.ashedCredentials.sessionId, input.sessionId));
 
+  // Defer elevated invite roles until claim confirm when a commander seat is
+  // still pending. Accept-time owner/officer RBAC survives claim failure and is
+  // usable via APIs (member-link is only a page gate).
+  const provisionRoleId = resolveRoleIdForClaimPendingAccept({
+    inviteRoleId: invite.roleId,
+    pendingClaimTargetId: claimTargetId,
+  });
+
   const result = await provisionAllianceMembership({
     hqUserId,
     sessionId: input.sessionId,
     allianceId: invite.allianceId,
-    roleId: invite.roleId,
+    roleId: provisionRoleId,
     userLabel: input.displayName?.trim() || sessionEmail,
     ownerEmail:
-      systemRoleNameForId(invite.roleId) === "owner" ? sessionEmail : null,
+      systemRoleNameForId(provisionRoleId) === "owner" ? sessionEmail : null,
   });
 
   await auditInviteAccepted({
