@@ -414,6 +414,54 @@ async function finalizeDiscordHonorClaimLink(input: {
   return result;
 }
 
+/** Prompt to confirm a server transfer, or ask the member to return home first. */
+async function discordServerTransferResult(input: {
+  kind: "confirm" | "send_home";
+  allianceId: string;
+  discordUserId: string;
+  translate: ReturnType<typeof botContext>["translate"];
+  gameUid: string;
+  lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  allianceTag: string;
+  knownServer: number;
+  allianceServer: number;
+  replaceAll?: boolean;
+}): Promise<LinkCommandResult> {
+  const values = {
+    commanderName: input.lookup.gameUserName,
+    knownServer: input.knownServer,
+    allianceTag: input.allianceTag,
+    allianceServer: input.allianceServer,
+  };
+  if (input.kind === "send_home") {
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    return {
+      reply: input.translate("link.serverTransferSendHome", values),
+      pending: null,
+      serverTransferSendHome: true,
+    };
+  }
+  const pending: LinkPendingState = {
+    kind: "link_confirm_home_server",
+    gameUid: input.gameUid,
+    gameUserName: input.lookup.gameUserName,
+    // Transfer confirm requires the live position to match the alliance server.
+    lookupServer: input.allianceServer,
+    allianceServer: input.allianceServer,
+    knownServer: input.knownServer,
+    ...(input.lookup.gameUserLevel != null
+      ? { gameUserLevel: input.lookup.gameUserLevel }
+      : {}),
+    ...(input.replaceAll ? { replaceAll: true } : {}),
+  };
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, pending);
+  return {
+    reply: input.translate("link.confirmServerTransferPrompt", values),
+    pending,
+    needsServerTransferConfirmation: true,
+  };
+}
+
 async function finalizeDiscordMemberLink(input: {
   allianceId: string;
   guildId?: string | null;
@@ -554,7 +602,41 @@ async function finalizeDiscordMemberLink(input: {
         lookupServer: input.lookup.gameServerNumber,
         allianceHomeConfirmed: input.allianceHomeConfirmed,
         userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+        discordUserId: input.discordUserId,
       });
+      const transferKind =
+        serverEligibility.kind === "confirm_transfer"
+          ? "confirm"
+          : serverEligibility.kind === "rejected" &&
+              serverEligibility.reason === "transfer_position_mismatch"
+            ? "send_home"
+            : null;
+      if (
+        transferKind &&
+        serverEligibility.knownCommanderHomeServer != null &&
+        serverEligibility.allianceServer != null
+      ) {
+        const result = await discordServerTransferResult({
+          kind: transferKind,
+          allianceId: input.allianceId,
+          discordUserId: input.discordUserId,
+          translate,
+          gameUid: uid,
+          lookup: input.lookup,
+          allianceTag: alliance?.tag ?? "alliance",
+          knownServer: serverEligibility.knownCommanderHomeServer,
+          allianceServer: serverEligibility.allianceServer,
+          replaceAll: input.replaceAll,
+        });
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          input.auditAction ?? "link",
+          input,
+          { ...result, diagnostics: linkDiagnostics },
+        );
+        return result;
+      }
       if (serverEligibility.kind === "confirm_home") {
         const confirmPending: LinkPendingState = {
           kind: "link_confirm_home_server",
@@ -796,6 +878,34 @@ async function finalizeDiscordMemberLink(input: {
       return result;
     }
 
+    if (
+      (selfService.reason === "confirm_transfer" ||
+        selfService.reason === "transfer_send_home") &&
+      selfService.knownServer != null &&
+      selfService.allianceServer != null
+    ) {
+      const result = await discordServerTransferResult({
+        kind: selfService.reason === "confirm_transfer" ? "confirm" : "send_home",
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+        translate,
+        gameUid: uid,
+        lookup: input.lookup,
+        allianceTag: alliance?.tag ?? "alliance",
+        knownServer: selfService.knownServer,
+        allianceServer: selfService.allianceServer,
+        replaceAll: input.replaceAll,
+      });
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        { ...result, selfService: false, diagnostics: linkDiagnostics },
+      );
+      return result;
+    }
+
     if (selfService.reason === "position_not_home") {
       await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
       resolvedResult = {
@@ -923,6 +1033,32 @@ async function finalizeDiscordMemberLink(input: {
           selfService: false,
           diagnostics: linkDiagnostics,
         },
+      );
+      return result;
+    }
+
+    if (
+      rosterMiss.status === "confirm_transfer" ||
+      rosterMiss.status === "transfer_send_home"
+    ) {
+      const result = await discordServerTransferResult({
+        kind: rosterMiss.status === "confirm_transfer" ? "confirm" : "send_home",
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+        translate,
+        gameUid: uid,
+        lookup: input.lookup,
+        allianceTag: alliance?.tag ?? "alliance",
+        knownServer: rosterMiss.knownServer,
+        allianceServer: rosterMiss.allianceServer,
+        replaceAll: input.replaceAll,
+      });
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        { ...result, selfService: false, diagnostics: linkDiagnostics },
       );
       return result;
     }
@@ -1271,7 +1407,8 @@ export async function handleDiscordLinkHomeServerConfirm(input: {
   guildId?: string | null;
   discordUserId: string;
   discordUsername?: string;
-  choice: "alliance" | "lookup";
+  /** `known`: declines a server transfer — home is still HQ's recorded server. */
+  choice: "alliance" | "lookup" | "known";
   locale: DiscordBotLocale;
   /** When set (web confirm UI), must match the pending UID shown to the user. */
   expectedGameUid?: string | null;
@@ -1294,6 +1431,23 @@ export async function handleDiscordLinkHomeServerConfirm(input: {
     const result: LinkCommandResult = {
       reply: translate("link.confirmExpired"),
       pending: null,
+    };
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "link_confirm_home",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  if (input.choice === "known") {
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const result: LinkCommandResult = {
+      reply: translate("helpTopics.wrongServer.body"),
+      pending: null,
+      wrongServer: true,
     };
     await audit(
       input.allianceId,
