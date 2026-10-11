@@ -281,6 +281,7 @@ export function TrainsDashboard({
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
+  const [wheelRole, setWheelRole] = useState<"conductor" | "vip">("conductor");
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(
@@ -1359,6 +1360,7 @@ export function TrainsDashboard({
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
       setWheelDayLabel(spinWeekDayLabel(selectedDate));
+      setWheelRole(role);
       setWheelOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rollFailed"));
@@ -3984,7 +3986,7 @@ export function TrainsDashboard({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        rule={selectedConductorRule}
+        rule={wheelRole === "vip" ? selectedVipRule : selectedConductorRule}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}

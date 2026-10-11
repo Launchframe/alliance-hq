@@ -14,7 +14,7 @@ import {
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
-import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import type { ConductorRule, VipRule } from "@/lib/trains/rules/catalog.shared";
 import { formatEventScore } from "@/lib/hq-events/workspace.shared";
 import {
   formatWheelShareEligibilityLine,
@@ -55,8 +55,8 @@ type Props = {
   } | null;
   qualification?: MemberQualificationPayload | null;
   dayLabel?: string | null;
-  /** Rule this roll was drawn under. */
-  rule?: ConductorRule | null;
+  /** Rule this roll was drawn under (conductor or VIP). */
+  rule?: ConductorRule | VipRule | null;
   speedMultiplier?: number;
   automated?: boolean;
   onAutomatedRevealComplete?: () => void;
@@ -78,9 +78,9 @@ const SLOW_SECS = 1.8;
 type ReelSessionView = ReelSession;
 
 function scoreBoardKind(
-  rule: ConductorRule | null | undefined,
+  rule: ConductorRule | VipRule | null | undefined,
 ): "vs" | "vr" | "event" | null {
-  if (rule?.kind === "vs_top_n") return "vs";
+  if (rule?.kind === "vs_top_n" || rule?.kind === "vs_min_score") return "vs";
   if (rule?.kind === "vr_top_n") return "vr";
   if (rule?.kind === "event_scores") return "event";
   return null;

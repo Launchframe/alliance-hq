@@ -1,4 +1,4 @@
-import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import type { ConductorRule, VipRule } from "@/lib/trains/rules/catalog.shared";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 
@@ -73,15 +73,15 @@ export function formatWheelShareWinChance(
 }
 
 function vsLeaderboardSuffix(
-  rule: ConductorRule | null,
+  rule: ConductorRule | VipRule | null,
 ): "VS" | "VR" | null {
-  if (rule?.kind === "vs_top_n") return "VS";
+  if (rule?.kind === "vs_top_n" || rule?.kind === "vs_min_score") return "VS";
   if (rule?.kind === "vr_top_n") return "VR";
   return null;
 }
 
 export function resolveWheelShareEligibility(input: {
-  rule: ConductorRule | null;
+  rule: ConductorRule | VipRule | null;
   winner: WheelShareCandidate;
   qualification?: MemberQualificationPayload | null;
   /** Explicit scoreboard rank among alliance VS/VR scores (1-based). */
