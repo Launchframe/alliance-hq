@@ -40,6 +40,7 @@ import {
   syncCommanderIdentityFromMemberLink,
 } from "@/lib/members/commander-identity.server";
 import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/discord-link-live-identity.server";
+import { isGameUidClaimedByOtherPrincipal } from "@/lib/member-link/game-uid-global-claim.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
@@ -541,6 +542,16 @@ export async function linkDiscordMember(input: {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 
+  // Alliance-scoped unique indexes do not cover cross-alliance hijacks.
+  if (
+    await isGameUidClaimedByOtherPrincipal({
+      gameUid: input.gameUid,
+      discordUserId: input.discordUserId,
+    })
+  ) {
+    return { ok: false, reason: "member_linked_to_other_discord" };
+  }
+
   // Occupancy must be checked before any replaceAll wipe. Deleting the caller's
   // seats first then failing on an occupied target permanently orphans Discord
   // commanders (and frees them for sniping).
@@ -565,6 +576,8 @@ export async function linkDiscordMember(input: {
   );
   const homeServerBeforeLink =
     (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
+  const hqBridge = await getDiscordHqLink(input.discordUserId);
+  const authorizeHqUserId = hqBridge?.hqUserId ?? null;
 
   try {
     if (existingPair) {
@@ -607,6 +620,7 @@ export async function linkDiscordMember(input: {
         ashedMemberId: input.ashedMemberId,
         gameUid: input.gameUid,
         memberDisplayName: input.memberDisplayName,
+        hqUserId: authorizeHqUserId ?? undefined,
         homeServerBeforeLink,
       });
       return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
@@ -664,6 +678,7 @@ export async function linkDiscordMember(input: {
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
       memberDisplayName: input.memberDisplayName,
+      hqUserId: authorizeHqUserId ?? undefined,
       joinedAt: now,
       homeServerBeforeLink,
     });

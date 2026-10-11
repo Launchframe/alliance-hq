@@ -333,7 +333,14 @@ async function runTransfer(tx: Tx, input: RunInput): Promise<RunOutcome> {
   if (existingUserLink) {
     await tx
       .update(schema.hqMemberLinks)
-      .set({ memberDisplayName: roster.currentName, gameUid, updatedAt: now })
+      .set({
+        // Keep seat + UID aligned if a concurrent link raced past the
+        // otherUserLink check; ashedMemberId is part of the transfer target.
+        ashedMemberId: input.destinationAshedMemberId,
+        memberDisplayName: roster.currentName,
+        gameUid,
+        updatedAt: now,
+      })
       .where(eq(schema.hqMemberLinks.id, existingUserLink.id));
   } else {
     await tx.insert(schema.hqMemberLinks).values({

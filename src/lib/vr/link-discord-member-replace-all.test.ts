@@ -21,6 +21,10 @@ vi.mock("@/lib/members/commander-identity.server", () => ({
     syncCommanderIdentityFromMemberLink(...args),
 }));
 
+vi.mock("@/lib/member-link/game-uid-global-claim.server", () => ({
+  isGameUidClaimedByOtherPrincipal: vi.fn().mockResolvedValue(false),
+}));
+
 /**
  * Drizzle-style chain: every method returns the chain; awaiting resolves to
  * `result`. `limit()` also resolves to `result` for `.limit(1)` call sites.
@@ -161,7 +165,7 @@ describe("linkDiscordMember replaceAll safety", () => {
     });
 
     const selectQueue = [
-      [], // getDiscordHqLink
+      [], // getDiscordHqLink (alliance claim check)
       [], // hqClaims
       [], // discordClaims
       [], // occupancy (free)
@@ -179,6 +183,7 @@ describe("linkDiscordMember replaceAll safety", () => {
           ashedMemberId: "c2",
         },
       ], // user links
+      [], // getDiscordHqLink (authorize bridge for sync)
     ];
 
     vi.doMock("@/lib/db", async (importOriginal) => {
@@ -265,6 +270,7 @@ describe("linkDiscordMember replaceAll safety", () => {
           ashedMemberId: "c1",
         },
       ],
+      [], // getDiscordHqLink (authorize bridge for sync)
     ];
 
     vi.doMock("@/lib/db", async (importOriginal) => {

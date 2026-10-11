@@ -12,6 +12,7 @@ import {
   resolveCommanderByUid,
   syncCommanderIdentityFromMemberLink,
 } from "@/lib/members/commander-identity.server";
+import { isGameUidClaimedByOtherPrincipal } from "@/lib/member-link/game-uid-global-claim.server";
 import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   hasConflictingDiscordAshedMemberOccupancy,
@@ -256,6 +257,18 @@ export async function linkHqMember(input: {
   const now = new Date();
 
   if (await isGameUidClaimedByOtherHqUser(input)) {
+    return { ok: false, reason: "member_linked_to_other_user" };
+  }
+
+  // Alliance-scoped unique indexes do not cover cross-alliance hijacks.
+  // Server-transfer confirmation must not let a second HQ account rewrite
+  // another owner's commander home or attach as a co-owner.
+  if (
+    await isGameUidClaimedByOtherPrincipal({
+      gameUid: input.gameUid,
+      hqUserId: input.hqUserId,
+    })
+  ) {
     return { ok: false, reason: "member_linked_to_other_user" };
   }
 
