@@ -268,7 +268,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
     );
   });
 
-  it("links and queues officer name review when lookup name collides with another claimed commander", async () => {
+  it("refuses to link when lookup name collides with another claimed commander", async () => {
     dbState.commanderRow = [{ currentName: "Bravo", previousNamesJson: null }];
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
@@ -283,13 +283,8 @@ describe("runWebMemberLinkClaimConfirm", () => {
     );
 
     const result = await runWebMemberLinkClaimConfirm(baseInput);
-    expect(result.outcome).toBe("linked");
-    expect(repository.linkHqMember).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ashedMemberId: "m-1",
-        memberDisplayName: "Bravo",
-      }),
-    );
+    expect(result.outcome).toBe("claim_conflict");
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "name_collision" }),
     );
@@ -301,7 +296,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
   });
 
-  it("links and queues officer name review when lookup name does not match the claim target", async () => {
+  it("refuses to link when lookup name does not match the claim target", async () => {
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "Bravo",
@@ -309,13 +304,8 @@ describe("runWebMemberLinkClaimConfirm", () => {
     } as never);
 
     const result = await runWebMemberLinkClaimConfirm(baseInput);
-    expect(result.outcome).toBe("linked");
-    expect(repository.linkHqMember).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ashedMemberId: "m-1",
-        memberDisplayName: "Alpha",
-      }),
-    );
+    expect(result.outcome).toBe("claim_conflict");
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "target_mismatch" }),
     );

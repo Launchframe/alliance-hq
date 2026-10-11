@@ -68,7 +68,7 @@ export async function blockSelfServiceWhenClaimPending(input: {
 export type ClaimConflictReason =
   | "name_collision"
   | "commander_taken"
-  /** @deprecated Legacy help rows only — claim confirm no longer emits this. */
+  /** @deprecated Legacy help rows only — claim confirm does not emit this. */
   | "server_mismatch"
   | "target_mismatch"
   /** Linked during Last War outage using the invite-bound commander name. */
