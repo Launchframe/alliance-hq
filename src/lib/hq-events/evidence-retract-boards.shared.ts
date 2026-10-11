@@ -16,5 +16,5 @@ export function boardIdsForEvidenceRetract(
         (id): id is string => typeof id === "string" && id.length > 0,
       ),
     ),
-  ];
+  ].sort();
 }

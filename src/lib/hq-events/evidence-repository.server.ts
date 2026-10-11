@@ -1088,12 +1088,9 @@ export async function retractEventEvidenceBatch(
       batches.map((batch) => batch.boardId),
       observationBoards.map((row) => row.boardId),
     );
-    const { byId: boardsById } = await lockBoardsInOrder(
-      tx,
-      actor.allianceId,
-      boardIds,
-    );
-    for (const boardId of boardIds) {
+    const { sorted: boardIdsInLockOrder, byId: boardsById } =
+      await lockBoardsInOrder(tx, actor.allianceId, boardIds);
+    for (const boardId of boardIdsInLockOrder) {
       const board = boardsById.get(boardId);
       if (!board) continue;
       const { results } = await recomputeBoardResults(
@@ -1145,10 +1142,10 @@ export async function retractEventEvidenceBatch(
         batchIds,
         sourceRef: input.sourceRef ?? null,
         retracted: retractedRows.length,
-        boardIds,
+        boardIds: boardIdsInLockOrder,
       },
     });
 
-    return { retracted: retractedRows.length, boardIds };
+    return { retracted: retractedRows.length, boardIds: boardIdsInLockOrder };
   });
 }
