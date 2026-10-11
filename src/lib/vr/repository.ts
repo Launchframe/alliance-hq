@@ -40,6 +40,7 @@ import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/di
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
+import { isCommanderReservedByPendingClaim } from "@/lib/native-alliance/claim-seat-reservation.server";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
@@ -534,6 +535,17 @@ export async function linkDiscordMember(input: {
   const now = new Date();
 
   if (await isGameUidClaimedByOtherDiscordUser(input)) {
+    return { ok: false, reason: "member_linked_to_other_discord" };
+  }
+
+  const discordHqLink = await getDiscordHqLink(input.discordUserId);
+  if (
+    await isCommanderReservedByPendingClaim({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      allowedHqUserId: discordHqLink?.hqUserId ?? null,
+    })
+  ) {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 

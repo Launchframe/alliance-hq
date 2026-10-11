@@ -15,6 +15,7 @@ import {
   hasConflictingHqGameUidClaim,
 } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
+import { isCommanderReservedByPendingClaim } from "@/lib/native-alliance/claim-seat-reservation.server";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -253,6 +254,16 @@ export async function linkHqMember(input: {
   const now = new Date();
 
   if (await isGameUidClaimedByOtherHqUser(input)) {
+    return { ok: false, reason: "member_linked_to_other_user" };
+  }
+
+  if (
+    await isCommanderReservedByPendingClaim({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      allowedHqUserId: input.hqUserId,
+    })
+  ) {
     return { ok: false, reason: "member_linked_to_other_user" };
   }
 
