@@ -1161,12 +1161,14 @@ export function resolveVisibleAdminNav(
 
 export function findActiveDestination(
   pathname: string,
+  context?: NavContext,
 ): NavDestination | undefined {
-  const sorted = [...ALL_DESTINATIONS].sort(
-    (a, b) => b.href.length - a.href.length,
-  );
+  const pool = context
+    ? ALL_DESTINATIONS.filter((destination) => destination.context === context)
+    : ALL_DESTINATIONS;
+  const sorted = [...pool].sort((a, b) => b.href.length - a.href.length);
   for (const destination of sorted) {
-    if (destination.href === pathname || pathname.startsWith(`${destination.href}/`)) {
+    if (navLinkActive(pathname, destination.href)) {
       return destination;
     }
   }
@@ -1177,7 +1179,7 @@ export function findActiveFamily(
   pathname: string,
   context: NavContext = "app",
 ): NavFamily | undefined {
-  const destination = findActiveDestination(pathname);
+  const destination = findActiveDestination(pathname, context);
   if (!destination?.familyId) {
     return undefined;
   }
@@ -1188,7 +1190,7 @@ export function findActiveSection(
   pathname: string,
   context: NavContext = "app",
 ): NavSection | undefined {
-  const destination = findActiveDestination(pathname);
+  const destination = findActiveDestination(pathname, context);
   if (!destination) {
     return undefined;
   }

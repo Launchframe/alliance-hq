@@ -148,7 +148,7 @@ export function AshedShell({
 
   // Record recent destination for the current page.
   React.useEffect(() => {
-    const destination = findActiveDestination(pathname);
+    const destination = findActiveDestination(pathname, context);
     if (!destination || !destination.favoriteable) return;
     fetch("/api/account/navigation-preferences", {
       method: "PUT",
@@ -157,7 +157,7 @@ export function AshedShell({
     }).catch(() => {
       // Silent: recent tracking is best-effort.
     });
-  }, [pathname]);
+  }, [pathname, context]);
 
   React.useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -211,7 +211,7 @@ export function AshedShell({
             )}
           >
             <SidebarNav
-              key={navigationPreferences.showAshedPages ? "ashed-on" : "ashed-off"}
+              key={`${navigationPreferences.showAshedPages ? "ashed-on" : "ashed-off"}:${navigationPreferences.favorites.join(",")}`}
               context={context}
               navigationPreferences={navigationPreferences}
               showAdminPortal={showAdminPortal}

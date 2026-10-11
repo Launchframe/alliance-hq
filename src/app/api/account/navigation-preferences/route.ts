@@ -107,7 +107,10 @@ export async function PUT(request: Request) {
   }
 
   const parsed = visitSchema.safeParse(await readJsonBody(request));
-  if (!parsed.success) {
+  if (
+    !parsed.success ||
+    !isFavoriteableDestination(parsed.data.destinationId)
+  ) {
     return invalidRequest();
   }
 

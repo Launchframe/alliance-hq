@@ -31,7 +31,7 @@ export async function loadNavigationPreferences(
     .from(schema.navigationRecents)
     .where(eq(schema.navigationRecents.hqUserId, hqUserId))
     .orderBy(desc(schema.navigationRecents.lastVisitedAt))
-    .limit(20);
+    .limit(25);
 
   return {
     showAshedPages: prefs?.showAshedPages ?? true,

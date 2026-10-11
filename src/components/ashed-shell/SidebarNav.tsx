@@ -5,9 +5,7 @@ import { ChevronDown, ExternalLink, Loader2, Star, X } from "lucide-react";
 import Image from "next/image";
 import { useLinkStatus } from "next/link";
 import { useTranslations } from "next-intl";
-import { usePathname, useRouter } from "next/navigation";
-
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { SidebarAppearanceToggle } from "@/components/appearance/SidebarAppearanceToggle";
 import { useBeginNavigation } from "@/components/ashed-shell/ShellActivityProvider";
 import { ashedLink } from "@/components/i18n/richText";
@@ -18,6 +16,7 @@ import type { SessionAllianceOption } from "@/lib/alliance/types";
 import type { NavigationPreferences } from "@/lib/nav/preferences.shared";
 import {
   destinationById,
+  destinationIsVisible,
   findActiveDestination,
   resolveVisibleAdminNav,
   resolveVisibleAppNav,
@@ -334,13 +333,17 @@ export function SidebarNav({
   const [optimisticFavorites, setOptimisticFavorites] = useState(
     new Set(navigationPreferences.favorites),
   );
+
   const [showAshedPages, setShowAshedPages] = useState(
     navigationPreferences.showAshedPages,
   );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [pendingToggle, setPendingToggle] = useState(false);
 
-  const activeDestination = useMemo(() => findActiveDestination(pathname), [pathname]);
+  const activeDestination = useMemo(
+    () => findActiveDestination(pathname, context),
+    [pathname, context],
+  );
 
   const visibleSections = useMemo(() => {
     const options = {
@@ -468,11 +471,21 @@ export function SidebarNav({
       // the dashboard. Otherwise refresh server-rendered content so hybrid
       // panes and Ashed-only destinations disappear/reappear.
       const active = activeDestination;
-      if (active && (active.surface === "ashed-only" || !next)) {
-        const stillVisible = allVisibleDestinations.some(
-          (d) => d.id === active.id,
-        );
-        if (!stillVisible) {
+      if (active) {
+        const visibleAfterToggle = destinationIsVisible(active, {
+          permissions: permissionSet,
+          hasAllianceMemberLink,
+          operatingMode,
+          canUseAshedEmbeds,
+          showAshedPages: next,
+          showVideoQueue,
+          showVideoJobsOps,
+          showVideoProcessorsNav,
+          showTeamAccess,
+          showAdminPortal,
+          isPlatformMaintainer,
+        });
+        if (!visibleAfterToggle) {
           router.push("/dashboard");
           return;
         }
@@ -488,7 +501,16 @@ export function SidebarNav({
     pendingToggle,
     showAshedPages,
     activeDestination,
-    allVisibleDestinations,
+    permissionSet,
+    hasAllianceMemberLink,
+    operatingMode,
+    canUseAshedEmbeds,
+    showVideoQueue,
+    showVideoJobsOps,
+    showVideoProcessorsNav,
+    showTeamAccess,
+    showAdminPortal,
+    isPlatformMaintainer,
     router,
     tNav,
   ]);

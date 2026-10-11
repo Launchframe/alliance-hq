@@ -21,7 +21,7 @@ vi.mock("@/lib/nav/preferences.server", () => ({
     recordNavigationVisitMock(hqUserId, id),
 }));
 
-import { PATCH, POST, PUT } from "./route";
+import { GET, PATCH, POST, PUT } from "./route";
 
 function jsonRequest(method: string, body: string): Request {
   return new Request("http://localhost/api/account/navigation-preferences", {
@@ -45,6 +45,21 @@ describe("/api/account/navigation-preferences", () => {
     const res = await POST(jsonRequest("POST", '{"destinationId":"members"}'));
     expect(res.status).toBe(401);
     expect(toggleNavigationFavoriteMock).not.toHaveBeenCalled();
+  });
+
+  it("GET returns 401 when the session has no HQ user", async () => {
+    requireApiSessionMock.mockResolvedValue({ hqUserId: null });
+
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("PUT returns 400 for an unknown destination", async () => {
+    isFavoriteableDestinationMock.mockReturnValue(false);
+
+    const res = await PUT(jsonRequest("PUT", '{"destinationId":"nope"}'));
+    expect(res.status).toBe(400);
+    expect(recordNavigationVisitMock).not.toHaveBeenCalled();
   });
 
   it.each([
