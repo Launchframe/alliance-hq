@@ -34,6 +34,7 @@ import {
   getRosterLinkRequestById,
   isOwnerColdStartEligible,
   resolveMemberLinkServerGate,
+  serverTransferMemberLinkResponse,
   supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
@@ -746,6 +747,25 @@ export async function runWebMemberLinkSubmit(input: {
       });
     }
 
+    if (
+      (selfService.reason === "confirm_transfer" ||
+        selfService.reason === "transfer_send_home") &&
+      selfService.knownServer != null &&
+      selfService.allianceServer != null
+    ) {
+      return finishMemberLinkSubmit(
+        ctx,
+        serverTransferMemberLinkResponse({
+          kind: selfService.reason === "confirm_transfer" ? "confirm" : "send_home",
+          translate,
+          commanderName: selfService.commanderName ?? lookup.gameUserName,
+          allianceTag: alliance?.tag ?? "alliance",
+          knownServer: selfService.knownServer,
+          allianceServer: selfService.allianceServer,
+        }),
+      );
+    }
+
     if (selfService.reason === "position_not_home") {
       return finishMemberLinkSubmit(ctx, {
         outcome: "position_not_home",
@@ -795,6 +815,7 @@ export async function runWebMemberLinkSubmit(input: {
     const serverGate = await resolveMemberLinkServerGate({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",
+      hqUserId: input.hqUserId,
       gameUid: uid,
       lookup,
       translate,
