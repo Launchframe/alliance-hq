@@ -815,6 +815,112 @@ describe("commitDepositSlipsFromVideoJob", () => {
     expect(updateDepositSlip).toHaveBeenCalledTimes(1);
   });
 
+  it("inserts a post-loot re-deposit even when initiate is within 15m of the looted slip", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-looted",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:00:00.000Z"),
+        amount: 6000,
+        termDays: 1,
+        depositAllianceTag: "Roar",
+        status: "looted",
+        outcomeAt: new Date("2026-07-10T12:05:00.000Z"),
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-redeposit",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:10:00.000Z",
+          memberLevel: 1,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(1);
+    expect(result.skippedDuplicateCount).toBe(0);
+    expect(result.updatedCount).toBe(0);
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({
+        depositAt: "2026-07-10T12:10:00.000Z",
+        status: "locked",
+        amount: 6000,
+      }),
+    );
+  });
+
+  it("same batch: loot then re-deposit creates a second locked slip", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-locked",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:00:00.000Z"),
+        amount: 6000,
+        termDays: 1,
+        depositAllianceTag: "Roar",
+        status: "locked",
+        outcomeAt: null,
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-loot",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:05:00.000Z",
+          memberLevel: 1,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund@2026-07-10T12:05:00.000Z",
+          rank: 3000,
+          frameIndex: 0,
+          deleted: false,
+        },
+        {
+          id: "row-redeposit",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:10:00.000Z",
+          memberLevel: 1,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 1,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.updatedCount).toBe(1);
+    expect(result.createdCount).toBe(1);
+    expect(result.skippedDuplicateCount).toBe(0);
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({
+        depositAt: "2026-07-10T12:10:00.000Z",
+        status: "locked",
+      }),
+    );
+  });
+
   it("does not double-insert when a repeated terminal row lands >15m from the initiate but near the just-applied outcome", async () => {
     listDepositSlipsForBank.mockResolvedValue([
       {
