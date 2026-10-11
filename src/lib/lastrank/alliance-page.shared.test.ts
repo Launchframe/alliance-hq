@@ -10,6 +10,7 @@ import {
   LASTRANK_PROFESSION_HQ_RECENT_DAYS,
   lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
+  collectStaleLastRankStickyCommanderIds,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
   parseLastRankProfessionBadges,
@@ -360,20 +361,76 @@ describe("matchLastRankMembersToHq cascade", () => {
     originServerId: 1203 as number | null,
   };
 
-  it("matches stored lastrank_public_id before name cascade", () => {
+  it("matches stored lastrank_public_id before name cascade when names corroborate", () => {
     const result = matchLastRankMembersToHq(
       [lastRankMember],
       [
         hqRow({
           commanderId: "c1",
           ashedMemberId: "m1",
+          // Current roster renamed; previous name still corroborates sticky id.
           currentNames: ["Renamed Commander"],
+          previousNames: ["Bane Pig"],
           lastrankPublicId: 1,
         }),
       ],
     );
     expect(result.matched).toHaveLength(1);
     expect(result.matched[0].matchMethod).toBe("lastrank_public_id");
+  });
+
+  it("does not sticky-match poisoned public_id without name corroboration (Mike↔Nike)", () => {
+    // Pre-#604 sole-fuzzy apply could stamp Nike's public_id onto Mike.
+    // Sticky must not keep re-applying Nike's R5 onto Mike forever.
+    const nike = {
+      ...lastRankMember,
+      publicId: 99,
+      name: "Nike",
+      allianceRank: 5,
+    };
+    const mikeHq = hqRow({
+      commanderId: "c-mike",
+      ashedMemberId: "m-mike",
+      currentNames: ["Mike"],
+      hqAllianceRank: 1,
+      lastrankPublicId: 99,
+    });
+    const result = matchLastRankMembersToHq([nike], [mikeHq]);
+    expect(result.matched).toHaveLength(0);
+    expect(result.unmatched[0]?.status).toBe("unmatched");
+    expect(
+      collectStaleLastRankStickyCommanderIds([nike], [mikeHq], result),
+    ).toEqual(["c-mike"]);
+  });
+
+  it("lets exact name reclaim HQ after rejecting uncorroborated sticky", () => {
+    const nike = {
+      ...lastRankMember,
+      publicId: 99,
+      name: "Nike",
+      allianceRank: 5,
+    };
+    const mike = {
+      ...lastRankMember,
+      publicId: 42,
+      name: "Mike",
+      allianceRank: 1,
+    };
+    const mikeHq = hqRow({
+      commanderId: "c-mike",
+      ashedMemberId: "m-mike",
+      currentNames: ["Mike"],
+      lastrankPublicId: 99, // poisoned: Nike's id
+    });
+    const result = matchLastRankMembersToHq([nike, mike], [mikeHq]);
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0].matchMethod).toBe("exact_current");
+    expect(result.matched[0].lastRank.name).toBe("Mike");
+    expect(result.matched[0].hq.commanderId).toBe("c-mike");
+    // Matched via exact — sticky clear list must not include reclaimed HQ.
+    expect(
+      collectStaleLastRankStickyCommanderIds([nike, mike], [mikeHq], result),
+    ).toEqual([]);
   });
 
   it("exact-matches current names before previous", () => {
