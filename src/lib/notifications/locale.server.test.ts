@@ -48,6 +48,7 @@ import {
   notificationTranslator,
   requestLocaleFallback,
   resolveDiscordRecipientLocales,
+  resolvePreAuthEmailLocale,
   resolveRecipientLocale,
 } from "./locale.server";
 
@@ -87,6 +88,13 @@ describe("resolveRecipientLocale", () => {
       resolveRecipientLocale({ email: "new@example.com", fallback: "pt-BR" }),
     ).resolves.toBe("pt-BR");
   });
+
+  it("falls open to the fallback when locale lookup throws", async () => {
+    mocks.loadUserLocaleState.mockRejectedValue(new Error("db down"));
+    await expect(
+      resolveRecipientLocale({ hqUserId: "u1", fallback: "pt-BR" }),
+    ).resolves.toBe("pt-BR");
+  });
 });
 
 describe("resolveDiscordRecipientLocales", () => {
@@ -120,6 +128,21 @@ describe("requestLocaleFallback", () => {
     await expect(requestLocaleFallback()).resolves.toBe("pt-BR");
     mocks.cookie = "fr";
     await expect(requestLocaleFallback()).resolves.toBeNull();
+  });
+});
+
+describe("resolvePreAuthEmailLocale", () => {
+  it("uses the browser cookie and never looks up the recipient by email", async () => {
+    mocks.cookie = "id";
+    mocks.rows.set("hqUsers", [{ id: "existing" }]);
+    mocks.loadUserLocaleState.mockResolvedValue({ locale: "pt-BR", source: "manual" });
+    await expect(resolvePreAuthEmailLocale()).resolves.toBe("id");
+    expect(mocks.loadUserLocaleState).not.toHaveBeenCalled();
+  });
+
+  it("falls back to en-US when the cookie is missing or invalid", async () => {
+    mocks.cookie = undefined;
+    await expect(resolvePreAuthEmailLocale()).resolves.toBe("en-US");
   });
 });
 

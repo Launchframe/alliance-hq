@@ -8,10 +8,7 @@ import { nanoid } from "nanoid";
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { buildAuthCodeEmail } from "@/lib/auth/auth-code-email.server";
 import { getDb, schema } from "@/lib/db";
-import {
-  requestLocaleFallback,
-  resolveRecipientLocale,
-} from "@/lib/notifications/locale.server";
+import { resolvePreAuthEmailLocale } from "@/lib/notifications/locale.server";
 import { assertEmailSignInAllowed } from "@/lib/auth/email-sign-in-restriction.server";
 import {
   PRODUCTION_EMAIL_FROM,
@@ -68,10 +65,7 @@ async function sendAuthEmailCodeViaResend(input: {
   const email = buildAuthCodeEmail(
     "verify",
     input.code,
-    await resolveRecipientLocale({
-      email: input.to,
-      fallback: await requestLocaleFallback(),
-    }),
+    await resolvePreAuthEmailLocale(),
   );
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

@@ -53,10 +53,28 @@ export async function resolveRecipientLocale(input: {
   email?: string | null;
   fallback?: string | null;
 }): Promise<AppLocale> {
-  const hqUserId =
-    input.hqUserId ?? (input.email ? await hqUserIdForEmail(input.email) : null);
-  if (!hqUserId) return isAppLocale(input.fallback) ? input.fallback : "en-US";
-  return withFallback(await loadUserLocaleState(hqUserId), input.fallback);
+  try {
+    const hqUserId =
+      input.hqUserId ?? (input.email ? await hqUserIdForEmail(input.email) : null);
+    if (!hqUserId) return isAppLocale(input.fallback) ? input.fallback : "en-US";
+    return withFallback(await loadUserLocaleState(hqUserId), input.fallback);
+  } catch {
+    return isAppLocale(input.fallback) ? input.fallback : "en-US";
+  }
+}
+
+/**
+ * Sign-up / sign-in emails before the recipient is authenticated. Uses only the
+ * requesting browser's locale so message language cannot reveal whether the
+ * address already has an HQ account.
+ */
+export async function resolvePreAuthEmailLocale(): Promise<AppLocale> {
+  try {
+    const fallback = await requestLocaleFallback();
+    return isAppLocale(fallback) ? fallback : "en-US";
+  } catch {
+    return "en-US";
+  }
 }
 
 /** Batch form for multi-recipient sends; missing users resolve to en-US. */

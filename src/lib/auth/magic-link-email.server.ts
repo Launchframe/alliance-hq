@@ -3,8 +3,7 @@ import "server-only";
 import type { AppLocale } from "@/i18n/routing";
 import {
   notificationTranslator,
-  requestLocaleFallback,
-  resolveRecipientLocale,
+  resolvePreAuthEmailLocale,
   type NotificationTranslate,
 } from "@/lib/notifications/locale.server";
 
@@ -120,10 +119,7 @@ export async function sendMagicLinkViaResend(input: {
   const email = buildMagicLinkEmail({
     url: input.url,
     theme: input.theme,
-    locale: await resolveRecipientLocale({
-      email: input.to,
-      fallback: await requestLocaleFallback(),
-    }),
+    locale: await resolvePreAuthEmailLocale(),
   });
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
