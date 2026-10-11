@@ -232,6 +232,31 @@ describe("grantVideoProcessor", () => {
       grantedByHqUserId: "admin-1",
     });
   });
+
+  it("does not advisory-lock share-linked grants (cap applies to direct slots only)", async () => {
+    mockState.selectResults = [
+      [],
+      [
+        {
+          allianceId: "alliance-1",
+          delegateHqUserId: "user-1",
+          status: "active",
+          capabilities: ["video:process"],
+        },
+      ],
+    ];
+
+    const result = await grantVideoProcessor({
+      allianceId: "alliance-1",
+      hqUserId: "user-1",
+      grantedByHqUserId: "admin-1",
+      viaCredentialShareId: "share-1",
+    });
+
+    expect(result).toEqual({ ok: true, alreadyGranted: false });
+    expect(mockDb.execute).not.toHaveBeenCalled();
+    expect(mockDb.insert).toHaveBeenCalledOnce();
+  });
 });
 
 describe("revokeVideoProcessor", () => {

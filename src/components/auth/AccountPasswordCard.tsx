@@ -120,6 +120,7 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
               autoComplete="current-password"
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             />
           </label>
         ) : null}
