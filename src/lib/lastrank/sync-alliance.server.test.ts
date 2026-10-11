@@ -306,9 +306,77 @@ describe("syncLastRankAlliance batch dispatch", () => {
       "m-alpha",
       4,
       null,
+      { signal: expect.any(AbortSignal) },
     );
     expect(result.apply).toEqual(
       expect.objectContaining({ rankApplied: 1, rankAshedSynced: 1, rankAshedFailed: 0 }),
+    );
+  });
+
+  it("stops calling Ashed for ranks after repeated failures in one run", async () => {
+    mocks.loadAshed.mockResolvedValue({
+      connection: { token: "t" },
+      ashedAllianceId: "ash-1",
+    });
+    mocks.syncMemberRankToAshed.mockRejectedValue(new Error("down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    rankUpdateRows.rows = [{ ashedAllianceId: "ash-1" }];
+    const names = Array.from({ length: 10 }, (_, i) => `Member${i}`);
+    mocks.fetchPage.mockResolvedValue({
+      members: names.map((name, i) =>
+        lrMember({ publicId: 600 + i, name, allianceRank: 4 }),
+      ),
+    });
+    seedHqRoster(
+      names.map((name) =>
+        hqRow({
+          commanderId: `c-${name}`,
+          ashedMemberId: `m-${name}`,
+          currentNames: [name],
+          hqAllianceRank: 2,
+        }),
+      ),
+    );
+
+    const result = await syncLastRankAlliance({ target, apply: true });
+
+    // Up to three in-flight rows may already be past the breaker check when it trips.
+    const calls = mocks.syncMemberRankToAshed.mock.calls.length;
+    expect(calls).toBeGreaterThanOrEqual(3);
+    expect(calls).toBeLessThanOrEqual(6);
+    expect(result.apply).toEqual(
+      expect.objectContaining({ rankApplied: 10, rankAshedSynced: 0, rankAshedFailed: 10 }),
+    );
+  });
+
+  it("counts the Ashed rank outcome of members created from LastRank", async () => {
+    mocks.loadAshed.mockResolvedValue({
+      connection: { token: "t" },
+      ashedAllianceId: "ash-1",
+    });
+    mocks.createAllianceMemberFromLastRank.mockImplementation(async ({ lastRank }) => ({
+      hq: hqRow({
+        commanderId: `c-new-${lastRank.publicId}`,
+        ashedMemberId: `m-new-${lastRank.publicId}`,
+        currentNames: [lastRank.name],
+        hqAllianceRank: lastRank.allianceRank,
+      }),
+      ashedCreated: true,
+      ashedRankSynced: false,
+    }));
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 701, name: "Newbie", allianceRank: 3 })],
+    });
+    seedHqRoster([]);
+
+    const result = await syncLastRankAlliance({
+      target,
+      apply: true,
+      createAllUnmatched: true,
+    });
+
+    expect(result.apply).toEqual(
+      expect.objectContaining({ membersCreated: 1, rankAshedSynced: 0, rankAshedFailed: 1 }),
     );
   });
 
