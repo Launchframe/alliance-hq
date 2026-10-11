@@ -34,7 +34,7 @@ const pickBodySchema = z.object({
 const confirmHomeBodySchema = z.object({
   action: z.literal("confirm_home"),
   nonce: z.string().trim().min(1),
-  choice: z.enum(["alliance", "lookup"]),
+  choice: z.enum(["alliance", "lookup", "known"]),
   gameUid: z.string().trim().min(1).max(20),
 });
 

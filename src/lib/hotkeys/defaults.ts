@@ -99,6 +99,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "admin.nav.allianceSetupRequests": { key: "h" },
   "admin.nav.uidInspector": { key: "i" },
   "admin.nav.activity": { key: "j" },
+  "admin.nav.commanders": { key: "m" },
 
   "trains.spinWheel": { key: "w" },
   "trains.spinWeek": chord("w", ["shift"]),

@@ -35,7 +35,10 @@ import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
-import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import {
+  resolveCommanderByUid,
+  syncCommanderIdentityFromMemberLink,
+} from "@/lib/members/commander-identity.server";
 import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/discord-link-live-identity.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
@@ -161,6 +164,7 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
       gameUserName: r.gameUserName,
       lookupServer: r.lookupServer,
       allianceServer: r.allianceServer,
+      ...(typeof r.knownServer === "number" ? { knownServer: r.knownServer } : {}),
       ...(typeof r.gameUserLevel === "number"
         ? { gameUserLevel: r.gameUserLevel }
         : {}),
@@ -571,6 +575,8 @@ export async function linkDiscordMember(input: {
   const existingPair = userLinks.find(
     (row) => row.ashedMemberId === input.ashedMemberId,
   );
+  const homeServerBeforeLink =
+    (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
 
   try {
     if (existingPair) {
@@ -613,6 +619,7 @@ export async function linkDiscordMember(input: {
         ashedMemberId: input.ashedMemberId,
         gameUid: input.gameUid,
         memberDisplayName: input.memberDisplayName,
+        homeServerBeforeLink,
       });
       return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
     }
@@ -670,6 +677,7 @@ export async function linkDiscordMember(input: {
       gameUid: input.gameUid,
       memberDisplayName: input.memberDisplayName,
       joinedAt: now,
+      homeServerBeforeLink,
     });
 
     return {

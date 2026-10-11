@@ -8,7 +8,10 @@ import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
-import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import {
+  resolveCommanderByUid,
+  syncCommanderIdentityFromMemberLink,
+} from "@/lib/members/commander-identity.server";
 import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   hasConflictingDiscordAshedMemberOccupancy,
@@ -295,6 +298,8 @@ export async function linkHqMember(input: {
     input.allianceId,
     input.hqUserId,
   );
+  const homeServerBeforeLink =
+    (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
 
   try {
     if (existingUserLink) {
@@ -324,6 +329,7 @@ export async function linkHqMember(input: {
         gameUid: input.gameUid,
         memberDisplayName: input.memberDisplayName,
         hqUserId: input.hqUserId,
+        homeServerBeforeLink,
       });
       await inheritHqMemberLinkToDiscordIfLinked({
         hqUserId: input.hqUserId,
@@ -367,6 +373,7 @@ export async function linkHqMember(input: {
       memberDisplayName: input.memberDisplayName,
       hqUserId: input.hqUserId,
       joinedAt: now,
+      homeServerBeforeLink,
     });
     await inheritHqMemberLinkToDiscordIfLinked({
       hqUserId: input.hqUserId,

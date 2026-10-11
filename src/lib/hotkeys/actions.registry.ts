@@ -524,6 +524,8 @@ const ADMIN_SEQUENCE_KEYS = [
   "h",
   "i",
   "j",
+  "m",
+  "n",
 ] as const;
 
 const ADMIN_ACTIONS: HotkeyActionDef[] = ADMIN_LINKS.map((link, index) => ({

@@ -231,6 +231,7 @@ test.describe("App hotkeys", () => {
     await page.goto("/members");
     await page
       .getByRole("link", { name: "Activity", exact: true })
+      .first()
       .focus();
     await page.keyboard.press("g");
     await page.keyboard.press(".");

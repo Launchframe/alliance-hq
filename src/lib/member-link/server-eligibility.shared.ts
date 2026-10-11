@@ -7,16 +7,19 @@
 export type ServerEligibilityReason =
   | "lookup_matches"
   | "known_commander_home"
-  | "user_confirmed_alliance_home";
+  | "user_confirmed_alliance_home"
+  | "user_confirmed_server_transfer";
 
 export type ServerEligibilityResult =
   | { kind: "eligible"; reason: ServerEligibilityReason }
   | { kind: "confirm_home"; lookupServer: number; allianceServer: number }
+  | { kind: "confirm_transfer"; knownServer: number; allianceServer: number }
   | {
       kind: "rejected";
       reason:
         | "user_claimed_lookup_home"
         | "known_home_mismatch"
+        | "transfer_position_mismatch"
         | "missing_server"
         | "alliance_server_unknown";
     };
@@ -27,6 +30,12 @@ export function resolveMemberLinkServerEligibility(input: {
   knownCommanderHomeServer: number | null | undefined;
   allianceHomeConfirmed?: boolean;
   userClaimedLookupAsHome?: boolean;
+  /**
+   * The member reached this alliance through an accepted invite or redeemed
+   * join code, so the alliance vouched for them. Required before a commander
+   * whose recorded home differs may confirm a server transfer.
+   */
+  transferEligible?: boolean;
 }): ServerEligibilityResult {
   if (input.userClaimedLookupAsHome) {
     return { kind: "rejected", reason: "user_claimed_lookup_home" };
@@ -40,10 +49,20 @@ export function resolveMemberLinkServerEligibility(input: {
     return { kind: "rejected", reason: "alliance_server_unknown" };
   }
 
-  // HQ already recorded a different home server for this UID — hard reject.
-  // Position match and honor-system confirm must not override known home.
+  // HQ already recorded a different home server for this UID. Only an
+  // alliance-vouched member currently positioned on the alliance's server may
+  // confirm a transfer; position alone or honor confirm alone is not enough.
   if (knownHome != null && knownHome !== allianceServer) {
-    return { kind: "rejected", reason: "known_home_mismatch" };
+    if (!input.transferEligible) {
+      return { kind: "rejected", reason: "known_home_mismatch" };
+    }
+    if (lookupServer !== allianceServer) {
+      return { kind: "rejected", reason: "transfer_position_mismatch" };
+    }
+    if (input.allianceHomeConfirmed) {
+      return { kind: "eligible", reason: "user_confirmed_server_transfer" };
+    }
+    return { kind: "confirm_transfer", knownServer: knownHome, allianceServer };
   }
 
   if (input.allianceHomeConfirmed) {

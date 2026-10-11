@@ -6575,5 +6575,51 @@ export const vsCaptureReviews = pgTable("vs_capture_reviews", {
   check("vs_capture_reviews_version_check", sql`${table.version} > 0`),
 ]);
 
+export const navigationPreferences = pgTable("navigation_preferences", {
+  hqUserId: text("hq_user_id")
+    .primaryKey()
+    .references(() => hqUsers.id, { onDelete: "cascade" }),
+  showAshedPages: boolean("show_ashed_pages").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const navigationFavorites = pgTable(
+  "navigation_favorites",
+  {
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    destinationId: text("destination_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.hqUserId, table.destinationId] }),
+  ],
+);
+
+export const navigationRecents = pgTable(
+  "navigation_recents",
+  {
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    destinationId: text("destination_id").notNull(),
+    lastVisitedAt: timestamp("last_visited_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.hqUserId, table.destinationId] }),
+    index("navigation_recents_user_time_idx").on(
+      table.hqUserId,
+      table.lastVisitedAt.desc(),
+    ),
+  ],
+);
+
 export type PerformanceNote = typeof performanceNotes.$inferSelect;
 export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;
