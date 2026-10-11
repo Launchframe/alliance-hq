@@ -426,10 +426,12 @@ describe("syncLastRankAlliance batch dispatch", () => {
       trace.order.push("onDispatchStart");
     });
 
+    const positions: Array<{ current: number; total: number } | undefined> = [];
     await syncLastRankAlliance({
       target,
       apply: true,
-      interactivePrompt: async (ctx) => {
+      interactivePrompt: async (ctx, position) => {
+        positions.push(position);
         if (ctx.publicId === 302) return { kind: "match", hqName: "OldHQ" };
         if (ctx.publicId === 303) return { kind: "create" };
         return { kind: "skip" };
@@ -437,6 +439,11 @@ describe("syncLastRankAlliance batch dispatch", () => {
       retirePrompt: async () => true,
       onDispatchStart,
     });
+
+    expect(positions.length).toBeGreaterThan(1);
+    expect(positions).toEqual(
+      positions.map((_, i) => ({ current: i + 1, total: positions.length })),
+    );
 
     expect(mocks.applyInteractiveNameMapping).toHaveBeenCalledOnce();
     expect(mocks.createAllianceMemberFromLastRank).toHaveBeenCalledOnce();

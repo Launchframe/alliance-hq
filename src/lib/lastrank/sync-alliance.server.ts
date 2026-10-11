@@ -22,6 +22,7 @@ import {
   type LastRankAllianceMember,
   type LastRankHqRosterRow,
   type LastRankInteractiveAnswer,
+  type LastRankPromptPosition,
   type LastRankMatchedRow,
   type LastRankMatchResult,
   type LastRankUnmatchedRow,
@@ -106,15 +107,18 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   namesAshedSynced: number;
 };
 
-export type LastRankInteractivePrompt = (ctx: {
-  lastRankName: string;
-  publicId: number;
-  profileUrl: string;
-  /** True when not in an R1–R5 section — often a recent leaver still listed on LastRank. */
-  unranked: boolean;
-  suggestions: LastRankUnmatchedRow["suggestions"];
-  remainingHqNames: string[];
-}) => Promise<LastRankInteractiveAnswer>;
+export type LastRankInteractivePrompt = (
+  ctx: {
+    lastRankName: string;
+    publicId: number;
+    profileUrl: string;
+    /** True when not in an R1–R5 section — often a recent leaver still listed on LastRank. */
+    unranked: boolean;
+    suggestions: LastRankUnmatchedRow["suggestions"];
+    remainingHqNames: string[];
+  },
+  position?: LastRankPromptPosition,
+) => Promise<LastRankInteractiveAnswer>;
 
 export type LastRankRetirePrompt = (ctx: {
   memberName: string;
@@ -673,14 +677,17 @@ async function runInteractiveResolutions(
       .filter((hq) => !claimed.has(hq.commanderId))
       .map((hq) => hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId);
 
-    const answer = await prompt({
-      lastRankName: row.lastRank.name,
-      publicId: row.lastRank.publicId,
-      profileUrl: lastRankPlayerProfileUrl(row.lastRank.publicId),
-      unranked: isLastRankUnranked(row.lastRank),
-      suggestions: row.suggestions,
-      remainingHqNames,
-    });
+    const answer = await prompt(
+      {
+        lastRankName: row.lastRank.name,
+        publicId: row.lastRank.publicId,
+        profileUrl: lastRankPlayerProfileUrl(row.lastRank.publicId),
+        unranked: isLastRankUnranked(row.lastRank),
+        suggestions: row.suggestions,
+        remainingHqNames,
+      },
+      { current: index + 1, total: pending.length },
+    );
     const remaining = pending.length - index - 1;
 
     if (answer.kind === "skip") {

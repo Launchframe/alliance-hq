@@ -4,6 +4,7 @@ import {
   isLastRankAllianceId,
   type LastRankInteractiveAnswer,
   type LastRankMatchResult,
+  type LastRankPromptPosition,
   type LastRankSuggestionSignals,
 } from "@/lib/lastrank/alliance-page.shared";
 import type { LastRankRosterDiff } from "@/lib/lastrank/roster-diff.shared";
@@ -188,7 +189,10 @@ export function withoutClaimedHqNames(
  */
 export async function collectLastRankRemoteDecisions(input: {
   plan: LastRankRemotePlan;
-  interactivePrompt: (ctx: LastRankRemotePrompt) => Promise<LastRankInteractiveAnswer>;
+  interactivePrompt: (
+    ctx: LastRankRemotePrompt,
+    position: LastRankPromptPosition,
+  ) => Promise<LastRankInteractiveAnswer>;
   retirePrompt?: (ctx: LastRankRemoteRetireCandidate) => Promise<boolean>;
   onPlanChanged?: LastRankSyncPlanListener;
 }): Promise<{
@@ -215,6 +219,7 @@ export async function collectLastRankRemoteDecisions(input: {
   for (const [index, prompt] of prompts.entries()) {
     const answer = await input.interactivePrompt(
       withoutClaimedHqNames(prompt, claimed),
+      { current: index + 1, total: prompts.length },
     );
     const remaining = prompts.length - index - 1;
     if (answer.kind === "match") {

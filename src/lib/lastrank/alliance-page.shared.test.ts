@@ -6,7 +6,9 @@ import {
   buildInteractiveHqChoices,
   decideLastRankProfessionApply,
   formatLastRankPowerLevel,
+  formatLastRankPromptPosition,
   formatLastRankSuggestionSignals,
+  parseLastRankAllianceIdentity,
   isLastRankUnranked,
   lastRankSuggestionSignals,
   scoreLastRankSuggestion,
@@ -66,6 +68,37 @@ function hqRow(
     ...partial,
   };
 }
+
+describe("parseLastRankAllianceIdentity", () => {
+  it("reads tag and server from the page description", () => {
+    const html =
+      '<title>LFgo Live Free Die Hard | LastRank</title><meta name="description" content="Alliance [LFgo] Live Free Die Hard on server 1203 — 100 members, 26530249719 power, 709757062 kills."/>';
+    expect(parseLastRankAllianceIdentity(html)).toEqual({
+      tag: "LFgo",
+      gameServerNumber: 1203,
+    });
+  });
+
+  it("falls back to og:description and decodes entities", () => {
+    const html =
+      '<meta property="og:description" content="Alliance [A&amp;B] Name on server 1211 — 3 members"/>';
+    expect(parseLastRankAllianceIdentity(html)).toEqual({
+      tag: "A&B",
+      gameServerNumber: 1211,
+    });
+  });
+
+  it("returns null when the metadata is missing", () => {
+    expect(parseLastRankAllianceIdentity("<html></html>")).toBeNull();
+  });
+});
+
+describe("formatLastRankPromptPosition", () => {
+  it("prefixes [current/total] and is empty without a position", () => {
+    expect(formatLastRankPromptPosition({ current: 3, total: 42 })).toBe("[3/42] ");
+    expect(formatLastRankPromptPosition(undefined)).toBe("");
+  });
+});
 
 describe("parseLastRankSectionRanks", () => {
   it("maps player links under R1–R5 section badges", () => {

@@ -207,6 +207,24 @@ describe("collectLastRankRemoteDecisions", () => {
     });
   });
 
+  it("passes a 1-based position out of all prompts", async () => {
+    const positions: unknown[] = [];
+    await collectLastRankRemoteDecisions({
+      plan: plan({
+        prompts: [prompt({ publicId: 1 }), prompt({ publicId: 2 }), prompt({ publicId: 3 })],
+      }),
+      interactivePrompt: async (_ctx, position) => {
+        positions.push(position);
+        return { kind: "skip" };
+      },
+    });
+    expect(positions).toEqual([
+      { current: 1, total: 3 },
+      { current: 2, total: 3 },
+      { current: 3, total: 3 },
+    ]);
+  });
+
   it("does not offer retirements without a retire prompt", async () => {
     const result = await collectLastRankRemoteDecisions({
       plan: plan({ retireCandidates: [{ ashedMemberId: "m-1", memberName: "X" }] }),
