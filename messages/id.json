@@ -6821,7 +6821,12 @@
       "targetLabel": "Ubah",
       "targetVip": "VIP",
       "title": "Change this day's rule",
-      "vipSection": "VIP rule"
+      "vipSection": "VIP rule",
+      "vipVsMinScoreHint": "Mengundi dari semua anggota dengan skor VS hari sebelumnya di atas nilai ini, kecuali konduktor hari itu.",
+      "vipVsMinScoreInvalid": "Masukkan skor dalam juta, misalnya 7,5.",
+      "vipVsMinScoreLabel": "Skor VS minimum (juta)",
+      "vipVsMinScorePlaceholder": "mis. 7,5",
+      "vipVsTopHint": "Mengundi dari skor VS teratas hari sebelumnya. Konduktor hari itu tidak diikutkan, jadi Top 1 adalah skor tertinggi selain konduktor."
     },
     "economyScoresOptional": {
       "body": "Scores are not uploaded, so everyone is eligible. Continue anyway?",
@@ -7316,6 +7321,8 @@
       "vipDonationsSecond": "Second donor",
       "vipEventTopX": "Event top X",
       "vipNone": "No VIP",
+      "vipVsMinScore": "Ambang VS",
+      "vipVsMinScoreValue": "VS di atas {score} jt",
       "vrTopN": "Top VR",
       "vsTop1": "Top VS #1",
       "vsTopN": "Top VS"
@@ -7420,7 +7427,8 @@
       "vipRole": "VIP spin",
       "vrLeaderboardTopN": "VR top {count}",
       "vsLeaderboardTop1": "VS #1 (prior-day high score)",
-      "vsLeaderboardTopN": "VS top {count}"
+      "vsLeaderboardTopN": "VS top {count}",
+      "vsMinScore": "Skor VS di atas {score} jt"
     },
     "spinVipWheel": "Spin VIP wheel",
     "spinWeek": {

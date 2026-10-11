@@ -19,4 +19,5 @@ export type {
   SpinSource,
   VrLeaderboardSpinSource,
   VsLeaderboardSpinSource,
+  VsMinScoreSpinSource,
 } from "@/lib/trains/rules/derive.shared";

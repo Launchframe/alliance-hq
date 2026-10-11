@@ -28,6 +28,8 @@ export type ConductorMechanismType = (typeof CONDUCTOR_MECHANISMS)[number];
 export const VIP_MECHANISMS = [
   "conductor_pick",
   "donations_second",
+  "vs_top_n",
+  "vs_min_score",
   "event_top_x_lottery",
   "event_scores",
   "none",
