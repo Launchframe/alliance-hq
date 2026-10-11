@@ -273,6 +273,51 @@ describe("completePairing", () => {
     expect(update).toHaveBeenCalledTimes(1);
   });
 
+  it("releases authorized_access claims when source session is missing after claim", async () => {
+    const previewLimit = vi
+      .fn()
+      .mockResolvedValue([{ sourceSessionId: "owner-sess" }]);
+    const previewWhere = vi.fn().mockReturnValue({ limit: previewLimit });
+    const previewFrom = vi.fn().mockReturnValue({ where: previewWhere });
+
+    const claimReturning = vi.fn().mockResolvedValue([
+      {
+        id: "pair-share",
+        purpose: "authorized_access",
+        sourceSessionId: "owner-sess",
+        metadataJson: { shareId: "share-1" },
+      },
+    ]);
+    const claimWhere = vi.fn().mockReturnValue({ returning: claimReturning });
+    const claimSet = vi.fn().mockReturnValue({ where: claimWhere });
+
+    const releaseWhere = vi.fn().mockResolvedValue([]);
+    const releaseSet = vi.fn().mockReturnValue({ where: releaseWhere });
+
+    const update = vi
+      .fn()
+      .mockReturnValueOnce({ set: claimSet })
+      .mockReturnValueOnce({ set: releaseSet });
+
+    vi.spyOn(dbModule, "getDb").mockReturnValue({
+      select: vi.fn().mockReturnValue({ from: previewFrom }),
+      update,
+    } as unknown as ReturnType<typeof dbModule.getDb>);
+
+    vi.mocked(loadSession).mockResolvedValue(null);
+
+    await expect(completePairing("share-code", "mobile-sess")).rejects.toBeInstanceOf(
+      PairingError,
+    );
+
+    expect(strategyCompleteMock).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(releaseSet).toHaveBeenCalledWith({
+      consumedAt: null,
+      consumedBySessionId: null,
+    });
+  });
+
   it("releases authorized_access claims when onComplete rejects", async () => {
     const previewLimit = vi
       .fn()
