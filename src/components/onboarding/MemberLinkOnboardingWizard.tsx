@@ -39,7 +39,9 @@ type Phase =
   | "wrong_server"
   | "confirm_server"
   | "confirm_home_server"
+  | "confirm_server_transfer"
   | "position_not_home"
+  | "server_transfer_send_home"
   | "lookup_fallback"
   | "confirm_identity"
   | "claim"
@@ -54,6 +56,7 @@ type ApiResponse = {
   lookupGameUserName?: string;
   lookupServerNumber?: number | null;
   allianceServerNumber?: number | null;
+  knownServerNumber?: number | null;
   serverConfirmReason?: "missing" | "mismatch";
 };
 
@@ -161,6 +164,7 @@ export function MemberLinkOnboardingWizard({
   const [allianceServerNumber, setAllianceServerNumber] = useState<
     number | null
   >(null);
+  const [knownServerNumber, setKnownServerNumber] = useState<number | null>(null);
   const [useLookupFallback, setUseLookupFallback] = useState(false);
   const [claimCommanderName] = useState(
     initialState.claimCommanderName ?? "",
@@ -241,9 +245,20 @@ export function MemberLinkOnboardingWizard({
           setMessage(data.message);
           setPhase("confirm_home_server");
           break;
+        case "confirm_server_transfer":
+          setConfirmName(data.lookupGameUserName ?? confirmName);
+          setKnownServerNumber(data.knownServerNumber ?? null);
+          setAllianceServerNumber(data.allianceServerNumber ?? null);
+          setMessage(data.message);
+          setPhase("confirm_server_transfer");
+          break;
         case "position_not_home":
           setMessage(data.message);
           setPhase("position_not_home");
+          break;
+        case "server_transfer_send_home":
+          setMessage(data.message);
+          setPhase("server_transfer_send_home");
           break;
         case "lookup_fallback":
           setUseLookupFallback(true);
@@ -377,6 +392,11 @@ export function MemberLinkOnboardingWizard({
         ? { allianceHomeConfirmed: true }
         : { userClaimedLookupAsHome: true },
     );
+  }
+
+  function declineServerTransfer() {
+    setFormError(tLink("wrongServer"));
+    setPhase("wrong_server");
   }
 
   function reenterUid() {
@@ -908,6 +928,64 @@ export function MemberLinkOnboardingWizard({
             className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
           >
             {t("confirmIdentityNo")}
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "confirm_server_transfer" ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">{t("confirmServerTransferTitle")}</h2>
+            {message ? (
+              <p className="mt-1 text-sm text-hq-fg-muted">{message}</p>
+            ) : null}
+          </div>
+          {confirmName ? (
+            <p className="text-center text-sm font-medium text-hq-fg">{confirmName}</p>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void submitHomeServerChoice("alliance")}
+              className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {t("confirmServerTransferYes", {
+                tag: allianceTag,
+                server: allianceServerNumber ?? 0,
+              })}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={declineServerTransfer}
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
+            >
+              {t("confirmServerTransferNo", { server: knownServerNumber ?? 0 })}
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={reenterUid}
+            className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
+          >
+            {t("confirmIdentityNo")}
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "server_transfer_send_home" ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">{t("serverTransferSendHomeTitle")}</h2>
+          {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={reenterUid}
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
+          >
+            {t("backToForm")}
           </button>
         </div>
       ) : null}

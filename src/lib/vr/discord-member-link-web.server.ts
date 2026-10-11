@@ -128,6 +128,25 @@ async function mapLinkCommandResultToWebOutcome(
     return { outcome: "wrong_server", message: result.reply };
   }
 
+  if (result.serverTransferSendHome) {
+    return { outcome: "server_transfer_send_home", message: result.reply };
+  }
+
+  if (
+    result.needsServerTransferConfirmation &&
+    result.pending?.kind === "link_confirm_home_server" &&
+    result.pending.knownServer != null
+  ) {
+    return {
+      outcome: "confirm_server_transfer",
+      message: result.reply,
+      gameUserName: result.pending.gameUserName,
+      knownServerNumber: result.pending.knownServer,
+      allianceServerNumber: result.pending.allianceServer,
+      allianceTag: allianceTag ?? null,
+    };
+  }
+
   if (
     result.needsHomeServerConfirmation &&
     result.pending?.kind === "link_confirm_home_server"
@@ -302,7 +321,7 @@ export async function confirmDiscordMemberLinkFromWeb(
 
 const confirmHomeSchema = z.object({
   nonce: z.string().trim().min(1),
-  choice: z.enum(["alliance", "lookup"]),
+  choice: z.enum(["alliance", "lookup", "known"]),
   gameUid: z.string().trim().min(1).max(20),
 });
 

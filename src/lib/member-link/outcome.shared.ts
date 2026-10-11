@@ -13,6 +13,8 @@ export type MemberLinkOutcome =
   | "name_mismatch"
   | "confirm_server"
   | "confirm_home_server"
+  | "confirm_server_transfer"
+  | "server_transfer_send_home"
   | "position_not_home"
   | "usage"
   | "member_taken"
@@ -34,6 +36,8 @@ export type MemberLinkApiResponse = {
   lookupGameUserName?: string;
   lookupServerNumber?: number | null;
   allianceServerNumber?: number | null;
+  /** HQ's recorded home server when it differs from the alliance (server transfer). */
+  knownServerNumber?: number | null;
   serverConfirmReason?: MemberLinkServerConfirmReason;
 };
 
