@@ -14,9 +14,12 @@ import { resolveAppOrigin } from "@/lib/app-origin";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import { getDb, schema } from "@/lib/db";
-import { loadUserLocaleStates } from "@/lib/i18n/user-locale.server";
 import { decodeJwtPayload } from "@/lib/jwt/decode";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
+import {
+  formatNotificationDate,
+  resolveRecipientLocales,
+} from "@/lib/notifications/locale.server";
 import {
   claimOpsAlertFingerprint,
   emailPlatformMaintainers,
@@ -286,10 +289,6 @@ export type AllianceCredentialNoticeContext = {
   officerCount: number;
 };
 
-function formatUtcDate(date: Date, locale: AppLocale = "en-US"): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }).format(date);
-}
-
 const OFFICER_EMAIL_MESSAGES: Record<AppLocale, typeof enUS.allianceCredentialEmail> = {
   "en-US": enUS.allianceCredentialEmail,
   "pt-BR": ptBR.allianceCredentialEmail,
@@ -312,7 +311,7 @@ export function buildOfficerAllianceCredentialEmail(
     messages: { email: OFFICER_EMAIL_MESSAGES[locale] ?? OFFICER_EMAIL_MESSAGES["en-US"] },
     namespace: "email",
   });
-  const date = formatUtcDate(ctx.expiresAt, locale);
+  const date = formatNotificationDate(ctx.expiresAt, locale);
   const tag = ctx.allianceTag;
   const connectUrl = `${resolveAppOrigin()}/connect`;
   const teamUrl = `${resolveAppOrigin()}/settings/team`;
@@ -342,7 +341,7 @@ ${steps.map((step) => `<li>${linkifiedStepHtml(step.template, step.url)}</li>`).
 export function buildMaintainerAllianceCredentialEmail(
   ctx: AllianceCredentialNoticeContext,
 ): { subject: string; text: string; html: string } {
-  const date = formatUtcDate(ctx.expiresAt);
+  const date = formatNotificationDate(ctx.expiresAt, "en-US");
   const label = ctx.allianceName ? `${ctx.allianceTag} (${ctx.allianceName})` : ctx.allianceTag;
   const verb = ctx.stage === "expired" ? "expired on" : "expires on";
   const subject = `[Alliance HQ] ${ctx.allianceTag} alliance Ashed token ${verb} ${date}`;
@@ -414,7 +413,7 @@ export async function runAllianceCredentialExpiryNoticePass(now = new Date()): P
     if (!claimed) continue;
 
     const officers = await listAllianceCredentialOfficers(row.allianceId);
-    const officerLocales = await loadUserLocaleStates(officers.map((o) => o.hqUserId));
+    const officerLocales = await resolveRecipientLocales(officers.map((o) => o.hqUserId));
     const ctx: AllianceCredentialNoticeContext = {
       allianceId: row.allianceId,
       allianceTag: row.tag?.trim() || row.allianceId,
@@ -431,7 +430,7 @@ export async function runAllianceCredentialExpiryNoticePass(now = new Date()): P
       const officerFingerprint = `${fingerprint}:officer:${to.toLowerCase()}`;
       if (!(await claimOpsAlertFingerprint(officerFingerprint))) continue;
       try {
-        const locale = officerLocales.get(hqUserId)?.locale ?? "en-US";
+        const locale = officerLocales.get(hqUserId) ?? "en-US";
         await sendOfficerEmail({ to, ...buildOfficerAllianceCredentialEmail(ctx, locale) });
       } catch (error) {
         delivered = false;

@@ -12,9 +12,10 @@ Alliance HQ serves a deeply international audience. **Any copy a human can read 
 | Surface | Locale source | Typical wiring |
 | --- | --- | --- |
 | HQ web UI | next-intl route/`useLocale` | `useTranslations` / `getTranslations` |
-| Discord bot replies & slash descriptions | `discord_user_prefs` / `/language` | `createDiscordTranslator`, `messages/*/discordBot`, `register-commands.mjs` localizations |
+| Discord bot replies & slash descriptions | Linked users: HQ notification language; unlinked: `discord_user_prefs` / `/language` | `getDiscordBotLocale`, `createDiscordTranslator`, `messages/*/discordBot`, `register-commands.mjs` localizations |
 | Generated images (charts, report cards, overlays) | Same locale as the request/user | Pass `locale` into shared SVG/PNG builders; format dates/numbers with that locale; translate labels via i18n keys |
-| Emails / DMs / guides | Recipient or product locale | Localized templates; no hardcoded English bodies |
+| Notifications to one person (email, Discord DM, future push/SMS) | Recipient's **notification language** (`hq_users.preferred_locale`, else LastRank country, else fallback) | Resolve via `src/lib/notifications/locale.server.ts` (`resolveRecipientLocale`, `resolveDiscordRecipientLocale(s)`); copy in `messages/*/notificationMessages`; render with `notificationTranslator` |
+| Guides / alliance-wide channel posts | Product or guild locale | Localized templates; no hardcoded English bodies |
 | Dev/preview fixtures | Optional `locale` query / UI control | Exercise non-`en-US` paths |
 
 ## Hard rules
@@ -22,6 +23,8 @@ Alliance HQ serves a deeply international audience. **Any copy a human can read 
 - **No hardcoded English** in TS/TSX for user-facing strings when i18n exists (see `user-facing-copy-review.mdc` for approval + en-US/pt-BR together; async review agents disclose proposed copy on the PR).
 - **No English-only formatters** for visible dates/numbers on localized surfaces — use the active BCP 47 locale (`toLocaleString(locale)`, `Intl.NumberFormat(locale)`, shared chart formatters).
 - **Shared render paths** (web chart + Discord PNG, etc.) must take `locale` (and translated labels) so one plot definition stays locale-correct on every consumer.
+- **Every per-recipient notification obeys the notification language.** Any email, Discord DM, push, or other message addressed to one person must resolve its locale through `src/lib/notifications/locale.server.ts` — never from the sender's request, a hard-coded `en-US`, or a channel-specific preference read directly. Pre-account flows (sign-up codes, magic links) pass the request locale as `fallback`. New channels add a resolver there instead of inventing their own lookup.
+- Out of scope: alliance-wide channel posts (they follow the guild/product locale) and operator alerts sent to configured ops addresses (they must not depend on the database they report on).
 - When adding a new surface that shows text (including pixels), ask: *what is the user’s locale, and does every string/formatter use it?*
 
 ## Checklist for PRs that show text
@@ -29,4 +32,5 @@ Alliance HQ serves a deeply international audience. **Any copy a human can read 
 - [ ] Strings come from approved locale files / Discord bot keys
 - [ ] Dates, counts, and compact axis ticks use the active locale
 - [ ] Discord replies and any attached images use the bot locale
+- [ ] Emails / DMs / push to a single recipient resolve the locale via `notifications/locale.server.ts`
 - [ ] `npm run i18n:validate` passes after locale edits

@@ -2,8 +2,13 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import type { AppLocale } from "@/i18n/routing";
 import { resolveAppOrigin } from "@/lib/app-origin";
 import { getDb, schema } from "@/lib/db";
+import {
+  notificationTranslator,
+  resolveRecipientLocale,
+} from "@/lib/notifications/locale.server";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -84,145 +89,194 @@ async function sendResendEmail(input: {
   }
 }
 
-async function loadUserEmail(hqUserId: string): Promise<string | null> {
+type Recipient = { email: string | null; locale: AppLocale };
+
+async function loadRecipient(hqUserId: string): Promise<Recipient> {
   const db = getDb();
   const [row] = await db
     .select({ email: schema.hqUsers.email })
     .from(schema.hqUsers)
     .where(eq(schema.hqUsers.id, hqUserId))
     .limit(1);
-  return row?.email?.trim() || null;
+  const email = row?.email?.trim() || null;
+  return {
+    email,
+    locale: email ? await resolveRecipientLocale({ hqUserId }) : "en-US",
+  };
 }
 
-async function loadAllianceTag(allianceId: string): Promise<string> {
+async function loadAllianceTag(allianceId: string): Promise<string | null> {
   const db = getDb();
   const [row] = await db
     .select({ tag: schema.alliances.tag })
     .from(schema.alliances)
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
-  return row?.tag?.trim() || "your alliance";
+  return row?.tag?.trim() || null;
 }
 
-export function buildCredentialShareInviteEmail(input: {
-  allianceTag: string;
-  ownerLabel: string;
-  inviteUrl: string;
-  capabilities: string[];
-  expiresAt: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Credential access invite (${input.allianceTag})`;
-  const text = `${input.ownerLabel} invited you to use their Ashed credentials in ${input.allianceTag}.
+function shareTranslator(locale: AppLocale) {
+  return notificationTranslator(locale, "notificationMessages.credentialShare");
+}
 
-Capabilities: ${formatCapabilityList(input.capabilities)}
-Access expires: ${input.expiresAt}
+function strong(value: string): string {
+  return `<strong>${escapeHtml(value)}</strong>`;
+}
 
-Accept in Alliance HQ: ${input.inviteUrl}
-
-If you were not expecting this invite, you can ignore this email.`;
-  const html = `
+function layout(heading: string, rows: string): string {
+  return `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:20px;font-weight:600;">Credential access invite</td></tr>
-    <tr><td style="padding:0 24px 16px;line-height:1.5;"><strong>${escapeHtml(input.ownerLabel)}</strong> invited you to use their Ashed credentials in <strong>${escapeHtml(input.allianceTag)}</strong>.</td></tr>
-    <tr><td style="padding:0 24px 8px;font-size:14px;">Capabilities: ${escapeHtml(formatCapabilityList(input.capabilities))}</td></tr>
-    <tr><td style="padding:0 24px 16px;font-size:14px;">Access expires: ${escapeHtml(input.expiresAt)}</td></tr>
-    <tr><td style="padding:0 24px 24px;"><a href="${input.inviteUrl}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">Review invite</a></td></tr>
+    <tr><td style="padding:24px;font-size:18px;font-weight:600;">${escapeHtml(heading)}</td></tr>
+${rows}
   </table>
 </body>`;
+}
+
+function button(href: string, label: string): string {
+  return `    <tr><td style="padding:0 24px 24px;"><a href="${href}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">${escapeHtml(label)}</a></td></tr>`;
+}
+
+export function buildCredentialShareInviteEmail(
+  input: {
+    allianceTag: string;
+    ownerLabel: string;
+    inviteUrl: string;
+    capabilities: string[];
+    expiresAt: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = shareTranslator(locale);
+  const tag = input.allianceTag;
+  const capabilities = formatCapabilityList(input.capabilities);
+  const subject = t("invite.subject", { tag });
+  const text = `${t("invite.body", { owner: input.ownerLabel, tag })}
+
+${t("invite.capabilities", { capabilities })}
+${t("invite.expires", { expiresAt: input.expiresAt })}
+
+${t("invite.acceptText", { url: input.inviteUrl })}
+
+${t("invite.ignore")}`;
+  const html = layout(
+    t("invite.heading"),
+    `    <tr><td style="padding:0 24px 16px;line-height:1.5;">${t("invite.body", { owner: strong(input.ownerLabel), tag: strong(tag) })}</td></tr>
+    <tr><td style="padding:0 24px 8px;font-size:14px;">${escapeHtml(t("invite.capabilities", { capabilities }))}</td></tr>
+    <tr><td style="padding:0 24px 16px;font-size:14px;">${escapeHtml(t("invite.expires", { expiresAt: input.expiresAt }))}</td></tr>
+${button(input.inviteUrl, t("invite.review"))}`,
+  );
   return { subject, html, text };
 }
 
-export function buildCredentialShareAcceptedEmail(input: {
-  allianceTag: string;
-  delegateLabel: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Credential access accepted (${input.allianceTag})`;
-  const text = `${input.delegateLabel} accepted your credential share in ${input.allianceTag}. You can revoke access any time from Team settings: ${teamSettingsUrl()}`;
-  const html = `
-<body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
-  <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">Credential access accepted</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;"><strong>${escapeHtml(input.delegateLabel)}</strong> accepted your credential share in <strong>${escapeHtml(input.allianceTag)}</strong>.</td></tr>
-  </table>
-</body>`;
+export function buildCredentialShareAcceptedEmail(
+  input: {
+    allianceTag: string;
+    delegateLabel: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = shareTranslator(locale);
+  const tag = input.allianceTag;
+  const subject = t("accepted.subject", { tag });
+  const text = t("accepted.text", {
+    delegate: input.delegateLabel,
+    tag,
+    url: teamSettingsUrl(),
+  });
+  const html = layout(
+    t("accepted.heading"),
+    `    <tr><td style="padding:0 24px 24px;line-height:1.5;">${t("accepted.body", { delegate: strong(input.delegateLabel), tag: strong(tag) })}</td></tr>`,
+  );
   return { subject, html, text };
 }
 
-export function buildCredentialShareRejectedEmail(input: {
-  allianceTag: string;
-  delegateLabel: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Credential access declined (${input.allianceTag})`;
-  const text = `${input.delegateLabel} declined your credential share invite in ${input.allianceTag}.`;
-  const html = `
-<body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
-  <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">Credential access declined</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;"><strong>${escapeHtml(input.delegateLabel)}</strong> declined your credential share invite in <strong>${escapeHtml(input.allianceTag)}</strong>.</td></tr>
-  </table>
-</body>`;
+export function buildCredentialShareRejectedEmail(
+  input: {
+    allianceTag: string;
+    delegateLabel: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = shareTranslator(locale);
+  const tag = input.allianceTag;
+  const subject = t("rejected.subject", { tag });
+  const text = t("rejected.body", { delegate: input.delegateLabel, tag });
+  const html = layout(
+    t("rejected.heading"),
+    `    <tr><td style="padding:0 24px 24px;line-height:1.5;">${t("rejected.body", { delegate: strong(input.delegateLabel), tag: strong(tag) })}</td></tr>`,
+  );
   return { subject, html, text };
 }
 
-export function buildCredentialShareRevokedEmail(input: {
-  allianceTag: string;
-  ownerLabel: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Credential access revoked (${input.allianceTag})`;
-  const text = `${input.ownerLabel} revoked your delegated Ashed credential access in ${input.allianceTag}.`;
-  const html = `
-<body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
-  <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">Credential access revoked</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;"><strong>${escapeHtml(input.ownerLabel)}</strong> revoked your delegated Ashed credential access in <strong>${escapeHtml(input.allianceTag)}</strong>.</td></tr>
-  </table>
-</body>`;
+export function buildCredentialShareRevokedEmail(
+  input: {
+    allianceTag: string;
+    ownerLabel: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = shareTranslator(locale);
+  const tag = input.allianceTag;
+  const subject = t("revoked.subject", { tag });
+  const text = t("revoked.body", { owner: input.ownerLabel, tag });
+  const html = layout(
+    t("revoked.heading"),
+    `    <tr><td style="padding:0 24px 24px;line-height:1.5;">${t("revoked.body", { owner: strong(input.ownerLabel), tag: strong(tag) })}</td></tr>`,
+  );
   return { subject, html, text };
 }
 
-export function buildCredentialShareExpiredEmail(input: {
-  allianceTag: string;
-  endReason: AshedCredentialShareEndReason;
-  recipientRole: "owner" | "delegate";
-}): { subject: string; html: string; text: string } {
-  const reasonLabel =
-    input.endReason === "owner_token_expired"
-      ? "the owner's Ashed token expired"
-      : input.endReason === "membership_ended"
-        ? "an officer left the alliance"
-        : "the access period ended";
-  const subject = `Credential access ended (${input.allianceTag})`;
+const END_REASON_KEYS: Record<string, string> = {
+  owner_token_expired: "ownerTokenExpired",
+  membership_ended: "membershipEnded",
+};
+
+export function buildCredentialShareExpiredEmail(
+  input: {
+    allianceTag: string;
+    endReason: AshedCredentialShareEndReason;
+    recipientRole: "owner" | "delegate";
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = shareTranslator(locale);
+  const tag = input.allianceTag;
+  const reason = t(`ended.reason.${END_REASON_KEYS[input.endReason] ?? "periodEnded"}`);
+  const subject = t("ended.subject", { tag });
   const body =
     input.recipientRole === "owner"
-      ? `Delegated credential access in ${input.allianceTag} ended because ${reasonLabel}.`
-      : `Your delegated credential access in ${input.allianceTag} ended because ${reasonLabel}.`;
-  const text = `${body}\n\nView history: ${accountSharesUrl()}`;
-  const html = `
-<body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
-  <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">Credential access ended</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;">${escapeHtml(body)}</td></tr>
-  </table>
-</body>`;
+      ? t("ended.ownerBody", { tag, reason })
+      : t("ended.delegateBody", { tag, reason });
+  const text = `${body}\n\n${t("ended.historyText", { url: accountSharesUrl() })}`;
+  const html = layout(
+    t("ended.heading"),
+    `    <tr><td style="padding:0 24px 24px;line-height:1.5;">${escapeHtml(body)}</td></tr>`,
+  );
   return { subject, html, text };
 }
 
-export function buildCredentialShareOwnerDigestEmail(input: {
-  allianceTag: string;
-  activityCount: number;
-  dayLabel: string;
-}): { subject: string; html: string; text: string } {
-  const subject = `Credential share activity — ${input.dayLabel} (${input.allianceTag})`;
-  const text = `Yesterday there were ${input.activityCount} credential share events attributed to your account in ${input.allianceTag}. Review history: ${accountSharesUrl()}`;
-  const html = `
-<body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
-  <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
-    <tr><td style="padding:24px;font-size:18px;font-weight:600;">Daily credential share digest</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;">Yesterday there were <strong>${input.activityCount}</strong> credential share events attributed to your account in <strong>${escapeHtml(input.allianceTag)}</strong>.</td></tr>
-    <tr><td style="padding:0 24px 24px;"><a href="${accountSharesUrl()}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">View history</a></td></tr>
-  </table>
-</body>`;
+export function buildCredentialShareOwnerDigestEmail(
+  input: {
+    allianceTag: string;
+    activityCount: number;
+    dayLabel: string;
+  },
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = shareTranslator(locale);
+  const tag = input.allianceTag;
+  const subject = t("digest.subject", { day: input.dayLabel, tag });
+  const text = t("digest.text", {
+    count: input.activityCount,
+    tag,
+    url: accountSharesUrl(),
+  });
+  const html = layout(
+    t("digest.heading"),
+    `    <tr><td style="padding:0 24px 24px;line-height:1.5;">${t("digest.body", { count: `<strong>${input.activityCount}</strong>`, tag: strong(tag) })}</td></tr>
+${button(accountSharesUrl(), t("digest.viewHistory"))}`,
+  );
   return { subject, html, text };
 }
 
@@ -234,22 +288,25 @@ export async function sendCredentialShareInviteEmail(input: {
   capabilities: string[];
   expiresAt: Date;
 }): Promise<void> {
-  const [inviteeEmail, ownerEmail, allianceTag] = await Promise.all([
-    loadUserEmail(input.invitedHqUserId),
-    loadUserEmail(input.ownerHqUserId),
+  const [invitee, owner, allianceTag] = await Promise.all([
+    loadRecipient(input.invitedHqUserId),
+    loadRecipient(input.ownerHqUserId),
     loadAllianceTag(input.allianceId),
   ]);
-  if (!inviteeEmail) return;
+  if (!invitee.email) return;
 
-  const ownerLabel = ownerEmail ?? "An alliance officer";
-  const payload = buildCredentialShareInviteEmail({
-    allianceTag,
-    ownerLabel,
-    inviteUrl: input.inviteUrl,
-    capabilities: input.capabilities,
-    expiresAt: input.expiresAt.toISOString(),
-  });
-  await sendResendEmail({ to: inviteeEmail, ...payload });
+  const t = shareTranslator(invitee.locale);
+  const payload = buildCredentialShareInviteEmail(
+    {
+      allianceTag: allianceTag ?? t("fallbackAlliance"),
+      ownerLabel: owner.email ?? t("fallbackOwner"),
+      inviteUrl: input.inviteUrl,
+      capabilities: input.capabilities,
+      expiresAt: input.expiresAt.toISOString(),
+    },
+    invitee.locale,
+  );
+  await sendResendEmail({ to: invitee.email, ...payload });
 }
 
 export async function sendCredentialShareAcceptedEmail(input: {
@@ -257,19 +314,22 @@ export async function sendCredentialShareAcceptedEmail(input: {
   delegateHqUserId: string;
   allianceId: string;
 }): Promise<void> {
-  const [ownerEmail, delegateEmail, allianceTag] = await Promise.all([
-    loadUserEmail(input.ownerHqUserId),
-    loadUserEmail(input.delegateHqUserId),
+  const [owner, delegate, allianceTag] = await Promise.all([
+    loadRecipient(input.ownerHqUserId),
+    loadRecipient(input.delegateHqUserId),
     loadAllianceTag(input.allianceId),
   ]);
-  if (!ownerEmail) return;
+  if (!owner.email) return;
 
-  const delegateLabel = delegateEmail ?? "An officer";
-  const payload = buildCredentialShareAcceptedEmail({
-    allianceTag,
-    delegateLabel,
-  });
-  await sendResendEmail({ to: ownerEmail, ...payload });
+  const t = shareTranslator(owner.locale);
+  const payload = buildCredentialShareAcceptedEmail(
+    {
+      allianceTag: allianceTag ?? t("fallbackAlliance"),
+      delegateLabel: delegate.email ?? t("fallbackDelegate"),
+    },
+    owner.locale,
+  );
+  await sendResendEmail({ to: owner.email, ...payload });
 }
 
 export async function sendCredentialShareRejectedEmail(input: {
@@ -277,19 +337,22 @@ export async function sendCredentialShareRejectedEmail(input: {
   invitedHqUserId: string;
   allianceId: string;
 }): Promise<void> {
-  const [ownerEmail, inviteeEmail, allianceTag] = await Promise.all([
-    loadUserEmail(input.ownerHqUserId),
-    loadUserEmail(input.invitedHqUserId),
+  const [owner, invitee, allianceTag] = await Promise.all([
+    loadRecipient(input.ownerHqUserId),
+    loadRecipient(input.invitedHqUserId),
     loadAllianceTag(input.allianceId),
   ]);
-  if (!ownerEmail) return;
+  if (!owner.email) return;
 
-  const delegateLabel = inviteeEmail ?? "An officer";
-  const payload = buildCredentialShareRejectedEmail({
-    allianceTag,
-    delegateLabel,
-  });
-  await sendResendEmail({ to: ownerEmail, ...payload });
+  const t = shareTranslator(owner.locale);
+  const payload = buildCredentialShareRejectedEmail(
+    {
+      allianceTag: allianceTag ?? t("fallbackAlliance"),
+      delegateLabel: invitee.email ?? t("fallbackDelegate"),
+    },
+    owner.locale,
+  );
+  await sendResendEmail({ to: owner.email, ...payload });
 }
 
 export async function sendCredentialShareRevokedEmail(input: {
@@ -299,18 +362,22 @@ export async function sendCredentialShareRevokedEmail(input: {
   allianceId: string;
 }): Promise<void> {
   const recipientId = input.delegateHqUserId ?? input.invitedHqUserId;
-  const [recipientEmail, ownerEmail, allianceTag] = await Promise.all([
-    loadUserEmail(recipientId),
-    loadUserEmail(input.ownerHqUserId),
+  const [recipient, owner, allianceTag] = await Promise.all([
+    loadRecipient(recipientId),
+    loadRecipient(input.ownerHqUserId),
     loadAllianceTag(input.allianceId),
   ]);
-  if (!recipientEmail || !ownerEmail) return;
+  if (!recipient.email || !owner.email) return;
 
-  const payload = buildCredentialShareRevokedEmail({
-    allianceTag,
-    ownerLabel: ownerEmail,
-  });
-  await sendResendEmail({ to: recipientEmail, ...payload });
+  const t = shareTranslator(recipient.locale);
+  const payload = buildCredentialShareRevokedEmail(
+    {
+      allianceTag: allianceTag ?? t("fallbackAlliance"),
+      ownerLabel: owner.email,
+    },
+    recipient.locale,
+  );
+  await sendResendEmail({ to: recipient.email, ...payload });
 }
 
 export async function sendCredentialShareExpiredEmails(input: {
@@ -319,30 +386,29 @@ export async function sendCredentialShareExpiredEmails(input: {
   allianceId: string;
   endReason: AshedCredentialShareEndReason;
 }): Promise<void> {
-  const [ownerEmail, delegateEmail, allianceTag] = await Promise.all([
-    loadUserEmail(input.ownerHqUserId),
+  const [owner, delegate, allianceTag] = await Promise.all([
+    loadRecipient(input.ownerHqUserId),
     input.delegateHqUserId
-      ? loadUserEmail(input.delegateHqUserId)
-      : Promise.resolve(null),
+      ? loadRecipient(input.delegateHqUserId)
+      : Promise.resolve<Recipient>({ email: null, locale: "en-US" }),
     loadAllianceTag(input.allianceId),
   ]);
 
-  if (ownerEmail) {
-    const ownerPayload = buildCredentialShareExpiredEmail({
-      allianceTag,
-      endReason: input.endReason,
-      recipientRole: "owner",
-    });
-    await sendResendEmail({ to: ownerEmail, ...ownerPayload });
-  }
-
-  if (delegateEmail) {
-    const delegatePayload = buildCredentialShareExpiredEmail({
-      allianceTag,
-      endReason: input.endReason,
-      recipientRole: "delegate",
-    });
-    await sendResendEmail({ to: delegateEmail, ...delegatePayload });
+  for (const [recipient, recipientRole] of [
+    [owner, "owner"],
+    [delegate, "delegate"],
+  ] as const) {
+    if (!recipient.email) continue;
+    const payload = buildCredentialShareExpiredEmail(
+      {
+        allianceTag:
+          allianceTag ?? shareTranslator(recipient.locale)("fallbackAlliance"),
+        endReason: input.endReason,
+        recipientRole,
+      },
+      recipient.locale,
+    );
+    await sendResendEmail({ to: recipient.email, ...payload });
   }
 }
 
@@ -352,16 +418,20 @@ export async function sendCredentialShareOwnerDigestEmail(input: {
   activityCount: number;
   dayLabel: string;
 }): Promise<void> {
-  const [ownerEmail, allianceTag] = await Promise.all([
-    loadUserEmail(input.ownerHqUserId),
+  const [owner, allianceTag] = await Promise.all([
+    loadRecipient(input.ownerHqUserId),
     loadAllianceTag(input.allianceId),
   ]);
-  if (!ownerEmail || input.activityCount <= 0) return;
+  if (!owner.email || input.activityCount <= 0) return;
 
-  const payload = buildCredentialShareOwnerDigestEmail({
-    allianceTag,
-    activityCount: input.activityCount,
-    dayLabel: input.dayLabel,
-  });
-  await sendResendEmail({ to: ownerEmail, ...payload });
+  const payload = buildCredentialShareOwnerDigestEmail(
+    {
+      allianceTag:
+        allianceTag ?? shareTranslator(owner.locale)("fallbackAlliance"),
+      activityCount: input.activityCount,
+      dayLabel: input.dayLabel,
+    },
+    owner.locale,
+  );
+  await sendResendEmail({ to: owner.email, ...payload });
 }

@@ -3,7 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { createDiscordTranslator, normalizeDiscordBotLocale } from "@/lib/discord/i18n";
+import { createDiscordTranslator } from "@/lib/discord/i18n";
+import { resolveDiscordRecipientLocale } from "@/lib/notifications/locale.server";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { canViewTeamWork } from "./work-routing.shared";
 import { reconcileTeamWork, reconcileTeamWorkTx } from "./work-service.server";
@@ -37,10 +38,9 @@ async function prepareDigest(candidate: Digest, leaseToken?: string, channelId?:
       await tx.update(schema.teamWorkDigests).set({ status: "pending", leaseToken: null, leaseUntil: null, nextAttemptAt: new Date(Date.now() + 3_600_000), lastError: "recipient_unlinked", updatedAt: now }).where(eq(schema.teamWorkDigests.id, digest.id));
       return null;
     }
-    const [preference] = await tx.select({ locale: schema.discordUserPrefs.locale }).from(schema.discordUserPrefs).where(eq(schema.discordUserPrefs.discordUserId, link.discordUserId));
     const token = leaseToken ?? randomUUID();
     await tx.update(schema.teamWorkDigests).set({ status: leaseToken ? "posting" : "leased", leaseToken: token, leaseUntil: new Date(Date.now() + 60_000), discordUserId: link.discordUserId, channelId: channelId ?? null, attempts: leaseToken ? digest.attempts : digest.attempts + 1, updatedAt: now }).where(eq(schema.teamWorkDigests.id, digest.id));
-    return { ...digest, discordUserId: link.discordUserId, leaseToken: token, locale: normalizeDiscordBotLocale(preference?.locale) };
+    return { ...digest, discordUserId: link.discordUserId, leaseToken: token };
   });
 }
 
@@ -52,9 +52,10 @@ export async function deliverTeamWorkDigests(limit = 5) {
   for (const candidate of candidates) {
     const prepared = await prepareDigest(candidate);
     if (!prepared) continue;
-    const t = createDiscordTranslator(prepared.locale);
+    const locale = await resolveDiscordRecipientLocale(prepared.discordUserId);
+    const t = createDiscordTranslator(locale);
     const appUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://frontline.gay";
-    const result = await sendPrivateWorkDigest({ token, discordUserId: prepared.discordUserId, content: `${t("teamWork.digest")}\n${appUrl}/${prepared.locale}/notes?view=workQueue`, nonce: prepared.id.slice(0, 24),
+    const result = await sendPrivateWorkDigest({ token, discordUserId: prepared.discordUserId, content: `${t("teamWork.digest")}\n${appUrl}/${locale}/notes?view=workQueue`, nonce: prepared.id.slice(0, 24),
       authorizeSend: async (channelId) => !!await prepareDigest(prepared, prepared.leaseToken, channelId),
     });
     await getDb().transaction(async (tx) => {

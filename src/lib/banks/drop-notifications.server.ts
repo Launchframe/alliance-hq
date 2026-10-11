@@ -2,9 +2,15 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import type { AppLocale } from "@/i18n/routing";
 import { getDb, schema } from "@/lib/db";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { listGuildsWithBankingChannel } from "@/lib/battle-plan/discord-announcements.server";
+import {
+  formatNotificationNumber,
+  notificationTranslator,
+  resolveRecipientLocale,
+} from "@/lib/notifications/locale.server";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -74,53 +80,55 @@ export async function sendBankDropDiscordNotification(
 // Email notification
 // ---------------------------------------------------------------------------
 
-function buildEmailSubject(summary: BankDropSummary): string {
+export function buildBankDropEmail(
+  summary: BankDropSummary,
+  locale: AppLocale = "en-US",
+): { subject: string; html: string; text: string } {
+  const t = notificationTranslator(locale, "notificationMessages.bankDrop");
   const { bank } = summary;
-  return `Bank Dropped: Lv${bank.level} (${bank.coordX}, ${bank.coordY}) — ${summary.durationLabel}`;
-}
-
-function buildEmailText(summary: BankDropSummary): string {
-  const { bank } = summary;
-  return [
-    `Bank Dropped — Lv${bank.level} at (${bank.coordX}, ${bank.coordY})`,
-    "",
-    `Duration open: ${summary.durationLabel}`,
-    `Deposits processed: ${summary.totalDeposits} totaling ${formatCG(summary.totalCrystalGoldDeposited)} CG`,
-    `Interest earned: ${formatCG(summary.totalInterestEarned)} CG (${summary.investmentReturnPercent}% ROI)`,
-    `Crystal gold looted: ${formatCG(summary.crystalGoldLooted)} CG`,
-    `Slippage: ${summary.slippagePercent}%`,
-    summary.lockedCount > 0
-      ? `Still deposited at drop: ${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`
-      : "",
-    "",
-    "— Alliance HQ",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function buildEmailHtml(summary: BankDropSummary): string {
-  const { bank } = summary;
-  const rows = [
-    ["Duration open", summary.durationLabel],
+  const num = (value: number) => formatNotificationNumber(value, locale);
+  const where = {
+    level: String(bank.level),
+    x: String(bank.coordX),
+    y: String(bank.coordY),
+  };
+  const rows: [string, string][] = [
+    [t("durationOpen"), summary.durationLabel],
     [
-      "Deposits processed",
-      `${summary.totalDeposits} totaling ${formatCG(summary.totalCrystalGoldDeposited)} CG`,
+      t("depositsProcessed"),
+      t("depositsValue", {
+        count: num(summary.totalDeposits),
+        amount: num(summary.totalCrystalGoldDeposited),
+      }),
     ],
     [
-      "Interest earned",
-      `${formatCG(summary.totalInterestEarned)} CG (${summary.investmentReturnPercent}% ROI)`,
+      t("interestEarned"),
+      t("interestValue", {
+        amount: num(summary.totalInterestEarned),
+        roi: String(summary.investmentReturnPercent),
+      }),
     ],
-    ["Crystal gold looted", `${formatCG(summary.crystalGoldLooted)} CG`],
-    ["Slippage", `${summary.slippagePercent}%`],
+    [t("looted"), t("amountCG", { amount: num(summary.crystalGoldLooted) })],
+    [t("slippage"), t("percent", { value: String(summary.slippagePercent) })],
   ];
-
   if (summary.lockedCount > 0) {
     rows.push([
-      "Still deposited at drop",
-      `${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`,
+      t("stillDeposited"),
+      t("lockedValue", {
+        count: num(summary.lockedCount),
+        amount: num(summary.lockedValue),
+      }),
     ]);
   }
+
+  const subject = t("subject", { ...where, duration: summary.durationLabel });
+  const text = [
+    t("textHeading", where),
+    "",
+    ...rows.map(([label, value]) => `${label}: ${value}`),
+    "",
+    t("signature"),
+  ].join("\n");
 
   const tableRows = rows
     .map(
@@ -129,15 +137,17 @@ function buildEmailHtml(summary: BankDropSummary): string {
     )
     .join("");
 
-  return `
+  const html = `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-  <h2 style="margin:0 0 16px;">📦 Bank Dropped</h2>
+  <h2 style="margin:0 0 16px;">📦 ${t("htmlHeading")}</h2>
   <p style="margin:0 0 12px;color:#374151;">
-    Level ${bank.level} at (${bank.coordX}, ${bank.coordY})
+    ${t("location", where)}
   </p>
   <table style="border-collapse:collapse;font-size:14px;">${tableRows}</table>
-  <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">— Alliance HQ</p>
+  <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">${t("signature")}</p>
 </div>`.trim();
+
+  return { subject, html, text };
 }
 
 export async function sendBankDropEmailNotification(
@@ -149,7 +159,10 @@ export async function sendBankDropEmailNotification(
 
   const db = getDb();
   const [alliance] = await db
-    .select({ ownerEmail: schema.alliances.ownerEmail })
+    .select({
+      ownerEmail: schema.alliances.ownerEmail,
+      ownerHqUserId: schema.alliances.ownerHqUserId,
+    })
     .from(schema.alliances)
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
@@ -158,9 +171,10 @@ export async function sendBankDropEmailNotification(
   if (!to) return { sent: false };
 
   const from = resolveEmailFromAddress();
-  const subject = buildEmailSubject(summary);
-  const html = buildEmailHtml(summary);
-  const text = buildEmailText(summary);
+  const { subject, html, text } = buildBankDropEmail(
+    summary,
+    await resolveRecipientLocale({ hqUserId: alliance?.ownerHqUserId, email: to }),
+  );
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

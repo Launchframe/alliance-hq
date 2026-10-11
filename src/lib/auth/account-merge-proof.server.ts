@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 
 import { ActivityIdentityChangedError } from "@/lib/activity/ownership.server";
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { buildAuthCodeEmail } from "@/lib/auth/auth-code-email.server";
 import {
   AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS,
   AUTH_EMAIL_CODE_RATE_LIMIT_MS,
@@ -21,6 +22,10 @@ import {
   type MergeHqUsersPreview,
 } from "@/lib/auth/merge-hq-users.server";
 import { getDb, schema } from "@/lib/db";
+import {
+  requestLocaleFallback,
+  resolveRecipientLocale,
+} from "@/lib/notifications/locale.server";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -78,34 +83,10 @@ function logMergeCodeToStdout(email: string, code: string): void {
   );
 }
 
-function mergeProofCodeHtml(code: string): string {
-  return `
-<body style="background: #0d1117; margin: 0; padding: 24px;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0"
-    style="max-width: 480px; margin: auto; font-family: Helvetica, Arial, sans-serif;">
-    <tr>
-      <td style="padding: 24px; background: #161b22; border: 1px solid #30363d; border-radius: 12px;">
-        <p style="margin: 0 0 8px; font-size: 18px; font-weight: 600; color: #e6edf3;">
-          Confirm account merge
-        </p>
-        <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.5; color: #8b949e;">
-          Someone asked to move alliance access from this account into another Alliance HQ login. Enter this code only if you started that merge.
-        </p>
-        <p style="margin: 0 0 20px; font-size: 32px; font-weight: 700; letter-spacing: 0.35em; text-align: center; color: #e6edf3;">
-          ${code}
-        </p>
-        <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #6e7681;">
-          This code expires in 10 minutes. If you did not request it, you can ignore this email.
-        </p>
-      </td>
-    </tr>
-  </table>
-</body>`;
-}
-
 async function sendMergeProofCodeViaResend(input: {
   to: string;
   code: string;
+  hqUserId: string;
 }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -113,6 +94,14 @@ async function sendMergeProofCodeViaResend(input: {
   }
 
   const from = resolveEmailFromAddress();
+  const email = buildAuthCodeEmail(
+    "merge",
+    input.code,
+    await resolveRecipientLocale({
+      hqUserId: input.hqUserId,
+      fallback: await requestLocaleFallback(),
+    }),
+  );
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -122,9 +111,7 @@ async function sendMergeProofCodeViaResend(input: {
     body: JSON.stringify({
       from,
       to: input.to,
-      subject: `${input.code} is your Alliance HQ account merge code`,
-      html: mergeProofCodeHtml(input.code),
-      text: `Your Alliance HQ account merge code is ${input.code}. It expires in 10 minutes.`,
+      ...email,
     }),
   });
 
@@ -283,7 +270,11 @@ export async function requestAccountMergeSourceProof(input: {
   }
 
   try {
-    await sendMergeProofCodeViaResend({ to: source.email, code });
+    await sendMergeProofCodeViaResend({
+      to: source.email,
+      code,
+      hqUserId: source.id,
+    });
   } catch (error) {
     if (devLog) {
       console.warn(
