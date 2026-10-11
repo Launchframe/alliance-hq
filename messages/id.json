@@ -8020,6 +8020,7 @@
       "resources": "Resources"
     },
     "clearMemberMatch": "Clear member match",
+    "clearMemberSearch": "Clear member search",
     "closePreview": "Tutup",
     "colAllianceRank": "Alliance rank",
     "colKills": "Pembunuhan",
@@ -8224,6 +8225,9 @@
     "reviewNavPrev": "Previous issue",
     "reviewRowNumber": "Row {n}",
     "reviewSettingsTitle": "Review settings",
+    "rosterAskAshedOfficer": "Ask an officer with Ashed access to refresh the member roster, then try saving again.",
+    "rosterRefreshAshed": "Try refreshing your member roster from Ashed.",
+    "rosterSaveMembers": "Save the new members to the roster, then try again.",
     "rosterAllianceHint": "New and matched members from this video will be written to this alliance in HQ.",
     "rosterAllianceSettingsLink": "Switch alliance in Settings",
     "rosterAllianceStale": "Your session alliance changed since this video was parsed. Member matches may be outdated — review carefully before saving.",
