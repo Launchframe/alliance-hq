@@ -4,6 +4,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { OcrLearningError, ocrIdSchema, ocrHashSchema, type OcrCase } from "../benchmark/types.shared";
+import { isLiveOcrLease } from "./control-lease-live.shared";
 import { disabledMediaPolicy, mediaExtension, mediaUploadSchema, ocrMediaPolicySchema, type OcrMediaPolicy, type OcrMediaUpload } from "./media.shared";
 import { ocrContentHash, type OcrTransaction } from "./recording.server";
 import { createCandidateCase, type OcrActor } from "./corpus.server";
@@ -136,7 +137,7 @@ async function leasedMediaTask(tx: OcrTransaction, taskId: string, leaseToken: s
   const [current] = await tx.select().from(schema.ocrMediaTasks).where(eq(schema.ocrMediaTasks.id, taskId)).limit(1).for("update");
   const [policy] = await tx.select().from(schema.ocrMediaPolicies).where(eq(schema.ocrMediaPolicies.allianceId, task.allianceId)).limit(1);
   const [actor] = current.createdByHqUserId ? await tx.select({ maintainer: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, current.createdByHqUserId)).limit(1) : [];
-  if (current.state !== "running" || current.leaseToken !== leaseToken || !current.leaseExpiresAt || current.leaseExpiresAt <= new Date() || current.expiresAt <= new Date() || !policy?.policy.enabled || !policy.policy.dataPermissionApproved || policy.revision !== current.policyRevision || !actor?.maintainer) throw new OcrLearningError("stale_media_lease", 409);
+  if (!isLiveOcrLease(current, leaseToken) || !policy?.policy.enabled || !policy.policy.dataPermissionApproved || policy.revision !== current.policyRevision || !actor?.maintainer) throw new OcrLearningError("stale_media_lease", 409);
   return { task: current, policy: policy.policy };
 }
 
@@ -180,5 +181,13 @@ export async function completeMediaTask(taskId: string, leaseToken: string, samp
 
 export async function failMediaTask(taskId: string, leaseToken: string, errorCode: string) {
   const safeCode = /^[a-z_]{1,64}$/.test(errorCode) ? errorCode : "media_processing_failed";
-  await getDb().update(schema.ocrMediaTasks).set({ state: "failed", errorCode: safeCode, leaseToken: null, leaseExpiresAt: null, updatedAt: new Date() }).where(and(eq(schema.ocrMediaTasks.id, taskId), eq(schema.ocrMediaTasks.leaseToken, leaseToken), eq(schema.ocrMediaTasks.state, "running")));
+  await getDb().transaction(async (tx) => {
+    const [peek] = await tx.select({ allianceId: schema.ocrMediaTasks.allianceId }).from(schema.ocrMediaTasks).where(eq(schema.ocrMediaTasks.id, taskId)).limit(1);
+    if (!peek) return;
+    await lockMedia(tx, peek.allianceId);
+    const [task] = await tx.select().from(schema.ocrMediaTasks).where(eq(schema.ocrMediaTasks.id, taskId)).limit(1).for("update");
+    // Expired leases stay running so claimMediaTask can reclaim (attempts < 3).
+    if (!task || !isLiveOcrLease(task, leaseToken)) return;
+    await tx.update(schema.ocrMediaTasks).set({ state: "failed", errorCode: safeCode, leaseToken: null, leaseExpiresAt: null, updatedAt: new Date() }).where(eq(schema.ocrMediaTasks.id, taskId));
+  });
 }
