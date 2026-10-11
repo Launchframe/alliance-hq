@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertLastRankCliIdMatchesFlags,
   isLastRankSelfServiceImportAllowed,
+  lastRankCliIdNeedsIdentityCheck,
   LASTRANK_SYNC_REGISTRY,
   listLastRankAutoSyncTargets,
   lookupLastRankSyncByAllianceId,
@@ -173,5 +175,77 @@ describe("lookupLastRankSyncByAllianceId", () => {
         "B1CF340C642947579CCBB753E7410C37",
       )?.tag,
     ).toBe("Roar");
+  });
+});
+
+describe("LastRank CLI id identity guard", () => {
+  const LFGO_ID = "e7d1eaefdcfc42c8ac6c84247d2dad9b";
+  const lfgo = { tag: "LFgo", gameServerNumber: 1203 };
+
+  it("only checks when an id comes with a tag or server", () => {
+    expect(lastRankCliIdNeedsIdentityCheck({ lastrankAllianceId: LFGO_ID })).toBe(false);
+    expect(lastRankCliIdNeedsIdentityCheck({ tag: "LFgo", gameServerNumber: 1203 })).toBe(false);
+    expect(lastRankCliIdNeedsIdentityCheck({ lastrankAllianceId: LFGO_ID, tag: " " })).toBe(false);
+    expect(lastRankCliIdNeedsIdentityCheck({ lastrankAllianceId: LFGO_ID, tag: "LFgo" })).toBe(true);
+    expect(
+      lastRankCliIdNeedsIdentityCheck({ lastrankAllianceId: LFGO_ID, gameServerNumber: 1203 }),
+    ).toBe(true);
+  });
+
+  it("passes when tag (case-insensitive) and server match", () => {
+    expect(() =>
+      assertLastRankCliIdMatchesFlags({
+        lastrankAllianceId: LFGO_ID,
+        tag: "lfgo",
+        gameServerNumber: 1203,
+        identity: lfgo,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertLastRankCliIdMatchesFlags({
+        lastrankAllianceId: LFGO_ID,
+        gameServerNumber: 1203,
+        identity: lfgo,
+      }),
+    ).not.toThrow();
+  });
+
+  it("blocks a tag mismatch", () => {
+    expect(() =>
+      assertLastRankCliIdMatchesFlags({
+        lastrankAllianceId: LFGO_ID,
+        tag: "BigD",
+        gameServerNumber: 1203,
+        identity: lfgo,
+      }),
+    ).toThrow(
+      /is \[LFgo\] on server 1203 on LastRank, which does not match --tag BigD --server 1203/,
+    );
+  });
+
+  it("blocks a server mismatch", () => {
+    expect(() =>
+      assertLastRankCliIdMatchesFlags({
+        lastrankAllianceId: LFGO_ID,
+        gameServerNumber: 1211,
+        identity: lfgo,
+      }),
+    ).toThrow(/does not match --server 1211/);
+  });
+
+  it("fails closed when the page identity is unreadable", () => {
+    expect(() =>
+      assertLastRankCliIdMatchesFlags({
+        lastrankAllianceId: LFGO_ID,
+        tag: "LFgo",
+        identity: null,
+      }),
+    ).toThrow(/Could not read the tag\/server/);
+  });
+
+  it("does nothing without a tag or server", () => {
+    expect(() =>
+      assertLastRankCliIdMatchesFlags({ lastrankAllianceId: LFGO_ID, identity: null }),
+    ).not.toThrow();
   });
 });

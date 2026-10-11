@@ -20,6 +20,8 @@ The registry does **not** gate the maintainer CLI. It controls only:
 
 The CLI uses the registry only as a shortcut: for a registered alliance, `--server` + `--tag` resolve the LastRank id (and `--id` resolves server + tag). For any other alliance, pass `--id` together with `--server` and `--tag`.
 
+Whenever `--id` is combined with `--tag` and/or `--server`, the CLI first reads that id's LastRank page and stops unless it lists the same tag (case-insensitive) and server — the `--confirm-host` idea applied to the alliance id. It also stops if the page's tag/server cannot be read.
+
 | Server | Tag | LastRank id | Auto-sync |
 | --- | --- | --- | --- |
 | 1203 | LFgo | `e7d1eaefdcfc42c8ac6c84247d2dad9b` | yes |

@@ -1,4 +1,8 @@
-import { isLastRankAllianceId } from "@/lib/lastrank/alliance-page.shared";
+import {
+  isLastRankAllianceId,
+  lastRankAllianceUrl,
+  type LastRankAllianceIdentity,
+} from "@/lib/lastrank/alliance-page.shared";
 
 /** Known LastRank alliance — tag may change; server number is stable. */
 export type LastRankSyncRegistryEntry = {
@@ -176,4 +180,57 @@ export function resolveLastRankSyncCliTarget(input: {
   throw new Error(
     "Pass --id <lastrankAllianceId> or both --server <number> and --tag <tag>.",
   );
+}
+
+/** True when the operator supplied an id plus a tag and/or server that must agree with it. */
+export function lastRankCliIdNeedsIdentityCheck(input: {
+  lastrankAllianceId?: string;
+  gameServerNumber?: number;
+  tag?: string;
+}): boolean {
+  return (
+    Boolean(input.lastrankAllianceId?.trim()) &&
+    (Boolean(input.tag?.trim()) || input.gameServerNumber != null)
+  );
+}
+
+/**
+ * Like `--confirm-host`, but for what `--id` points to: when `--tag` / `--server`
+ * accompany `--id`, LastRank's page for that id must list the same tag (case-
+ * insensitive) and server. Fails closed when the page identity cannot be read.
+ */
+export function assertLastRankCliIdMatchesFlags(input: {
+  lastrankAllianceId: string;
+  tag?: string;
+  gameServerNumber?: number;
+  identity: LastRankAllianceIdentity | null | undefined;
+}): void {
+  const id = input.lastrankAllianceId.trim().toLowerCase();
+  const tag = input.tag?.trim() || undefined;
+  const server = input.gameServerNumber;
+  if (!tag && server == null) return;
+
+  const flags = [
+    tag ? `--tag ${tag}` : null,
+    server != null ? `--server ${server}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (!input.identity) {
+    throw new Error(
+      `Could not read the tag/server for --id ${id} from ${lastRankAllianceUrl(id)}; refusing to sync with ${flags} unverified.`,
+    );
+  }
+
+  const { identity } = input;
+  const tagMismatch =
+    tag != null && tag.toLowerCase() !== identity.tag.toLowerCase();
+  const serverMismatch =
+    server != null && Math.floor(server) !== identity.gameServerNumber;
+  if (tagMismatch || serverMismatch) {
+    throw new Error(
+      `--id ${id} is [${identity.tag}] on server ${identity.gameServerNumber} on LastRank, which does not match ${flags}. Fix --id, --tag or --server (${lastRankAllianceUrl(id)}).`,
+    );
+  }
 }
