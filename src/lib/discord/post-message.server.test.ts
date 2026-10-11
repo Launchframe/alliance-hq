@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   postDiscordChannelMessage,
@@ -19,10 +19,27 @@ describe("truncateDiscordContent", () => {
 });
 
 describe("postDiscordChannelMessage", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("returns false when bot token is missing", async () => {
     const original = process.env.DISCORD_BOT_TOKEN;
     delete process.env.DISCORD_BOT_TOKEN;
     await expect(postDiscordChannelMessage("channel", "hello")).resolves.toBe(false);
     if (original) process.env.DISCORD_BOT_TOKEN = original;
+  });
+
+  it("returns false when fetch throws so claim-before-post crons can retry", async () => {
+    process.env.DISCORD_BOT_TOKEN = "test-token";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+    );
+
+    await expect(postDiscordChannelMessage("channel", "hello")).resolves.toBe(
+      false,
+    );
   });
 });
