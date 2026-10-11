@@ -25,7 +25,7 @@ const mockDb = vi.hoisted(() => {
     return chain;
   }
 
-  return {
+  const api = {
     select: vi.fn(() => makeChain()),
     insert: vi.fn(() => ({
       values: vi.fn(async (values: unknown) => {
@@ -37,7 +37,12 @@ const mockDb = vi.hoisted(() => {
         mockState.deleteCalls += 1;
       }),
     })),
+    execute: vi.fn(async () => undefined),
+    transaction: vi.fn(async (fn: (tx: typeof api) => Promise<unknown>) =>
+      fn(api),
+    ),
   };
+  return api;
 });
 
 const getRbacContext = vi.hoisted(() => vi.fn());
@@ -52,6 +57,13 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   inArray: vi.fn((col: unknown, values: unknown[]) => ({ col, values })),
   isNull: vi.fn((col: unknown) => ({ isNull: col })),
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({
+      strings,
+      values,
+    }),
+    { raw: (value: string) => value },
+  ),
 }));
 
 vi.mock("@/lib/native-alliance/operating-mode", () => ({
@@ -80,6 +92,14 @@ vi.mock("@/lib/db", () => ({
       grantedByHqUserId: "avp.grantedByHqUserId",
       grantedAt: "avp.grantedAt",
       viaCredentialShareId: "avp.viaCredentialShareId",
+    },
+    ashedCredentialShares: {
+      id: "acs.id",
+      allianceId: "acs.allianceId",
+      delegateHqUserId: "acs.delegateHqUserId",
+      status: "acs.status",
+      capabilities: "acs.capabilities",
+      ownerHqUserId: "acs.ownerHqUserId",
     },
     hqUsers: {
       id: "hqUsers.id",
@@ -144,6 +164,8 @@ beforeEach(() => {
   mockDb.select.mockClear();
   mockDb.insert.mockClear();
   mockDb.delete.mockClear();
+  mockDb.execute.mockClear();
+  mockDb.transaction.mockClear();
   getRbacContext.mockReset();
   getAllianceMembershipRbac.mockReset();
   sessionHasPermissionForAlliance.mockReset();
@@ -199,6 +221,8 @@ describe("grantVideoProcessor", () => {
     });
 
     expect(result).toEqual({ ok: true, alreadyGranted: false });
+    expect(mockDb.transaction).toHaveBeenCalledOnce();
+    expect(mockDb.execute).toHaveBeenCalledOnce();
     expect(mockDb.insert).toHaveBeenCalledOnce();
     const inserted = mockState.inserted[0] as Record<string, unknown>;
     expect(inserted).toMatchObject({

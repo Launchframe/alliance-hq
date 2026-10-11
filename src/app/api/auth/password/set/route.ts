@@ -34,6 +34,13 @@ export async function POST(request: Request) {
     typeof body.confirmPassword === "string"
       ? body.confirmPassword
       : password;
+  const currentPassword =
+    typeof body === "object" &&
+    body !== null &&
+    "currentPassword" in body &&
+    typeof body.currentPassword === "string"
+      ? body.currentPassword
+      : undefined;
 
   try {
     const hqUserId = await resolveSessionHqUserId(session);
@@ -44,6 +51,7 @@ export async function POST(request: Request) {
       hqUserId,
       password,
       confirmPassword,
+      currentPassword,
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
