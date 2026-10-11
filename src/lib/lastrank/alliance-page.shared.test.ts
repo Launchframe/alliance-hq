@@ -403,6 +403,33 @@ describe("matchLastRankMembersToHq cascade", () => {
     ).toEqual(["c-mike"]);
   });
 
+  it("collectStale clears unmatched HQ rows when sticky public_id is ambiguous", () => {
+    const nike = {
+      ...lastRankMember,
+      publicId: 99,
+      name: "Nike",
+      allianceRank: 5,
+    };
+    const hqA = hqRow({
+      commanderId: "c-a",
+      ashedMemberId: "m-a",
+      currentNames: ["Mike"],
+      lastrankPublicId: 99,
+    });
+    const hqB = hqRow({
+      commanderId: "c-b",
+      ashedMemberId: "m-b",
+      currentNames: ["Other"],
+      lastrankPublicId: 99,
+    });
+    const result = matchLastRankMembersToHq([nike], [hqA, hqB]);
+    expect(result.unmatched).toHaveLength(1);
+    expect(result.unmatched[0]?.status).toBe("ambiguous");
+    expect(
+      collectStaleLastRankStickyCommanderIds([nike], [hqA, hqB], result).sort(),
+    ).toEqual(["c-a", "c-b"]);
+  });
+
   it("lets exact name reclaim HQ after rejecting uncorroborated sticky", () => {
     const nike = {
       ...lastRankMember,
