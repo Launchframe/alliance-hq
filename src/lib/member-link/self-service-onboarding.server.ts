@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
@@ -9,6 +9,7 @@ import {
   canReviewMemberLinks,
   canManageInvitesAndOnboarding,
 } from "@/lib/member-link/invite-onboarding-access.server";
+import { isInviteGatedMemberLink } from "@/lib/member-link/invite-gate.server";
 import { createOnboardingReviewAfterSelfServiceLink } from "@/lib/member-link/onboarding-review.server";
 import { createNativeAllianceMemberForRosterLink } from "@/lib/member-link/roster-member-create.server";
 import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
@@ -19,14 +20,11 @@ import {
   parseInviteOnboardingMinRole,
 } from "@/lib/member-link/self-service-onboarding.shared";
 import { getRbacContext } from "@/lib/rbac/context";
-import { getDiscordHqLink } from "@/lib/vr/repository";
 import {
   findExactMemberByName,
   findUniqueSubstringRosterCandidate,
 } from "@/lib/vr/link-helpers";
 import type { AshedMember } from "@/lib/video/member-matcher";
-
-const INVITE_MEMBER_LINK_KINDS = ["email", "protected_link"] as const;
 
 export type MemberOnboardingSettings = {
   selfServiceOnboardingEnabled: boolean;
@@ -53,10 +51,13 @@ export type SelfServiceLinkResult =
         | "member_taken"
         | "wrong_server"
         | "confirm_home"
+        | "confirm_transfer"
+        | "transfer_send_home"
         | "position_not_home";
       attemptedAshedMemberId?: string;
       lookupServer?: number;
       allianceServer?: number;
+      knownServer?: number;
       commanderName?: string;
     };
 
@@ -165,73 +166,7 @@ export async function saveMemberOnboardingSettings(input: {
   };
 }
 
-export async function isInviteGatedMemberLink(input: {
-  allianceId: string;
-  hqUserId?: string | null;
-  discordUserId?: string | null;
-}): Promise<{
-  gated: boolean;
-  inviteId?: string | null;
-  joinCodeId?: string | null;
-}> {
-  let hqUserId = input.hqUserId?.trim() || null;
-  if (!hqUserId && input.discordUserId) {
-    const link = await getDiscordHqLink(input.discordUserId);
-    hqUserId = link?.hqUserId ?? null;
-  }
-  if (!hqUserId) {
-    return { gated: false };
-  }
-
-  const db = getDb();
-
-  const [invite] = await db
-    .select({ id: schema.hqInvites.id })
-    .from(schema.hqInvites)
-    .where(
-      and(
-        eq(schema.hqInvites.allianceId, input.allianceId),
-        eq(schema.hqInvites.acceptedByHqUserId, hqUserId),
-        isNotNull(schema.hqInvites.acceptedAt),
-        isNull(schema.hqInvites.targetAshedMemberId),
-        inArray(schema.hqInvites.kind, [...INVITE_MEMBER_LINK_KINDS]),
-      ),
-    )
-    .orderBy(desc(schema.hqInvites.acceptedAt))
-    .limit(1);
-
-  if (invite) {
-    return { gated: true, inviteId: invite.id, joinCodeId: null };
-  }
-
-  const [joinCode] = await db
-    .select({
-      joinCodeId: schema.hqAllianceJoinCodeRedemptions.joinCodeId,
-    })
-    .from(schema.hqAllianceJoinCodeRedemptions)
-    .innerJoin(
-      schema.hqAllianceJoinCodes,
-      eq(
-        schema.hqAllianceJoinCodeRedemptions.joinCodeId,
-        schema.hqAllianceJoinCodes.id,
-      ),
-    )
-    .where(
-      and(
-        eq(schema.hqAllianceJoinCodes.allianceId, input.allianceId),
-        eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, hqUserId),
-        isNull(schema.hqAllianceJoinCodes.targetAshedMemberId),
-      ),
-    )
-    .orderBy(desc(schema.hqAllianceJoinCodeRedemptions.redeemedAt))
-    .limit(1);
-
-  if (joinCode) {
-    return { gated: true, inviteId: null, joinCodeId: joinCode.joinCodeId };
-  }
-
-  return { gated: false };
-}
+export { isInviteGatedMemberLink };
 
 function findExactUnlinkedMember(
   members: AshedMember[],
@@ -292,6 +227,8 @@ export async function trySelfServiceMemberLink(input: {
     lookupServer: lookupServerNumber,
     allianceHomeConfirmed: input.allianceHomeConfirmed,
     userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+    hqUserId: input.hqUserId,
+    discordUserId: input.discordUserId,
   });
   if (serverEligibility.kind === "confirm_home") {
     return {
@@ -302,9 +239,27 @@ export async function trySelfServiceMemberLink(input: {
       commanderName: input.lookup.gameUserName,
     };
   }
+  if (serverEligibility.kind === "confirm_transfer") {
+    return {
+      ok: false,
+      reason: "confirm_transfer",
+      knownServer: serverEligibility.knownServer,
+      allianceServer: serverEligibility.allianceServer,
+      commanderName: input.lookup.gameUserName,
+    };
+  }
   if (serverEligibility.kind === "rejected") {
     if (serverEligibility.reason === "user_claimed_lookup_home") {
       return { ok: false, reason: "position_not_home" };
+    }
+    if (serverEligibility.reason === "transfer_position_mismatch") {
+      return {
+        ok: false,
+        reason: "transfer_send_home",
+        knownServer: serverEligibility.knownCommanderHomeServer ?? undefined,
+        allianceServer: serverEligibility.allianceServer ?? undefined,
+        commanderName: input.lookup.gameUserName,
+      };
     }
     return { ok: false, reason: "wrong_server" };
   }

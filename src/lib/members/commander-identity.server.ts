@@ -10,6 +10,7 @@ import "server-only";
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { postgresErrorCode } from "@/lib/db/error-message";
 import type {
@@ -623,7 +624,7 @@ export async function upsertCommanderFromLink(input: {
   ashedMemberId: string;
   memberDisplayName?: string | null;
   ashedStats?: CommanderAshedStats | null;
-}): Promise<{ commanderId: string }> {
+}): Promise<{ commanderId: string; gameServerNumber: number | null }> {
   const normalized = normalizeGameUid(input.gameUid);
   if (!normalized) {
     throw new Error("commander_identity_missing_game_uid");
@@ -652,7 +653,7 @@ export async function upsertCommanderFromLink(input: {
     }
   }
 
-  return upsertCommanderRow({
+  const upserted = await upsertCommanderRow({
     gameUid: normalized,
     gameServerNumber,
     allianceId: input.allianceId,
@@ -661,6 +662,7 @@ export async function upsertCommanderFromLink(input: {
     existingCommanderId,
     ashedStats: input.ashedStats,
   });
+  return { ...upserted, gameServerNumber };
 }
 
 /**
@@ -1114,13 +1116,40 @@ export async function syncCommanderIdentityFromMemberLink(input: {
   memberDisplayName?: string | null;
   hqUserId?: string;
   joinedAt?: Date;
+  /**
+   * The commander's home server read before this link's writes began. Roster
+   * tenure sync can update the server first, so the row itself cannot tell us.
+   */
+  homeServerBeforeLink?: number | null;
 }): Promise<void> {
-  const { commanderId } = await upsertCommanderFromLink({
+  const { commanderId, gameServerNumber } = await upsertCommanderFromLink({
     gameUid: input.gameUid,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: input.memberDisplayName,
   });
+
+  const previousGameServerNumber = input.homeServerBeforeLink ?? null;
+  if (
+    previousGameServerNumber != null &&
+    gameServerNumber != null &&
+    previousGameServerNumber !== gameServerNumber
+  ) {
+    await writeAuditLog({
+      sessionId: null,
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId ?? null,
+      action: "member_link.server_transfer_confirmed",
+      resourceType: "commander",
+      resourceName: input.memberDisplayName ?? null,
+      resourceId: commanderId,
+      metadata: {
+        fromServer: previousGameServerNumber,
+        toServer: gameServerNumber,
+      },
+      severity: "update",
+    });
+  }
 
   await upsertCommanderAllianceMembership({
     commanderId,
