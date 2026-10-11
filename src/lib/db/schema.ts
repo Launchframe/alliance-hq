@@ -880,7 +880,12 @@ export const hqUsers = pgTable("hq_users", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => [
+  check(
+    "hq_users_preferred_locale_check",
+    sql`${table.preferredLocale} IS NULL OR ${table.preferredLocale} IN ('en-US','pt-BR','id')`,
+  ),
+]);
 
 /** OAuth identity rows for HQ web SSO (Google, Discord). */
 export const hqUserAuthProviders = pgTable(

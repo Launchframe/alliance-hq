@@ -3,7 +3,10 @@ import enUS from "../../../messages/en-US.json";
 import ptBR from "../../../messages/pt-BR.json";
 import id from "../../../messages/id.json";
 
-import { setManualPreferredLocale } from "@/lib/i18n/user-locale.server";
+import {
+  loadUserLocaleState,
+  setManualPreferredLocale,
+} from "@/lib/i18n/user-locale.server";
 import {
   getDiscordHqLink,
   getDiscordUserLocale,
@@ -32,10 +35,21 @@ export function normalizeDiscordBotLocale(value: string | undefined): DiscordBot
   return "en-US";
 }
 
+/**
+ * Linked users follow the HQ preference (manual pick, else LastRank); with
+ * neither, the Discord client locale wins over a stale /language row.
+ * Unlinked users keep /language, else the client locale.
+ */
 export async function getDiscordBotLocale(
   discordUserId: string,
   payloadLocale?: string,
 ): Promise<DiscordBotLocale> {
+  const link = await getDiscordHqLink(discordUserId);
+  if (link?.hqUserId) {
+    const hq = await loadUserLocaleState(link.hqUserId);
+    if (hq.source !== "default") return hq.locale;
+    return normalizeDiscordBotLocale(payloadLocale);
+  }
   const stored = await getDiscordUserLocale(discordUserId);
   if (stored) return stored;
   return normalizeDiscordBotLocale(payloadLocale);

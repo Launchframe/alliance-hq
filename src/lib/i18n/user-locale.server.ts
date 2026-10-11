@@ -85,7 +85,8 @@ export async function resolveNotificationLocale(
 
 /**
  * Save a manual pick (`null` = back to automatic). A manual pick also updates
- * the linked Discord user's /language so bot replies match.
+ * the linked Discord user's /language; linked bot replies resolve through
+ * the HQ preference, so automatic needs no Discord write.
  */
 export async function setManualPreferredLocale(
   hqUserId: string,
