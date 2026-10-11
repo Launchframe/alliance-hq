@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   upsertVsMatchup: vi.fn(),
   loadVsMatchupRowForUpdate: vi.fn(),
   markVsOpponentFieldsDirty: vi.fn(async () => undefined),
-  matchupUpdateSet: vi.fn(async () => undefined),
+  matchupUpdateSet: vi.fn(async (_values: unknown) => undefined),
   writeAuditLog: vi.fn(async () => undefined),
   loadVsMatchup: vi.fn(async () => ({ id: "m1" })),
 }));
