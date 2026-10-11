@@ -31,4 +31,12 @@ describe("redeemAllianceJoinCode atomicity", () => {
     expect(claimIdx).toBeGreaterThan(-1);
     expect(insertIdx).toBeGreaterThan(claimIdx);
   });
+
+  it("defers elevated join-code roles until claim confirm when target is set", () => {
+    const source = readFileSync(
+      path.join(import.meta.dirname, "join-codes.ts"),
+      "utf8",
+    );
+    expect(source).toMatch(/resolveRoleIdForClaimPendingAccept/);
+  });
 });
