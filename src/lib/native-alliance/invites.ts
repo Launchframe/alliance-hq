@@ -23,7 +23,10 @@ import {
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
-import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
+import {
+  getHqMemberLinkByAllianceAndMember,
+  getHqMemberLinkForUser,
+} from "@/lib/member-link/repository.server";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import {
   getDiscordHqLink,
@@ -31,7 +34,10 @@ import {
   getLinkedMemberIds,
 } from "@/lib/vr/repository";
 
-import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
+import {
+  resolveRoleIdForClaimBoundRebind,
+  resolveRoleIdForClaimPendingAccept,
+} from "./claim-invite-elevation.shared";
 import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
 
@@ -660,18 +666,30 @@ export async function rebindAcceptedInviteSession(input: {
     throw new Error("Alliance tag is missing.");
   }
 
-  // Already-accepted invite rebind: refresh session only — never re-apply the
-  // invite role (would demote after a later officer invite, or re-escalate
-  // after an intentional demotion).
+  // Already-accepted invite rebind: refresh session only — never re-apply a
+  // lower invite role over an active higher membership, and never escalate a
+  // claim-bound invite before the acceptor finishes member-link (preserve_existing
+  // still writes inviteRoleId when no active membership exists).
+  const acceptorLink = invite.targetAshedMemberId
+    ? await getHqMemberLinkForUser(invite.allianceId, input.hqUserId)
+    : null;
+  const provisionRoleId = resolveRoleIdForClaimBoundRebind({
+    inviteRoleId: invite.roleId,
+    claimTargetAshedMemberId: invite.targetAshedMemberId,
+    acceptorHasMemberLink: acceptorLink != null,
+  });
+
   return provisionAllianceMembership({
     hqUserId: input.hqUserId,
     sessionId: input.sessionId,
     allianceId: invite.allianceId,
-    roleId: invite.roleId,
+    roleId: provisionRoleId,
     rolePolicy: "preserve_existing",
     userLabel: normalizedEmail,
     ownerEmail:
-      systemRoleNameForId(invite.roleId) === "owner" ? normalizedEmail : null,
+      systemRoleNameForId(provisionRoleId) === "owner"
+        ? normalizedEmail
+        : null,
   }).then((result) => ({
     ...result,
     redirectPath: invite.redirectPath,

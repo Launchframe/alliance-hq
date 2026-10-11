@@ -7,16 +7,36 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { isPostgresUniqueViolation } from "@/lib/auth/postgres-unique.shared";
+import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
-import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
+import {
+  resolveRoleIdForClaimBoundRebind,
+  resolveRoleIdForClaimPendingAccept,
+} from "./claim-invite-elevation.shared";
 import {
   assertCommanderClaimTargetClaimable,
   CommanderClaimInviteError,
 } from "./invites";
 import { provisionAllianceMembership } from "./provision-membership";
+
+async function provisionRoleIdForJoinCodeRebind(input: {
+  allianceId: string;
+  hqUserId: string;
+  joinCodeRoleId: string;
+  targetAshedMemberId: string | null;
+}): Promise<string> {
+  const acceptorLink = input.targetAshedMemberId
+    ? await getHqMemberLinkForUser(input.allianceId, input.hqUserId)
+    : null;
+  return resolveRoleIdForClaimBoundRebind({
+    inviteRoleId: input.joinCodeRoleId,
+    claimTargetAshedMemberId: input.targetAshedMemberId,
+    acceptorHasMemberLink: acceptorLink != null,
+  });
+}
 
 const DEFAULT_JOIN_CODE_TTL_DAYS = 7;
 /** Hex suffix entropy for generated codes (8 bytes = 64 bits). */
@@ -221,12 +241,19 @@ export async function redeemAllianceJoinCode(
 
   if (existingRedemption) {
     // Re-visit / auto-redeem remount: refresh session only — do not re-apply
-    // the join-code role (blocks silent re-escalation after demotion).
+    // the join-code role over an active membership (blocks silent re-escalation
+    // after demotion), and defer claim-bound elevation until member-link.
+    const rebindRoleId = await provisionRoleIdForJoinCodeRebind({
+      allianceId: joinCode.allianceId,
+      hqUserId: input.hqUserId,
+      joinCodeRoleId: joinCode.roleId,
+      targetAshedMemberId: joinCode.targetAshedMemberId,
+    });
     return provisionAllianceMembership({
       hqUserId: input.hqUserId,
       sessionId: input.sessionId,
       allianceId: joinCode.allianceId,
-      roleId: joinCode.roleId,
+      roleId: rebindRoleId,
       rolePolicy: "preserve_existing",
       userLabel: input.userLabel,
     });
@@ -286,11 +313,17 @@ export async function redeemAllianceJoinCode(
         )
         .limit(1);
       if (racedRedemption) {
+        const rebindRoleId = await provisionRoleIdForJoinCodeRebind({
+          allianceId: joinCode.allianceId,
+          hqUserId: input.hqUserId,
+          joinCodeRoleId: joinCode.roleId,
+          targetAshedMemberId: joinCode.targetAshedMemberId,
+        });
         return provisionAllianceMembership({
           hqUserId: input.hqUserId,
           sessionId: input.sessionId,
           allianceId: joinCode.allianceId,
-          roleId: joinCode.roleId,
+          roleId: rebindRoleId,
           rolePolicy: "preserve_existing",
           userLabel: input.userLabel,
         });
@@ -299,11 +332,17 @@ export async function redeemAllianceJoinCode(
     }
     if (isPostgresUniqueViolation(error)) {
       // Concurrent insert won; our counter bump rolled back with the TX.
+      const rebindRoleId = await provisionRoleIdForJoinCodeRebind({
+        allianceId: joinCode.allianceId,
+        hqUserId: input.hqUserId,
+        joinCodeRoleId: joinCode.roleId,
+        targetAshedMemberId: joinCode.targetAshedMemberId,
+      });
       return provisionAllianceMembership({
         hqUserId: input.hqUserId,
         sessionId: input.sessionId,
         allianceId: joinCode.allianceId,
-        roleId: joinCode.roleId,
+        roleId: rebindRoleId,
         rolePolicy: "preserve_existing",
         userLabel: input.userLabel,
       });

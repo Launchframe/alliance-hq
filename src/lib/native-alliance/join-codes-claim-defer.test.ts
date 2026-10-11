@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getDb, provisionAllianceMembership } = vi.hoisted(() => ({
-  getDb: vi.fn(),
-  provisionAllianceMembership: vi.fn(),
-}));
+const { getDb, provisionAllianceMembership, getHqMemberLinkForUser } =
+  vi.hoisted(() => ({
+    getDb: vi.fn(),
+    provisionAllianceMembership: vi.fn(),
+    getHqMemberLinkForUser: vi.fn(),
+  }));
 
 vi.mock("./provision-membership", () => ({
   provisionAllianceMembership,
+}));
+
+vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkForUser,
 }));
 
 vi.mock("@/lib/db", async (importOriginal) => {
@@ -39,6 +45,7 @@ function joinCodeRow(overrides: Record<string, unknown> = {}) {
 describe("redeemAllianceJoinCode claim-bound RBAC defer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getHqMemberLinkForUser.mockResolvedValue(null);
     provisionAllianceMembership.mockResolvedValue({
       allianceId: "a1",
       allianceTag: "LFgo",
@@ -89,6 +96,39 @@ describe("redeemAllianceJoinCode claim-bound RBAC defer", () => {
       expect.objectContaining({
         roleId: ROLE_IDS.member,
         ownerEmail: null,
+      }),
+    );
+  });
+
+  it("defers elevated role on re-redeem when claim is still pending", async () => {
+    // Pre-fix: existing redemption rebind passed joinCode.roleId into
+    // preserve_existing → owner when no active membership (race / retry).
+    const joinCode = joinCodeRow();
+    const selectResults = [
+      [joinCode],
+      [{ id: "redemption-1" }],
+    ];
+    getDb.mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(selectResults.shift() ?? []),
+          }),
+        }),
+      })),
+    });
+
+    await redeemAllianceJoinCode({
+      code: "LFGO-TESTCODE",
+      hqUserId: "u1",
+      sessionId: "sess-1",
+    });
+
+    expect(getHqMemberLinkForUser).toHaveBeenCalledWith("a1", "u1");
+    expect(provisionAllianceMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: ROLE_IDS.member,
+        rolePolicy: "preserve_existing",
       }),
     );
   });

@@ -17,3 +17,27 @@ export function resolveRoleIdForClaimPendingAccept(input: {
   }
   return ROLE_IDS.member;
 }
+
+/**
+ * Already-accepted invite / join-code rebind must honor the same claim deferral
+ * as first accept. `preserve_existing` still applies `inviteRoleId` when there
+ * is no active membership — so passing the elevated invite role on rebind
+ * grants owner/officer before claim confirm (retry after provision failure,
+ * concurrent rebind between mark-accepted and provision, or revoked row).
+ *
+ * When the acceptor already has an HQ member link, the claim is no longer
+ * pending and the invite role may be used as the rebind target (still subject
+ * to `preserve_existing` / never-demote policies).
+ */
+export function resolveRoleIdForClaimBoundRebind(input: {
+  inviteRoleId: string;
+  claimTargetAshedMemberId: string | null | undefined;
+  acceptorHasMemberLink: boolean;
+}): string {
+  return resolveRoleIdForClaimPendingAccept({
+    inviteRoleId: input.inviteRoleId,
+    pendingClaimTargetId: input.acceptorHasMemberLink
+      ? null
+      : input.claimTargetAshedMemberId,
+  });
+}
