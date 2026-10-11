@@ -1,11 +1,16 @@
 import "server-only";
 
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
-import { linkHqMember } from "@/lib/member-link/repository.server";
+import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
+import { hasConflictingHqGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
+import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
+import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import { openMemberAllianceTenure } from "@/lib/members/member-tenure.server";
 import {
   mergedCommanderFields,
   moveCommanderKeyedHistory,
@@ -229,6 +234,48 @@ async function runTransfer(tx: Tx, input: RunInput): Promise<RunOutcome> {
     return { ok: false, code: "user_already_linked" };
   }
 
+  const [hqUidClaims, discordUidClaims] = await Promise.all([
+    tx
+      .select({
+        hqUserId: schema.hqMemberLinks.hqUserId,
+        ashedMemberId: schema.hqMemberLinks.ashedMemberId,
+      })
+      .from(schema.hqMemberLinks)
+      .where(
+        and(
+          eq(schema.hqMemberLinks.allianceId, input.destinationAllianceId),
+          eq(schema.hqMemberLinks.gameUid, gameUid),
+        ),
+      ),
+    tx
+      .select({
+        discordUserId: schema.discordMemberLinks.discordUserId,
+        ashedMemberId: schema.discordMemberLinks.ashedMemberId,
+        hqUserId: schema.discordHqLinks.hqUserId,
+      })
+      .from(schema.discordMemberLinks)
+      .leftJoin(
+        schema.discordHqLinks,
+        eq(schema.discordHqLinks.discordUserId, schema.discordMemberLinks.discordUserId),
+      )
+      .where(
+        and(
+          eq(schema.discordMemberLinks.allianceId, input.destinationAllianceId),
+          eq(schema.discordMemberLinks.gameUid, gameUid),
+        ),
+      ),
+  ]);
+  if (
+    hasConflictingHqGameUidClaim({
+      hqUserId: input.hqUserId,
+      ashedMemberId: input.destinationAshedMemberId,
+      hqClaims: hqUidClaims,
+      discordClaims: discordUidClaims,
+    })
+  ) {
+    return { ok: false, code: "destination_member_claimed" };
+  }
+
   const now = new Date();
   let historyCount = 0;
   let mergedFields: Partial<typeof schema.commanders.$inferInsert> = {};
@@ -272,6 +319,38 @@ async function runTransfer(tx: Tx, input: RunInput): Promise<RunOutcome> {
       .set({ commanderId: kept.id, status: "active", leftAt: null, updatedAt: now })
       .where(eq(schema.commanderAllianceMemberships.id, membership.id));
   }
+
+  const [existingUserLink] = await tx
+    .select({ id: schema.hqMemberLinks.id })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.destinationAllianceId),
+        eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
+      ),
+    )
+    .limit(1);
+  if (existingUserLink) {
+    await tx
+      .update(schema.hqMemberLinks)
+      .set({ memberDisplayName: roster.currentName, gameUid, updatedAt: now })
+      .where(eq(schema.hqMemberLinks.id, existingUserLink.id));
+  } else {
+    await tx.insert(schema.hqMemberLinks).values({
+      id: nanoid(),
+      allianceId: input.destinationAllianceId,
+      hqUserId: input.hqUserId,
+      ashedMemberId: input.destinationAshedMemberId,
+      memberDisplayName: roster.currentName,
+      gameUid,
+      linkedAt: now,
+      updatedAt: now,
+    });
+  }
+  await tx
+    .update(schema.allianceMembers)
+    .set({ gameUid, updatedAt: now })
+    .where(eq(schema.allianceMembers.id, roster.id));
 
   await writeAuditLog(
     {
@@ -350,8 +429,8 @@ export async function previewCommanderTransfer(
 /**
  * Moves a UID-bound commander to a roster entry in another alliance: merges
  * the destination's duplicate commander into it, updates its home server,
- * then links the HQ account to that roster entry. The source alliance is left
- * untouched.
+ * and links the HQ account to that roster entry in the same transaction. The
+ * source alliance is left untouched.
  */
 export async function transferCommander(
   input: CommanderTransferInput & {
@@ -361,19 +440,47 @@ export async function transferCommander(
 ): Promise<CommanderTransferResult> {
   const prepared = await prepare(input);
   if (!prepared.ok) return prepared;
-  const outcome = await getDb().transaction((tx) =>
-    runTransfer(tx, { ...input, destinationServer: prepared.destinationServer }),
-  );
+  let outcome: RunOutcome;
+  try {
+    outcome = await getDb().transaction((tx) =>
+      runTransfer(tx, { ...input, destinationServer: prepared.destinationServer }),
+    );
+  } catch (error) {
+    // A concurrent link can claim the roster entry or UID after our checks;
+    // the hq_member_links unique indexes reject it and the whole transfer rolls back.
+    if (isMemberLinkGameUidUniqueViolation(error)) {
+      return { ok: false, code: "destination_member_claimed" };
+    }
+    throw error;
+  }
   if (!outcome.ok) return outcome;
 
-  const linked = await linkHqMember({
+  // Derived state only; the transfer and HQ link are already committed.
+  const linkFields = {
     allianceId: input.destinationAllianceId,
-    hqUserId: input.hqUserId,
     ashedMemberId: input.destinationAshedMemberId,
-    memberDisplayName: outcome.memberName,
     gameUid: outcome.gameUid,
-  });
-  if (!linked.ok) return { ok: false, code: "destination_member_claimed" };
+  };
+  try {
+    await openMemberAllianceTenure(linkFields);
+    await syncCommanderIdentityFromMemberLink({
+      ...linkFields,
+      memberDisplayName: outcome.memberName,
+      hqUserId: input.hqUserId,
+    });
+    await inheritHqMemberLinkToDiscordIfLinked({
+      ...linkFields,
+      hqUserId: input.hqUserId,
+      memberDisplayName: outcome.memberName,
+    });
+  } catch (error) {
+    console.error("[commander-transfer] post-link sync failed", {
+      allianceId: input.destinationAllianceId,
+      ashedMemberId: input.destinationAshedMemberId,
+      hqUserId: input.hqUserId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   return { ok: true, summary: outcome.summary };
 }
 

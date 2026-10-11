@@ -174,6 +174,12 @@ test.describe("Member-link server transfer", () => {
         SELECT game_server_number FROM commanders WHERE game_uid = ${gameUid}
       `;
       expect(commander?.game_server_number).toBe(PREVIOUS_HOME_SERVER);
+      const [audit] = await sql<{ id: string }[]>`
+        SELECT id FROM audit_log
+        WHERE alliance_id = ${alliance.allianceId}
+          AND action = 'member_link.server_transfer_confirmed'
+      `;
+      expect(audit).toBeUndefined();
     } finally {
       await sql`DELETE FROM commanders WHERE game_uid = ${gameUid}`;
     }

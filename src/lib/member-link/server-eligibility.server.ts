@@ -1,6 +1,5 @@
 import "server-only";
 
-import { writeAuditLog } from "@/lib/bff/audit";
 import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import { isInviteGatedMemberLink } from "@/lib/member-link/invite-gate.server";
 import { resolveCommanderByUid } from "@/lib/members/commander-identity.server";
@@ -53,28 +52,6 @@ export async function resolveMemberLinkServerEligibilityForUid(input: {
     userClaimedLookupAsHome: input.userClaimedLookupAsHome,
     transferEligible,
   });
-
-  if (
-    result.kind === "eligible" &&
-    result.reason === "user_confirmed_server_transfer" &&
-    commander
-  ) {
-    await writeAuditLog({
-      sessionId: null,
-      allianceId: input.allianceId,
-      hqUserId: input.hqUserId ?? null,
-      action: "member_link.server_transfer_confirmed",
-      resourceType: "commander",
-      resourceName: commander.primaryName,
-      resourceId: commander.id,
-      metadata: {
-        fromServer: knownCommanderHomeServer,
-        toServer: allianceServer,
-        origin: input.discordUserId ? "discord" : "web",
-      },
-      severity: "update",
-    });
-  }
 
   return {
     ...result,
