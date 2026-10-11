@@ -26,6 +26,8 @@ export type MergeDuplicateSummary = {
   newName: string;
   oldName: string;
   historyCount: number;
+  /** Set when HQ merged but Ashed retire/name sync failed — do not refresh roster yet. */
+  ashedRetireFailed?: boolean;
 };
 
 export type MergeDuplicateResult =
@@ -132,6 +134,7 @@ async function loadSide(
     gameServerNumber: commander?.gameServerNumber ?? null,
     gameUid: commander?.gameUid ?? roster.gameUid ?? null,
     lastrankPublicId: commander?.lastrankPublicId ?? null,
+    profession: commander?.profession ?? null,
     hqUserIds: [
       ...new Set([...hqLinks, ...ownerRows].map((row) => row.hqUserId)),
     ],
@@ -349,6 +352,16 @@ async function moveHistory(
     .delete(schema.hqAshedStatSyncConflicts)
     .where(eq(schema.hqAshedStatSyncConflicts.commanderId, D));
 
+  // Deposit identity is [bank, commander, depositAt]. Drop the duplicate's
+  // slips that would collide with the kept commander's after remap (kept wins).
+  await tx.execute(sql`
+    DELETE FROM bank_deposit_slips AS dup
+    USING bank_deposit_slips AS kept
+    WHERE dup.commander_id = ${D}
+      AND kept.commander_id = ${K}
+      AND dup.bank_id = kept.bank_id
+      AND dup.deposit_at = kept.deposit_at
+  `);
   await tx
     .update(schema.bankDepositSlips)
     .set({ commanderId: K })
@@ -974,15 +987,18 @@ export async function previewDuplicateMerge(
   throw new Error("merge preview did not roll back");
 }
 
+/** @returns false when an Ashed-linked retire/name sync failed. */
 async function syncMergeToAshed(input: {
   allianceId: string;
   keptAshedMemberId: string;
   duplicateAshedMemberId: string;
-}): Promise<void> {
+}): Promise<boolean> {
   const ashedAllianceId = await getAshedAllianceIdIfLinked(input.allianceId);
-  if (!ashedAllianceId || isSyntheticNativeAshedAllianceId(ashedAllianceId)) return;
+  if (!ashedAllianceId || isSyntheticNativeAshedAllianceId(ashedAllianceId)) {
+    return true;
+  }
   const connection = await resolveAllianceAshedBotConnection(input.allianceId);
-  if (!connection) return;
+  if (!connection) return false;
 
   const rows = await getDb()
     .select({
@@ -1001,6 +1017,7 @@ async function syncMergeToAshed(input: {
         ]),
       ),
     );
+  let ok = true;
   for (const row of rows) {
     if (row.ashedAllianceId !== ashedAllianceId) continue;
     try {
@@ -1015,6 +1032,7 @@ async function syncMergeToAshed(input: {
         await markAshedMemberFormer({ connection, ashedMemberId: row.ashedMemberId });
       }
     } catch (error) {
+      ok = false;
       console.error(
         `[merge-duplicate] Ashed write failed for alliance ${input.allianceId}: ${
           error instanceof Error ? error.message : "unknown"
@@ -1022,17 +1040,40 @@ async function syncMergeToAshed(input: {
       );
     }
   }
+  return ok;
 }
 
 export async function mergeDuplicateCommander(
   input: MergeInput & { actorHqUserId: string | null; sessionId: string | null },
 ): Promise<MergeDuplicateResult> {
+  // Ashed-linked alliances must be able to retire the duplicate remotely;
+  // otherwise the next roster sync re-activates it and undoes the merge.
+  const ashedAllianceId = await getAshedAllianceIdIfLinked(input.allianceId);
+  if (ashedAllianceId && !isSyntheticNativeAshedAllianceId(ashedAllianceId)) {
+    const connection = await resolveAllianceAshedBotConnection(input.allianceId);
+    if (!connection) {
+      return { ok: false, code: "ashed_connection_required" };
+    }
+  }
+
   const result = await getDb().transaction((tx) => runMerge(tx, input));
   if (!result.ok) return result;
 
-  await syncMergeToAshed(input);
+  const ashedOk = await syncMergeToAshed(input);
   const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
   await pruneFormerMembersFromOpenPools(input.allianceId);
+  if (
+    ashedAllianceId &&
+    !isSyntheticNativeAshedAllianceId(ashedAllianceId) &&
+    !ashedOk
+  ) {
+    // Local merge already committed — warn so officers do not refresh roster
+    // (Ashed still lists the duplicate as active and sync would revive it).
+    return {
+      ok: true,
+      summary: { ...result.summary, ashedRetireFailed: true },
+    };
+  }
   return result;
 }
 

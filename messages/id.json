@@ -4018,8 +4018,11 @@
       "cancel": "Batal",
       "confirm": "Gabungkan",
       "description": "Gunakan ini jika satu orang tercatat sebagai dua anggota, misalnya setelah berganti nama. {name} mempertahankan riwayatnya; nama, data game, dan tautan duplikat dipindahkan ke sini, dan duplikat dinonaktifkan.",
+      "ashedRetireFailed": "HQ sudah menggabungkan anggota, tetapi Ashed masih menandai duplikat sebagai aktif. Jangan sinkronkan roster sampai petugas menyambungkan ulang Ashed dan duplikat dinonaktifkan di sana — sinkron lebih dulu dapat mengembalikan duplikat.",
       "errors": {
+        "ashedConnectionRequired": "Sambungkan ulang Ashed sebelum menggabungkan — tanpa koneksi Ashed aliansi yang berfungsi, sinkron roster berikutnya dapat mengembalikan duplikat.",
         "conflictingLinks": "Kedua anggota tertaut ke akun yang berbeda, jadi tidak dapat digabungkan.",
+        "conflictingProfession": "Anggota ini memiliki profesi yang berbeda, jadi tidak dapat digabungkan.",
         "differentServer": "Anggota ini berada di server game yang berbeda.",
         "generic": "Tidak dapat menggabungkan anggota ini. Coba lagi.",
         "notActive": "Kedua anggota harus aktif di aliansi ini.",
