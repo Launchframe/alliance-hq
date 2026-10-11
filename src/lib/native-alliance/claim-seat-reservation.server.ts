@@ -1,13 +1,14 @@
 import "server-only";
 
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 
 /**
  * True when another HQ user accepted a claim-bound invite/join-code for this
  * commander and has not finished linking yet. Blocks seat sniping between
- * accept and claim confirm.
+ * accept and claim confirm. When several pending claims exist (legacy rows),
+ * the earliest acceptor holds the seat.
  */
 export async function isCommanderReservedByPendingClaim(input: {
   allianceId: string;
@@ -20,7 +21,10 @@ export async function isCommanderReservedByPendingClaim(input: {
   if (!ashedMemberId) return false;
 
   const [inviteReservation] = await db
-    .select({ hqUserId: schema.hqInvites.acceptedByHqUserId })
+    .select({
+      hqUserId: schema.hqInvites.acceptedByHqUserId,
+      at: schema.hqInvites.acceptedAt,
+    })
     .from(schema.hqInvites)
     .where(
       and(
@@ -35,18 +39,13 @@ export async function isCommanderReservedByPendingClaim(input: {
         )`,
       ),
     )
+    .orderBy(asc(schema.hqInvites.acceptedAt))
     .limit(1);
-
-  if (
-    inviteReservation?.hqUserId &&
-    inviteReservation.hqUserId !== input.allowedHqUserId
-  ) {
-    return true;
-  }
 
   const [joinReservation] = await db
     .select({
       hqUserId: schema.hqAllianceJoinCodeRedemptions.hqUserId,
+      at: schema.hqAllianceJoinCodeRedemptions.redeemedAt,
     })
     .from(schema.hqAllianceJoinCodeRedemptions)
     .innerJoin(
@@ -67,14 +66,14 @@ export async function isCommanderReservedByPendingClaim(input: {
         )`,
       ),
     )
+    .orderBy(asc(schema.hqAllianceJoinCodeRedemptions.redeemedAt))
     .limit(1);
 
-  if (
-    joinReservation?.hqUserId &&
-    joinReservation.hqUserId !== input.allowedHqUserId
-  ) {
-    return true;
-  }
-
-  return false;
+  const holders = [inviteReservation, joinReservation].filter(
+    (row): row is { hqUserId: string; at: Date } =>
+      Boolean(row?.hqUserId && row.at),
+  );
+  if (holders.length === 0) return false;
+  holders.sort((a, b) => a.at.getTime() - b.at.getTime());
+  return holders[0].hqUserId !== input.allowedHqUserId;
 }
