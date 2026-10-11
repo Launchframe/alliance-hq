@@ -1,3 +1,5 @@
+import { navLinkActive as routeNavLinkActive } from "@/lib/nav/routes";
+
 export type NavSurface = "native" | "ashed-only" | "hybrid";
 
 export type NavContext = "app" | "admin";
@@ -985,6 +987,10 @@ export function destinationIsVisible(
 ): boolean {
   const perms = permissionSet(options.permissions);
 
+  if (destination.context === "admin" && !perms.has("hq:admin")) {
+    return false;
+  }
+
   if (destination.context === "app" && destination.id === "team-access") {
     if (!options.showTeamAccess) {
       return false;
@@ -1031,15 +1037,9 @@ export function destinationIsVisible(
     }
   }
 
-  if (destination.surface === "hybrid") {
-    if (options.operatingMode === "native") {
-      return false;
-    }
-    if (!options.canUseAshedEmbeds) {
-      return false;
-    }
-  }
-
+  // Hybrid destinations are HQ pages with an optional Ashed pane. The page
+  // decides whether that pane renders, so native alliances and the Ashed
+  // toggle keep the destination in the nav.
   return true;
 }
 
@@ -1198,31 +1198,10 @@ export function findActiveSection(
 }
 
 export function navLinkActive(pathname: string, href: string): boolean {
-  if (href === "/") {
-    return pathname === "/";
-  }
+  // /admin is shared by the app Admin link and the admin overview.
+  // Only an exact pathname match activates it.
   if (href === "/admin") {
     return pathname === "/admin";
   }
-  if (href === "/tools/video-upload/queue") {
-    return pathname === href;
-  }
-  if (href === "/guides/discord-bot") {
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-  if (href === "/guides/discord-train") {
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-  if (href === "/guides/alliance-onboarding") {
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-  if (href === "/members") {
-    return (
-      pathname === "/members" ||
-      pathname.startsWith("/members/") ||
-      pathname === "/commanders" ||
-      pathname.startsWith("/commanders/")
-    );
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return routeNavLinkActive(pathname, href);
 }

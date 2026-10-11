@@ -78,6 +78,12 @@ function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+/** Remount when the server favorite set or Ashed flag changes. Sort ids so row order alone does not reset sidebar state. */
+function sidebarNavKey(preferences: NavigationPreferences): string {
+  const favorites = [...preferences.favorites].sort().join("\0");
+  return `${preferences.showAshedPages ? "ashed-on" : "ashed-off"}:${favorites}`;
+}
+
 export function AshedShell({
   sessionId,
   userLabel,
@@ -211,7 +217,7 @@ export function AshedShell({
             )}
           >
             <SidebarNav
-              key={`${navigationPreferences.showAshedPages ? "ashed-on" : "ashed-off"}:${navigationPreferences.favorites.join(",")}`}
+              key={sidebarNavKey(navigationPreferences)}
               context={context}
               navigationPreferences={navigationPreferences}
               showAdminPortal={showAdminPortal}

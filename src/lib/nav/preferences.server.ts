@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, notInArray, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { destinationById } from "@/lib/nav/registry";
@@ -24,7 +24,11 @@ export async function loadNavigationPreferences(
   const favoriteRows = await db
     .select({ destinationId: schema.navigationFavorites.destinationId })
     .from(schema.navigationFavorites)
-    .where(eq(schema.navigationFavorites.hqUserId, hqUserId));
+    .where(eq(schema.navigationFavorites.hqUserId, hqUserId))
+    .orderBy(
+      asc(schema.navigationFavorites.createdAt),
+      asc(schema.navigationFavorites.destinationId),
+    );
 
   const recentRows = await db
     .select({ destinationId: schema.navigationRecents.destinationId })
@@ -69,35 +73,41 @@ export async function toggleNavigationFavorite(
   }
 
   const db = getDb();
-  const [existing] = await db
-    .select({ destinationId: schema.navigationFavorites.destinationId })
-    .from(schema.navigationFavorites)
-    .where(
-      and(
-        eq(schema.navigationFavorites.hqUserId, hqUserId),
-        eq(schema.navigationFavorites.destinationId, destinationId),
-      ),
-    )
-    .limit(1);
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`nav-favorites:${hqUserId}`}, 0))`,
+    );
 
-  if (existing) {
-    await db
-      .delete(schema.navigationFavorites)
+    const [existing] = await tx
+      .select({ destinationId: schema.navigationFavorites.destinationId })
+      .from(schema.navigationFavorites)
       .where(
         and(
           eq(schema.navigationFavorites.hqUserId, hqUserId),
           eq(schema.navigationFavorites.destinationId, destinationId),
         ),
-      );
-    return { isFavorite: false };
-  }
+      )
+      .limit(1);
 
-  await db.insert(schema.navigationFavorites).values({
-    hqUserId,
-    destinationId,
-    createdAt: new Date(),
+    if (existing) {
+      await tx
+        .delete(schema.navigationFavorites)
+        .where(
+          and(
+            eq(schema.navigationFavorites.hqUserId, hqUserId),
+            eq(schema.navigationFavorites.destinationId, destinationId),
+          ),
+        );
+      return { isFavorite: false };
+    }
+
+    await tx.insert(schema.navigationFavorites).values({
+      hqUserId,
+      destinationId,
+      createdAt: new Date(),
+    });
+    return { isFavorite: true };
   });
-  return { isFavorite: true };
 }
 
 export async function recordNavigationVisit(
@@ -111,34 +121,39 @@ export async function recordNavigationVisit(
   const db = getDb();
   const now = new Date();
 
-  await db
-    .insert(schema.navigationRecents)
-    .values({ hqUserId, destinationId, lastVisitedAt: now })
-    .onConflictDoUpdate({
-      target: [
-        schema.navigationRecents.hqUserId,
-        schema.navigationRecents.destinationId,
-      ],
-      set: { lastVisitedAt: now },
-    });
-
-  // Keep the last 25 recent destinations per user.
-  const toKeep = await db
-    .select({ destinationId: schema.navigationRecents.destinationId })
-    .from(schema.navigationRecents)
-    .where(eq(schema.navigationRecents.hqUserId, hqUserId))
-    .orderBy(desc(schema.navigationRecents.lastVisitedAt))
-    .limit(25);
-
-  const keepIds = toKeep.map((r) => r.destinationId);
-  await db
-    .delete(schema.navigationRecents)
-    .where(
-      and(
-        eq(schema.navigationRecents.hqUserId, hqUserId),
-        keepIds.length > 0
-          ? notInArray(schema.navigationRecents.destinationId, keepIds)
-          : sql`false`,
-      ),
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`nav-recents:${hqUserId}`}, 0))`,
     );
+
+    await tx
+      .insert(schema.navigationRecents)
+      .values({ hqUserId, destinationId, lastVisitedAt: now })
+      .onConflictDoUpdate({
+        target: [
+          schema.navigationRecents.hqUserId,
+          schema.navigationRecents.destinationId,
+        ],
+        set: { lastVisitedAt: now },
+      });
+
+    const toKeep = await tx
+      .select({ destinationId: schema.navigationRecents.destinationId })
+      .from(schema.navigationRecents)
+      .where(eq(schema.navigationRecents.hqUserId, hqUserId))
+      .orderBy(desc(schema.navigationRecents.lastVisitedAt))
+      .limit(25);
+
+    const keepIds = toKeep.map((r) => r.destinationId);
+    await tx
+      .delete(schema.navigationRecents)
+      .where(
+        and(
+          eq(schema.navigationRecents.hqUserId, hqUserId),
+          keepIds.length > 0
+            ? notInArray(schema.navigationRecents.destinationId, keepIds)
+            : sql`false`,
+        ),
+      );
+  });
 }

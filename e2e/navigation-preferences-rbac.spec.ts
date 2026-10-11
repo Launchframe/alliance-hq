@@ -58,5 +58,17 @@ test.describe("Navigation preferences API RBAC", () => {
       data: { destinationId: "members" },
     });
     expect(postRes.status(), await postRes.text()).toBe(401);
+
+    const patchRes = await request.patch("/api/account/navigation-preferences", {
+      headers: { Cookie: cookie, "content-type": "application/json" },
+      data: { showAshedPages: false },
+    });
+    expect(patchRes.status(), await patchRes.text()).toBe(401);
+
+    const putRes = await request.put("/api/account/navigation-preferences", {
+      headers: { Cookie: cookie, "content-type": "application/json" },
+      data: { destinationId: "members" },
+    });
+    expect(putRes.status(), await putRes.text()).toBe(401);
   });
 });

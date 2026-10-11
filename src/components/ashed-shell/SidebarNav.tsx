@@ -422,14 +422,17 @@ export function SidebarNav({
 
   const handleToggleFavorite = useCallback(
     async (destinationId: string) => {
-      const wasFavorite = optimisticFavorites.has(destinationId);
-      const next = new Set(optimisticFavorites);
-      if (wasFavorite) {
-        next.delete(destinationId);
-      } else {
-        next.add(destinationId);
-      }
-      setOptimisticFavorites(next);
+      let wasFavorite = false;
+      setOptimisticFavorites((current) => {
+        wasFavorite = current.has(destinationId);
+        const next = new Set(current);
+        if (wasFavorite) {
+          next.delete(destinationId);
+        } else {
+          next.add(destinationId);
+        }
+        return next;
+      });
       setSaveError(null);
 
       try {
@@ -442,12 +445,19 @@ export function SidebarNav({
           throw new Error("Failed to update favorite");
         }
       } catch {
-        // Roll back on failure.
-        setOptimisticFavorites(new Set(optimisticFavorites));
+        setOptimisticFavorites((current) => {
+          const next = new Set(current);
+          if (wasFavorite) {
+            next.add(destinationId);
+          } else {
+            next.delete(destinationId);
+          }
+          return next;
+        });
         setSaveError(tNav("saveNavigationError"));
       }
     },
-    [optimisticFavorites, tNav],
+    [tNav],
   );
 
   const handleToggleAshed = useCallback(async () => {
