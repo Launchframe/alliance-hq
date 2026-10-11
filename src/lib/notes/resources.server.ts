@@ -112,14 +112,33 @@ export async function touchKnowledgeResource(tx: KnowledgeTransaction, resourceI
     .where(eq(schema.knowledgeResources.id, resourceId));
 }
 
+/**
+ * Remap Notes/knowledge rows from a merged HQ principal onto the canonical user.
+ *
+ * Ownership and grant-subject remaps must **not** bump `accessVersion` / `version`:
+ * completed AI indexes and in-flight history jobs fence on those versions, and Ask
+ * retrieval requires `job.ownerHqUserId = resource.ownerHqUserId` plus matching
+ * access lineage. Bumping without remapping jobs silently empties Ask/retrieve and
+ * cancels processing; remapping owners while preserving versions keeps corpus live.
+ */
 export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: string, canonicalId: string) {
   await tx.execute(sql`insert into knowledge_workspace_preferences(hq_user_id, alliance_id, state, version, updated_at)
     select ${canonicalId}, alliance_id, state, version, updated_at from knowledge_workspace_preferences where hq_user_id = ${sourceId}
     on conflict (hq_user_id, alliance_id) do nothing`);
   await tx.update(schema.knowledgeResources).set({
-    ownerHqUserId: canonicalId, accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1`,
-    version: sql`${schema.knowledgeResources.version} + 1`, updatedAt: new Date(),
+    ownerHqUserId: canonicalId, updatedAt: new Date(),
   }).where(eq(schema.knowledgeResources.ownerHqUserId, sourceId));
+  // Keep index / history / generation job principals aligned with remapped ownership
+  // so retrieval lineage and claim authority survive the merge TX.
+  await tx.update(schema.knowledgeIndexJobs).set({
+    ownerHqUserId: canonicalId, updatedAt: new Date(),
+  }).where(eq(schema.knowledgeIndexJobs.ownerHqUserId, sourceId));
+  await tx.update(schema.knowledgeProcessingJobs).set({
+    ownerHqUserId: canonicalId, updatedAt: new Date(),
+  }).where(eq(schema.knowledgeProcessingJobs.ownerHqUserId, sourceId));
+  await tx.update(schema.knowledgeGenerationJobs).set({
+    requesterId: canonicalId, updatedAt: new Date(),
+  }).where(eq(schema.knowledgeGenerationJobs.requesterId, sourceId));
   const grants = await tx.select().from(schema.knowledgeResourceGrants)
     .where(and(eq(schema.knowledgeResourceGrants.subjectKind, "user"), eq(schema.knowledgeResourceGrants.subjectId, sourceId))).for("update");
   for (const grant of grants) {
@@ -130,8 +149,8 @@ export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: str
       });
   }
   if (grants.length) {
-    await tx.update(schema.knowledgeResources).set({ accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1` })
-      .where(inArray(schema.knowledgeResources.id, grants.map((grant) => grant.resourceId)));
+    // Subject remap is identity merge, not an ACL-shape change that should invalidate
+    // the owner's completed index (which would also poison cross-user shared notes).
     await tx.delete(schema.knowledgeResourceGrants)
       .where(and(eq(schema.knowledgeResourceGrants.subjectKind, "user"), eq(schema.knowledgeResourceGrants.subjectId, sourceId)));
   }
