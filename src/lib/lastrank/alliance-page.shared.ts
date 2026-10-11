@@ -72,11 +72,15 @@ export type LastRankUnmatchedRow = {
   status: "unmatched" | "ambiguous";
   lastRank: LastRankAllianceMember;
   hqCommanderIds: string[];
-  /** Best fuzzy scores against current/previous for operator hints. */
+  /**
+   * Operator hints ranked by name similarity plus in-game stats (THP, country,
+   * profession). Never auto-matched.
+   */
   suggestions: Array<{
     commanderId: string;
     name: string;
     score: number;
+    signals?: LastRankSuggestionSignals;
   }>;
 };
 
@@ -512,8 +516,125 @@ function fuzzyHits(
   return scored;
 }
 
+/**
+ * Suggestion weights. Renames share no name, so in-game stats carry most of
+ * the signal: THP is near-unique, country narrows it further. Profession and
+ * profession level (capped at 100) match most of the alliance, so they only
+ * break ties.
+ */
+export const LASTRANK_SUGGESTION_WEIGHTS = {
+  name: 0.4,
+  thp: 0.35,
+  country: 0.15,
+  profession: 0.05,
+  professionLevel: 0.05,
+} as const;
+
+/** Relative THP difference at which the THP signal reaches zero. */
+export const LASTRANK_SUGGESTION_THP_TOLERANCE = 0.15;
+
+export type LastRankSuggestionSignals = {
+  name: number;
+  /** |LastRank − HQ| / max, or null when either side is unknown. */
+  thpRelDiff: number | null;
+  sameCountry: boolean | null;
+  sameProfession: boolean | null;
+  sameProfessionLevel: boolean | null;
+};
+
+function normalizeCountry(value: string | null | undefined): string | null {
+  const trimmed = value?.trim().toLowerCase();
+  return trimmed ? trimmed : null;
+}
+
+export function lastRankSuggestionSignals(
+  lastRank: Pick<
+    LastRankAllianceMember,
+    "heroPower" | "country" | "profession" | "professionLevel"
+  >,
+  hq: Pick<
+    LastRankHqRosterRow,
+    "hqThp" | "lastrankCountry" | "hqProfession" | "hqProfessionLevel"
+  >,
+  nameScore: number,
+): LastRankSuggestionSignals {
+  const lrThp = lastRank.heroPower;
+  const hqThp = hq.hqThp;
+  const thpRelDiff =
+    lrThp != null && hqThp != null && lrThp > 0 && hqThp > 0
+      ? Math.abs(lrThp - hqThp) / Math.max(lrThp, hqThp)
+      : null;
+  const lrCountry = normalizeCountry(lastRank.country);
+  const hqCountry = normalizeCountry(hq.lastrankCountry);
+  return {
+    name: nameScore,
+    thpRelDiff,
+    sameCountry:
+      lrCountry != null && hqCountry != null ? lrCountry === hqCountry : null,
+    sameProfession:
+      lastRank.profession != null && hq.hqProfession
+        ? lastRank.profession === hq.hqProfession
+        : null,
+    sameProfessionLevel:
+      lastRank.professionLevel != null && hq.hqProfessionLevel != null
+        ? lastRank.professionLevel === hq.hqProfessionLevel
+        : null,
+  };
+}
+
+/**
+ * Weighted mean over the signals both sides know; unknown signals drop out of
+ * the denominator so a sparse HQ row is scored on name alone.
+ */
+export function scoreLastRankSuggestion(signals: LastRankSuggestionSignals): number {
+  const w = LASTRANK_SUGGESTION_WEIGHTS;
+  let total = w.name * signals.name;
+  let weight: number = w.name;
+  if (signals.thpRelDiff != null) {
+    const thp = Math.max(
+      0,
+      1 - signals.thpRelDiff / LASTRANK_SUGGESTION_THP_TOLERANCE,
+    );
+    total += w.thp * thp;
+    weight += w.thp;
+  }
+  if (signals.sameCountry != null) {
+    total += w.country * (signals.sameCountry ? 1 : 0);
+    weight += w.country;
+  }
+  if (signals.sameProfession != null) {
+    total += w.profession * (signals.sameProfession ? 1 : 0);
+    weight += w.profession;
+  }
+  if (signals.sameProfessionLevel != null) {
+    total += w.professionLevel * (signals.sameProfessionLevel ? 1 : 0);
+    weight += w.professionLevel;
+  }
+  return total / weight;
+}
+
+/** Short operator hint, e.g. `name 0.12, THP ±1.4%, same country, same profession`. */
+export function formatLastRankSuggestionSignals(
+  signals: LastRankSuggestionSignals,
+): string {
+  const parts = [`name ${signals.name.toFixed(2)}`];
+  if (signals.thpRelDiff != null) {
+    parts.push(`THP ±${(signals.thpRelDiff * 100).toFixed(1)}%`);
+  }
+  if (signals.sameCountry != null) {
+    parts.push(signals.sameCountry ? "same country" : "other country");
+  }
+  if (signals.sameProfession != null) {
+    parts.push(signals.sameProfession ? "same profession" : "other profession");
+  }
+  if (signals.sameProfessionLevel != null && signals.sameProfessionLevel) {
+    parts.push("same profession level");
+  }
+  return parts.join(", ");
+}
+
 function buildSuggestions(
-  canon: string,
+  lastRank: LastRankAllianceMember,
   hqRows: LastRankHqRosterRow[],
   claimed: Set<string>,
   limit = 5,
@@ -525,17 +646,19 @@ function buildSuggestions(
     let bestScore = 0;
     let bestName = hq.currentNames[0] ?? hq.previousNames[0] ?? "";
     for (const name of names) {
-      const score = stringSimilarity(canon, name);
+      const score = stringSimilarity(lastRank.name, name);
       if (score > bestScore) {
         bestScore = score;
         bestName = name;
       }
     }
     if (bestName) {
+      const signals = lastRankSuggestionSignals(lastRank, hq, bestScore);
       scored.push({
         commanderId: hq.commanderId,
         name: bestName,
-        score: bestScore,
+        score: scoreLastRankSuggestion(signals),
+        signals,
       });
     }
   }
@@ -591,7 +714,7 @@ export function matchLastRankMembersToHq(
         status: "ambiguous",
         lastRank,
         hqCommanderIds: publicUnique.map((row) => row.commanderId),
-        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+        suggestions: buildSuggestions(lastRank, hqRows, claimed),
       });
       continue;
     }
@@ -618,7 +741,7 @@ export function matchLastRankMembersToHq(
         status: "ambiguous",
         lastRank,
         hqCommanderIds: exactCurrent.map((row) => row.commanderId),
-        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+        suggestions: buildSuggestions(lastRank, hqRows, claimed),
       });
       continue;
     }
@@ -645,7 +768,7 @@ export function matchLastRankMembersToHq(
         status: "ambiguous",
         lastRank,
         hqCommanderIds: exactPrevious.map((row) => row.commanderId),
-        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+        suggestions: buildSuggestions(lastRank, hqRows, claimed),
       });
       continue;
     }
@@ -664,7 +787,7 @@ export function matchLastRankMembersToHq(
         status: "ambiguous",
         lastRank,
         hqCommanderIds: fuzzyCurrent.map((row) => row.hq.commanderId),
-        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+        suggestions: buildSuggestions(lastRank, hqRows, claimed),
       });
       continue;
     }
@@ -681,7 +804,7 @@ export function matchLastRankMembersToHq(
         status: "ambiguous",
         lastRank,
         hqCommanderIds: fuzzyPrevious.map((row) => row.hq.commanderId),
-        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+        suggestions: buildSuggestions(lastRank, hqRows, claimed),
       });
       continue;
     }
@@ -690,7 +813,7 @@ export function matchLastRankMembersToHq(
       status: "unmatched",
       lastRank,
       hqCommanderIds: [],
-      suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+      suggestions: buildSuggestions(lastRank, hqRows, claimed),
     });
   }
 
@@ -745,6 +868,8 @@ export function resolveHqNameToRosterRow(
 export type LastRankInteractiveChoice = {
   name: string;
   score: number | null;
+  /** Signal breakdown for suggestions, e.g. `name 0.12, THP ±1.4%, same country`. */
+  detail?: string;
 };
 
 /** Numbered menu for `--interactive`: fuzzy suggestions, then other unmatched HQ. */
@@ -761,7 +886,13 @@ export function buildInteractiveHqChoices(input: {
     const name = suggestion.name.trim();
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    choices.push({ name, score: suggestion.score });
+    choices.push({
+      name,
+      score: suggestion.score,
+      ...(suggestion.signals
+        ? { detail: formatLastRankSuggestionSignals(suggestion.signals) }
+        : {}),
+    });
   }
 
   for (const raw of input.remainingHqNames) {
