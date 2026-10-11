@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 
@@ -56,12 +56,15 @@ export async function setShowAshedPages(
     });
 }
 
+export function isFavoriteableDestination(destinationId: string): boolean {
+  return destinationById(destinationId)?.favoriteable === true;
+}
+
 export async function toggleNavigationFavorite(
   hqUserId: string,
   destinationId: string,
 ): Promise<{ isFavorite: boolean }> {
-  const destination = destinationById(destinationId);
-  if (!destination || !destination.favoriteable) {
+  if (!isFavoriteableDestination(destinationId)) {
     throw new Error("Invalid navigation destination");
   }
 
@@ -101,8 +104,7 @@ export async function recordNavigationVisit(
   hqUserId: string,
   destinationId: string,
 ): Promise<void> {
-  const destination = destinationById(destinationId);
-  if (!destination || !destination.favoriteable) {
+  if (!isFavoriteableDestination(destinationId)) {
     return;
   }
 

@@ -3,14 +3,17 @@ import { z } from "zod";
 
 import { requireApiSession } from "@/lib/session";
 import {
+  isFavoriteableDestination,
   loadNavigationPreferences,
   recordNavigationVisit,
   setShowAshedPages,
   toggleNavigationFavorite,
 } from "@/lib/nav/preferences.server";
 
+const destinationIdSchema = z.string().min(1).max(128);
+
 const toggleFavoriteSchema = z.object({
-  destinationId: z.string().min(1),
+  destinationId: destinationIdSchema,
 });
 
 const showAshedSchema = z.object({
@@ -18,10 +21,24 @@ const showAshedSchema = z.object({
 });
 
 const visitSchema = z.object({
-  destinationId: z.string().min(1),
+  destinationId: destinationIdSchema,
 });
 
-async function requireAuthenticatedHqUser() {
+async function readJsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
+
+function invalidRequest() {
+  return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+}
+
+async function requireAuthenticatedHqUser(): Promise<
+  { errorResponse: NextResponse } | { hqUserId: string }
+> {
   const session = await requireApiSession();
   if (session instanceof NextResponse) {
     return { errorResponse: session };
@@ -53,10 +70,12 @@ export async function POST(request: Request) {
     return result.errorResponse;
   }
 
-  const body = await request.json();
-  const parsed = toggleFavoriteSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  const parsed = toggleFavoriteSchema.safeParse(await readJsonBody(request));
+  if (
+    !parsed.success ||
+    !isFavoriteableDestination(parsed.data.destinationId)
+  ) {
+    return invalidRequest();
   }
 
   const updated = await toggleNavigationFavorite(
@@ -72,10 +91,9 @@ export async function PATCH(request: Request) {
     return result.errorResponse;
   }
 
-  const body = await request.json();
-  const parsed = showAshedSchema.safeParse(body);
+  const parsed = showAshedSchema.safeParse(await readJsonBody(request));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return invalidRequest();
   }
 
   await setShowAshedPages(result.hqUserId, parsed.data.showAshedPages);
@@ -88,10 +106,9 @@ export async function PUT(request: Request) {
     return result.errorResponse;
   }
 
-  const body = await request.json();
-  const parsed = visitSchema.safeParse(body);
+  const parsed = visitSchema.safeParse(await readJsonBody(request));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return invalidRequest();
   }
 
   await recordNavigationVisit(result.hqUserId, parsed.data.destinationId);
