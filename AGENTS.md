@@ -29,6 +29,7 @@ HQ supports three locales: `en-US` (source), `pt-BR` (hand-translated), and `id`
 - Keep `messages/id.json` in sync with the English source by running `node scripts/i18n/translate.mjs` after `messages/en-US.json` changes. Generated Indonesian strings are not reviewed by default; flag them in the PR under a **Copy (pending maintainer review)** block.
 - When adding or changing Discord slash-command text, update `description_localizations` and `choices` in `scripts/discord/register-commands.mjs` for all supported locales.
 - `npm run i18n:validate` must pass after any locale edit.
+- Every notification sent to one person (email, Discord DM, and any future push/SMS channel) must render in that person's notification language: resolve it with `src/lib/notifications/locale.server.ts` and keep the copy under `messages/*/notificationMessages`. Do not read `discord_user_prefs`, cookies, or `hq_users.preferred_locale` directly in a sender.
 
 ## Drizzle migrations and `_journal.json`
 
@@ -126,7 +127,7 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
 - **Security invariant:** Ashed connection keys must **never** appear as slash command options or in Discord payloads. Credential submission uses the HQ `/discord/authorize` HTTPS page (`alliance_credentials` only). HQ account link uses Discord OAuth on that page (`user_link`). Commander link uses player ID entry on `/discord/link-commander` (`member_link` nonce from `/link-commander` / `/link-last-war-profile`) only. Nonces live in `discord_auth_nonces` (`purpose`: `alliance_credentials` | `user_link` | `member_link`; 30-min TTL, single-use).
 - **Multi-link:** up to 5 commanders per Discord user per alliance (`discord_member_links`). `/link-commander` or `/link-last-war-profile` adds or updates; `replace:true` clears then links one; `/unlink` removes a row. `/vr` prompts when multiple commanders exist.
 - **`/help`:** context-aware next steps via `resolveDiscordBotUserContext` + `pickHelpMessageKey` — guild registration, credentials, owner vs member, link count.
-- **i18n:** bot reply strings in `messages/*/discordBot`; HQ authorize page strings in `messages/*/discordAuthorize`; slash command `description_localizations` pt-BR in `scripts/discord/register-commands.mjs`; per-user locale in `discord_user_prefs` via `/language`. Chart PNG axis labels/dates use that same bot locale (shared SVG builders take `locale`).
+- **i18n:** bot reply strings in `messages/*/discordBot`; HQ authorize page strings in `messages/*/discordAuthorize`; slash command `description_localizations` pt-BR in `scripts/discord/register-commands.mjs`; per-user locale in `discord_user_prefs` via `/language` (linked users follow their HQ notification language instead; `/language` from a linked user is saved as their HQ manual pick). Chart PNG axis labels/dates use that same bot locale (shared SVG builders take `locale`).
 - **Deprecation:** do not reintroduce `DISCORD_ALLIANCE_ID` for multi-tenant hosted deploys. `resolveAllianceForGuild` falls back to env only when `guildId === DISCORD_GUILD_ID` (legacy single-server). Unregistered guilds must get `errors.guildNotRegistered`, not a silent wrong-alliance roster lookup. Do not reintroduce a `key:` option on any slash command.
 
 ## Discord bot — identity and auth layers

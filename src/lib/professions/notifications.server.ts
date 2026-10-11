@@ -2,8 +2,14 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 
+import type { AppLocale } from "@/i18n/routing";
 import { getDb, schema } from "@/lib/db";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
+import {
+  notificationTranslator,
+  resolveDiscordRecipientLocale,
+  resolveRecipientLocale,
+} from "@/lib/notifications/locale.server";
 import { getProfessionChannelsForAlliance, loadAwayProfessionCommanderIds } from "./repository";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
@@ -91,6 +97,13 @@ async function sendProfessionEmail(input: {
 type NotificationTarget = {
   email: string | null;
   discordUserId: string | null;
+  locale: AppLocale;
+};
+
+const NO_TARGET: NotificationTarget = {
+  email: null,
+  discordUserId: null,
+  locale: "en-US",
 };
 
 async function resolveTargetForCommander(
@@ -98,7 +111,7 @@ async function resolveTargetForCommander(
   allianceId: string,
 ): Promise<NotificationTarget> {
   const awayCommanderIds = await loadAwayProfessionCommanderIds(allianceId, getServerCalendarDate());
-  if (awayCommanderIds.has(commanderId)) return { email: null, discordUserId: null };
+  if (awayCommanderIds.has(commanderId)) return NO_TARGET;
   const db = getDb();
   // Commander → HQ user → email
   const [link] = await db
@@ -112,7 +125,7 @@ async function resolveTargetForCommander(
     )
     .limit(1);
 
-  if (!link) return { email: null, discordUserId: null };
+  if (!link) return NO_TARGET;
 
   const [user] = await db
     .select({ email: schema.hqUsers.email })
@@ -126,11 +139,24 @@ async function resolveTargetForCommander(
     .where(eq(schema.discordHqLinks.hqUserId, link.hqUserId))
     .limit(1);
 
+  const discordUserId = discordLink?.discordUserId ?? null;
   return {
     email: user?.email ?? null,
-    discordUserId: discordLink?.discordUserId ?? null,
+    discordUserId,
+    locale: discordUserId
+      ? await resolveDiscordRecipientLocale(discordUserId)
+      : await resolveRecipientLocale({ hqUserId: link.hqUserId }),
   };
 }
+
+function professionsTranslator(locale: AppLocale) {
+  return notificationTranslator(locale, "notificationMessages.professions");
+}
+
+const PROFESSION_LABEL_KEYS: Record<string, string> = {
+  Engineer: "engineer",
+  "War Leader": "warLeader",
+};
 
 // ---------------------------------------------------------------------------
 // Profession channel broadcast
@@ -208,21 +234,24 @@ async function _notifyProfessionEvent(
       resolveTargetForCommander(payload.wlCommanderId, payload.allianceId),
     ]);
 
-    const engMsg = `You've been assigned to a War Leader's support team! Visit ${appUrl}/professions to set your coverage window.`;
-    const wlMsg = `A new Engineer has joined your support team. Visit ${appUrl}/professions to view your team.`;
+    const url = `${appUrl}/professions`;
+    const engT = professionsTranslator(engTarget.locale);
+    const wlT = professionsTranslator(wlTarget.locale);
+    const engMsg = engT("engAssigned.body", { url });
+    const wlMsg = wlT("engJoined.body", { url });
 
     await Promise.all([
       engTarget.email &&
         sendProfessionEmail({
           to: engTarget.email,
-          subject: "You've been assigned to a War Leader team",
+          subject: engT("engAssigned.subject"),
           text: engMsg,
         }),
       engTarget.discordUserId && sendDiscordDm(engTarget.discordUserId, engMsg),
       wlTarget.email &&
         sendProfessionEmail({
           to: wlTarget.email,
-          subject: "A new Engineer joined your team",
+          subject: wlT("engJoined.subject"),
           text: wlMsg,
         }),
       wlTarget.discordUserId && sendDiscordDm(wlTarget.discordUserId, wlMsg),
@@ -236,14 +265,17 @@ async function _notifyProfessionEvent(
 
   if (payload.kind === "eng_dismissed") {
     const engTarget = await resolveTargetForCommander(payload.engCommanderId, payload.allianceId);
-    const reasonNote = payload.reason ? ` Reason: ${payload.reason}` : "";
-    const msg = `You have been removed from a War Leader's support team.${reasonNote} Visit ${appUrl}/professions to find a new War Leader.`;
+    const t = professionsTranslator(engTarget.locale);
+    const url = `${appUrl}/professions`;
+    const msg = payload.reason
+      ? t("engDismissed.bodyWithReason", { reason: payload.reason, url })
+      : t("engDismissed.body", { url });
 
     await Promise.all([
       engTarget.email &&
         sendProfessionEmail({
           to: engTarget.email,
-          subject: "You've been removed from a War Leader team",
+          subject: t("engDismissed.subject"),
           text: msg,
         }),
       engTarget.discordUserId && sendDiscordDm(engTarget.discordUserId, msg),
@@ -253,7 +285,9 @@ async function _notifyProfessionEvent(
 
   if (payload.kind === "eng_self_removed") {
     const wlTarget = await resolveTargetForCommander(payload.wlCommanderId, payload.allianceId);
-    const msg = `An Engineer has left your support team. Visit ${appUrl}/professions to see your current team.`;
+    const msg = professionsTranslator(wlTarget.locale)("engLeft.body", {
+      url: `${appUrl}/professions`,
+    });
     await Promise.all([
       wlTarget.discordUserId && sendDiscordDm(wlTarget.discordUserId, msg),
     ]);
@@ -270,13 +304,22 @@ async function _notifyProfessionEvent(
 
   if (payload.kind === "profession_switched") {
     const target = await resolveTargetForCommander(payload.commanderId, payload.allianceId);
-    const msg = `Your profession has been updated: ${payload.from} → ${payload.to}. Visit ${appUrl}/professions to get started.`;
+    const t = professionsTranslator(target.locale);
+    const label = (profession: string) => {
+      const key = PROFESSION_LABEL_KEYS[profession];
+      return key ? t(`profession.${key}`) : profession;
+    };
+    const msg = t("professionSwitched.body", {
+      from: label(payload.from),
+      to: label(payload.to),
+      url: `${appUrl}/professions`,
+    });
 
     await Promise.all([
       target.email &&
         sendProfessionEmail({
           to: target.email,
-          subject: "Your profession has been updated",
+          subject: t("professionSwitched.subject"),
           text: msg,
         }),
       target.discordUserId && sendDiscordDm(target.discordUserId, msg),

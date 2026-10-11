@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   entries: [] as Array<Record<string, unknown>>,
 }));
 vi.mock("@/lib/vr/service", () => ({ resolveAllianceForGuild: vi.fn().mockResolvedValue("alliance-a") }));
-vi.mock("@/lib/vr/repository", () => ({ getDiscordUserLocale: vi.fn().mockResolvedValue("en-US") }));
+vi.mock("@/lib/vr/repository", () => ({ getDiscordHqLink: vi.fn().mockResolvedValue(null), getDiscordUserLocale: vi.fn().mockResolvedValue("en-US") }));
 vi.mock("@/lib/vr/bot-member-links.server", () => ({ listDiscordLinksForStatusQuery: () => mocks.owned.map((ashedMemberId) => ({ ashedMemberId })) }));
 vi.mock("@/lib/vr/bot-officer-auth", () => ({ callerCanRunVrReport: () => mocks.officer }));
 vi.mock("./discord-interaction-state.server", () => ({

@@ -1,5 +1,15 @@
 import "server-only";
 
+import type { AppLocale } from "@/i18n/routing";
+import {
+  notificationTranslator,
+  requestLocaleFallback,
+  resolveRecipientLocale,
+  type NotificationTranslate,
+} from "@/lib/notifications/locale.server";
+
+const HOST_SLOT = "__HQ_EMAIL_HOST__";
+
 type MagicLinkTheme = {
   brandColor?: string;
   buttonText?: string;
@@ -10,8 +20,9 @@ function authVerificationEmailHtml(params: {
   url: string;
   host: string;
   theme: MagicLinkTheme;
+  t: NotificationTranslate;
 }): string {
-  const { url, host, theme } = params;
+  const { url, host, theme, t } = params;
   const escapedHost = host.replace(/\./g, "&#8203;.");
   const brandColor = theme.brandColor || "#346df1";
   const buttonText = theme.buttonText || "#fff";
@@ -30,7 +41,7 @@ function authVerificationEmailHtml(params: {
     <tr>
       <td align="center"
         style="padding: 10px 0px; font-size: 22px; font-family: Helvetica, Arial, sans-serif; color: ${color.text};">
-        Sign in to <strong>${escapedHost}</strong>
+        ${t("heading", { host: HOST_SLOT }).replace(HOST_SLOT, `<strong>${escapedHost}</strong>`)}
       </td>
     </tr>
     <tr>
@@ -39,8 +50,7 @@ function authVerificationEmailHtml(params: {
           <tr>
             <td align="center" style="border-radius: 5px;" bgcolor="${color.buttonBackground}"><a href="${url}"
                 target="_blank"
-                style="font-size: 18px; font-family: Helvetica, Arial, sans-serif; color: ${color.buttonText}; text-decoration: none; border-radius: 5px; padding: 10px 20px; border: 1px solid ${color.buttonBorder}; display: inline-block; font-weight: bold;">Sign
-                in</a></td>
+                style="font-size: 18px; font-family: Helvetica, Arial, sans-serif; color: ${color.buttonText}; text-decoration: none; border-radius: 5px; padding: 10px 20px; border: 1px solid ${color.buttonBorder}; display: inline-block; font-weight: bold;">${t("button")}</a></td>
           </tr>
         </table>
       </td>
@@ -48,7 +58,7 @@ function authVerificationEmailHtml(params: {
     <tr>
       <td align="center"
         style="padding: 0px 0px 10px 0px; font-size: 16px; line-height: 22px; font-family: Helvetica, Arial, sans-serif; color: ${color.text};">
-        If you did not request this email you can safely ignore it.
+        ${t("ignore")}
       </td>
     </tr>
   </table>
@@ -56,9 +66,27 @@ function authVerificationEmailHtml(params: {
 `;
 }
 
-function authVerificationEmailText(params: { url: string; host: string }): string {
-  const { url, host } = params;
-  return `Sign in to ${host}\n${url}\n\n`;
+function authVerificationEmailText(params: {
+  url: string;
+  host: string;
+  t: NotificationTranslate;
+}): string {
+  const { url, host, t } = params;
+  return `${t("subject", { host })}\n${url}\n\n`;
+}
+
+export function buildMagicLinkEmail(input: {
+  url: string;
+  theme: MagicLinkTheme;
+  locale: AppLocale;
+}): { subject: string; html: string; text: string } {
+  const { host } = new URL(input.url);
+  const t = notificationTranslator(input.locale, "notificationMessages.magicLink");
+  return {
+    subject: t("subject", { host }),
+    html: authVerificationEmailHtml({ url: input.url, host, theme: input.theme, t }),
+    text: authVerificationEmailText({ url: input.url, host, t }),
+  };
 }
 
 export function shouldLogMagicLinkToStdout(): boolean {
@@ -89,7 +117,14 @@ export async function sendMagicLinkViaResend(input: {
     throw new Error("RESEND_API_KEY is not configured.");
   }
 
-  const { host } = new URL(input.url);
+  const email = buildMagicLinkEmail({
+    url: input.url,
+    theme: input.theme,
+    locale: await resolveRecipientLocale({
+      email: input.to,
+      fallback: await requestLocaleFallback(),
+    }),
+  });
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -99,9 +134,7 @@ export async function sendMagicLinkViaResend(input: {
     body: JSON.stringify({
       from: input.from,
       to: input.to,
-      subject: `Sign in to ${host}`,
-      html: authVerificationEmailHtml({ url: input.url, host, theme: input.theme }),
-      text: authVerificationEmailText({ url: input.url, host }),
+      ...email,
     }),
   });
 
