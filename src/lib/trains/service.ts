@@ -130,7 +130,9 @@ import {
   isMemberEligibleForPool,
   resolveMemberAllianceRankAsOf,
 } from "@/lib/trains/rank-history";
+import { selectVipVsCandidates } from "@/lib/trains/vip-vs-candidates.shared";
 import {
+  assignVipOnLockedConductor,
   clearConductorAssignment,
   clearVipAssignment,
   deleteWeekScheduleAndDayConfigs,
@@ -257,6 +259,9 @@ function weekDayConfigsForTemplate(
     };
   });
 }
+
+/** Whole-alliance VS board size for VIP threshold / Top N draws. */
+const VIP_VS_BOARD_LIMIT = 500;
 
 async function fetchVsTopScorersForTrainDateResolved(input: {
   hqAllianceId: string;
@@ -1775,6 +1780,65 @@ export async function rollForVip(input: {
         "donation",
         "Donation wheels require a manual VIP pick — HQ does not store donation scores yet.",
       );
+    }
+    case "vs_top_n":
+    case "vs_min_score": {
+      const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+      const scoreDate = vsScoreReferenceDate(input.date, leadDays);
+      const board = await fetchVsTopScorersForTrainDateResolved({
+        hqAllianceId: input.allianceId,
+        trainDate: input.date,
+        limit: VIP_VS_BOARD_LIMIT,
+        leadDays,
+      });
+      const { awayMemberIds } = await loadTimeOffAvailability(
+        input.allianceId,
+        input.date,
+      );
+      const { scoped, available } = selectVipVsCandidates({
+        board,
+        rule: vipRule,
+        conductorMemberId: record.conductorMemberId,
+        awayMemberIds,
+      });
+      if (scoped.length === 0) {
+        throwNoWheelCandidates(
+          "vs",
+          vipRule.kind === "vs_min_score"
+            ? "No one besides the conductor scored above the VS threshold."
+            : "No VS scores found for the VIP wheel.",
+          { scoreDate, leadDays },
+        );
+      }
+      if (available.length === 0) throwPoolUnavailable();
+      const automatic = vipRule.kind === "vs_top_n" && vipRule.topN === 1;
+      const winner = automatic
+        ? available[0]!
+        : available[Math.floor(Math.random() * available.length)]!;
+      result = {
+        ...winner,
+        mechanism,
+        isAutomatic: automatic,
+        ...(automatic ? {} : { wheelCandidates: available }),
+      };
+      const rankEvent = await getMemberRankAsOf(
+        input.allianceId,
+        winner.memberId,
+        input.date,
+      );
+      await assignVipOnLockedConductor({
+        allianceId: input.allianceId,
+        date: input.date,
+        seasonKey,
+        vipMemberId: winner.memberId,
+        vipMemberName: winner.memberName,
+        vipRankEventId: rankEvent?.id ?? null,
+        vipMechanism: mechanism,
+        vipRule,
+        dayConfigId: dayConfig.dayConfigId,
+      });
+      result.draftPersisted = true;
+      return result;
     }
     case "event_top_x": {
       throw new TrainRollError(

@@ -172,8 +172,29 @@ export const conductorRuleSchema = z.discriminatedUnion("kind", [
 
 export type ConductorRule = z.infer<typeof conductorRuleSchema>;
 
+/** Upper bound for a VIP VS threshold, in raw points (1 trillion). */
+export const VIP_VS_MIN_SCORE_MAX = 1_000_000_000_000;
+
+/**
+ * VIP VS rules read the same prior-day VS board as the conductor rule and
+ * always leave out the day's conductor, so Top 1 is the best non-conductor.
+ */
 export const vipRuleSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("donations_second") }),
+  z.object({
+    kind: z.literal("vs_top_n"),
+    topN: z.union([
+      z.literal(1),
+      z.literal(3),
+      z.literal(5),
+      z.literal(10),
+    ]),
+  }),
+  z.object({
+    kind: z.literal("vs_min_score"),
+    /** Raw VS points; members must score strictly above this. */
+    minScore: z.number().int().positive().max(VIP_VS_MIN_SCORE_MAX),
+  }),
   z.object({
     kind: z.literal("event_top_x"),
     eventKey: z.string().min(1).max(64),
@@ -300,7 +321,27 @@ export function vipRuleIdentity(rule: VipRule | null): string {
   if (rule.kind === "event_scores") {
     return eventScoresRuleIdentity(rule);
   }
+  if (rule.kind === "vs_top_n") return `vs_top_n:${rule.topN}`;
+  if (rule.kind === "vs_min_score") return `vs_min_score:${rule.minScore}`;
   return rule.kind;
+}
+
+/** Millions typed by an officer (decimals allowed) → raw VS points. */
+export function vsMillionsToPoints(input: string): number | null {
+  const normalized = input.trim().replace(",", ".");
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
+  const points = Math.round(Number(normalized) * 1_000_000);
+  if (!Number.isFinite(points) || points <= 0 || points > VIP_VS_MIN_SCORE_MAX) {
+    return null;
+  }
+  return points;
+}
+
+/** Raw VS points → millions for display and editing (up to 2 decimals). */
+export function vsPointsToMillions(points: number, locale = "en-US"): string {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+    points / 1_000_000,
+  );
 }
 
 export function conductorRuleChanged(
@@ -341,6 +382,10 @@ export function vipRuleLabelKey(rule: VipRule | null): string {
   switch (rule.kind) {
     case "donations_second":
       return "vipDonationsSecond";
+    case "vs_top_n":
+      return rule.topN === 1 ? "vsTop1" : "vsTopN";
+    case "vs_min_score":
+      return "vipVsMinScore";
     case "event_top_x":
       return "vipEventTopX";
     case "event_scores":

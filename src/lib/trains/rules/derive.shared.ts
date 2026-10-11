@@ -15,6 +15,8 @@ import type { ConductorRule, VipRule } from "@/lib/trains/rules/catalog.shared";
 
 export type PoolSpinSource = { kind: "pool"; poolType: PoolType };
 export type VsLeaderboardSpinSource = { kind: "vs_leaderboard"; topN: number };
+/** Everyone above a prior-day VS score (VIP only). */
+export type VsMinScoreSpinSource = { kind: "vs_min_score"; minScore: number };
 export type VrLeaderboardSpinSource = { kind: "vr_leaderboard"; topN: number };
 export type DonationsLeaderboardSpinSource = {
   kind: "donations_leaderboard";
@@ -39,6 +41,7 @@ export type PriceIsRightHeavyHitterSpinSource = {
 export type SpinSource =
   | PoolSpinSource
   | VsLeaderboardSpinSource
+  | VsMinScoreSpinSource
   | VrLeaderboardSpinSource
   | DonationsLeaderboardSpinSource
   | EventLeaderboardSpinSource
@@ -93,8 +96,16 @@ export function vipRuleSourceDay(
   trainDate: string,
   leadDays = 0,
 ): RuleSourceDay {
-  if (rule?.kind !== "donations_second") return { kind: "none" };
+  if (!vipRuleUsesScoreDay(rule)) return { kind: "none" };
   return { kind: "score_day", date: vsScoreReferenceDate(trainDate, leadDays) };
+}
+
+export function vipRuleUsesVsScores(rule: VipRule | null): boolean {
+  return rule?.kind === "vs_top_n" || rule?.kind === "vs_min_score";
+}
+
+function vipRuleUsesScoreDay(rule: VipRule | null): boolean {
+  return rule?.kind === "donations_second" || vipRuleUsesVsScores(rule);
 }
 
 export type RuleValidity =
@@ -162,6 +173,12 @@ export function spinSourceForVipRule(rule: VipRule | null): SpinSource {
   if (!rule || rule.kind === "none") return null;
   if (rule.kind === "donations_second") {
     return { kind: "donations_leaderboard", rank: 2 };
+  }
+  if (rule.kind === "vs_top_n") {
+    return { kind: "vs_leaderboard", topN: rule.topN };
+  }
+  if (rule.kind === "vs_min_score") {
+    return { kind: "vs_min_score", minScore: rule.minScore };
   }
   if (rule.kind === "event_scores") {
     return { kind: "event_leaderboard", rule };
@@ -233,6 +250,8 @@ export function canSpinVipForRule(
   if (!locked || !rule || rule.kind === "none") return false;
   return (
     rule.kind === "donations_second" ||
+    rule.kind === "vs_top_n" ||
+    rule.kind === "vs_min_score" ||
     rule.kind === "event_top_x" ||
     rule.kind === "event_scores"
   );

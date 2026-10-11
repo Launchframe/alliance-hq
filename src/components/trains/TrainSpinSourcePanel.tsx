@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
+import { vsPointsToMillions } from "@/lib/trains/rules/catalog.shared";
 import type { SpinSource } from "@/lib/trains/spin-source.shared";
 import {
   isPoolSpinSource,
@@ -30,6 +31,7 @@ type Props = {
 function sourceLabel(
   source: SpinSource,
   t: ReturnType<typeof useTranslations<"trains.spinSource">>,
+  locale: string,
 ): string | null {
   if (!source) return null;
   switch (source.kind) {
@@ -43,6 +45,10 @@ function sourceLabel(
       return source.topN === 1
         ? t("vsLeaderboardTop1")
         : t("vsLeaderboardTopN", { count: source.topN });
+    case "vs_min_score":
+      return t("vsMinScore", {
+        score: vsPointsToMillions(source.minScore, locale),
+      });
     case "vr_leaderboard":
       return t("vrLeaderboardTopN", { count: source.topN });
     case "donations_leaderboard":
@@ -85,7 +91,8 @@ function SpinSourceRow({
   onViewPool: (poolType: PoolType) => void;
 }) {
   const t = useTranslations("trains.spinSource");
-  const label = sourceLabel(source, t);
+  const locale = useLocale();
+  const label = sourceLabel(source, t, locale);
   if (!label) return null;
 
   const isPool = isPoolSpinSource(source);

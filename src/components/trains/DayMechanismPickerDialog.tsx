@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { EventRulePicker } from "@/components/trains/EventRulePicker";
 import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
@@ -13,6 +13,8 @@ import {
   ruleLabelText,
   vipRuleIdentity,
   vipRuleLabelKey,
+  vsMillionsToPoints,
+  vsPointsToMillions,
   type ConductorRule,
   type DayRulePatch,
   type EventScoresRule,
@@ -86,7 +88,21 @@ export function DayMechanismPickerDialog({
   const [eventPickerRole, setEventPickerRole] = useState<
     "conductor" | "vip" | null
   >(initialEventRole);
+  const [vipScopeOpen, setVipScopeOpen] = useState(false);
+  const [vsMinScoreEditing, setVsMinScoreEditing] = useState(
+    currentVipRule?.kind === "vs_min_score",
+  );
+  const [vsMinScoreInput, setVsMinScoreInput] = useState(
+    currentVipRule?.kind === "vs_min_score"
+      ? String(currentVipRule.minScore / 1_000_000)
+      : "",
+  );
   const [weightingBusy, setWeightingBusy] = useState(false);
+  const locale = useLocale();
+  const tTopN = useTranslations("trains.topNScope");
+  const vsMinScorePoints = vsMillionsToPoints(vsMinScoreInput);
+  const vsMinScoreInvalid =
+    target !== "conductor" && vsMinScoreEditing && vsMinScorePoints == null;
 
   async function setDrawMode(nextWeightingEnabled: boolean) {
     if (disabled || weightingBusy) return;
@@ -122,9 +138,30 @@ export function DayMechanismPickerDialog({
   function apply() {
     const patch: DayRulePatch = {};
     if (showConductor) patch.conductorRule = selected;
-    if (showVip) patch.vipRule = selectedVip;
+    if (showVip) {
+      if (vsMinScoreEditing) {
+        if (vsMinScorePoints == null) return;
+        patch.vipRule = { kind: "vs_min_score", minScore: vsMinScorePoints };
+      } else {
+        patch.vipRule = selectedVip;
+      }
+    }
     onSelect(patch);
   }
+
+  function selectVip(rule: VipRule | null) {
+    setVsMinScoreEditing(false);
+    setSelectedVip(rule);
+  }
+
+  function updateVsMinScore(input: string) {
+    setVsMinScoreInput(input);
+    const points = vsMillionsToPoints(input);
+    if (points != null) setSelectedVip({ kind: "vs_min_score", minScore: points });
+  }
+
+  const vipVsTopSelected =
+    !vsMinScoreEditing && selectedVip?.kind === "vs_top_n";
 
   const targets: Array<{ id: PaintTarget; label: string }> = [
     { id: "conductor", label: tDayMenu("targetConductor") },
@@ -138,6 +175,7 @@ export function DayMechanismPickerDialog({
       onOpenChange={(next) => {
         if (!next) {
           setScopeBoard(null);
+          setVipScopeOpen(false);
           setEventPickerRole(null);
           onClose();
         }
@@ -180,7 +218,7 @@ export function DayMechanismPickerDialog({
               }}
               onApply={(rule: EventScoresRule) => {
                 if (eventPickerRole === "vip") {
-                  setSelectedVip(rule);
+                  selectVip(rule);
                 } else {
                   setSelected(rule);
                 }
@@ -197,6 +235,18 @@ export function DayMechanismPickerDialog({
             onSelect={(topN: ConductorTopN) => {
               setSelected(ruleForPaletteSelection(scopeBoard, topN));
               setScopeBoard(null);
+            }}
+          />
+        ) : vipScopeOpen ? (
+          <TopNScopePicker
+            board="vs_top_n"
+            vrReporterCount={vrReporterCount}
+            onBack={() => setVipScopeOpen(false)}
+            onSelect={(topN: ConductorTopN) => {
+              if (topN === 1 || topN === 3 || topN === 5 || topN === 10) {
+                selectVip({ kind: "vs_top_n", topN });
+              }
+              setVipScopeOpen(false);
             }}
           />
         ) : (
@@ -388,6 +438,7 @@ export function DayMechanismPickerDialog({
                   <div role="listbox" aria-label={tDayMenu("vipSection")}>
                     {VIP_CHOICES.map((rule) => {
                       const isSelected =
+                        !vsMinScoreEditing &&
                         selectedVipIdentity === vipRuleIdentity(rule);
                       return (
                         <div
@@ -404,7 +455,7 @@ export function DayMechanismPickerDialog({
                             aria-selected={isSelected}
                             disabled={disabled}
                             data-testid={`trains-day-vip-row-${vipRuleIdentity(rule)}`}
-                            onClick={() => setSelectedVip(rule)}
+                            onClick={() => selectVip(rule)}
                             className="w-full text-left text-sm font-medium text-hq-fg disabled:opacity-50"
                           >
                             {ruleLabelText(vipRuleLabelKey(rule), tRules, tEventEvidence)}
@@ -414,7 +465,7 @@ export function DayMechanismPickerDialog({
                     })}
                     <div
                       className={`rounded-lg border px-3 py-3 transition-colors ${
-                        selectedVip?.kind === "event_scores"
+                        vipVsTopSelected
                           ? "border-cyan-500/50 bg-cyan-500/10"
                           : "border-transparent hover:bg-hq-canvas"
                       }`}
@@ -422,7 +473,102 @@ export function DayMechanismPickerDialog({
                       <button
                         type="button"
                         role="option"
-                        aria-selected={selectedVip?.kind === "event_scores"}
+                        aria-selected={vipVsTopSelected}
+                        disabled={disabled}
+                        data-testid="trains-day-vip-row-vs_top_n"
+                        onClick={() => setVipScopeOpen(true)}
+                        className="w-full text-left disabled:opacity-50"
+                      >
+                        <span className="text-sm font-medium text-hq-fg">
+                          {vipVsTopSelected && selectedVip?.kind === "vs_top_n"
+                            ? `${tRules("vsTopN")} · ${tTopN("scopeLabel", { count: selectedVip.topN })}`
+                            : tRules("vsTopN")}
+                        </span>
+                        {vipVsTopSelected ? (
+                          <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
+                            {tDayMenu("vipVsTopHint")}
+                          </p>
+                        ) : null}
+                      </button>
+                    </div>
+                    <div
+                      className={`rounded-lg border px-3 py-3 transition-colors ${
+                        vsMinScoreEditing
+                          ? "border-cyan-500/50 bg-cyan-500/10"
+                          : "border-transparent hover:bg-hq-canvas"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={vsMinScoreEditing}
+                        disabled={disabled}
+                        data-testid="trains-day-vip-row-vs_min_score"
+                        onClick={() => {
+                          setVsMinScoreEditing(true);
+                          if (vsMinScorePoints != null) {
+                            setSelectedVip({
+                              kind: "vs_min_score",
+                              minScore: vsMinScorePoints,
+                            });
+                          }
+                        }}
+                        className="w-full text-left text-sm font-medium text-hq-fg disabled:opacity-50"
+                      >
+                        {vsMinScoreEditing && vsMinScorePoints != null
+                          ? tRules("vipVsMinScoreValue", {
+                              score: vsPointsToMillions(vsMinScorePoints, locale),
+                            })
+                          : tRules("vipVsMinScore")}
+                      </button>
+                      {vsMinScoreEditing ? (
+                        <div className="mt-3 border-t border-hq-border/60 pt-3">
+                          <label
+                            htmlFor="trains-day-vip-vs-min-score"
+                            className="text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted"
+                          >
+                            {tDayMenu("vipVsMinScoreLabel")}
+                          </label>
+                          <input
+                            id="trains-day-vip-vs-min-score"
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            disabled={disabled}
+                            value={vsMinScoreInput}
+                            placeholder={tDayMenu("vipVsMinScorePlaceholder")}
+                            onChange={(event) => updateVsMinScore(event.target.value)}
+                            data-testid="trains-day-vip-vs-min-score-input"
+                            aria-invalid={vsMinScoreInvalid && vsMinScoreInput !== ""}
+                            className="mt-1.5 w-full rounded-md border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+                          />
+                          <p
+                            className={`mt-2 text-xs leading-relaxed ${
+                              vsMinScoreInvalid && vsMinScoreInput !== ""
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-hq-fg-muted"
+                            }`}
+                          >
+                            {vsMinScoreInvalid && vsMinScoreInput !== ""
+                              ? tDayMenu("vipVsMinScoreInvalid")
+                              : tDayMenu("vipVsMinScoreHint")}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div
+                      className={`rounded-lg border px-3 py-3 transition-colors ${
+                        !vsMinScoreEditing && selectedVip?.kind === "event_scores"
+                          ? "border-cyan-500/50 bg-cyan-500/10"
+                          : "border-transparent hover:bg-hq-canvas"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={
+                          !vsMinScoreEditing && selectedVip?.kind === "event_scores"
+                        }
                         disabled={disabled}
                         data-testid="trains-day-vip-row-event_scores"
                         onClick={() => setEventPickerRole("vip")}
@@ -474,9 +620,8 @@ export function DayMechanismPickerDialog({
                 </button>
                 <button
                   type="button"
-                  disabled={disabled}
-                  data-testid="trains-day-mechanism-picker-apply"
-                  onClick={apply}
+                  disabled={disabled || vsMinScoreInvalid}
+                  data-testid="trains-day-mechanism-picker-apply"                  onClick={apply}
                   className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
                 >
                   {t("templatePicker.apply")}

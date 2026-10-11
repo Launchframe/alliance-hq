@@ -4099,7 +4099,12 @@
       "targetBoth": "Ambos",
       "conductorSection": "Regra do condutor",
       "vipSection": "Regra de VIP",
-      "sourceDayWarning": "Esta regra lê de um dia de folga do VS, então a roleta não terá pontuações. Você ainda pode escolher manualmente."
+      "sourceDayWarning": "Esta regra lê de um dia de folga do VS, então a roleta não terá pontuações. Você ainda pode escolher manualmente.",
+      "vipVsTopHint": "Sorteia entre as maiores pontuações de VS do dia anterior. O condutor do dia fica de fora, então o Top 1 é a maior pontuação que não seja a do condutor.",
+      "vipVsMinScoreLabel": "Pontuação mínima de VS (milhões)",
+      "vipVsMinScorePlaceholder": "ex.: 7,5",
+      "vipVsMinScoreHint": "Sorteia entre todos com pontuação de VS do dia anterior acima deste valor, exceto o condutor do dia.",
+      "vipVsMinScoreInvalid": "Digite uma pontuação em milhões, como 7,5."
     },
     "weekdays": {
       "mon": "Seg",
@@ -4528,7 +4533,8 @@
       "vrLeaderboardTopN": "VR top {count}",
       "donationsLeaderboardTop": "Maior doador",
       "donationsLeaderboardSecond": "Segundo doador",
-      "eventLeaderboard": "Top do evento (roda VIP)"
+      "eventLeaderboard": "Top do evento (roda VIP)",
+      "vsMinScore": "VS acima de {score} mi"
     },
     "poolDetails": {
       "title": "Elegibilidade",
@@ -4854,6 +4860,8 @@
       "vipDonationsSecond": "Segundo doador",
       "vipEventTopX": "Top X evento",
       "vipNone": "Sem VIP",
+      "vipVsMinScore": "Mínimo de VS",
+      "vipVsMinScoreValue": "VS acima de {score} mi",
       "eventScores": "Resultados de eventos"
     },
     "ruleDetails": {

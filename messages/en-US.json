@@ -4153,7 +4153,12 @@
       "targetBoth": "Both",
       "conductorSection": "Conductor rule",
       "vipSection": "VIP rule",
-      "sourceDayWarning": "This rule reads from a VS break day, so its wheel will have no scores. You can still pick manually."
+      "sourceDayWarning": "This rule reads from a VS break day, so its wheel will have no scores. You can still pick manually.",
+      "vipVsTopHint": "Draws from the prior-day top VS scores. The day's conductor is left out, so Top 1 is the highest scorer who isn't the conductor.",
+      "vipVsMinScoreLabel": "Minimum VS score (millions)",
+      "vipVsMinScorePlaceholder": "e.g. 7.5",
+      "vipVsMinScoreHint": "Draws from everyone whose prior-day VS score is above this, except the day's conductor.",
+      "vipVsMinScoreInvalid": "Enter a score in millions, like 7.5."
     },
     "weekdays": {
       "mon": "Mon",
@@ -4582,7 +4587,8 @@
       "vrLeaderboardTopN": "VR top {count}",
       "donationsLeaderboardTop": "Top donor",
       "donationsLeaderboardSecond": "Second-place donor",
-      "eventLeaderboard": "Event top scorers (VIP wheel)"
+      "eventLeaderboard": "Event top scorers (VIP wheel)",
+      "vsMinScore": "VS score above {score}M"
     },
     "poolDetails": {
       "title": "Eligibility",
@@ -4908,6 +4914,8 @@
       "vipDonationsSecond": "Second donor",
       "vipEventTopX": "Event top X",
       "vipNone": "No VIP",
+      "vipVsMinScore": "VS threshold",
+      "vipVsMinScoreValue": "VS above {score}M",
       "eventScores": "Event results"
     },
     "ruleDetails": {
