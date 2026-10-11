@@ -53,7 +53,7 @@ describe("decideAllianceCredentialRefresh", () => {
     expect(decideAllianceCredentialRefresh(base)).toEqual({ refresh: true });
   });
 
-  it("BUG REPRO: registrant alone must not authorize collaborator overwrite", () => {
+  it("registrant alone must not authorize collaborator overwrite", () => {
     // Share delegate stamped as registrant reconnects with a different Ashed
     // identity (collaborator JWT) — must not replace the stored owner token.
     expect(
@@ -66,7 +66,7 @@ describe("decideAllianceCredentialRefresh", () => {
     ).toEqual({ refresh: false, reason: "not_authorized" });
   });
 
-  it("BUG REPRO: same Ashed identity alone must not authorize non-owner refresh", () => {
+  it("same Ashed identity alone must not authorize non-owner refresh", () => {
     // Collaborator JWT left in place by time-off repair — reconnect must not
     // grant perpetual refresh without owner role or registrant+identity.
     expect(

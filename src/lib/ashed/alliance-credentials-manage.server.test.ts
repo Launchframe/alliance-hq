@@ -163,7 +163,7 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
     );
   });
 
-  it("BUG REPRO: delegated owner-key install must stamp share owner, not delegate", async () => {
+  it("delegated owner-key install must stamp share owner, not delegate", async () => {
     loadSession.mockResolvedValue({ hqUserId: "hq-delegate" });
     resolveEffectiveHqUserIdForSession.mockResolvedValue("hq-delegate");
     sessionHoldsAshedIdentityForHqUser.mockResolvedValue(false);
