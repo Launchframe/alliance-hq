@@ -352,6 +352,51 @@ describe("previewVsWeekPlan", () => {
     expect(preview.changes.map((c) => c.scoreDate)).toEqual(["2026-09-25"]);
   });
 
+  it("emits conductorRule:null paints when clearing push days to undecided", async () => {
+    // Concrete trigger: all_out_domination (all vs_top_n) → strategic_victory
+    // (editable days → undecided). Before the fix, paintPatchesForDraft
+    // early-returned on null rules so trains kept spinning Top VS after the
+    // platform clear. Past/protected days must keep the saved strategy.
+    const savedDays = defaultDays().map((d) => ({
+      ...d,
+      strategy: "push" as const,
+      pushTopN: 10 as const,
+    }));
+    mocks.loadVsWeekPlan.mockResolvedValue(
+      planRow(savedDays, 2, "all_out_domination"),
+    );
+    for (const trainDate of trainDates) {
+      dayConfig.set(trainDate!, PUSH);
+    }
+    const next = draft(
+      defaultDays().map((d, i) => (i < 2 ? savedDays[i]! : d)),
+      "strategic_victory",
+    );
+    const preview = await previewVsWeekPlan(actor, next, 2, scope());
+    const patches = mocks.prepareTrainPaints.mock.calls[0]?.[1] ?? [];
+    // TODAY=2026-09-23 → Wed–Sat score days editable → trainDates[2..5]
+    const clearPatches = patches.filter(
+      (p: { conductorRule: unknown }) => p.conductorRule === null,
+    );
+    expect(clearPatches.map((p: { date: string }) => p.date).sort()).toEqual(
+      [trainDates[2], trainDates[3], trainDates[4], trainDates[5]].sort(),
+    );
+    const cleared = preview.changes.filter((c) => c.after === null);
+    expect(cleared.map((c) => c.trainDate).sort()).toEqual(
+      [trainDates[2], trainDates[3], trainDates[4], trainDates[5]].sort(),
+    );
+    for (const change of cleared) {
+      expect(change.before).toEqual(PUSH);
+    }
+  });
+
+  it("does not paint null clears on a first-save all-undecided draft", async () => {
+    mocks.loadVsWeekPlan.mockResolvedValue(null);
+    await previewVsWeekPlan(actor, draft(defaultDays()), 0, scope());
+    const patches = mocks.prepareTrainPaints.mock.calls[0]?.[1] ?? [];
+    expect(patches).toEqual([]);
+  });
+
   it("reapplies an overridden day only when reapplyDates asks", async () => {
     const saved = defaultDays().map((d, i) =>
       i === 3 ? { ...d, strategy: "push" as const, pushTopN: 10 as const } : d,

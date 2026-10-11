@@ -195,20 +195,30 @@ function paintPatchesForDraft(input: {
   input.days.forEach((day, index) => {
     const resolution = input.resolved[index];
     if (!resolution?.editable) return;
-    const rule = conductorRuleForVsPlanDay(day);
-    if (rule == null) return;
+    // Undecided / plain unrestricted map to free choice (`null`). Emitting
+    // `conductorRule: null` is required when the prior plan painted a real
+    // rule — otherwise vs_top_n (etc.) trains keep spinning after a platform
+    // clear. First-save of an all-undecided draft still paints nothing.
+    const rule = conductorRuleForVsPlanDay(day) ?? null;
     const previousRule = input.savedDays
       ? conductorRuleForVsPlanDay(input.savedDays[index]!) ?? null
       : null;
     const intentChanged =
       input.savedDays == null ||
       conductorRuleChanged(previousRule, rule);
-    if (intentChanged || input.reapplyDates.has(day.scoreDate)) {
+    const reapply = input.reapplyDates.has(day.scoreDate);
+    if (intentChanged || reapply) {
+      if (rule == null) {
+        if (previousRule != null || (reapply && resolution.currentRule != null)) {
+          patches.push({ date: resolution.trainDate, conductorRule: null });
+        }
+        return;
+      }
       patches.push({ date: resolution.trainDate, conductorRule: rule });
       return;
     }
     const current = resolution.currentRule;
-    if (current != null && !conductorRuleChanged(current, rule)) {
+    if (rule != null && current != null && !conductorRuleChanged(current, rule)) {
       patches.push({ date: resolution.trainDate, conductorRule: rule });
     }
   });
@@ -233,7 +243,6 @@ function previewFromResolved(input: {
       const paint = preparedByTrainDate.get(day.trainDate);
       if (!day.editable || !paint) return null;
       const after = paint.mergedRules.conductorRule;
-      if (after == null) return null;
       const clearsConductor =
         !paint.keepAssigned && Boolean(paint.record?.conductorMemberId);
       if (

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   writeVsMatchDayResult: vi.fn(),
   upsertVsMatchup: vi.fn(),
   loadVsMatchupRowForUpdate: vi.fn(),
+  markVsOpponentFieldsDirty: vi.fn(async () => undefined),
+  matchupUpdateSet: vi.fn(async () => undefined),
   writeAuditLog: vi.fn(async () => undefined),
   loadVsMatchup: vi.fn(async () => ({ id: "m1" })),
 }));
@@ -25,7 +27,10 @@ vi.mock("@/lib/db", () => ({
           }),
         }),
         update: () => ({
-          set: () => ({ where: async () => undefined }),
+          set: (values: unknown) => {
+            void mocks.matchupUpdateSet(values);
+            return { where: async () => undefined };
+          },
         }),
       }),
   }),
@@ -55,7 +60,7 @@ vi.mock("@/lib/vs-performance/match-results.repository.server", () => ({
   markVsObservationDisposition: mocks.markVsObservationDisposition,
   upsertVsMatchup: mocks.upsertVsMatchup,
   writeVsMatchDayResult: mocks.writeVsMatchDayResult,
-  markVsOpponentFieldsDirty: vi.fn(async () => undefined),
+  markVsOpponentFieldsDirty: mocks.markVsOpponentFieldsDirty,
   ensureVsMatchupSyncRow: vi.fn(async () => null),
 }));
 
@@ -79,7 +84,21 @@ const actor = {
   allianceId: "a1",
 };
 
-const matchup = { id: "m1", allianceId: "a1", weekStart: "2099-06-08" };
+const matchup = {
+  id: "m1",
+  allianceId: "a1",
+  weekStart: "2099-06-08",
+  version: 3,
+  opponentDailyScores: ["50", null, null, null, null, null] as [
+    string | null,
+    string | null,
+    string | null,
+    string | null,
+    string | null,
+    string | null,
+  ],
+  opponentInfoOwnedFields: ["day:1"] as string[],
+};
 
 const scope = createHash("sha256")
   .update(JSON.stringify(["s1", "u1", "a1", "2099-06-08"]))
@@ -565,6 +584,47 @@ describe("resolveVsMatchConflict", () => {
       expect.objectContaining({ disposition: "reviewed_use_ashed" }),
     );
     expect(saved.outcome).toBe("lost");
+  });
+
+  it("use_ashed dual-writes opponentDailyScores + dirty so meta matches the accepted head", async () => {
+    mocks.listVsObservationsForDate.mockResolvedValue([observation]);
+    mocks.writeVsMatchDayResult.mockResolvedValue({
+      ...savedHead,
+      ourScore: "1",
+      opponentScore: "2",
+      outcome: "lost",
+      source: "ashed_import",
+      version: 2,
+    });
+    await resolveVsMatchConflict(actor, "o1", {
+      action: "use_ashed",
+      nativeVersion: 1,
+      scope,
+    });
+    expect(mocks.matchupUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opponentDailyScores: ["2", null, null, null, null, null],
+        opponentInfoOwnedFields: ["day:1"],
+        version: 4,
+      }),
+    );
+    expect(mocks.markVsOpponentFieldsDirty).toHaveBeenCalledWith(
+      expect.anything(),
+      "m1",
+      "a1",
+      ["day:1"],
+    );
+  });
+
+  it("keep_hq does not rewrite opponentDailyScores meta", async () => {
+    mocks.listVsObservationsForDate.mockResolvedValue([observation]);
+    await resolveVsMatchConflict(actor, "o1", {
+      action: "keep_hq",
+      nativeVersion: 1,
+      scope,
+    });
+    expect(mocks.matchupUpdateSet).not.toHaveBeenCalled();
+    expect(mocks.markVsOpponentFieldsDirty).not.toHaveBeenCalled();
   });
 
   it("fails when the head version moved since review", async () => {
