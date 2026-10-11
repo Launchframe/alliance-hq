@@ -74,6 +74,9 @@ export async function processVsDailyAnnouncements(options?: {
   const catalog = await listActiveVsCatalogDefs();
 
   for (const [allianceId, channels] of channelsByAlliance) {
+    // Claim before post so concurrent crons cannot double-post. Clear the claim
+    // when every channel fails (or build throws) so a later tick can retry —
+    // same pattern as regular-events / departing-soon / battle-plan announcements.
     const claimId = nanoid();
     const [claimed] = await db
       .insert(schema.vsAnnouncementPosts)
@@ -95,21 +98,39 @@ export async function processVsDailyAnnouncements(options?: {
       continue;
     }
 
-    const locale = await resolveVsAnnouncementLocaleForAlliance(allianceId);
-    const { message } = await buildVsDailyAnnouncementPreview({
-      allianceId,
-      locale,
-      now: options?.now,
-      catalog,
-    });
+    let alliancePosted = 0;
+    let channelsHandled = 0;
+    try {
+      const locale = await resolveVsAnnouncementLocaleForAlliance(allianceId);
+      const { message } = await buildVsDailyAnnouncementPreview({
+        allianceId,
+        locale,
+        now: options?.now,
+        catalog,
+      });
 
-    for (const channelId of channels) {
-      const ok = await postDiscordChannelMessage(channelId, message);
-      if (ok) {
-        posted += 1;
-      } else {
-        skipped += 1;
+      for (const channelId of channels) {
+        const ok = await postDiscordChannelMessage(channelId, message);
+        channelsHandled += 1;
+        if (ok) {
+          posted += 1;
+          alliancePosted += 1;
+        } else {
+          skipped += 1;
+        }
       }
+    } catch (error) {
+      console.error(
+        "[vs-daily-announcement] alliance delivery failed",
+        { allianceId, targetDate, error },
+      );
+      skipped += channels.length - channelsHandled;
+    }
+
+    if (alliancePosted === 0) {
+      await db
+        .delete(schema.vsAnnouncementPosts)
+        .where(eq(schema.vsAnnouncementPosts.id, claimed.id));
     }
   }
 
