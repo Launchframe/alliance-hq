@@ -85,6 +85,7 @@ export async function planLastRankRemoteSync(
     retireCandidates: retireCandidates.map((row) => ({
       ashedMemberId: row.ashedMemberId,
       memberName: row.currentName,
+      previousNames: row.previousNames,
     })),
   };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LastRankMatchResult } from "@/lib/lastrank/alliance-page.shared";
 import {
+  claimedRetireCandidateIds,
   collectLastRankRemoteDecisions,
   lastRankRemoteSyncUrl,
   LASTRANK_REMOTE_SYNC_VERSION,
@@ -231,6 +232,48 @@ describe("collectLastRankRemoteDecisions", () => {
       interactivePrompt: async () => ({ kind: "skip" }),
     });
     expect(result.retireAshedMemberIds).toEqual([]);
+  });
+
+  it("keeps a member mapped by a previous name off the retire list", async () => {
+    const offered: string[] = [];
+    await collectLastRankRemoteDecisions({
+      plan: plan({
+        prompts: [prompt({ publicId: 1 })],
+        retireCandidates: [
+          { ashedMemberId: "m-renamed", memberName: "NewName", previousNames: ["OldName"] },
+          { ashedMemberId: "m-leaver", memberName: "Leaver", previousNames: [] },
+        ],
+      }),
+      interactivePrompt: async () => ({ kind: "match", hqName: "oldname" }),
+      retirePrompt: async (candidate) => {
+        offered.push(candidate.ashedMemberId);
+        return false;
+      },
+    });
+    expect(offered).toEqual(["m-leaver"]);
+  });
+});
+
+describe("claimedRetireCandidateIds", () => {
+  const candidates = [
+    { ashedMemberId: "m-1", memberName: "Alpha", previousNames: ["Beta"] },
+    { ashedMemberId: "m-2", memberName: "Beta", previousNames: [] },
+    { ashedMemberId: "m-3", memberName: "Gamma", previousNames: ["Old"] },
+    { ashedMemberId: "m-4", memberName: "Delta", previousNames: ["Old"] },
+  ];
+
+  it("prefers an exact current name over a previous name", () => {
+    expect([...claimedRetireCandidateIds(candidates, new Set(["beta"]))]).toEqual(["m-2"]);
+  });
+
+  it("claims a unique previous-name hit and ignores ambiguous ones", () => {
+    expect([...claimedRetireCandidateIds(candidates, new Set(["old"]))]).toEqual([]);
+    expect([
+      ...claimedRetireCandidateIds(
+        [{ ashedMemberId: "m-3", memberName: "Gamma", previousNames: ["Old"] }],
+        new Set(["old"]),
+      ),
+    ]).toEqual(["m-3"]);
   });
 });
 

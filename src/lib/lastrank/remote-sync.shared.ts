@@ -22,7 +22,8 @@ import type { LastRankSyncTarget } from "@/lib/lastrank/sync-registry.shared";
  */
 export const LASTRANK_REMOTE_SYNC_VERSION = 1;
 
-export const LASTRANK_REMOTE_SYNC_MAX_DECISIONS = 500;
+/** Alliances cap at 100 members; this leaves room for listed leavers. */
+export const LASTRANK_REMOTE_SYNC_MAX_DECISIONS = 200;
 
 /** HTTPS only, except loopback for local testing. */
 export function lastRankRemoteSyncUrl(origin: string, step: "plan" | "apply"): string {
@@ -56,7 +57,33 @@ export type LastRankRemotePrompt = {
 export type LastRankRemoteRetireCandidate = {
   ashedMemberId: string;
   memberName: string;
+  /** Lets a mapping typed by an old name still keep this member off the retire list. */
+  previousNames?: string[];
 };
+
+/**
+ * Members the operator mapped this session, by id. Mirrors the server's name
+ * resolution: an exact current-name hit wins, else a unique previous-name hit.
+ */
+export function claimedRetireCandidateIds(
+  candidates: readonly LastRankRemoteRetireCandidate[],
+  claimedNames: ReadonlySet<string>,
+): Set<string> {
+  const ids = new Set<string>();
+  const norm = (name: string) => name.trim().toLowerCase();
+  for (const claimed of claimedNames) {
+    const current = candidates.filter((row) => norm(row.memberName) === claimed);
+    if (current.length > 0) {
+      for (const row of current) ids.add(row.ashedMemberId);
+      continue;
+    }
+    const previous = candidates.filter((row) =>
+      (row.previousNames ?? []).some((name) => norm(name) === claimed),
+    );
+    if (previous.length === 1) ids.add(previous[0].ashedMemberId);
+  }
+  return ids;
+}
 
 export type LastRankRemotePlan = {
   version: typeof LASTRANK_REMOTE_SYNC_VERSION;
@@ -236,8 +263,9 @@ export async function collectLastRankRemoteDecisions(input: {
   }
 
   if (input.retirePrompt) {
+    const claimedIds = claimedRetireCandidateIds(input.plan.retireCandidates, claimed);
     const candidates = input.plan.retireCandidates.filter(
-      (row) => !claimed.has(row.memberName.trim().toLowerCase()),
+      (row) => !claimedIds.has(row.ashedMemberId),
     );
     for (const [index, candidate] of candidates.entries()) {
       if (await input.retirePrompt(candidate)) {

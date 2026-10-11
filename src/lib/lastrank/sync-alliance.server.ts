@@ -50,7 +50,7 @@ import {
   upsertAllianceAshedCredentialFromConnectionKey,
   type LastRankAshedWriteContext,
 } from "@/lib/lastrank/ashed-credential.server";
-import { syncMemberRankToAshed } from "@/lib/trains/rank-sync";
+import { writeLastRankRankToAshed } from "@/lib/lastrank/ashed-rank-writer.server";
 import {
   buildLastRankRosterDiff,
   type LastRankRosterDiff,
@@ -100,7 +100,10 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   rankSkippedMissing: number;
   /** Rank changes also written to Ashed (so the next Ashed pull keeps them). */
   rankAshedSynced: number;
-  /** Rank changes whose Ashed PUT failed — the next Ashed pull may revert them. */
+  /**
+   * Rank writes (updates and creates) whose Ashed PUT failed or was skipped
+   * after repeated failures — the next Ashed pull may revert them.
+   */
   rankAshedFailed: number;
   canonicalWritten: number;
   canonicalSkippedNoUid: number;
@@ -314,6 +317,11 @@ async function writeCanonicalIfLastWarConfirms(
   existingCanonicalName: string | null,
   lastRankCanon: string,
 ): Promise<void> {
+  // Nothing to write, so skip the (up to 8s) Last War lookup entirely.
+  if (existingCanonicalName === lastRankCanon) {
+    counts.canonicalUnchanged += 1;
+    return;
+  }
   if (!gameUid?.trim()) {
     counts.canonicalSkippedNoUid += 1;
     return;
@@ -325,10 +333,6 @@ async function writeCanonicalIfLastWarConfirms(
   }
   if (!namesMatch(lastRankCanon, lookup.gameUserName)) {
     counts.canonicalSkippedMismatch += 1;
-    return;
-  }
-  if (existingCanonicalName === lastRankCanon) {
-    counts.canonicalUnchanged += 1;
     return;
   }
   const db = getDb();
@@ -393,26 +397,19 @@ async function writeLastRankAllianceRank(input: {
   ) {
     return null;
   }
-  try {
-    await syncMemberRankToAshed(
-      input.ashed.connection,
-      input.ashedMemberId,
-      input.allianceRank,
-      null,
-    );
+  const synced = await writeLastRankRankToAshed(
+    input.ashed,
+    input.ashedMemberId,
+    input.allianceRank,
+    input.memberName,
+  );
+  if (synced) {
     await db
       .update(schema.memberAllianceRankEvents)
       .set({ ashedSyncedAt: new Date() })
       .where(eq(schema.memberAllianceRankEvents.id, eventId));
-    return true;
-  } catch (error) {
-    console.error(
-      `[lastrank] Ashed rank PUT failed for ${input.memberName}: ${
-        error instanceof Error ? error.message : "unknown"
-      }`,
-    );
-    return false;
   }
+  return synced;
 }
 
 async function applyMatchedRows(
@@ -752,6 +749,21 @@ async function runInteractiveResolutions(
   return current;
 }
 
+type CreatedLastRankMembers = {
+  match: LastRankMatchResult;
+  created: number;
+  ashedCreated: number;
+  rankAshed: { synced: number; failed: number };
+};
+
+function countAshedRankOutcome(
+  tally: { synced: number; failed: number },
+  synced: boolean | null,
+): void {
+  if (synced === true) tally.synced += 1;
+  else if (synced === false) tally.failed += 1;
+}
+
 /** Creates HQ members for interactively queued LastRank rows. */
 async function createQueuedLastRankMembers(
   hqAllianceId: string,
@@ -759,10 +771,11 @@ async function createQueuedLastRankMembers(
   match: LastRankMatchResult,
   queued: LastRankAllianceMember[],
   ashed: LastRankAshedWriteContext | null,
-): Promise<{ match: LastRankMatchResult; created: number; ashedCreated: number }> {
+): Promise<CreatedLastRankMembers> {
   let current = match;
   let created = 0;
   let ashedCreated = 0;
+  const rankAshed = { synced: 0, failed: 0 };
   for (const lastRank of queued) {
     const result = await createAllianceMemberFromLastRank({
       allianceId: hqAllianceId,
@@ -772,6 +785,7 @@ async function createQueuedLastRankMembers(
     });
     created += 1;
     if (result.ashedCreated) ashedCreated += 1;
+    countAshedRankOutcome(rankAshed, result.ashedRankSynced);
     current = applyInteractiveMatches(current, [
       { lastRankPublicId: lastRank.publicId, hq: result.hq },
     ]);
@@ -779,7 +793,7 @@ async function createQueuedLastRankMembers(
       `Created: ${lastRank.name}${result.ashedCreated ? " (Ashed+HQ)" : " (HQ only)"}`,
     );
   }
-  return { match: current, created, ashedCreated };
+  return { match: current, created, ashedCreated, rankAshed };
 }
 
 async function createUnmatchedLastRankMembers(
@@ -787,13 +801,10 @@ async function createUnmatchedLastRankMembers(
   gameServerNumber: number,
   match: LastRankMatchResult,
   ashed: LastRankAshedWriteContext | null,
-): Promise<{
-  match: LastRankMatchResult;
-  created: number;
-  ashedCreated: number;
-}> {
+): Promise<CreatedLastRankMembers> {
   let created = 0;
   let ashedCreated = 0;
+  const rankAshed = { synced: 0, failed: 0 };
   const matched = [...match.matched];
   const stillUnmatched: LastRankMatchResult["unmatched"] = [];
 
@@ -817,6 +828,7 @@ async function createUnmatchedLastRankMembers(
     });
     created += 1;
     if (result.ashedCreated) ashedCreated += 1;
+    countAshedRankOutcome(rankAshed, result.ashedRankSynced);
     matched.push({
       status: "matched",
       lastRank: row.lastRank,
@@ -833,6 +845,7 @@ async function createUnmatchedLastRankMembers(
   return {
     created,
     ashedCreated,
+    rankAshed,
     match: {
       matched,
       unmatched: stillUnmatched,
@@ -1096,6 +1109,8 @@ export async function syncLastRankAlliance(input: {
       match = created.match;
       applyCounts.membersCreated += created.created;
       applyCounts.ashedMembersCreated += created.ashedCreated;
+      applyCounts.rankAshedSynced += created.rankAshed.synced;
+      applyCounts.rankAshedFailed += created.rankAshed.failed;
       if (ashed && created.created > created.ashedCreated) {
         applyCounts.ashedSkipped += created.created - created.ashedCreated;
       }
@@ -1111,6 +1126,8 @@ export async function syncLastRankAlliance(input: {
       match = created.match;
       applyCounts.membersCreated += created.created;
       applyCounts.ashedMembersCreated += created.ashedCreated;
+      applyCounts.rankAshedSynced += created.rankAshed.synced;
+      applyCounts.rankAshedFailed += created.rankAshed.failed;
       if (ashed && created.created > created.ashedCreated) {
         applyCounts.ashedSkipped += created.created - created.ashedCreated;
       }
