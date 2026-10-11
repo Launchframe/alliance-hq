@@ -9,6 +9,15 @@ export type DiscordMemberLinkWebOutcome =
       allianceTag: string | null;
     }
   | {
+      outcome: "confirm_server_transfer";
+      message: string;
+      gameUserName: string;
+      knownServerNumber: number;
+      allianceServerNumber: number;
+      allianceTag: string | null;
+    }
+  | { outcome: "server_transfer_send_home"; message: string }
+  | {
       outcome: "fuzzy_pick";
       message: string;
       candidates: Array<{ memberId: string; name: string }>;

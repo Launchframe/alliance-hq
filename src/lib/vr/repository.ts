@@ -160,6 +160,7 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
       gameUserName: r.gameUserName,
       lookupServer: r.lookupServer,
       allianceServer: r.allianceServer,
+      ...(typeof r.knownServer === "number" ? { knownServer: r.knownServer } : {}),
       ...(typeof r.gameUserLevel === "number"
         ? { gameUserLevel: r.gameUserLevel }
         : {}),
