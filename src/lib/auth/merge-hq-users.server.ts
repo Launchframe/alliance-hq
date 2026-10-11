@@ -216,11 +216,21 @@ export async function assessMergeHqUsers(input: {
       db
         .select({ allianceId: schema.allianceMemberships.allianceId })
         .from(schema.allianceMemberships)
-        .where(eq(schema.allianceMemberships.hqUserId, sourceId)),
+        .where(
+          and(
+            eq(schema.allianceMemberships.hqUserId, sourceId),
+            eq(schema.allianceMemberships.status, "active"),
+          ),
+        ),
       db
         .select({ allianceId: schema.allianceMemberships.allianceId })
         .from(schema.allianceMemberships)
-        .where(eq(schema.allianceMemberships.hqUserId, canonicalId)),
+        .where(
+          and(
+            eq(schema.allianceMemberships.hqUserId, canonicalId),
+            eq(schema.allianceMemberships.status, "active"),
+          ),
+        ),
     ]);
 
   const canonicalLinkByAlliance = new Map(
@@ -420,6 +430,11 @@ export async function mergeHqUsersIntoCanonical(input: {
       );
     }
 
+    // Strip Ashed-sourced seats from the source account before role merge.
+    // Only *active* memberships may upgrade or move onto the canonical user —
+    // otherwise a just-revoked (or historically revoked) ashed owner/officer
+    // row would paint that elevated roleId onto the canonical active membership
+    // while leaving source=manual, permanently escalating HQ RBAC.
     await revokeAshedMembershipsForHqUser(sourceId, undefined, tx);
 
     const canonicalMemberships = await tx
@@ -429,7 +444,12 @@ export async function mergeHqUsersIntoCanonical(input: {
         roleId: schema.allianceMemberships.roleId,
       })
       .from(schema.allianceMemberships)
-      .where(eq(schema.allianceMemberships.hqUserId, canonicalId));
+      .where(
+        and(
+          eq(schema.allianceMemberships.hqUserId, canonicalId),
+          eq(schema.allianceMemberships.status, "active"),
+        ),
+      );
 
     const canonicalMembershipByAlliance = new Map(
       canonicalMemberships.map((row) => [row.allianceId, row]),
@@ -442,7 +462,12 @@ export async function mergeHqUsersIntoCanonical(input: {
         roleId: schema.allianceMemberships.roleId,
       })
       .from(schema.allianceMemberships)
-      .where(eq(schema.allianceMemberships.hqUserId, sourceId));
+      .where(
+        and(
+          eq(schema.allianceMemberships.hqUserId, sourceId),
+          eq(schema.allianceMemberships.status, "active"),
+        ),
+      );
 
     for (const membership of sourceMemberships) {
       const existing = canonicalMembershipByAlliance.get(membership.allianceId);

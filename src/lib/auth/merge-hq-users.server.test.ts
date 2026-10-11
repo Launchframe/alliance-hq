@@ -277,4 +277,13 @@ describe("preferredMembershipRoleId", () => {
       preferredMembershipRoleId(ROLE_IDS.member, "custom-role"),
     ).toBe(ROLE_IDS.member);
   });
+
+  it("documents that revoked ashed rows must never feed this upgrade helper", () => {
+    // mergeHqUsersIntoCanonical revokes ashed-sourced seats, then selects only
+    // status=active memberships before calling preferredMembershipRoleId.
+    // Feeding a revoked owner roleId here would escalate a manual member seat.
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.member, ROLE_IDS.owner),
+    ).toBe(ROLE_IDS.owner);
+  });
 });
