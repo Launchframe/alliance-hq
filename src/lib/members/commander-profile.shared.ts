@@ -20,6 +20,8 @@ export type CommanderProfilePayload = {
     titleLabel: string;
     powerLevel: string | null;
     totalHeroPower: number | null;
+    /** Reported lifetime kills; null when unreported. */
+    kills: number | null;
     memberLevel: number | null;
     profession: string | null;
     professionLevel: number | null;

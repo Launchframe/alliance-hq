@@ -2,6 +2,7 @@ import type { AshedMember } from "@/lib/video/member-matcher";
 
 import { assignSnakeDraft } from "@/lib/shared/snake-draft.shared";
 import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
+import { commanderKillsTotal } from "@/lib/kills/format.shared";
 
 import type { MemberSeasonVr } from "@/lib/db/schema";
 import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
@@ -13,6 +14,8 @@ export type LeaderboardRow = {
   highestBaseVr: number;
   instituteLevel: number;
   totalHeroPower: number;
+  /** Reported lifetime kills; null when unreported. */
+  kills: number | null;
   weeklyPassActive: boolean;
   flagged: boolean;
   flagReason: string | null;
@@ -57,7 +60,7 @@ export function buildLeaderboardRows(
   weeklyPassByMemberId?: ReadonlyMap<string, boolean>,
   commanderThpByMemberId?: ReadonlyMap<
     string,
-    { currentTotalHeroPower?: number | null }
+    { currentTotalHeroPower?: number | null; currentKills?: number | null }
   >,
 ): LeaderboardRow[] {
   const memberById = new Map(members.map((m) => [m.id, m]));
@@ -75,17 +78,17 @@ export function buildLeaderboardRows(
       const instituteLevel =
         row.instituteLevel ??
         coerceInstituteLevelFromBaseVr(seasonKey, row.highestBaseVr);
+      const commanderStats =
+        commanderThpByMemberId?.get(row.ashedMemberId) ?? null;
       return {
         ashedMemberId: row.ashedMemberId,
         memberName,
         highestBaseVr: row.highestBaseVr,
         instituteLevel,
         totalHeroPower: member
-          ? memberTotalHeroPower(
-              member,
-              commanderThpByMemberId?.get(row.ashedMemberId) ?? null,
-            )
+          ? memberTotalHeroPower(member, commanderStats)
           : 0,
+        kills: commanderKillsTotal(commanderStats ?? {}),
         weeklyPassActive: weeklyPassByMemberId?.get(row.ashedMemberId) ?? false,
         flagged: row.flaggedAt != null,
         flagReason: row.flagReason,

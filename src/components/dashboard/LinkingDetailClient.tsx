@@ -26,6 +26,7 @@ type Payload = {
     ashedMemberId: string;
     memberName: string;
     totalHeroPower: number;
+    kills: number | null;
   }>;
   canWriteMembers: boolean;
 };
@@ -114,9 +115,14 @@ export function LinkingDetailClient() {
         <AnalyticsCard title={t("unlinkedTableTitle")}>
           <ul className="space-y-2 text-sm">
             {data.unlinkedMembers.slice(0, 25).map((row) => (
-              <li key={row.ashedMemberId} className="flex justify-between border-b border-hq-border/60 py-2">
+              <li key={row.ashedMemberId} className="flex justify-between gap-3 border-b border-hq-border/60 py-2">
                 <span>{row.memberName}</span>
-                <span className="text-hq-fg-muted">{row.totalHeroPower.toLocaleString()} THP</span>
+                <span className="text-right text-hq-fg-muted">
+                  {row.totalHeroPower.toLocaleString()} THP
+                  {row.kills != null ? (
+                    <> · {t("unlinkedKills", { kills: row.kills })}</>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>

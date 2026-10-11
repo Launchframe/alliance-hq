@@ -66,8 +66,8 @@ export function draftBoardInteractions(adapter: { pick: (teamId: string, memberI
   };
 }
 
-export const chipMetrics = ["professionLevel", "baseLevel", "thp", "tenureDays"] as const;
-export const metricLabels = { professionLevel: "profession", baseLevel: "baseLevel", thp: "thp", tenureDays: "tenure" } as const;
+export const chipMetrics = ["professionLevel", "baseLevel", "thp", "kills", "tenureDays"] as const;
+export const metricLabels = { professionLevel: "profession", baseLevel: "baseLevel", thp: "thp", kills: "kills", tenureDays: "tenure" } as const;
 export function locationOf(snapshot: SupportSnapshot, memberId: string): string | null {
   return memberLocation(snapshot.teams, memberId);
 }

@@ -124,7 +124,7 @@ test("lead departure preserves the named team, explicit return is owner-only, an
 
 test("personal preferences are isolated and version checked", async ({ request }) => {
   const f = await createSupportTeamFixture();
-  const display = { professionLevel: true, baseLevel: false, thp: false, tenureDays: true };
+  const display = { professionLevel: true, baseLevel: false, thp: false, kills: false, tenureDays: true };
   const headers = { Cookie: authCookieHeader(f.officer) };
   const saved = await request.put("/api/support-teams/preferences", { headers, data: { expectedVersion: 0, display } });
   expect(saved.status()).toBe(200);
