@@ -70,6 +70,8 @@ export type LinkPendingState =
       gameUserName: string;
       lookupServer: number;
       allianceServer: number;
+      /** Set when confirming a server transfer away from HQ's recorded home. */
+      knownServer?: number;
       gameUserLevel?: number;
       replaceAll?: boolean;
     }
@@ -87,6 +89,8 @@ export type LinkCommandResult = {
   memberTaken?: boolean;
   needsIdentityConfirmation?: boolean;
   needsHomeServerConfirmation?: boolean;
+  needsServerTransferConfirmation?: boolean;
+  serverTransferSendHome?: boolean;
   positionNotHome?: boolean;
   needsOfficerAttention?: boolean;
   wrongServer?: boolean;
