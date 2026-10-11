@@ -33,6 +33,16 @@ describe("buildOfficerAllianceCredentialEmail", () => {
     expect(email.subject).toBe("LFgo: Ashed alliance connection expires July 28, 2026");
     expect(email.text).toContain("will pause");
   });
+
+  it("renders in the recipient's preferred language with linked URLs", () => {
+    const email = buildOfficerAllianceCredentialEmail(ctx, "pt-BR");
+    expect(email.subject).toBe("LFgo: a conexão da aliança com o Ashed expirou");
+    expect(email.text).toContain("28 de julho de 2026");
+    expect(email.text).toContain("Como resolver:");
+    expect(email.text).toContain("https://hq.test/connect");
+    expect(email.html).toContain('<a href="https://hq.test/settings/team">');
+    expect(`${email.text} ${email.html}`).not.toContain("__HQ_EMAIL_URL__");
+  });
 });
 
 describe("buildMaintainerAllianceCredentialEmail", () => {

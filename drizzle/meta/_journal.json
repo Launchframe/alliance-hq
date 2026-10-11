@@ -1457,6 +1457,13 @@
       "when": 1791900000224,
       "tag": "0224_drop_hq_users_primary_game_uid",
       "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1791900000225,
+      "tag": "0225_hq_user_preferred_locale",
+      "breakpoints": true
     }
   ]
 }

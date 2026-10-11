@@ -3,7 +3,12 @@ import enUS from "../../../messages/en-US.json";
 import ptBR from "../../../messages/pt-BR.json";
 import id from "../../../messages/id.json";
 
-import { getDiscordUserLocale, upsertDiscordUserLocale } from "@/lib/vr/repository";
+import { setManualPreferredLocale } from "@/lib/i18n/user-locale.server";
+import {
+  getDiscordHqLink,
+  getDiscordUserLocale,
+  upsertDiscordUserLocale,
+} from "@/lib/vr/repository";
 
 export type DiscordBotLocale = "en-US" | "pt-BR" | "id";
 
@@ -41,6 +46,10 @@ export async function setDiscordBotLocale(
   locale: DiscordBotLocale,
 ): Promise<void> {
   await upsertDiscordUserLocale(discordUserId, locale);
+  const link = await getDiscordHqLink(discordUserId);
+  if (link?.hqUserId) {
+    await setManualPreferredLocale(link.hqUserId, locale, { syncDiscord: false });
+  }
 }
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
