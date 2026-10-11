@@ -6,8 +6,8 @@ import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { MyEngTeamContext, MyWlTeamContext, WlSuggestion } from "./types";
 import {
-  createEngAssignment,
-  reactivateEngAssignment,
+  applyProfessionSwitch,
+  commitEngAssignment,
   getActiveAssignmentsForTeam,
   getCommanderAllianceProfession,
   getEngActiveAssignment,
@@ -21,9 +21,9 @@ import {
   loadAwayProfessionCommanderIds,
   updateAssignmentStatus,
   updateCoverageWindow,
-  upsertWlTeam,
 } from "./repository";
 import { notifyProfessionEvent } from "./notifications.server";
+import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
 
 // ---------------------------------------------------------------------------
 // Commander resolution helpers
@@ -192,20 +192,49 @@ export async function updateCommanderProfession(
   profession: "Engineer" | "War Leader",
   allianceId?: string,
 ): Promise<void> {
-  const db = getDb();
-  await db
-    .update(schema.commanders)
-    .set({ profession, updatedAt: new Date() })
-    .where(eq(schema.commanders.id, commanderId));
-
   if (allianceId) {
+    await getDb().transaction(async (tx) => {
+      await lockAllianceAvailability(tx, allianceId);
+      const [membership] = await tx
+        .select({ commanderId: schema.commanderAllianceMemberships.commanderId })
+        .from(schema.commanderAllianceMemberships)
+        .where(
+          and(
+            eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+            eq(schema.commanderAllianceMemberships.commanderId, commanderId),
+            isNull(schema.commanderAllianceMemberships.leftAt),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!membership) {
+        throw new Error("Commander is not a member of this alliance.");
+      }
+      await tx
+        .select({ id: schema.commanders.id })
+        .from(schema.commanders)
+        .where(eq(schema.commanders.id, commanderId))
+        .limit(1)
+        .for("update");
+      await tx
+        .update(schema.commanders)
+        .set({ profession, updatedAt: new Date() })
+        .where(eq(schema.commanders.id, commanderId));
+    });
     await logWlTeamEvent({
       allianceId,
       eventKind: "profession_switched",
       actorCommanderId: commanderId,
       details: { to: profession, firstSet: true },
     });
+    return;
   }
+
+  const db = getDb();
+  await db
+    .update(schema.commanders)
+    .set({ profession, updatedAt: new Date() })
+    .where(eq(schema.commanders.id, commanderId));
 }
 
 // ---------------------------------------------------------------------------
@@ -303,6 +332,8 @@ export async function assignEngToWl(input: {
   /** Bulk officer import — skip per-row Discord/email. */
   suppressNotifications?: boolean;
 }): Promise<{ assignmentId: string; wlTeamId: string }> {
+  // Fast-fail outside the lock; commitEngAssignment re-checks under the
+  // alliance availability lock (professions + single active assignment).
   await assertCommanderAllianceProfession(
     input.allianceId,
     input.engCommanderId,
@@ -325,34 +356,25 @@ export async function assignEngToWl(input: {
     throw new Error("Engineer is already assigned to another War Leader's team.");
   }
 
-  // Ensure WL team exists
-  const wlTeamId = await upsertWlTeam(input.allianceId, input.wlCommanderId);
-
-  // Re-activate an inactive row for this team; unique(team, eng) blocks a second insert.
-  const existing = await getEngAssignment(wlTeamId, input.engCommanderId);
-  if (existing?.status === "active") {
-    throw new Error("Engineer is already assigned to this War Leader's team.");
-  }
-
   if (input.automaticDutyDate) {
-    const awayCommanderIds = await loadAwayProfessionCommanderIds(input.allianceId, input.automaticDutyDate);
-    if (awayCommanderIds.has(input.engCommanderId) || awayCommanderIds.has(input.wlCommanderId)) {
+    const awayCommanderIds = await loadAwayProfessionCommanderIds(
+      input.allianceId,
+      input.automaticDutyDate,
+    );
+    if (
+      awayCommanderIds.has(input.engCommanderId) ||
+      awayCommanderIds.has(input.wlCommanderId)
+    ) {
       throw new Error("No War Leaders available for assignment.");
     }
   }
 
-  let assignmentId: string;
-  if (existing) {
-    await reactivateEngAssignment(existing.id, input.automaticDutyDate);
-    assignmentId = existing.id;
-  } else {
-    assignmentId = await createEngAssignment({
-      automaticDutyDate: input.automaticDutyDate,
-      wlTeamId,
-      allianceId: input.allianceId,
-      engCommanderId: input.engCommanderId,
-    });
-  }
+  const { assignmentId, wlTeamId } = await commitEngAssignment({
+    allianceId: input.allianceId,
+    engCommanderId: input.engCommanderId,
+    wlCommanderId: input.wlCommanderId,
+    automaticDutyDate: input.automaticDutyDate,
+  });
 
   await logWlTeamEvent({
     allianceId: input.allianceId,
@@ -526,6 +548,10 @@ export async function requestMoreEngs(
  * - Dismisses all active Engs and notifies them
  * For Engs switching to WL:
  * - Self-removes from current WL team if assigned
+ *
+ * Cleanup + profession write run in one TX under the alliance availability
+ * lock so concurrent assignEngToWl cannot leave Engs on a former WL (or a
+ * War Leader still seated as an Eng).
  */
 export async function switchProfession(input: {
   allianceId: string;
@@ -535,63 +561,26 @@ export async function switchProfession(input: {
   /** Recorded on the team event when the switch is not self-initiated (e.g. `lastrank_sync`). */
   source?: string;
 }): Promise<{ freedEngs: string[] }> {
-  const freedEngs: string[] = [];
+  const { freedEngs, selfRemoved } = await applyProfessionSwitch(input);
 
-  if (input.fromProfession === "War Leader") {
-    // Free all active assigned Engs
-    const team = await getWlTeam(input.allianceId, input.commanderId);
-    if (team) {
-      const activeEngs = await getActiveAssignmentsForTeam(team.id);
-      for (const eng of activeEngs) {
-        await updateAssignmentStatus(eng.assignmentId, "dismissed", input.commanderId);
-        freedEngs.push(eng.engCommanderId);
-
-        await notifyProfessionEvent({
-          kind: "eng_dismissed",
-          allianceId: input.allianceId,
-          engCommanderId: eng.engCommanderId,
-          wlCommanderId: input.commanderId,
-          reason: "WL switched profession",
-        });
-      }
-    }
-  } else if (input.fromProfession === "Engineer") {
-    // Self-remove from current WL team if assigned
-    const assignment = await getEngActiveAssignment(
-      input.allianceId,
-      input.commanderId,
-    );
-    if (assignment) {
-      await updateAssignmentStatus(assignment.assignmentId, "self_removed");
-      await logWlTeamEvent({
-        allianceId: input.allianceId,
-        wlTeamId: assignment.wlTeamId,
-        eventKind: "eng_self_removed",
-        actorCommanderId: input.commanderId,
-        subjectCommanderId: assignment.wlCommanderId,
-      });
-      await notifyProfessionEvent({
-        kind: "eng_self_removed",
-        allianceId: input.allianceId,
-        engCommanderId: input.commanderId,
-        wlCommanderId: assignment.wlCommanderId,
-      });
-    }
+  for (const engCommanderId of freedEngs) {
+    await notifyProfessionEvent({
+      kind: "eng_dismissed",
+      allianceId: input.allianceId,
+      engCommanderId,
+      wlCommanderId: input.commanderId,
+      reason: "WL switched profession",
+    });
   }
 
-  // Update profession
-  await updateCommanderProfession(input.commanderId, input.toProfession);
-
-  await logWlTeamEvent({
-    allianceId: input.allianceId,
-    eventKind: "profession_switched",
-    actorCommanderId: input.commanderId,
-    details: {
-      from: input.fromProfession,
-      to: input.toProfession,
-      ...(input.source ? { source: input.source } : {}),
-    },
-  });
+  if (selfRemoved) {
+    await notifyProfessionEvent({
+      kind: "eng_self_removed",
+      allianceId: input.allianceId,
+      engCommanderId: input.commanderId,
+      wlCommanderId: selfRemoved.wlCommanderId,
+    });
+  }
 
   await notifyProfessionEvent({
     kind: "profession_switched",
