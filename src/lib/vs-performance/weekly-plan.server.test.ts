@@ -521,6 +521,68 @@ describe("saveVsWeekPlan", () => {
     expect(mocks.ensureWeekScheduleBaseline).not.toHaveBeenCalled();
     expect(mocks.commitTrainPaints).not.toHaveBeenCalled();
   });
+
+  it("commits conductorRule:null paints and records null applied rules when clearing push days", async () => {
+    const savedDays = defaultDays().map((d) => ({
+      ...d,
+      strategy: "push" as const,
+      pushTopN: 10 as const,
+    }));
+    const saved = planRow(savedDays, 2, "all_out_domination");
+    mocks.loadVsWeekPlan.mockResolvedValue(saved);
+    mocks.loadVsWeekPlanForUpdate.mockResolvedValue(saved);
+    for (const trainDate of trainDates) {
+      dayConfig.set(trainDate!, PUSH);
+    }
+    const next = draft(
+      defaultDays().map((d, i) => (i < 2 ? savedDays[i]! : d)),
+      "strategic_victory",
+    );
+    const { fingerprint } = await previewVsWeekPlan(actor, next, 2, scope());
+    vi.clearAllMocks();
+
+    await saveVsWeekPlan(actor, {
+      draft: next,
+      expectedVersion: 2,
+      fingerprint,
+      scope: scope(),
+    });
+
+    const expectedCleared = [
+      trainDates[2],
+      trainDates[3],
+      trainDates[4],
+      trainDates[5],
+    ].sort();
+    const writePrepare = mocks.prepareTrainPaints.mock.calls.find(
+      (call) => !call[3]?.readOnly,
+    );
+    expect(writePrepare).toBeDefined();
+    expect(
+      (writePrepare![1] as { date: string; conductorRule: unknown }[])
+        .filter((p) => p.conductorRule === null)
+        .map((p) => p.date)
+        .sort(),
+    ).toEqual(expectedCleared);
+
+    expect(mocks.saveVsWeekPlanRow).toHaveBeenCalledTimes(1);
+    const appliedRules = mocks.saveVsWeekPlanRow.mock.calls[0]![1]
+      .appliedRules as Record<string, ConductorRule | null>;
+    expect(Object.keys(appliedRules).sort()).toEqual(expectedCleared);
+    for (const date of expectedCleared) {
+      expect(appliedRules[date!]).toBeNull();
+    }
+
+    expect(mocks.commitTrainPaints).toHaveBeenCalledTimes(1);
+    const committed = mocks.commitTrainPaints.mock.calls[0]![2] as {
+      date: string;
+      mergedRules: { conductorRule: ConductorRule | null };
+    }[];
+    expect(committed.map((p) => p.date).sort()).toEqual(expectedCleared);
+    for (const paint of committed) {
+      expect(paint.mergedRules.conductorRule).toBeNull();
+    }
+  });
 });
 
 describe("loadVsPerformanceWeek", () => {
