@@ -4,8 +4,8 @@ export const ADMIN_LINKS = [
   { href: "/admin/system", labelKey: "system" as const },
   { href: "/admin/game-seasons", labelKey: "gameSeasons" as const },
   { href: "/admin/alliances", labelKey: "alliances" as const },
-  { href: "/admin/alliance-setup-requests", labelKey: "allianceSetupRequests" as const },
   { href: "/admin/users", labelKey: "users" as const },
+  { href: "/admin/commendations", labelKey: "commendations" as const },
   { href: "/admin/audit", labelKey: "audit" as const },
   { href: "/admin/video-jobs", labelKey: "videoJobs" as const },
   { href: "/admin/video-jobs/analytics", labelKey: "videoJobAnalytics" as const },
@@ -13,13 +13,14 @@ export const ADMIN_LINKS = [
   { href: "/admin/vs-inventory-items", labelKey: "vsInventoryItems" as const },
   { href: "/admin/experiments", labelKey: "experiments" as const },
   { href: "/admin/hq-events", labelKey: "hqEvents" as const },
-  { href: "/admin/commendations", labelKey: "commendations" as const },
   { href: "/admin/bug-reports", labelKey: "bugReports" as const },
   { href: "/admin/experience-feedback", labelKey: "experienceFeedback" as const },
   { href: "/admin/translation-reports", labelKey: "translationReports" as const },
   { href: "/admin/member-link-help", labelKey: "memberLinkHelp" as const },
+  { href: "/admin/alliance-setup-requests", labelKey: "allianceSetupRequests" as const },
   { href: "/admin/uid-inspector", labelKey: "uidInspector" as const },
   { href: "/admin/activity", labelKey: "activity" as const },
-];
+  { href: "/admin/commanders", labelKey: "commanders" as const },
+] as const;
 
 export type AdminNavLabelKey = (typeof ADMIN_LINKS)[number]["labelKey"];

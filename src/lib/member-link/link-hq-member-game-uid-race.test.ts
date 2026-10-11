@@ -42,6 +42,7 @@ vi.mock("@/lib/members/member-tenure.server", () => ({
 }));
 
 vi.mock("@/lib/members/commander-identity.server", () => ({
+  resolveCommanderByUid: vi.fn().mockResolvedValue(null),
   syncCommanderIdentityFromMemberLink: vi.fn(),
 }));
 
