@@ -507,6 +507,7 @@ async function flagBoardItems(
   if (input.boardIds?.length) {
     conditions.push(inArray(schema.hqEventSyncItems.boardId, input.boardIds));
   }
+  const now = new Date();
   const updated = await db
     .update(schema.hqEventSyncItems)
     .set({
@@ -514,7 +515,7 @@ async function flagBoardItems(
       errorCode: patch.errorCode,
       leaseToken: null,
       leaseExpiresAt: null,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(
       and(
@@ -523,6 +524,12 @@ async function flagBoardItems(
           eq(schema.hqEventSyncItems.status, "pending"),
           eq(schema.hqEventSyncItems.status, "failed"),
           eq(schema.hqEventSyncItems.status, "uncertain"),
+        ),
+        // Never clear a live lease mid-POST — a concurrent incomplete_read
+        // flag would otherwise let a peer reclaim and double-POST.
+        or(
+          isNull(schema.hqEventSyncItems.leaseExpiresAt),
+          lt(schema.hqEventSyncItems.leaseExpiresAt, now),
         ),
       ),
     )
