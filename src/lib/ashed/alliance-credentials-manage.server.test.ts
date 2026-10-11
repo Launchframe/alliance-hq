@@ -216,6 +216,35 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
     expect(payload).not.toHaveProperty("registeredByHqUserId");
   });
 
+  it("treats a null stored expiry as unknown and allows maintainer repair without stamping registrant", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: null,
+      registeredByHqUserId: "owner-hq",
+    });
+    syncAshedAllianceForBot.mockResolvedValue({
+      hqAllianceId: "alliance-1",
+      hqUserId: "hq-1",
+      roleName: "maintainer",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(upsertAllianceAshedCredential).toHaveBeenCalledTimes(1);
+    expect(upsertAllianceAshedCredential.mock.calls[0][0]).not.toHaveProperty(
+      "registeredByHqUserId",
+    );
+  });
+
   it("allows maintainer credential shares for expired time-off repair via alliance_credentials:manage", async () => {
     getAllianceAshedCredential.mockResolvedValue({
       allianceId: "alliance-1",
