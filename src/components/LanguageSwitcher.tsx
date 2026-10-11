@@ -8,7 +8,12 @@ import { usePathname } from "@/i18n/navigation";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { locales, type AppLocale } from "@/i18n/routing";
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({
+  persistPreference = false,
+}: {
+  /** Save the pick as the signed-in user's language preference. */
+  persistPreference?: boolean;
+} = {}) {
   const t = useTranslations("language");
   const locale = useLocale() as AppLocale;
   const { replaceLocale } = useShellNavigation();
@@ -24,6 +29,14 @@ export function LanguageSwitcher() {
         onChange={(next) => {
           const search = searchParams.toString();
           const href = search ? `${pathname}?${search}` : pathname;
+          if (persistPreference) {
+            void fetch("/api/settings/language", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ locale: next }),
+              keepalive: true,
+            }).catch(() => undefined);
+          }
           replaceLocale(href, next as AppLocale);
         }}
         aria-label={t("label")}

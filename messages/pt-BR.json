@@ -448,6 +448,16 @@
     "weekdayAt": "{weekday} às {time}",
     "lastWeekday": "{weekday} da semana passada"
   },
+  "allianceCredentialEmail": {
+    "subjectExpired": "{tag}: a conexão da aliança com o Ashed expirou",
+    "subjectUpcoming": "{tag}: a conexão da aliança com o Ashed expira em {date}",
+    "leadExpired": "A conexão da aliança {tag} com o Ashed expirou em {date}. A sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed no Alliance HQ estão pausadas até que ela seja renovada.",
+    "leadUpcoming": "A conexão da aliança {tag} com o Ashed expira em {date}. Quando expirar, a sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed no Alliance HQ serão pausadas.",
+    "stepsHeading": "Como resolver:",
+    "stepReconnect": "Reconecte o Ashed com um novo comando cURL: {url}. Se foi você quem instalou a conexão da aliança ou se você é dono da aliança no Ashed, o HQ a renova automaticamente.",
+    "stepOwner": "Caso contrário, peça ao dono da aliança no Ashed para reinstalar as credenciais do bot em Configurações da equipe: {url}",
+    "signature": "— Alliance HQ"
+  },
   "language": {
     "label": "Idioma",
     "en-US": "English (US)",
@@ -2944,6 +2954,12 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
+    "communicationsSection": "Preferências de comunicação",
+    "communicationsBody": "Escolha o idioma que o Alliance HQ usa nos e-mails e notificações enviados a você. Alterar o seletor de idioma no cabeçalho também atualiza esta opção.",
+    "notificationLanguageLabel": "Idioma das notificações",
+    "notificationLanguageAutomatic": "Automático ({language})",
+    "notificationLanguageHintLastRank": "Com base no seu país no LastRank.",
+    "notificationLanguageHintDefault": "Inglês por padrão até você escolher um idioma.",
     "appearanceSection": "Aparência",
     "appearanceBody": "O Alliance HQ segue o modo claro ou escuro do seu dispositivo por padrão. Escolha Claro ou Escuro para substituir neste navegador.",
     "appearanceLabel": "Tema de cores",

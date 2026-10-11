@@ -7,6 +7,8 @@
     "appearanceLight": "Light",
     "appearanceSection": "Appearance",
     "appearanceSystem": "Match system",
+    "communicationsBody": "Pilih bahasa yang digunakan Alliance HQ untuk email dan notifikasi yang dikirim kepada Anda. Mengubah pemilih bahasa di header juga memperbarui pengaturan ini.",
+    "communicationsSection": "Preferensi komunikasi",
     "connectAshedCta": "Connect Ashed",
     "disconnectBody": "Clears your stored connection key from our server. Your HQ sign-in stays active — you can reconnect Ashed anytime.",
     "disconnectButton": "Disconnect Ashed",
@@ -37,6 +39,10 @@
       "unlinkFailed": "Could not unlink this Commander.",
       "unlinking": "Unlinking…"
     },
+    "notificationLanguageAutomatic": "Otomatis ({language})",
+    "notificationLanguageHintDefault": "Default ke bahasa Inggris sampai Anda memilih bahasa.",
+    "notificationLanguageHintLastRank": "Berdasarkan negara LastRank Anda.",
+    "notificationLanguageLabel": "Bahasa notifikasi",
     "offerSaveNewMembers": "Offer to save new members seen on scoreboards",
     "offerUpdateMemberNames": "Offer to update member names seen on scoreboards",
     "reconnectAshedCta": "Reconnect Ashed",
@@ -1342,6 +1348,16 @@
     "subtitle": "Review member-submitted translation corrections.",
     "suggested": "Suggested translation",
     "title": "Laporan terjemahan"
+  },
+  "allianceCredentialEmail": {
+    "leadExpired": "Koneksi aliansi {tag} ke Ashed kedaluwarsa pada {date}. Sinkronisasi skor VS, pembaruan anggota, dan pemeriksaan Ashed di Alliance HQ dijeda sampai koneksi diperbarui.",
+    "leadUpcoming": "Koneksi aliansi {tag} ke Ashed kedaluwarsa pada {date}. Saat kedaluwarsa, sinkronisasi skor VS, pembaruan anggota, dan pemeriksaan Ashed di Alliance HQ akan dijeda.",
+    "signature": "— Alliance HQ",
+    "stepOwner": "Jika tidak, minta pemilik aliansi di Ashed untuk memasang ulang kredensial bot di Pengaturan tim: {url}",
+    "stepReconnect": "Hubungkan ulang Ashed dengan perintah cURL baru: {url}. Jika Anda yang memasang koneksi aliansi atau Anda pemilik aliansi di Ashed, HQ memperbaruinya secara otomatis.",
+    "stepsHeading": "Cara memperbaikinya:",
+    "subjectExpired": "{tag}: koneksi aliansi ke Ashed kedaluwarsa",
+    "subjectUpcoming": "{tag}: koneksi aliansi ke Ashed kedaluwarsa pada {date}"
   },
   "alliancePicker": {
     "activeBadge": "Aktif",

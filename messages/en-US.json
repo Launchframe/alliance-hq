@@ -448,6 +448,16 @@
     "weekdayAt": "{weekday} at {time}",
     "lastWeekday": "Last {weekday}"
   },
+  "allianceCredentialEmail": {
+    "subjectExpired": "{tag}: Ashed alliance connection expired",
+    "subjectUpcoming": "{tag}: Ashed alliance connection expires {date}",
+    "leadExpired": "{tag}'s Ashed alliance connection expired on {date}. VS score sync, roster updates, and Ashed checks in Alliance HQ are paused until it is refreshed.",
+    "leadUpcoming": "{tag}'s Ashed alliance connection expires on {date}. When it expires, VS score sync, roster updates, and Ashed checks in Alliance HQ will pause.",
+    "stepsHeading": "To fix it:",
+    "stepReconnect": "Reconnect Ashed with a fresh cURL command: {url}. If you installed the alliance connection or own the alliance on Ashed, HQ refreshes it automatically.",
+    "stepOwner": "Otherwise, ask your Ashed alliance owner to reinstall bot credentials in Team settings: {url}",
+    "signature": "— Alliance HQ"
+  },
   "language": {
     "label": "Language",
     "en-US": "English (US)",
@@ -3091,6 +3101,12 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
+    "communicationsSection": "Communication preferences",
+    "communicationsBody": "Choose the language Alliance HQ uses for emails and notifications sent to you. Changing the language picker in the header also updates this.",
+    "notificationLanguageLabel": "Notification language",
+    "notificationLanguageAutomatic": "Automatic ({language})",
+    "notificationLanguageHintLastRank": "Based on your LastRank country.",
+    "notificationLanguageHintDefault": "Defaults to English until you choose a language.",
     "appearanceSection": "Appearance",
     "appearanceBody": "Alliance HQ follows your device light or dark mode by default. Choose Light or Dark to override it on this browser.",
     "appearanceLabel": "Color theme",
