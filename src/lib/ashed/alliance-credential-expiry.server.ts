@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNotNull, lte, ne, or, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { AllianceAccessRole } from "@/lib/alliance/types";
@@ -10,17 +10,18 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import { getDb, schema } from "@/lib/db";
 import { decodeJwtPayload } from "@/lib/jwt/decode";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
-import { emailPlatformMaintainers } from "@/lib/ops/platform-maintainer-alert.server";
+import {
+  claimOpsAlertFingerprint,
+  emailPlatformMaintainers,
+  releaseOpsAlertFingerprint,
+} from "@/lib/ops/platform-maintainer-alert.server";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
 } from "@/lib/public-site";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
 import { formatAccountDateTime } from "@/lib/timezone/format";
-import {
-  getAllianceAshedCredential,
-  upsertAllianceAshedCredential,
-} from "@/lib/vr/repository";
+import { getAllianceAshedCredential } from "@/lib/vr/repository";
 
 import {
   ALLIANCE_CREDENTIAL_REMINDER_DAYS,
@@ -178,28 +179,48 @@ export async function maybeRefreshAllianceAshedCredentialFromConnection(input: {
   });
   if (!decision.refresh) return decision;
 
-  await upsertAllianceAshedCredential({
-    allianceId: input.allianceId,
-    appId: input.connection.appId,
-    originUrl: input.connection.originUrl,
-    encryptedToken: encryptSecret(input.connection.token),
-    tokenExpiresAt: newExpiresAt,
+  // Conditional on expiry so a concurrent refresh with a shorter-lived token
+  // cannot overwrite a newer one (expiry only moves forward).
+  const won = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(schema.allianceAshedCredentials)
+      .set({
+        appId: input.connection.appId,
+        originUrl: input.connection.originUrl,
+        encryptedToken: encryptSecret(input.connection.token),
+        tokenExpiresAt: newExpiresAt,
+        expiryNoticeStage: null,
+        expiryNoticeSentAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.allianceAshedCredentials.allianceId, input.allianceId),
+          or(
+            isNull(schema.allianceAshedCredentials.tokenExpiresAt),
+            lt(schema.allianceAshedCredentials.tokenExpiresAt, newExpiresAt!),
+          ),
+        ),
+      )
+      .returning({ id: schema.allianceAshedCredentials.id });
+    if (!updated) return false;
+    await tx.insert(schema.auditLog).values({
+      id: nanoid(),
+      sessionId: input.sessionId ?? null,
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      action: "alliance_ashed_credential.auto_refresh",
+      resourceType: "alliance_ashed_credential",
+      resourceId: updated.id,
+      metadata: {
+        previousExpiresAt: credential?.tokenExpiresAt?.toISOString() ?? null,
+        newExpiresAt: newExpiresAt?.toISOString() ?? null,
+      },
+      severity: "routine",
+    });
+    return true;
   });
-  await db.insert(schema.auditLog).values({
-    id: nanoid(),
-    sessionId: input.sessionId ?? null,
-    allianceId: input.allianceId,
-    hqUserId: input.hqUserId,
-    action: "alliance_ashed_credential.auto_refresh",
-    resourceType: "alliance_ashed_credential",
-    resourceId: credential?.id ?? null,
-    metadata: {
-      previousExpiresAt: credential?.tokenExpiresAt?.toISOString() ?? null,
-      newExpiresAt: newExpiresAt?.toISOString() ?? null,
-    },
-    severity: "routine",
-  });
-  return decision;
+  return won ? decision : { refresh: false, reason: "not_longer_lived" };
 }
 
 function resolveEmailFromAddress(): string {
@@ -374,18 +395,40 @@ export async function runAllianceCredentialExpiryNoticePass(now = new Date()): P
       officerCount: officers.length,
     };
 
+    // Per-recipient fingerprints let a retry re-send only to recipients that failed.
+    const fingerprint = `alliance-ashed-token:${row.allianceId}:${due}:${expiresAt.toISOString()}`;
     const officerEmail = buildOfficerAllianceCredentialEmail(ctx);
+    let delivered = true;
     for (const to of officers) {
+      const officerFingerprint = `${fingerprint}:officer:${to.toLowerCase()}`;
+      if (!(await claimOpsAlertFingerprint(officerFingerprint))) continue;
       try {
         await sendOfficerEmail({ to, ...officerEmail });
       } catch (error) {
+        delivered = false;
+        await releaseOpsAlertFingerprint(officerFingerprint);
         console.error("[alliance-credential-expiry] officer notice failed", row.allianceId, error);
       }
     }
-    await emailPlatformMaintainers({
+    const maintainers = await emailPlatformMaintainers({
       ...buildMaintainerAllianceCredentialEmail(ctx),
-      dedupeFingerprint: `alliance-ashed-token:${row.allianceId}:${due}:${expiresAt.toISOString()}`,
+      dedupeFingerprint: fingerprint,
     });
+    if (!maintainers.sent && maintainers.recipientCount > 0) delivered = false;
+
+    if (!delivered) {
+      await db
+        .update(schema.allianceAshedCredentials)
+        .set({ expiryNoticeStage: row.sentStage, expiryNoticeSentAt: null })
+        .where(
+          and(
+            eq(schema.allianceAshedCredentials.allianceId, row.allianceId),
+            eq(schema.allianceAshedCredentials.tokenExpiresAt, expiresAt),
+            eq(schema.allianceAshedCredentials.expiryNoticeStage, due),
+          ),
+        );
+      continue;
+    }
     notified += 1;
   }
 
