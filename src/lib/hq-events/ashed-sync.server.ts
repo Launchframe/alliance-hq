@@ -2,7 +2,18 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, eq, gt, inArray, or, lt, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -210,6 +221,31 @@ export async function syncEventResults(
       }
     }
 
+    // Snapshot items BEFORE the remote read: a claim only succeeds when the
+    // row is unchanged since this snapshot, so any peer POST that completed
+    // after it is either visible in the remote read or fails our claim.
+    const items = await db
+      .select({
+        ...getTableColumns(schema.hqEventSyncItems),
+        updatedAtText: sql<string>`${schema.hqEventSyncItems.updatedAt}::text`,
+      })
+      .from(schema.hqEventSyncItems)
+      .where(
+        and(
+          eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
+          eq(schema.hqEventSyncItems.hqEventId, event.id),
+          eq(schema.hqEventSyncItems.boardId, board.id),
+          or(
+            eq(schema.hqEventSyncItems.status, "pending"),
+            eq(schema.hqEventSyncItems.status, "failed"),
+            eq(schema.hqEventSyncItems.status, "uncertain"),
+            // Re-read only: bind if remote now matches HQ; never POST over conflict.
+            eq(schema.hqEventSyncItems.status, "conflict"),
+          ),
+        ),
+      )
+      .orderBy(asc(schema.hqEventSyncItems.memberId));
+
     // Remote rows for this event/board — one read per board, verified against
     // alliance/event/team before any POST is considered.
     const team = teamScoped ? board.boardKey : null;
@@ -244,26 +280,7 @@ export async function syncEventResults(
       remoteByMember.set(key, list);
     }
 
-    const items = await db
-      .select()
-      .from(schema.hqEventSyncItems)
-      .where(
-        and(
-          eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
-          eq(schema.hqEventSyncItems.hqEventId, event.id),
-          eq(schema.hqEventSyncItems.boardId, board.id),
-          or(
-            eq(schema.hqEventSyncItems.status, "pending"),
-            eq(schema.hqEventSyncItems.status, "failed"),
-            eq(schema.hqEventSyncItems.status, "uncertain"),
-            // Re-read only: bind if remote now matches HQ; never POST over conflict.
-            eq(schema.hqEventSyncItems.status, "conflict"),
-          ),
-        ),
-      )
-      .orderBy(asc(schema.hqEventSyncItems.memberId));
-
-    for (const item of items) {
+    for (const { updatedAtText, ...item } of items) {
       // A stale lease/older desired revision can never mark newer data synced.
       if (
         item.lastSyncedRevision != null &&
@@ -293,6 +310,8 @@ export async function syncEventResults(
 
       // Lease from claim time (not sync start) so a long board loop cannot
       // publish already-expired leases that a peer run steals mid-POST.
+      // The updated_at fence rejects a row a peer touched after our snapshot
+      // (our remote read may predate its POST).
       const claimed = await db
         .update(schema.hqEventSyncItems)
         .set({
@@ -303,11 +322,8 @@ export async function syncEventResults(
         .where(
           and(
             eq(schema.hqEventSyncItems.id, item.id),
-            or(
-              isNull(schema.hqEventSyncItems.leaseExpiresAt),
-              lt(schema.hqEventSyncItems.leaseExpiresAt, new Date()),
-              eq(schema.hqEventSyncItems.leaseToken, runLease),
-            ),
+            sql`${schema.hqEventSyncItems.updatedAt} = ${updatedAtText}::text::timestamptz`,
+            noLiveLease(new Date()),
           ),
         )
         .returning({ id: schema.hqEventSyncItems.id });
@@ -494,6 +510,14 @@ async function listRemoteRows(
   return rows;
 }
 
+/** SQL form of `flagBoardItemsMayTouchLease` (ashed-sync-lease.shared). */
+function noLiveLease(now: Date) {
+  return or(
+    isNull(schema.hqEventSyncItems.leaseExpiresAt),
+    lt(schema.hqEventSyncItems.leaseExpiresAt, now),
+  );
+}
+
 async function flagBoardItems(
   actor: EventActor,
   input: { eventId: string; boardIds?: string[] },
@@ -527,10 +551,7 @@ async function flagBoardItems(
         ),
         // Never clear a live lease mid-POST — a concurrent incomplete_read
         // flag would otherwise let a peer reclaim and double-POST.
-        or(
-          isNull(schema.hqEventSyncItems.leaseExpiresAt),
-          lt(schema.hqEventSyncItems.leaseExpiresAt, now),
-        ),
+        noLiveLease(now),
       ),
     )
     .returning({ id: schema.hqEventSyncItems.id });
