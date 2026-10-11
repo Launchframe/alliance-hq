@@ -278,12 +278,31 @@ describe("preferredMembershipRoleId", () => {
     ).toBe(ROLE_IDS.member);
   });
 
-  it("documents that revoked ashed rows must never feed this upgrade helper", () => {
-    // mergeHqUsersIntoCanonical revokes ashed-sourced seats, then selects only
-    // status=active memberships before calling preferredMembershipRoleId.
-    // Feeding a revoked owner roleId here would escalate a manual member seat.
+  it("proves revoked ashed seats escalate without an active-only filter", () => {
+    // BUG (pre-fix path): after revokeAshedMembershipsForHqUser, the source
+    // still had a status=revoked ashed owner row. Selecting every membership
+    // (no status filter) fed that owner roleId into preferredMembershipRoleId
+    // and permanently upgraded the canonical manual member seat.
+    const sourceAfterRevoke = [
+      { status: "revoked", roleId: ROLE_IDS.owner },
+      { status: "active", roleId: ROLE_IDS.member },
+    ];
     expect(
-      preferredMembershipRoleId(ROLE_IDS.member, ROLE_IDS.owner),
+      preferredMembershipRoleId(
+        ROLE_IDS.member,
+        sourceAfterRevoke[0]!.roleId,
+      ),
     ).toBe(ROLE_IDS.owner);
+
+    // FIX: only status=active seats participate in role merge / transfer.
+    const transferable = sourceAfterRevoke.filter(
+      (row) => row.status === "active",
+    );
+    expect(transferable).toEqual([
+      { status: "active", roleId: ROLE_IDS.member },
+    ]);
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.member, transferable[0]!.roleId),
+    ).toBe(ROLE_IDS.member);
   });
 });
