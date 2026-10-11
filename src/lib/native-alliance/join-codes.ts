@@ -11,6 +11,7 @@ import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
+import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
 import {
   assertCommanderClaimTargetClaimable,
   CommanderClaimInviteError,
@@ -316,14 +317,19 @@ export async function redeemAllianceJoinCode(
     .where(eq(schema.hqUsers.id, input.hqUserId))
     .limit(1);
 
+  const provisionRoleId = resolveRoleIdForClaimPendingAccept({
+    inviteRoleId: joinCode.roleId,
+    pendingClaimTargetId: joinCode.targetAshedMemberId,
+  });
+
   const result = await provisionAllianceMembership({
     hqUserId: input.hqUserId,
     sessionId: input.sessionId,
     allianceId: joinCode.allianceId,
-    roleId: joinCode.roleId,
+    roleId: provisionRoleId,
     userLabel: input.userLabel,
     ownerEmail:
-      systemRoleNameForId(joinCode.roleId) === "owner"
+      systemRoleNameForId(provisionRoleId) === "owner"
         ? user?.email ?? null
         : null,
   });
