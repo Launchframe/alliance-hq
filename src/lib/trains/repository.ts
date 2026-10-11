@@ -1252,9 +1252,26 @@ export async function clearConductorDepartingSoonAnnounced(
     );
 }
 
+export class ConductorUnlockForbiddenError extends Error {
+  constructor() {
+    super("Conductor unlock is not permitted for this actor.");
+    this.name = "ConductorUnlockForbiddenError";
+  }
+}
+
 export async function unlockConductorRecord(
   recordId: string,
   allianceId: string,
+  options?: {
+    /**
+     * Runs on the row read under the schedule lock + FOR UPDATE, so ownership
+     * is checked against the lock state actually being undone. Return false to
+     * abort with `ConductorUnlockForbiddenError`. Must not perform I/O.
+     */
+    authorize?: (
+      existing: typeof schema.trainConductorRecords.$inferSelect,
+    ) => boolean;
+  },
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   // Hold the alliance schedule lock + row FOR UPDATE for the whole unlock.
   // A prior CAS-then-delete outside the lock let a concurrent re-lock spawn a
@@ -1276,6 +1293,9 @@ export async function unlockConductorRecord(
     }
     if (!existing.lockedAt) {
       throw new Error("Conductor is not locked.");
+    }
+    if (options?.authorize && !options.authorize(existing)) {
+      throw new ConductorUnlockForbiddenError();
     }
 
     // Keep depleting-pool consumption while the conductor assignment remains.

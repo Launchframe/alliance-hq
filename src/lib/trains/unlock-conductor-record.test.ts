@@ -49,7 +49,10 @@ vi.mock("@/lib/time-off/availability.server", () => ({
   lockAllianceAvailability: mocks.lockAllianceAvailability,
 }));
 
-import { unlockConductorRecord } from "@/lib/trains/repository";
+import {
+  ConductorUnlockForbiddenError,
+  unlockConductorRecord,
+} from "@/lib/trains/repository";
 
 describe("unlockConductorRecord", () => {
   beforeEach(() => {
@@ -131,6 +134,35 @@ describe("unlockConductorRecord", () => {
     );
     expect(mocks.delete).not.toHaveBeenCalled();
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("checks ownership against the FOR UPDATE row before mutating", async () => {
+    const locked = {
+      id: "rec-1",
+      allianceId: "ally-1",
+      date: "2026-06-10",
+      conductorMemberId: "m1",
+      conductorMemberName: "Alice",
+      lockedAt: new Date("2026-06-10T12:00:00.000Z"),
+      lockedByHqUserId: "officer-b",
+    };
+    const callOrder: string[] = [];
+    mocks.lockAllianceAvailability.mockImplementation(async () => {
+      callOrder.push("lock");
+    });
+    mocks.for.mockResolvedValueOnce([locked]);
+    const authorize = vi.fn((row: { lockedByHqUserId: string | null }) => {
+      callOrder.push("authorize");
+      return row.lockedByHqUserId === "officer-a";
+    });
+
+    await expect(
+      unlockConductorRecord("rec-1", "ally-1", { authorize }),
+    ).rejects.toBeInstanceOf(ConductorUnlockForbiddenError);
+    expect(authorize).toHaveBeenCalledWith(locked);
+    expect(callOrder).toEqual(["lock", "authorize"]);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.delete).not.toHaveBeenCalled();
   });
 
   it("refuses unlock when CAS finds the row no longer locked", async () => {
