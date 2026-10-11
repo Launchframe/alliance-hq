@@ -13,11 +13,13 @@ type Phase =
   | "form"
   | "confirm"
   | "confirm_home"
+  | "confirm_transfer"
   | "fuzzy"
   | "success"
   | "officer"
   | "wrong_server"
   | "position_not_home"
+  | "transfer_send_home"
   | "guild_not_registered"
   | "error";
 
@@ -47,6 +49,10 @@ type Props = {
     confirmHomeHeading: string;
     confirmHomeAllianceChoice: string;
     confirmHomeLookupChoice: string;
+    confirmServerTransferHeading: string;
+    confirmServerTransferYes: string;
+    confirmServerTransferNo: string;
+    serverTransferSendHomeHeading: string;
     guildNotRegisteredHeading: string;
     guildNotRegisteredBody: string;
     backToDiscord: string;
@@ -75,6 +81,7 @@ export function DiscordMemberLinkClient({
   const [homeConfirmAllianceServer, setHomeConfirmAllianceServer] = useState<
     number | null
   >(null);
+  const [transferKnownServer, setTransferKnownServer] = useState<number | null>(null);
   const [candidates, setCandidates] = useState<
     Array<{ memberId: string; name: string }>
   >([]);
@@ -114,6 +121,19 @@ export function DiscordMemberLinkClient({
         setHomeConfirmAllianceServer(data.allianceServerNumber);
         setPhase("confirm_home");
         setFormError(null);
+        break;
+      case "confirm_server_transfer":
+        setGameUserName(data.gameUserName);
+        setMessage(data.message);
+        setHomeConfirmAllianceTag(data.allianceTag);
+        setHomeConfirmAllianceServer(data.allianceServerNumber);
+        setTransferKnownServer(data.knownServerNumber);
+        setPhase("confirm_transfer");
+        setFormError(null);
+        break;
+      case "server_transfer_send_home":
+        setMessage(data.message);
+        setPhase("transfer_send_home");
         break;
       case "fuzzy_pick":
         setMessage(data.message);
@@ -207,7 +227,7 @@ export function DiscordMemberLinkClient({
     }
   }
 
-  async function handleConfirmHome(choice: "alliance" | "lookup") {
+  async function handleConfirmHome(choice: "alliance" | "lookup" | "known") {
     setBusy(true);
     try {
       await postAction({
@@ -256,11 +276,15 @@ export function DiscordMemberLinkClient({
     );
   }
 
-  if (phase === "position_not_home") {
+  if (phase === "position_not_home" || phase === "transfer_send_home") {
     return (
       <div className="space-y-3">
         {renderHeader()}
-        <p className="font-semibold text-hq-fg">{labels.positionNotHomeHeading}</p>
+        <p className="font-semibold text-hq-fg">
+          {phase === "transfer_send_home"
+            ? labels.serverTransferSendHomeHeading
+            : labels.positionNotHomeHeading}
+        </p>
         {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
         <p className="text-sm text-hq-fg-muted">{labels.backToDiscord}</p>
       </div>
@@ -333,6 +357,41 @@ export function DiscordMemberLinkClient({
             {labels.confirmHomeAllianceChoice
               .replace("{tag}", tag)
               .replace("{server}", String(homeConfirmAllianceServer ?? ""))}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "confirm_transfer" && gameUserName) {
+    const tag = homeConfirmAllianceTag ?? allianceTag ?? "alliance";
+    return (
+      <div className="space-y-4">
+        {renderHeader()}
+        <p className="text-sm text-hq-fg-muted">{labels.confirmServerTransferHeading}</p>
+        {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
+        <p className="text-lg font-semibold text-hq-fg">{gameUserName}</p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleConfirmHome("alliance")}
+            className="rounded-lg bg-hq-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {labels.confirmServerTransferYes
+              .replace("{tag}", tag)
+              .replace("{server}", String(homeConfirmAllianceServer ?? ""))}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleConfirmHome("known")}
+            className="rounded-lg border border-hq-border px-4 py-2.5 text-sm font-semibold text-hq-fg disabled:opacity-60"
+          >
+            {labels.confirmServerTransferNo.replace(
+              "{server}",
+              String(transferKnownServer ?? ""),
+            )}
           </button>
         </div>
       </div>
