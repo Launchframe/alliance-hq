@@ -179,6 +179,10 @@ export async function completeMediaTask(taskId: string, leaseToken: string, samp
   });
 }
 
+// Unlike failWorkerJob (409 stale_worker_lease), a stale or expired lease is a silent
+// no-op: processMediaTask calls this from its catch block and rethrows the original
+// error, so throwing here would mask it. Any future externally exposed fail API must
+// surface stale_media_lease instead.
 export async function failMediaTask(taskId: string, leaseToken: string, errorCode: string) {
   const safeCode = /^[a-z_]{1,64}$/.test(errorCode) ? errorCode : "media_processing_failed";
   await getDb().transaction(async (tx) => {
