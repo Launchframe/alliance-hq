@@ -18,6 +18,7 @@ import {
   loadMemberLinkClaimTarget,
 } from "@/lib/member-link/claim-target.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
+import { elevateMembershipAfterClaimLink } from "@/lib/native-alliance/claim-invite-elevation.server";
 import { getAllianceById, getDiscordHqLink } from "@/lib/vr/repository";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { isClaimInviteMirrorDevUid } from "@/lib/lastwar/player-lookup";
@@ -134,6 +135,17 @@ export async function tryPreApprovedMemberLink(input: {
     if (!linked.ok) {
       return { ok: false, reason: "commander_taken" };
     }
+    try {
+      await elevateMembershipAfterClaimLink({
+        allianceId: input.allianceId,
+        hqUserId: input.hqUserId,
+      });
+    } catch (error) {
+      console.error(
+        "[member-link] preapproved honor claim role elevation failed",
+        error,
+      );
+    }
     await notifyClaimConflict({
       allianceId: input.allianceId,
       hqUserId: input.hqUserId,
@@ -220,6 +232,18 @@ export async function tryPreApprovedMemberLink(input: {
 
   if (!linked.ok) {
     return { ok: false, reason: "commander_taken" };
+  }
+
+  try {
+    await elevateMembershipAfterClaimLink({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+    });
+  } catch (error) {
+    console.error(
+      "[member-link] preapproved claim role elevation failed",
+      error,
+    );
   }
 
   try {

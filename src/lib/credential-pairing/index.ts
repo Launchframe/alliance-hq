@@ -238,20 +238,56 @@ export async function completePairing(
 
   const sourceSession = await loadSession(row.sourceSessionId);
   if (!sourceSession) {
+    // authorized_access has no credential side effects before accept; safe to
+    // unburn. device_link must stay consumed — never re-offer after a claim.
+    if (row.purpose === "authorized_access") {
+      await releasePairingClaim(row.id, targetSessionId);
+    }
     throw new PairingError("The pairing session is no longer valid.", "INVALID");
   }
 
   const strategy = getPairingStrategy(row.purpose);
   const metadata = (row.metadataJson ?? {}) as PairingMetadata;
 
-  await strategy.onComplete({
-    sourceSession,
-    targetSessionId,
-    metadata,
-    pairingCodeId: row.id,
-    clientInfo: options?.clientInfo,
-    completeOptions: options?.completeOptions,
-  });
+  try {
+    await strategy.onComplete({
+      sourceSession,
+      targetSessionId,
+      metadata,
+      pairingCodeId: row.id,
+      clientInfo: options?.clientInfo,
+      completeOptions: options?.completeOptions,
+    });
+  } catch (error) {
+    // acceptCredentialShare is atomic (pending CAS). Wrong-invitee / expired /
+    // unacked failures must not permanently burn the email/QR invite link.
+    // Do not release device_link claims: onComplete may have already copied
+    // Ashed credentials onto the target session.
+    if (row.purpose === "authorized_access") {
+      await releasePairingClaim(row.id, targetSessionId);
+    }
+    throw error;
+  }
 
   return { ok: true, purpose: row.purpose };
+}
+
+/** Undo a claim owned by `targetSessionId` so the code can be retried. */
+export async function releasePairingClaim(
+  pairingCodeId: string,
+  targetSessionId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.credentialPairingCodes)
+    .set({
+      consumedAt: null,
+      consumedBySessionId: null,
+    })
+    .where(
+      and(
+        eq(schema.credentialPairingCodes.id, pairingCodeId),
+        eq(schema.credentialPairingCodes.consumedBySessionId, targetSessionId),
+      ),
+    );
 }

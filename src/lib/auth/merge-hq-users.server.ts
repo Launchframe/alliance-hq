@@ -216,11 +216,21 @@ export async function assessMergeHqUsers(input: {
       db
         .select({ allianceId: schema.allianceMemberships.allianceId })
         .from(schema.allianceMemberships)
-        .where(eq(schema.allianceMemberships.hqUserId, sourceId)),
+        .where(
+          and(
+            eq(schema.allianceMemberships.hqUserId, sourceId),
+            eq(schema.allianceMemberships.status, "active"),
+          ),
+        ),
       db
         .select({ allianceId: schema.allianceMemberships.allianceId })
         .from(schema.allianceMemberships)
-        .where(eq(schema.allianceMemberships.hqUserId, canonicalId)),
+        .where(
+          and(
+            eq(schema.allianceMemberships.hqUserId, canonicalId),
+            eq(schema.allianceMemberships.status, "active"),
+          ),
+        ),
     ]);
 
   const canonicalLinkByAlliance = new Map(
@@ -316,6 +326,89 @@ export async function assessMergeHqUsers(input: {
     sourceEmail: source.email,
     alliances,
   };
+}
+
+type MembershipMergeTx = Pick<ActivityTransaction, "select" | "update" | "delete">;
+
+/**
+ * Only `active` source seats may move onto, or upgrade, the canonical user.
+ * Revoked rows stay behind (and cascade with the source user). A revoked
+ * canonical row in the same alliance is a stale tombstone; it must be removed
+ * before the source's active seat moves, or the alliance/user unique key fails.
+ */
+export async function mergeAllianceMembershipsIntoCanonical(
+  tx: MembershipMergeTx,
+  input: { sourceId: string; canonicalId: string; now: Date },
+): Promise<void> {
+  const { sourceId, canonicalId, now } = input;
+  const rows = await tx
+    .select({
+      id: schema.allianceMemberships.id,
+      allianceId: schema.allianceMemberships.allianceId,
+      hqUserId: schema.allianceMemberships.hqUserId,
+      roleId: schema.allianceMemberships.roleId,
+      status: schema.allianceMemberships.status,
+    })
+    .from(schema.allianceMemberships)
+    .where(
+      inArray(schema.allianceMemberships.hqUserId, [sourceId, canonicalId]),
+    );
+
+  const canonicalActiveByAlliance = new Map<
+    string,
+    { id: string; roleId: string }
+  >();
+  const canonicalInactiveIdByAlliance = new Map<string, string>();
+  const sourceActive: { id: string; allianceId: string; roleId: string }[] =
+    [];
+  for (const row of rows) {
+    if (row.hqUserId === canonicalId) {
+      if (row.status === "active") {
+        canonicalActiveByAlliance.set(row.allianceId, row);
+      } else {
+        canonicalInactiveIdByAlliance.set(row.allianceId, row.id);
+      }
+    } else if (row.hqUserId === sourceId && row.status === "active") {
+      sourceActive.push(row);
+    }
+  }
+
+  for (const membership of sourceActive) {
+    const existing = canonicalActiveByAlliance.get(membership.allianceId);
+    if (existing) {
+      const roleId = preferredMembershipRoleId(
+        existing.roleId,
+        membership.roleId,
+      );
+      if (roleId !== existing.roleId) {
+        await tx
+          .update(schema.allianceMemberships)
+          .set({ roleId, updatedAt: now })
+          .where(eq(schema.allianceMemberships.id, existing.id));
+        existing.roleId = roleId;
+      }
+      await tx
+        .delete(schema.allianceMemberships)
+        .where(eq(schema.allianceMemberships.id, membership.id));
+      continue;
+    }
+
+    const tombstoneId = canonicalInactiveIdByAlliance.get(membership.allianceId);
+    if (tombstoneId) {
+      await tx
+        .delete(schema.allianceMemberships)
+        .where(eq(schema.allianceMemberships.id, tombstoneId));
+      canonicalInactiveIdByAlliance.delete(membership.allianceId);
+    }
+    await tx
+      .update(schema.allianceMemberships)
+      .set({ hqUserId: canonicalId, updatedAt: now })
+      .where(eq(schema.allianceMemberships.id, membership.id));
+    canonicalActiveByAlliance.set(membership.allianceId, {
+      id: membership.id,
+      roleId: membership.roleId,
+    });
+  }
 }
 
 export async function mergeHqUsersIntoCanonical(input: {
@@ -420,59 +513,18 @@ export async function mergeHqUsersIntoCanonical(input: {
       );
     }
 
+    // Strip Ashed-sourced seats from the source account before role merge.
+    // Only *active* memberships may upgrade or move onto the canonical user —
+    // otherwise a just-revoked (or historically revoked) ashed owner/officer
+    // row would paint that elevated roleId onto the canonical active membership
+    // while leaving source=manual, permanently escalating HQ RBAC.
     await revokeAshedMembershipsForHqUser(sourceId, undefined, tx);
 
-    const canonicalMemberships = await tx
-      .select({
-        id: schema.allianceMemberships.id,
-        allianceId: schema.allianceMemberships.allianceId,
-        roleId: schema.allianceMemberships.roleId,
-      })
-      .from(schema.allianceMemberships)
-      .where(eq(schema.allianceMemberships.hqUserId, canonicalId));
-
-    const canonicalMembershipByAlliance = new Map(
-      canonicalMemberships.map((row) => [row.allianceId, row]),
-    );
-
-    const sourceMemberships = await tx
-      .select({
-        id: schema.allianceMemberships.id,
-        allianceId: schema.allianceMemberships.allianceId,
-        roleId: schema.allianceMemberships.roleId,
-      })
-      .from(schema.allianceMemberships)
-      .where(eq(schema.allianceMemberships.hqUserId, sourceId));
-
-    for (const membership of sourceMemberships) {
-      const existing = canonicalMembershipByAlliance.get(membership.allianceId);
-      if (existing) {
-        const roleId = preferredMembershipRoleId(
-          existing.roleId,
-          membership.roleId,
-        );
-        if (roleId !== existing.roleId) {
-          await tx
-            .update(schema.allianceMemberships)
-            .set({ roleId, updatedAt: now })
-            .where(eq(schema.allianceMemberships.id, existing.id));
-          existing.roleId = roleId;
-        }
-        await tx
-          .delete(schema.allianceMemberships)
-          .where(eq(schema.allianceMemberships.id, membership.id));
-      } else {
-        await tx
-          .update(schema.allianceMemberships)
-          .set({ hqUserId: canonicalId, updatedAt: now })
-          .where(eq(schema.allianceMemberships.id, membership.id));
-        canonicalMembershipByAlliance.set(membership.allianceId, {
-          id: membership.id,
-          allianceId: membership.allianceId,
-          roleId: membership.roleId,
-        });
-      }
-    }
+    await mergeAllianceMembershipsIntoCanonical(tx, {
+      sourceId,
+      canonicalId,
+      now,
+    });
 
     const canonicalLinks = await tx
       .select({

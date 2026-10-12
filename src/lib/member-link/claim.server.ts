@@ -19,6 +19,7 @@ import { recordMemberLinkHelpRequest } from "@/lib/member-link/member-link-help-
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
 import type { MemberLinkApiResponse } from "@/lib/member-link/outcome.shared";
+import { elevateMembershipAfterClaimLink } from "@/lib/native-alliance/claim-invite-elevation.server";
 import { getAllianceById } from "@/lib/vr/repository";
 
 export type MemberLinkClaimTarget = {
@@ -220,6 +221,16 @@ export async function runWebMemberLinkClaimConfirm(input: {
       message: translate("claimConflict"),
       pending: null,
     };
+  }
+
+  try {
+    await elevateMembershipAfterClaimLink({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      ownerEmail: input.userEmail,
+    });
+  } catch (error) {
+    console.error("[member-link] claim invite role elevation failed", error);
   }
 
   if (honorSystem) {

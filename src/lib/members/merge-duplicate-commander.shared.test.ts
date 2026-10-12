@@ -17,6 +17,7 @@ function side(overrides: Partial<MergeSide> = {}): MergeSide {
     gameServerNumber: 1234,
     gameUid: null,
     lastrankPublicId: null,
+    profession: null,
     hqUserIds: [],
     discordUserId: null,
     ...overrides,
@@ -78,6 +79,21 @@ describe("evaluateMergeEligibility", () => {
         evaluateMergeEligibility(side(kept), side({ ...dupDefaults, ...dup })),
       ).toEqual({ ok: false, code: "conflicting_links" });
     }
+  });
+
+  it("rejects conflicting professions but allows a missing side", () => {
+    expect(
+      evaluateMergeEligibility(
+        side({ profession: "Engineer" }),
+        side({ ...dupDefaults, profession: "War Leader" }),
+      ),
+    ).toEqual({ ok: false, code: "conflicting_profession" });
+    expect(
+      evaluateMergeEligibility(
+        side({ profession: "Engineer" }),
+        side({ ...dupDefaults, profession: null }),
+      ),
+    ).toEqual({ ok: true });
   });
 
   it("allows links owned only by one side, or by the same account", () => {
@@ -166,6 +182,12 @@ describe("error codes", () => {
     expect(mergeDuplicateErrorKey("not_active")).toBe("notActive");
     expect(mergeDuplicateErrorKey("different_server")).toBe("differentServer");
     expect(mergeDuplicateErrorKey("conflicting_links")).toBe("conflictingLinks");
+    expect(mergeDuplicateErrorKey("conflicting_profession")).toBe(
+      "conflictingProfession",
+    );
+    expect(mergeDuplicateErrorKey("ashed_connection_required")).toBe(
+      "ashedConnectionRequired",
+    );
     expect(mergeDuplicateErrorKey("generic")).toBe("generic");
     expect(isMergeDuplicateErrorCode("not_active")).toBe(true);
     expect(isMergeDuplicateErrorCode("nope")).toBe(false);

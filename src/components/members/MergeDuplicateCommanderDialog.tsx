@@ -18,6 +18,7 @@ type Summary = {
   newName: string;
   oldName: string;
   historyCount: number;
+  ashedRetireFailed?: boolean;
 };
 
 type Props = {
@@ -136,9 +137,16 @@ export function MergeDuplicateCommanderDialog({ ashedMemberId, memberName }: Pro
         {t("open")}
       </button>
       {success ? (
-        <p className="w-full text-sm text-hq-success" role="status">
-          {t("success", { duplicate: success.duplicateName, name: success.newName })}
-        </p>
+        <div className="w-full space-y-1" role="status">
+          <p className="text-sm text-hq-success">
+            {t("success", { duplicate: success.duplicateName, name: success.newName })}
+          </p>
+          {success.ashedRetireFailed ? (
+            <p className="text-sm text-hq-warning" data-testid="merge-duplicate-ashed-warning">
+              {t("ashedRetireFailed")}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <Dialog
