@@ -60,8 +60,11 @@ function ashedSyncedAtForSource(
   return null;
 }
 
-export async function getCommanderKillsState(commanderId: string) {
-  const db = getDb();
+export async function getCommanderKillsState(
+  commanderId: string,
+  tx?: ActivityTransaction,
+) {
+  const db = tx ?? getDb();
   const [row] = await db
     .select({
       currentKills: schema.commanders.currentKills,
@@ -143,8 +146,10 @@ export async function upsertCommanderKills(input: {
   /** When true, skip outbound Member.current_kills sync (already written elsewhere). */
   markAshedSynced?: boolean;
   activity?: KillsSubmissionActivity;
+  /** Caller-held transaction; the commander row lock is taken inside it. */
+  tx?: ActivityTransaction;
 }): Promise<boolean> {
-  return withActivityTransaction(async (db) => {
+  const write = async (db: ActivityTransaction): Promise<boolean> => {
     const activityInput = input.activity;
     const activity = activityInput
       ? await captureActivityContext(db, {
@@ -276,7 +281,8 @@ export async function upsertCommanderKills(input: {
     }
 
     return true;
-  });
+  };
+  return input.tx ? write(input.tx) : withActivityTransaction(write);
 }
 
 /** Mark the latest non-discarded video_parse kills event as already synced to Ashed. */

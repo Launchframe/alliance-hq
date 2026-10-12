@@ -21,9 +21,9 @@ export const killsStatSyncAdapter: StatSyncAdapter = {
   stat: "kills",
   ashedField: "current_kills",
 
-  async getHqCurrent(commanderId) {
-    const state = await getCommanderKillsState(commanderId);
-    const meta = await loadLatestNonDiscardedEventMeta("kills", commanderId);
+  async getHqCurrent(commanderId, tx) {
+    const state = await getCommanderKillsState(commanderId, tx);
+    const meta = await loadLatestNonDiscardedEventMeta("kills", commanderId, tx);
     return {
       total: state?.currentKills ?? null,
       updatedAt: state?.killsUpdatedAt ?? meta.createdAt,
@@ -42,6 +42,7 @@ export const killsStatSyncAdapter: StatSyncAdapter = {
       memberName: input.memberName,
       source: input.source,
       hqUserId: input.hqUserId,
+      tx: input.tx,
     });
   },
 

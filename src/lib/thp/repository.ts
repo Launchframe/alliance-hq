@@ -8,7 +8,11 @@ import {
   captureActivityContext,
   type ActivityIdentity,
 } from "@/lib/activity/identity.server";
-import { appendActivityEvent, withActivityTransaction } from "@/lib/activity/writer.server";
+import {
+  appendActivityEvent,
+  withActivityTransaction,
+  type ActivityTransaction,
+} from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 import { breakdownsEqual } from "@/lib/thp/breakdown.shared";
 import type { ThpEventSource } from "@/lib/thp/constants";
@@ -63,8 +67,11 @@ export async function getCommanderIdForMember(
   return row?.commanderId ?? null;
 }
 
-export async function getCommanderThpState(commanderId: string) {
-  const db = getDb();
+export async function getCommanderThpState(
+  commanderId: string,
+  tx?: ActivityTransaction,
+) {
+  const db = tx ?? getDb();
   const [row] = await db
     .select({
       currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
@@ -143,8 +150,10 @@ export async function upsertCommanderThp(input: {
   hqUserId?: string | null;
   discordUserId?: string | null;
   activity?: ThpSubmissionActivity;
+  /** Caller-held transaction; the commander row lock is taken inside it. */
+  tx?: ActivityTransaction;
 }): Promise<boolean> {
-  return withActivityTransaction(async (db) => {
+  const write = async (db: ActivityTransaction): Promise<boolean> => {
     const activityInput = input.activity;
     const activity = activityInput
       ? await captureActivityContext(db, {
@@ -278,7 +287,8 @@ export async function upsertCommanderThp(input: {
     }
 
     return true;
-  });
+  };
+  return input.tx ? write(input.tx) : withActivityTransaction(write);
 }
 
 export async function getHqThpPending(
