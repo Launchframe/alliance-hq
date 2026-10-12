@@ -119,24 +119,31 @@ export async function touchKnowledgeResource(tx: KnowledgeTransaction, resourceI
  * index and history jobs fence on those versions and on `ownerHqUserId`, and a
  * grant-subject bump would also invalidate shared notes for every other grantee.
  *
- * The `knowledge_consent_revision` trigger still treats any owner change as a new
- * owner: it clears AI consent/approval and advances `knowledge_consent_version`, so
- * the merged owner's completed indexes stop serving retrieval (and pending index jobs
- * are cancelled) until they re-approve and re-index. That is the fail-closed default.
+ * A verified account merge is the owner's consent: each transferred resource keeps its
+ * own AI consent, approval, and `knowledge_consent_version`, so completed indexes keep
+ * serving retrieval. The `knowledge_consent_revision` trigger (migration 0216) honors this
+ * only while the transaction-local `alliance_hq.knowledge_merge_owner` names this exact
+ * source→canonical pair; every other owner change still resets consent.
  */
 export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: string, canonicalId: string) {
   await tx.execute(sql`insert into knowledge_workspace_preferences(hq_user_id, alliance_id, state, version, updated_at)
     select ${canonicalId}, alliance_id, state, version, updated_at from knowledge_workspace_preferences where hq_user_id = ${sourceId}
     on conflict (hq_user_id, alliance_id) do nothing`);
-  await tx.update(schema.knowledgeResources).set({
-    ownerHqUserId: canonicalId, updatedAt: new Date(),
-  }).where(eq(schema.knowledgeResources.ownerHqUserId, sourceId));
-  // Keep index / history / generation job principals aligned with remapped ownership.
-  // Generation jobs keep their original sessionId; the merge deletes the source user's
-  // sessions, so the worker cannot resolve an actor and cancels the job.
+  // Index job owners move first: the resource update's stale-job trigger cancels any
+  // pending job whose owner differs from the resource owner.
   await tx.update(schema.knowledgeIndexJobs).set({
     ownerHqUserId: canonicalId, updatedAt: new Date(),
   }).where(eq(schema.knowledgeIndexJobs.ownerHqUserId, sourceId));
+  await tx.execute(sql`select set_config('alliance_hq.knowledge_merge_owner', ${`${sourceId}>${canonicalId}`}, true)`);
+  await tx.update(schema.knowledgeResources).set({
+    ownerHqUserId: canonicalId, updatedAt: new Date(),
+  }).where(eq(schema.knowledgeResources.ownerHqUserId, sourceId));
+  await tx.execute(sql`select set_config('alliance_hq.knowledge_merge_owner', '', true)`);
+  await tx.update(schema.knowledgeResources).set({ knowledgeApprovedByHqUserId: canonicalId })
+    .where(eq(schema.knowledgeResources.knowledgeApprovedByHqUserId, sourceId));
+  // Keep history / generation job principals aligned with remapped ownership.
+  // Generation jobs keep their original sessionId; the merge deletes the source user's
+  // sessions, so the worker cannot resolve an actor and cancels the job.
   await tx.update(schema.knowledgeProcessingJobs).set({
     ownerHqUserId: canonicalId, updatedAt: new Date(),
   }).where(eq(schema.knowledgeProcessingJobs.ownerHqUserId, sourceId));

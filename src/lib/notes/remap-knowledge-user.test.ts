@@ -170,6 +170,27 @@ describe("remapKnowledgeUser", () => {
     }
   });
 
+  it("marks only the resource owner remap as a verified merge so consent carries forward", async () => {
+    mockUpdateChain();
+    select.mockReturnValue({ from: vi.fn(() => ({ where: vi.fn(() => ({ for: vi.fn().mockResolvedValue([]) })) })) });
+    const order: string[] = [];
+    update.mockImplementation((table: unknown) => {
+      order.push(table === schema.knowledgeResources ? "resources" : table === schema.knowledgeIndexJobs ? "indexJobs" : "other");
+      return { set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })) };
+    });
+    execute.mockImplementation(async (query: { queryChunks: unknown[] }) => {
+      const text = query.queryChunks.map((chunk) => typeof chunk === "string" ? chunk : (chunk as { value?: string[] }).value?.join("") ?? `$${String(chunk)}`).join("");
+      if (text.includes("alliance_hq.knowledge_merge_owner")) order.push(text.includes("''") ? "unmark" : `mark:${query.queryChunks.find((chunk) => typeof chunk === "string")}`);
+    });
+
+    await remapKnowledgeUser(tx, "source", "canonical");
+
+    const mark = order.indexOf("mark:source>canonical");
+    expect(mark).toBeGreaterThan(order.indexOf("indexJobs"));
+    expect(order[mark + 1]).toBe("resources");
+    expect(order[mark + 2]).toBe("unmark");
+  });
+
   it("remaps grant subjects without bumping accessVersion on shared notes", async () => {
     const { set } = mockUpdateChain();
     const grant = {
