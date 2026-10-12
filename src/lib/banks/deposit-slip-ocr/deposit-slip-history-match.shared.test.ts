@@ -183,6 +183,36 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
     expect(findHistoricalDepositMatch(redeposit, [looted])).toBeNull();
   });
 
+  it("does not skip a post-maturity re-deposit within the proximity window", () => {
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-10T12:00:00.000Z",
+      outcomeAt: "2026-07-10T12:05:00.000Z",
+    });
+    const redeposit = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:10:00.000Z",
+    });
+    expect(isPostOutcomeRedepositLocked(redeposit, matured)).toBe(true);
+    expect(shouldSkipHistoricalDepositDuplicate(redeposit, matured)).toBe(false);
+    expect(shouldUpdateHistoricalDepositOutcome(redeposit, matured)).toBe(false);
+    expect(findHistoricalDepositMatch(redeposit, [matured])).toBeNull();
+  });
+
+  it("still skips a locked re-read of a legacy terminal without outcomeAt", () => {
+    const legacyLooted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:00:00.000Z",
+      outcomeAt: null,
+    });
+    const locked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:10:00.000Z",
+    });
+    expect(isPostOutcomeRedepositLocked(locked, legacyLooted)).toBe(false);
+    expect(shouldSkipHistoricalDepositDuplicate(locked, legacyLooted)).toBe(true);
+  });
+
   it("matches a re-deposit locked history row instead of the prior loot", () => {
     const looted = {
       id: "hist-looted",
