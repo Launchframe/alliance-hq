@@ -7,6 +7,7 @@ import { assignManualMembership } from "@/lib/rbac/admin-users";
 import { ROLE_IDS, type SystemRoleName } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
+import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { findAcceptedClaimInviteForUser } from "./invites";
 import {
   resolveProvisionRoleId,
@@ -15,6 +16,9 @@ import {
 /**
  * After a successful claim confirm, apply the invite/join-code role that was
  * deferred at accept time (member until the bound commander is linked).
+ *
+ * Re-checks hybrid owner/officer rank gates here — accept-time checks alone are
+ * insufficient once elevated RBAC is deferred until claim confirm (#754).
  */
 export async function elevateMembershipAfterClaimLink(input: {
   allianceId: string;
@@ -29,14 +33,23 @@ export async function elevateMembershipAfterClaimLink(input: {
     return { elevated: false, roleName: null };
   }
 
-  const inviteRoleId = await loadClaimSourceRoleId({
+  const claimSource = await loadClaimSourceRoleId({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     inviteId: claim.inviteId,
   });
-  if (!inviteRoleId) {
+  if (!claimSource?.roleId) {
     return { elevated: false, roleName: null };
   }
+  const { roleId: inviteRoleId, invitedByHqUserId } = claimSource;
+
+  // Fail closed if the claim commander was demoted between accept and confirm.
+  await assertHybridClaimInviteRankAtAccept({
+    allianceId: input.allianceId,
+    roleId: inviteRoleId,
+    targetAshedMemberId: claim.targetAshedMemberId,
+    invitedByHqUserId,
+  });
 
   const db = getDb();
   const [existing] = await db
@@ -65,7 +78,6 @@ export async function elevateMembershipAfterClaimLink(input: {
     allianceId: input.allianceId,
     roleId,
   });
-
   const roleName = systemRoleNameForId(roleId);
   const inviteRoleName = systemRoleNameForId(inviteRoleId);
   if (inviteRoleName === "owner" && roleId === ROLE_IDS.owner) {
@@ -98,10 +110,13 @@ async function loadClaimSourceRoleId(input: {
   allianceId: string;
   hqUserId: string;
   inviteId: string;
-}): Promise<string | null> {
+}): Promise<{ roleId: string; invitedByHqUserId: string | null } | null> {
   const db = getDb();
   const [invite] = await db
-    .select({ roleId: schema.hqInvites.roleId })
+    .select({
+      roleId: schema.hqInvites.roleId,
+      invitedByHqUserId: schema.hqInvites.invitedByHqUserId,
+    })
     .from(schema.hqInvites)
     .where(
       and(
@@ -114,11 +129,17 @@ async function loadClaimSourceRoleId(input: {
     )
     .limit(1);
   if (invite?.roleId) {
-    return invite.roleId;
+    return {
+      roleId: invite.roleId,
+      invitedByHqUserId: invite.invitedByHqUserId ?? null,
+    };
   }
 
   const [joinCode] = await db
-    .select({ roleId: schema.hqAllianceJoinCodes.roleId })
+    .select({
+      roleId: schema.hqAllianceJoinCodes.roleId,
+      createdByHqUserId: schema.hqAllianceJoinCodes.createdByHqUserId,
+    })
     .from(schema.hqAllianceJoinCodes)
     .innerJoin(
       schema.hqAllianceJoinCodeRedemptions,
@@ -137,5 +158,12 @@ async function loadClaimSourceRoleId(input: {
     )
     .limit(1);
 
-  return joinCode?.roleId ?? null;
+  if (!joinCode?.roleId) {
+    return null;
+  }
+  return {
+    roleId: joinCode.roleId,
+    // Join-code issuer is the hybrid-rank exception principal (same as invite).
+    invitedByHqUserId: joinCode.createdByHqUserId ?? null,
+  };
 }
