@@ -26,6 +26,10 @@ describe("isLiveOcrLease", () => {
     ).toBe(false);
   });
 
+  it("rejects at exact lease expiry (matches claim reclaim lte boundary)", () => {
+    expect(isLiveOcrLease({ ...live, leaseExpiresAt: now }, "tok-live", now)).toBe(false);
+  });
+
   it("rejects wrong token, non-running state, null lease, and job TTL expiry", () => {
     expect(isLiveOcrLease(live, "other", now)).toBe(false);
     expect(isLiveOcrLease({ ...live, state: "failed" }, "tok-live", now)).toBe(false);
