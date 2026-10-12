@@ -8,7 +8,9 @@ const {
   provisionAllianceMembership,
   getDb,
   auditInviteAccepted,
+  isCommanderReservedByPendingClaim,
 } = vi.hoisted(() => ({
+  isCommanderReservedByPendingClaim: vi.fn(),
   getHqMemberLinkByAllianceAndMember: vi.fn(),
   getLinkedMemberIds: vi.fn(),
   getDiscordLinkByAllianceAndMember: vi.fn(),
@@ -38,6 +40,10 @@ vi.mock("./invite-accept-rank.server", () => ({
   assertHybridClaimInviteRankAtAccept: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("./claim-seat-reservation.server", () => ({
+  isCommanderReservedByPendingClaim,
+}));
+
 vi.mock("@/lib/onboarding/onboarding-audit.server", () => ({
   auditInviteAccepted,
 }));
@@ -59,6 +65,7 @@ import { ROLE_IDS } from "@/lib/rbac/constants";
 import {
   acceptHqInvite,
   CommanderClaimInviteError,
+  rebindAcceptedInviteSession,
 } from "./invites";
 
 function inviteRow(overrides: Record<string, unknown> = {}) {
@@ -94,6 +101,7 @@ describe("acceptHqInvite claim occupancy", () => {
       roleName: "owner",
     });
     auditInviteAccepted.mockResolvedValue(undefined);
+    isCommanderReservedByPendingClaim.mockResolvedValue(false);
   });
 
   it("fail-closes before provision when another HQ user holds the claim seat", async () => {
@@ -219,5 +227,114 @@ describe("acceptHqInvite claim occupancy", () => {
       }),
     );
     expect(result.targetAshedMemberId).toBeNull();
+  });
+
+  it("fail-closes when another acceptor already reserved the free claim seat", async () => {
+    const invite = inviteRow();
+    const update = vi.fn();
+    getDb.mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve([invite]),
+          }),
+        }),
+      })),
+      update,
+      delete: vi.fn(),
+    });
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue(null);
+    isCommanderReservedByPendingClaim.mockResolvedValue(true);
+
+    await expect(
+      acceptHqInvite({
+        token: "tok",
+        sessionId: "sess-1",
+        hqUserId: "bob",
+        userEmail: "bob@example.com",
+        email: "bob@example.com",
+      }),
+    ).rejects.toMatchObject({ code: "commander_already_claimed" });
+
+    expect(isCommanderReservedByPendingClaim).toHaveBeenCalledWith({
+      allianceId: "a1",
+      ashedMemberId: "m-r5",
+      allowedHqUserId: "bob",
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(provisionAllianceMembership).not.toHaveBeenCalled();
+  });
+});
+
+describe("rebindAcceptedInviteSession claim deferral", () => {
+  function mockAcceptedInvite() {
+    const invite = inviteRow({
+      acceptedAt: new Date(),
+      acceptedByHqUserId: "bob",
+    });
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([invite])
+      .mockResolvedValueOnce([{ id: "a1", tag: "TAG" }]);
+    getDb.mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({ limit }),
+        }),
+      })),
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    provisionAllianceMembership.mockResolvedValue({
+      allianceId: "a1",
+      allianceTag: "TAG",
+      allianceName: "Test",
+      hqUserId: "bob",
+      roleName: "member",
+    });
+  });
+
+  it("keeps the invite role deferred while the claim is still pending", async () => {
+    mockAcceptedInvite();
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue(null);
+
+    await rebindAcceptedInviteSession({
+      token: "tok",
+      sessionId: "sess-2",
+      hqUserId: "bob",
+      userEmail: "bob@example.com",
+    });
+
+    expect(provisionAllianceMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: ROLE_IDS.member,
+        rolePolicy: "preserve_existing",
+        ownerEmail: null,
+      }),
+    );
+  });
+
+  it("uses the invite role once the acceptor holds the claim seat", async () => {
+    mockAcceptedInvite();
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue({
+      hqUserId: "bob",
+      ashedMemberId: "m-r5",
+    });
+
+    await rebindAcceptedInviteSession({
+      token: "tok",
+      sessionId: "sess-2",
+      hqUserId: "bob",
+      userEmail: "bob@example.com",
+    });
+
+    expect(provisionAllianceMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: "role-owner",
+        rolePolicy: "preserve_existing",
+      }),
+    );
   });
 });

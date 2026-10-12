@@ -40,6 +40,10 @@ vi.mock("./invite-accept-rank.server", () => ({
   assertHybridClaimInviteRankAtAccept,
 }));
 
+vi.mock("./claim-seat-reservation.server", () => ({
+  isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
+}));
+
 vi.mock("@/lib/onboarding/onboarding-audit.server", () => ({
   auditInviteAccepted,
 }));
