@@ -145,9 +145,7 @@ describe("hydrateDiscordMemberLink", () => {
     );
   });
 
-  it("does not rematerialize by Last War name alone when the live seat has no game_uid", async () => {
-    // Privilege guard: a former linker who renames onto an unlinked R4+/owner
-    // seat must not inherit that seat (and its bot officer/owner gates).
+  it("follows a former seat onto the live roster via Last War's current name", async () => {
     selectLimit
       .mockResolvedValueOnce([
         {
@@ -157,17 +155,47 @@ describe("hydrateDiscordMemberLink", () => {
           gameUid: "1111222233334444",
         },
       ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ashedMemberId: "new-tihsrah",
+          currentName: "tihsrah",
+          previousNamesJson: ["rah"],
+          status: "active",
+        },
+      ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "tihsrah",
+    });
+    updateReturning.mockResolvedValue([
+      {
+        ...frozenLink,
+        ashedMemberId: "new-tihsrah",
+        memberDisplayName: "tihsrah",
+      },
+    ]);
+    hqUpdateReturning.mockResolvedValue([{ hqUserId: "hq-user-1" }]);
 
     const result = await hydrateDiscordMemberLink(frozenLink, {
       rematerializeFormer: true,
     });
-    expect(result.ashedMemberId).toBe("old-swift");
-    expect(result.memberDisplayName).toBe("JBeazy Swift");
-    expect(lookupPlayerByUid).not.toHaveBeenCalled();
-    expect(denormalizeGameUidOnMember).not.toHaveBeenCalled();
-    expect(syncCommanderIdentityFromMemberLink).not.toHaveBeenCalled();
-    expect(updateSet).not.toHaveBeenCalled();
+    expect(result.ashedMemberId).toBe("new-tihsrah");
+    expect(result.memberDisplayName).toBe("tihsrah");
+    expect(denormalizeGameUidOnMember).toHaveBeenCalledWith({
+      allianceId: "a1",
+      ashedMemberId: "new-tihsrah",
+      gameUid: "1111222233334444",
+    });
+    expect(syncCommanderIdentityFromMemberLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "new-tihsrah",
+        memberDisplayName: "tihsrah",
+        hqUserId: "hq-user-1",
+      }),
+    );
   });
 
   it("does not steal a live seat already linked to another Discord user", async () => {

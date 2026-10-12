@@ -87,8 +87,6 @@ export type MemberLinkHelpRequestReview = {
     status: string;
     /** Claim-conflict invite target (help row linkedAshedMemberId). */
     inviteTargetAshedMemberId: string | null;
-    /** Requester already holds the HQ link to the invite target (legacy name review). */
-    claimantLinkedToInviteTarget: boolean;
     createdAt: Date;
     hqUserId: string | null;
     discordUsername: string | null;

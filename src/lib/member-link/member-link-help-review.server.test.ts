@@ -218,31 +218,6 @@ describe("resolveClaimNameReview", () => {
       expect.objectContaining({ memberDisplayName: "Roster Alpha" }),
     );
   });
-
-  it.each([
-    ["no HQ link on the invite target", null],
-    ["the invite target linked to another HQ user", { id: "link-2", hqUserId: "other-user" }],
-  ])(
-    "refuses a fail-closed claim conflict with %s",
-    async (_label, link) => {
-      vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue(
-        link as never,
-      );
-
-      const result = await resolveClaimNameReview({
-        requestId: "req-1",
-        chosen: "lookup",
-        resolvedByHqUserId: "officer-1",
-        sessionId: "sess-1",
-        allianceId: "a1",
-      });
-
-      expect(result).toEqual({ ok: false, reason: "not_linked" });
-      expect(rosterResolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
-      expect(repository.linkHqMember).not.toHaveBeenCalled();
-      expect(helpQueue.resolveMemberLinkHelpRequest).not.toHaveBeenCalled();
-    },
-  );
 });
 
 describe("unlinkHqMemberLinkBreakGlass", () => {

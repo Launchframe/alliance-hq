@@ -162,7 +162,6 @@ export function MemberLinkHelpRequestReviewClient({
     review.request.context === "claim_conflict" &&
     (review.request.claimConflictReason === "target_mismatch" ||
       review.request.claimConflictReason === "name_collision") &&
-    review.request.claimantLinkedToInviteTarget &&
     Boolean(rosterName && lookupName);
 
   async function resolveNameReview(chosen: "roster" | "lookup") {
