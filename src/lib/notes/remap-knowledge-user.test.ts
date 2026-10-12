@@ -148,10 +148,12 @@ describe("remapKnowledgeUser", () => {
     expect(tables).toContain(schema.knowledgeIndexJobs);
     expect(tables).toContain(schema.knowledgeProcessingJobs);
     expect(tables).toContain(schema.knowledgeGenerationJobs);
+    expect(tables).toContain(schema.knowledgeAiUsage);
 
     expect(patches.some((patch) =>
       patch.ownerHqUserId === "canonical" && Object.keys(patch).length === 2 && "updatedAt" in patch)).toBe(true);
     expect(patches.some((patch) => patch.requesterId === "canonical")).toBe(true);
+    expect(patches.some((patch) => patch.principalKey === "hq:canonical")).toBe(true);
 
     // Resource ownership / job remaps must not bump lineage versions.
     const lineageTables = new Set([
