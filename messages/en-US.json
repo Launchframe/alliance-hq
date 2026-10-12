@@ -3548,11 +3548,14 @@
       "confirm": "Merge",
       "cancel": "Cancel",
       "success": "Merged {duplicate} into {name}.",
+      "ashedRetireFailed": "HQ merged the members, but Ashed still has the duplicate as active. Do not sync the roster until an officer reconnects Ashed and the duplicate is retired there — syncing first can bring the duplicate back.",
       "errors": {
         "sameMember": "Pick a different member.",
         "notActive": "Both members must be active in this alliance.",
         "differentServer": "These members are on different game servers.",
         "conflictingLinks": "Both members are linked to different accounts, so they can't be merged.",
+        "conflictingProfession": "These members have different professions, so they can't be merged.",
+        "ashedConnectionRequired": "Reconnect Ashed before merging — without a working alliance Ashed connection, the next roster sync can bring the duplicate back.",
         "generic": "Couldn't merge these members. Try again."
       }
     }
@@ -3669,7 +3672,10 @@
     "subtitle": "Password and passkey sign-in for your HQ account. Magic links still work anytime.",
     "passwordSectionTitle": "Password",
     "passwordSectionBodyUnset": "You have not set a password yet. Magic-link accounts can add one here.",
-    "passwordSectionBodySet": "Update your password. You can still sign in with a magic link or passkey.",
+    "passwordSectionBodySet": "Update your password. Enter your current password, then choose a new one. You can still sign in with a magic link or passkey.",
+    "currentPassword": "Current password",
+    "currentPasswordRequired": "Enter your current password.",
+    "currentPasswordIncorrect": "Current password is incorrect.",
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
     "passwordRequired": "Enter a password.",

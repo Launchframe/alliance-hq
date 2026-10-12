@@ -10,7 +10,10 @@ import { isPostgresUniqueViolation } from "@/lib/auth/postgres-unique.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 
+import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
+import { isCommanderReservedByPendingClaim } from "./claim-seat-reservation.server";
 import {
   assertCommanderClaimTargetClaimable,
   CommanderClaimInviteError,
@@ -218,6 +221,24 @@ export async function redeemAllianceJoinCode(
     )
     .limit(1);
 
+  const claimTargetId = joinCode.targetAshedMemberId?.trim() || null;
+
+  // preserve_existing falls back to the code role when no active membership
+  // exists, so a still-pending claim stays deferred on every rebind path.
+  const rebindRoleId = async () => {
+    const claimLink = claimTargetId
+      ? await getHqMemberLinkByAllianceAndMember(
+          joinCode.allianceId,
+          claimTargetId,
+        )
+      : null;
+    return resolveRoleIdForClaimPendingAccept({
+      inviteRoleId: joinCode.roleId,
+      pendingClaimTargetId:
+        claimLink?.hqUserId === input.hqUserId ? null : claimTargetId,
+    });
+  };
+
   if (existingRedemption) {
     // Re-visit / auto-redeem remount: refresh session only — do not re-apply
     // the join-code role (blocks silent re-escalation after demotion).
@@ -225,7 +246,7 @@ export async function redeemAllianceJoinCode(
       hqUserId: input.hqUserId,
       sessionId: input.sessionId,
       allianceId: joinCode.allianceId,
-      roleId: joinCode.roleId,
+      roleId: await rebindRoleId(),
       rolePolicy: "preserve_existing",
       userLabel: input.userLabel,
     });
@@ -233,6 +254,20 @@ export async function redeemAllianceJoinCode(
 
   if (joinCode.redemptionCount >= joinCode.maxRedemptions) {
     throw new Error("This join code has reached its redemption limit.");
+  }
+
+  if (
+    claimTargetId &&
+    (await isCommanderReservedByPendingClaim({
+      allianceId: joinCode.allianceId,
+      ashedMemberId: claimTargetId,
+      allowedHqUserId: input.hqUserId,
+    }))
+  ) {
+    throw new CommanderClaimInviteError(
+      "commander_already_claimed",
+      "This commander is already linked to an account.",
+    );
   }
 
   // Claim a redemption slot and insert the redemption row atomically.
@@ -289,7 +324,7 @@ export async function redeemAllianceJoinCode(
           hqUserId: input.hqUserId,
           sessionId: input.sessionId,
           allianceId: joinCode.allianceId,
-          roleId: joinCode.roleId,
+          roleId: await rebindRoleId(),
           rolePolicy: "preserve_existing",
           userLabel: input.userLabel,
         });
@@ -302,7 +337,7 @@ export async function redeemAllianceJoinCode(
         hqUserId: input.hqUserId,
         sessionId: input.sessionId,
         allianceId: joinCode.allianceId,
-        roleId: joinCode.roleId,
+        roleId: await rebindRoleId(),
         rolePolicy: "preserve_existing",
         userLabel: input.userLabel,
       });
@@ -316,14 +351,19 @@ export async function redeemAllianceJoinCode(
     .where(eq(schema.hqUsers.id, input.hqUserId))
     .limit(1);
 
+  const provisionRoleId = resolveRoleIdForClaimPendingAccept({
+    inviteRoleId: joinCode.roleId,
+    pendingClaimTargetId: joinCode.targetAshedMemberId,
+  });
+
   const result = await provisionAllianceMembership({
     hqUserId: input.hqUserId,
     sessionId: input.sessionId,
     allianceId: joinCode.allianceId,
-    roleId: joinCode.roleId,
+    roleId: provisionRoleId,
     userLabel: input.userLabel,
     ownerEmail:
-      systemRoleNameForId(joinCode.roleId) === "owner"
+      systemRoleNameForId(provisionRoleId) === "owner"
         ? user?.email ?? null
         : null,
   });
