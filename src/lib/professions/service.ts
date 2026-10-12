@@ -319,7 +319,11 @@ async function assertCommanderAllianceProfession(
     throw new Error("Commander is not a member of this alliance.");
   }
   if (membership.profession !== expectedProfession) {
-    throw new Error(`Commander must be a ${expectedProfession}.`);
+    throw new Error(
+      expectedProfession === "Engineer"
+        ? "Commander must be an Engineer."
+        : "Commander must be a War Leader.",
+    );
   }
 }
 

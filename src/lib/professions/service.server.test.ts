@@ -83,7 +83,7 @@ describe("assignEngToWl", () => {
         engCommanderId: "eng-1",
         wlCommanderId: "wl-1",
       }),
-    ).rejects.toThrow("Commander must be a Engineer.");
+    ).rejects.toThrow("Commander must be an Engineer.");
   });
 
   it("enforces a single active assignment per Engineer", async () => {

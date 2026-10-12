@@ -362,7 +362,7 @@ async function assertAssignableUnderLock(
     input.engCommanderId,
   );
   if (engProfession !== "Engineer") {
-    throw new Error("Commander must be a Engineer.");
+    throw new Error("Commander must be an Engineer.");
   }
   const wlProfession = await loadLockedCommanderProfession(
     tx,
@@ -373,7 +373,7 @@ async function assertAssignableUnderLock(
     throw new Error("Commander must be a War Leader.");
   }
 
-  const [active] = await tx
+  const activeRows = await tx
     .select({
       id: schema.wlEngAssignments.id,
       wlCommanderId: schema.wlTeams.wlCommanderId,
@@ -390,11 +390,13 @@ async function assertAssignableUnderLock(
         eq(schema.wlEngAssignments.status, "active"),
       ),
     )
-    .limit(1)
     .for("update");
 
-  if (!active) return;
-  if (active.wlCommanderId === input.wlCommanderId) {
+  if (activeRows.length === 0) return;
+  if (
+    activeRows.length === 1 &&
+    activeRows[0]!.wlCommanderId === input.wlCommanderId
+  ) {
     throw new Error("Engineer is already assigned to this War Leader's team.");
   }
   throw new Error("Engineer is already assigned to another War Leader's team.");
@@ -446,7 +448,7 @@ async function assertAutomaticDutyAvailable(
  * Assign (or reactivate) an Eng under the alliance availability lock.
  * Re-checks professions and single-active-assignment after the lock so
  * concurrent switchProfession / dual-assign cannot corrupt pairings.
- * DB unique is only (team, eng) — it does not enforce one active Eng seat.
+ * The one-active-per-Eng partial unique index backstops this check.
  */
 export async function commitEngAssignment(input: {
   allianceId: string;
