@@ -20,7 +20,9 @@ export class PasswordAuthError extends Error {
       | "invalid_password"
       | "email_taken"
       | "no_password"
-      | "invalid_credentials",
+      | "invalid_credentials"
+      | "current_password_required"
+      | "current_password_incorrect",
   ) {
     super(message);
     this.name = "PasswordAuthError";
@@ -31,6 +33,8 @@ export async function setPasswordForHqUser(input: {
   hqUserId: string;
   password: string;
   confirmPassword: string;
+  /** Required when the account already has a password (session alone is not enough). */
+  currentPassword?: string;
 }): Promise<void> {
   const passwordError = validatePasswordPair({
     password: input.password,
@@ -41,6 +45,36 @@ export async function setPasswordForHqUser(input: {
   }
 
   const db = getDb();
+  const [existing] = await db
+    .select({
+      id: schema.hqUsers.id,
+      passwordHash: schema.hqUsers.passwordHash,
+    })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, input.hqUserId))
+    .limit(1);
+
+  if (!existing) {
+    throw new PasswordAuthError("User not found.", "invalid_credentials");
+  }
+
+  if (existing.passwordHash) {
+    const current = input.currentPassword ?? "";
+    if (!current) {
+      throw new PasswordAuthError(
+        "Current password required.",
+        "current_password_required",
+      );
+    }
+    const ok = await verifyPassphrase(current, existing.passwordHash);
+    if (!ok) {
+      throw new PasswordAuthError(
+        "Current password incorrect.",
+        "current_password_incorrect",
+      );
+    }
+  }
+
   const passwordHash = await hashPassphrase(input.password);
   const now = new Date();
 

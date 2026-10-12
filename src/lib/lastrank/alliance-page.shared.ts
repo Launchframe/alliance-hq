@@ -544,8 +544,53 @@ function buildSuggestions(
 }
 
 /**
+ * Sticky `lastrank_public_id` is trusted only when the LastRank display name
+ * still exact-matches an HQ current or previous name. Historical sole-fuzzy
+ * auto-matches (pre-#604) wrote wrong public ids onto near-miss commanders
+ * (e.g. Mike↔Nike); without this check those ids keep winning forever and
+ * re-apply ranks/THP on every cron `--apply`.
+ */
+export function lastRankStickyNameCorroborated(
+  lastRankName: string,
+  hq: Pick<LastRankHqRosterRow, "currentNames" | "previousNames">,
+): boolean {
+  const key = normalizeCommanderName(lastRankName);
+  if (!key) return false;
+  for (const name of [...hq.currentNames, ...hq.previousNames]) {
+    if (normalizeCommanderName(name) === key) return true;
+  }
+  return false;
+}
+
+/**
+ * HQ commanders whose stored `lastrank_public_id` points at a live LastRank
+ * member on the page but did not produce a match (failed name corroboration
+ * or ambiguous sticky). Clear these on `--apply` so exact name can reclaim.
+ */
+export function collectStaleLastRankStickyCommanderIds(
+  lastRankMembers: LastRankAllianceMember[],
+  hqRows: LastRankHqRosterRow[],
+  match: LastRankMatchResult,
+): string[] {
+  const livePublicIds = new Set(
+    lastRankMembers.map((member) => member.publicId),
+  );
+  const matchedCommanderIds = new Set(
+    match.matched.map((row) => row.hq.commanderId),
+  );
+  const stale: string[] = [];
+  for (const hq of hqRows) {
+    if (hq.lastrankPublicId == null) continue;
+    if (!livePublicIds.has(hq.lastrankPublicId)) continue;
+    if (matchedCommanderIds.has(hq.commanderId)) continue;
+    stale.push(hq.commanderId);
+  }
+  return stale;
+}
+
+/**
  * Cascading match with LastRank name as canon:
- * 1. sticky LastRank public id
+ * 1. sticky LastRank public id **with name corroboration**
  * 2. exact current names
  * 3. exact previous names
  * 4. fuzzy current / previous — **suggestions only** (never auto-match)
@@ -554,6 +599,11 @@ function buildSuggestions(
  * auto-match. That silently wrote alliance ranks (incl. R5) onto the wrong HQ
  * member on cron `--apply`, and hybrid owner invites trust that rank. Fuzzy
  * candidates stay unmatched with suggestions for `--interactive` confirm.
+ *
+ * Sticky public ids without an exact current/previous name match fall through
+ * to the name cascade (and are cleared on apply via
+ * {@link collectStaleLastRankStickyCommanderIds}) so poisoned historical ids
+ * cannot keep claiming the wrong HQ commander.
  *
  * Does not prompt — interactive resolution is a separate pass.
  */
@@ -576,17 +626,19 @@ export function matchLastRankMembersToHq(
     );
     const publicUnique = uniqueByCommander(publicIdHits);
     if (publicUnique.length === 1) {
-      claimed.add(publicUnique[0].commanderId);
-      matched.push({
-        status: "matched",
-        lastRank,
-        hq: publicUnique[0],
-        matchMethod: "lastrank_public_id",
-        fuzzyScore: null,
-      });
-      continue;
-    }
-    if (publicUnique.length > 1) {
+      if (lastRankStickyNameCorroborated(lastRank.name, publicUnique[0])) {
+        claimed.add(publicUnique[0].commanderId);
+        matched.push({
+          status: "matched",
+          lastRank,
+          hq: publicUnique[0],
+          matchMethod: "lastrank_public_id",
+          fuzzyScore: null,
+        });
+        continue;
+      }
+      // Poisoned / divergent sticky — do not claim; fall through to names.
+    } else if (publicUnique.length > 1) {
       unmatched.push({
         status: "ambiguous",
         lastRank,

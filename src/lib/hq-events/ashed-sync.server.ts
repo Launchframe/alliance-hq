@@ -2,7 +2,18 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { and, asc, eq, inArray, or, lt, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -178,7 +189,6 @@ export async function syncEventResults(
     .where(boardFilter);
 
   const runLease = `lease-${nanoid(16)}`;
-  const leaseUntil = new Date(Date.now() + LEASE_MS);
 
   for (const board of boards) {
     // Resolve (or provision) the remote event id once per board. Provisioning
@@ -210,6 +220,31 @@ export async function syncEventResults(
         continue;
       }
     }
+
+    // Snapshot items BEFORE the remote read: a claim only succeeds when the
+    // row is unchanged since this snapshot, so any peer POST that completed
+    // after it is either visible in the remote read or fails our claim.
+    const items = await db
+      .select({
+        ...getTableColumns(schema.hqEventSyncItems),
+        updatedAtText: sql<string>`${schema.hqEventSyncItems.updatedAt}::text`,
+      })
+      .from(schema.hqEventSyncItems)
+      .where(
+        and(
+          eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
+          eq(schema.hqEventSyncItems.hqEventId, event.id),
+          eq(schema.hqEventSyncItems.boardId, board.id),
+          or(
+            eq(schema.hqEventSyncItems.status, "pending"),
+            eq(schema.hqEventSyncItems.status, "failed"),
+            eq(schema.hqEventSyncItems.status, "uncertain"),
+            // Re-read only: bind if remote now matches HQ; never POST over conflict.
+            eq(schema.hqEventSyncItems.status, "conflict"),
+          ),
+        ),
+      )
+      .orderBy(asc(schema.hqEventSyncItems.memberId));
 
     // Remote rows for this event/board — one read per board, verified against
     // alliance/event/team before any POST is considered.
@@ -245,26 +280,7 @@ export async function syncEventResults(
       remoteByMember.set(key, list);
     }
 
-    const items = await db
-      .select()
-      .from(schema.hqEventSyncItems)
-      .where(
-        and(
-          eq(schema.hqEventSyncItems.allianceId, actor.allianceId),
-          eq(schema.hqEventSyncItems.hqEventId, event.id),
-          eq(schema.hqEventSyncItems.boardId, board.id),
-          or(
-            eq(schema.hqEventSyncItems.status, "pending"),
-            eq(schema.hqEventSyncItems.status, "failed"),
-            eq(schema.hqEventSyncItems.status, "uncertain"),
-            // Re-read only: bind if remote now matches HQ; never POST over conflict.
-            eq(schema.hqEventSyncItems.status, "conflict"),
-          ),
-        ),
-      )
-      .orderBy(asc(schema.hqEventSyncItems.memberId));
-
-    for (const item of items) {
+    for (const { updatedAtText, ...item } of items) {
       // A stale lease/older desired revision can never mark newer data synced.
       if (
         item.lastSyncedRevision != null &&
@@ -292,48 +308,55 @@ export async function syncEventResults(
           })
         : null;
 
-      if (projection == null) {
-        // Nothing to send — member has no outbound value.
-        await markItem(item.id, {
-          status: "synced",
-          remoteRowId: null,
-          lastSyncedRevision: item.desiredRevision,
-          lastSyncedValueHash: item.desiredPayloadHash,
-          errorCode: null,
-        });
-        summary.synced += 1;
-        continue;
-      }
-      if (BigInt(projection) > BigInt(Number.MAX_SAFE_INTEGER)) {
-        await markItem(item.id, {
-          status: "unsupported",
-          errorCode: "precisionUnsupported",
-        });
-        summary.unsupported += 1;
-        continue;
-      }
-
-      // Lease the item so two runs never double-POST.
+      // Lease from claim time (not sync start) so a long board loop cannot
+      // publish already-expired leases that a peer run steals mid-POST.
+      // The updated_at fence rejects a row a peer touched after our snapshot
+      // (our remote read may predate its POST).
       const claimed = await db
         .update(schema.hqEventSyncItems)
         .set({
           leaseToken: runLease,
-          leaseExpiresAt: leaseUntil,
+          leaseExpiresAt: new Date(Date.now() + LEASE_MS),
           updatedAt: new Date(),
         })
         .where(
           and(
             eq(schema.hqEventSyncItems.id, item.id),
-            or(
-              isNull(schema.hqEventSyncItems.leaseExpiresAt),
-              lt(schema.hqEventSyncItems.leaseExpiresAt, new Date()),
-              eq(schema.hqEventSyncItems.leaseToken, runLease),
-            ),
+            sql`${schema.hqEventSyncItems.updatedAt} = ${updatedAtText}::text::timestamptz`,
+            noLiveLease(new Date()),
           ),
         )
         .returning({ id: schema.hqEventSyncItems.id });
       if (claimed.length === 0) {
         summary.pending += 1;
+        continue;
+      }
+
+      if (projection == null) {
+        // Nothing to send — member has no outbound value.
+        const marked = await markItem(
+          item.id,
+          {
+            status: "synced",
+            remoteRowId: null,
+            lastSyncedRevision: item.desiredRevision,
+            lastSyncedValueHash: item.desiredPayloadHash,
+            errorCode: null,
+          },
+          runLease,
+        );
+        if (marked) summary.synced += 1;
+        else summary.pending += 1;
+        continue;
+      }
+      if (BigInt(projection) > BigInt(Number.MAX_SAFE_INTEGER)) {
+        const marked = await markItem(
+          item.id,
+          { status: "unsupported", errorCode: "precisionUnsupported" },
+          runLease,
+        );
+        if (marked) summary.unsupported += 1;
+        else summary.pending += 1;
         continue;
       }
 
@@ -349,6 +372,7 @@ export async function syncEventResults(
         team,
         memberResult,
         event,
+        leaseToken: runLease,
       });
       summary[outcome] += 1;
     }
@@ -377,32 +401,45 @@ async function reconcileRemoteRow(input: {
   team: string | null;
   memberResult: typeof schema.hqEventMemberResults.$inferSelect | undefined;
   event: typeof schema.hqEvents.$inferSelect;
+  leaseToken: string;
 }): Promise<Exclude<keyof EventSyncSummary, "status">> {
-  const { item, remote, desiredValue } = input;
+  const { item, remote, desiredValue, leaseToken } = input;
 
   if (remote.length > 1) {
-    await markItem(item.id, { status: "conflict", errorCode: "duplicate_remote" });
-    return "conflict";
+    const marked = await markItem(
+      item.id,
+      { status: "conflict", errorCode: "duplicate_remote" },
+      leaseToken,
+    );
+    return marked ? "conflict" : "pending";
   }
   if (remote.length === 1) {
     const row = remote[0]!;
     if (scoresEqual(row.score, desiredValue)) {
-      await markItem(item.id, {
-        status: "synced",
-        remoteRowId: row.id ?? null,
-        lastSyncedRevision: item.desiredRevision,
-        lastSyncedValueHash: sha256(desiredValue),
-        errorCode: null,
-      });
-      return "synced";
+      const marked = await markItem(
+        item.id,
+        {
+          status: "synced",
+          remoteRowId: row.id ?? null,
+          lastSyncedRevision: item.desiredRevision,
+          lastSyncedValueHash: sha256(desiredValue),
+          errorCode: null,
+        },
+        leaseToken,
+      );
+      return marked ? "synced" : "pending";
     }
     // Remote row exists with a different value — never overwrite.
-    await markItem(item.id, {
-      status: "conflict",
-      errorCode: "remote_value_differs",
-      remoteRowId: row.id ?? null,
-    });
-    return "conflict";
+    const marked = await markItem(
+      item.id,
+      {
+        status: "conflict",
+        errorCode: "remote_value_differs",
+        remoteRowId: row.id ?? null,
+      },
+      leaseToken,
+    );
+    return marked ? "conflict" : "pending";
   }
 
   // No remote row → POST the projection once.
@@ -421,23 +458,33 @@ async function reconcileRemoteRow(input: {
       input.submitEntity,
       payload,
     )) as { id?: string };
-    await markItem(item.id, {
-      status: "synced",
-      remoteRowId: created.id ?? null,
-      lastSyncedRevision: item.desiredRevision,
-      lastSyncedValueHash: sha256(desiredValue),
-      errorCode: null,
-    });
-    return "synced";
+    const marked = await markItem(
+      item.id,
+      {
+        status: "synced",
+        remoteRowId: created.id ?? null,
+        lastSyncedRevision: item.desiredRevision,
+        lastSyncedValueHash: sha256(desiredValue),
+        errorCode: null,
+      },
+      leaseToken,
+    );
+    // Lost the lease after POST: peer may also have written — next run re-reads.
+    return marked ? "synced" : "uncertain";
   } catch (error) {
     const code = remoteStatusCode(error);
     // 5xx/timeouts after POST: reply may have been lost — never re-POST
     // blindly; the next run re-reads and binds an unambiguous match.
     const uncertain = code == null || code >= 500;
-    await markItem(item.id, {
-      status: uncertain ? "uncertain" : "failed",
-      errorCode: uncertain ? "post_uncertain" : `remote_${code}`,
-    });
+    const marked = await markItem(
+      item.id,
+      {
+        status: uncertain ? "uncertain" : "failed",
+        errorCode: uncertain ? "post_uncertain" : `remote_${code}`,
+      },
+      leaseToken,
+    );
+    if (!marked) return "pending";
     return uncertain ? "uncertain" : "failed";
   }
 }
@@ -463,6 +510,14 @@ async function listRemoteRows(
   return rows;
 }
 
+/** SQL form of `flagBoardItemsMayTouchLease` (ashed-sync-lease.shared). */
+function noLiveLease(now: Date) {
+  return or(
+    isNull(schema.hqEventSyncItems.leaseExpiresAt),
+    lt(schema.hqEventSyncItems.leaseExpiresAt, now),
+  );
+}
+
 async function flagBoardItems(
   actor: EventActor,
   input: { eventId: string; boardIds?: string[] },
@@ -476,6 +531,7 @@ async function flagBoardItems(
   if (input.boardIds?.length) {
     conditions.push(inArray(schema.hqEventSyncItems.boardId, input.boardIds));
   }
+  const now = new Date();
   const updated = await db
     .update(schema.hqEventSyncItems)
     .set({
@@ -483,7 +539,7 @@ async function flagBoardItems(
       errorCode: patch.errorCode,
       leaseToken: null,
       leaseExpiresAt: null,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(
       and(
@@ -493,12 +549,20 @@ async function flagBoardItems(
           eq(schema.hqEventSyncItems.status, "failed"),
           eq(schema.hqEventSyncItems.status, "uncertain"),
         ),
+        // Never clear a live lease mid-POST — a concurrent incomplete_read
+        // flag would otherwise let a peer reclaim and double-POST.
+        noLiveLease(now),
       ),
     )
     .returning({ id: schema.hqEventSyncItems.id });
   return updated.length;
 }
 
+/**
+ * Apply a sync outcome. When `leaseToken` is set, only the lease holder may
+ * write — a stale runner must not clear a peer's lease or mark synced after a
+ * double-POST race. Returns false when the lease was lost (or the row moved on).
+ */
 async function markItem(
   itemId: string,
   patch: {
@@ -508,9 +572,10 @@ async function markItem(
     lastSyncedValueHash?: string | null;
     errorCode?: string | null;
   },
-): Promise<void> {
+  leaseToken?: string,
+): Promise<boolean> {
   const db = getDb();
-  await db
+  const updated = await db
     .update(schema.hqEventSyncItems)
     .set({
       status: patch.status,
@@ -527,7 +592,18 @@ async function markItem(
       retryAt: patch.status === "synced" ? null : new Date(Date.now() + 60_000),
       updatedAt: new Date(),
     })
-    .where(eq(schema.hqEventSyncItems.id, itemId));
+    .where(
+      leaseToken
+        ? and(
+            eq(schema.hqEventSyncItems.id, itemId),
+            eq(schema.hqEventSyncItems.leaseToken, leaseToken),
+            // Still inside the lease window — expired holders must not finish.
+            gt(schema.hqEventSyncItems.leaseExpiresAt, new Date()),
+          )
+        : eq(schema.hqEventSyncItems.id, itemId),
+    )
+    .returning({ id: schema.hqEventSyncItems.id });
+  return updated.length > 0;
 }
 
 /** Re-exported for tests: the value pushed remotely for a member result. */
