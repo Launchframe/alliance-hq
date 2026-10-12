@@ -3,6 +3,8 @@ export const MERGE_DUPLICATE_ERROR_CODES = [
   "not_active",
   "different_server",
   "conflicting_links",
+  "conflicting_profession",
+  "ashed_connection_required",
 ] as const;
 
 export type MergeDuplicateErrorCode = (typeof MERGE_DUPLICATE_ERROR_CODES)[number];
@@ -10,7 +12,14 @@ export type MergeDuplicateErrorCode = (typeof MERGE_DUPLICATE_ERROR_CODES)[numbe
 /** i18n key under `members.mergeCommander.errors`. */
 export function mergeDuplicateErrorKey(
   code: MergeDuplicateErrorCode | "generic",
-): "sameMember" | "notActive" | "differentServer" | "conflictingLinks" | "generic" {
+):
+  | "sameMember"
+  | "notActive"
+  | "differentServer"
+  | "conflictingLinks"
+  | "conflictingProfession"
+  | "ashedConnectionRequired"
+  | "generic" {
   switch (code) {
     case "same_member":
       return "sameMember";
@@ -20,6 +29,10 @@ export function mergeDuplicateErrorKey(
       return "differentServer";
     case "conflicting_links":
       return "conflictingLinks";
+    case "conflicting_profession":
+      return "conflictingProfession";
+    case "ashed_connection_required":
+      return "ashedConnectionRequired";
     case "generic":
       return "generic";
     default: {
@@ -45,6 +58,8 @@ export type MergeSide = {
   gameServerNumber: number | null;
   gameUid: string | null;
   lastrankPublicId: number | null;
+  /** HQ profession on the commander row (Engineer / War Leader / …). */
+  profession: string | null;
   /** HQ users linked via hq_member_links or hq_user_commanders. */
   hqUserIds: string[];
   discordUserId: string | null;
@@ -81,6 +96,9 @@ export function evaluateMergeEligibility(
   }
   if (distinctNonNull(kept.gameServerNumber, duplicate.gameServerNumber)) {
     return { ok: false, code: "different_server" };
+  }
+  if (distinctNonNull(kept.profession, duplicate.profession)) {
+    return { ok: false, code: "conflicting_profession" };
   }
   if (
     distinctNonNull(kept.gameUid, duplicate.gameUid) ||
