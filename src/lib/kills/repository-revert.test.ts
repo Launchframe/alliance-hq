@@ -204,6 +204,16 @@ describe("revertLatestVideoParseKillsIfStillCurrent", () => {
     expect(updateWhere).not.toHaveBeenCalled();
   });
 
+  it("returns false when the commander row is missing", async () => {
+    selectForUpdate.mockResolvedValueOnce([]);
+
+    await expect(
+      revertLatestVideoParseKillsIfStillCurrent("missing-cmd", 2500),
+    ).resolves.toBe(false);
+    expect(selectLimit).not.toHaveBeenCalled();
+    expect(updateWhere).not.toHaveBeenCalled();
+  });
+
   it("documents the pre-fix TOCTOU: unlocked tip check then restore can clobber a newer total", () => {
     // Concurrent upsert lands 3000 after an unlocked read of tip=2500 / current=2500.
     // Old revert would still discard evt-1 and write previousTotal=2000 onto commanders.
