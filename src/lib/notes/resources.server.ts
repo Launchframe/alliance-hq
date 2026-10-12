@@ -116,10 +116,13 @@ export async function touchKnowledgeResource(tx: KnowledgeTransaction, resourceI
  * Remap Notes/knowledge rows from a merged HQ principal onto the canonical user.
  *
  * Ownership and grant-subject remaps must **not** bump `accessVersion` / `version`:
- * completed AI indexes and in-flight history jobs fence on those versions, and Ask
- * retrieval requires `job.ownerHqUserId = resource.ownerHqUserId` plus matching
- * access lineage. Bumping without remapping jobs silently empties Ask/retrieve and
- * cancels processing; remapping owners while preserving versions keeps corpus live.
+ * index and history jobs fence on those versions and on `ownerHqUserId`, and a
+ * grant-subject bump would also invalidate shared notes for every other grantee.
+ *
+ * The `knowledge_consent_revision` trigger still treats any owner change as a new
+ * owner: it clears AI consent/approval and advances `knowledge_consent_version`, so
+ * the merged owner's completed indexes stop serving retrieval (and pending index jobs
+ * are cancelled) until they re-approve and re-index. That is the fail-closed default.
  */
 export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: string, canonicalId: string) {
   await tx.execute(sql`insert into knowledge_workspace_preferences(hq_user_id, alliance_id, state, version, updated_at)
@@ -128,8 +131,9 @@ export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: str
   await tx.update(schema.knowledgeResources).set({
     ownerHqUserId: canonicalId, updatedAt: new Date(),
   }).where(eq(schema.knowledgeResources.ownerHqUserId, sourceId));
-  // Keep index / history / generation job principals aligned with remapped ownership
-  // so retrieval lineage and claim authority survive the merge TX.
+  // Keep index / history / generation job principals aligned with remapped ownership.
+  // Generation jobs keep their original sessionId; the merge deletes the source user's
+  // sessions, so the worker cannot resolve an actor and cancels the job.
   await tx.update(schema.knowledgeIndexJobs).set({
     ownerHqUserId: canonicalId, updatedAt: new Date(),
   }).where(eq(schema.knowledgeIndexJobs.ownerHqUserId, sourceId));
