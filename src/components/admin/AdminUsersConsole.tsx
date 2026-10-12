@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { AdminCommanderTransferPanel } from "@/components/admin/AdminCommanderTransferPanel";
 import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
 import {
   AdminUserSignInMethodsPanel,
@@ -654,6 +655,14 @@ export function AdminUsersConsole() {
                           {t("noCommanderRosterMemberships")}
                         </p>
                       )}
+                      {commander.gameUid ? (
+                        <AdminCommanderTransferPanel
+                          hqUserId={selectedUser.id}
+                          commanderId={commander.commanderId}
+                          alliances={alliances}
+                          onTransferred={() => loadUserDetail(selectedUser.id)}
+                        />
+                      ) : null}
                     </div>
                   ))}
                 </div>

@@ -16,6 +16,7 @@ vi.mock("@/lib/members/member-tenure.server", () => ({
 }));
 
 vi.mock("@/lib/members/commander-identity.server", () => ({
+  resolveCommanderByUid: vi.fn().mockResolvedValue(null),
   syncCommanderIdentityFromMemberLink: (...args: unknown[]) =>
     syncCommanderIdentityFromMemberLink(...args),
 }));
@@ -84,13 +85,19 @@ describe("linkDiscordMember replaceAll safety", () => {
     const update = vi.fn();
 
     // isGameUidClaimedByOtherDiscordUser → 3 parallel selects (hq link, hq
-    // claims, discord claims), then occupancy select, then user-links select.
+    // claims, discord claims), then reservation allowlist hq-link lookup,
+    // then occupancy select, then user-links select.
     const selectQueue = [
-      [], // getDiscordHqLink
+      [], // getDiscordHqLink (uid conflict)
       [], // hqClaims
       [], // discordClaims
+      [], // getDiscordHqLink (pending-claim reservation allowlist)
       [{ discordUserId: "other-discord", ashedMemberId: "c-new" }], // occupancy
     ];
+
+    vi.doMock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
+      isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
+    }));
 
     vi.doMock("@/lib/db", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/db")>();
@@ -160,9 +167,10 @@ describe("linkDiscordMember replaceAll safety", () => {
     });
 
     const selectQueue = [
-      [], // getDiscordHqLink
+      [], // getDiscordHqLink (uid conflict)
       [], // hqClaims
       [], // discordClaims
+      [], // getDiscordHqLink (pending-claim reservation allowlist)
       [], // occupancy (free)
       [
         {
@@ -179,6 +187,10 @@ describe("linkDiscordMember replaceAll safety", () => {
         },
       ], // user links
     ];
+
+    vi.doMock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
+      isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
+    }));
 
     vi.doMock("@/lib/db", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/db")>();
@@ -252,9 +264,10 @@ describe("linkDiscordMember replaceAll safety", () => {
     });
 
     const selectQueue = [
-      [],
-      [],
-      [],
+      [], // uid conflict getDiscordHqLink
+      [], // hqClaims
+      [], // discordClaims
+      [], // reservation allowlist getDiscordHqLink
       [], // occupancy free
       [
         {
@@ -265,6 +278,10 @@ describe("linkDiscordMember replaceAll safety", () => {
         },
       ],
     ];
+
+    vi.doMock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
+      isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
+    }));
 
     vi.doMock("@/lib/db", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/db")>();

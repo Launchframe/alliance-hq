@@ -927,6 +927,31 @@
       "commanderMainSquad": "Esquadrão principal {squad}",
       "commanderRosterMembershipsTitle": "Membros do roster",
       "noCommanderRosterMemberships": "Nenhuma associação ativa no roster para este comandante.",
+      "transfer": {
+        "button": "Transferir servidor…",
+        "title": "Transferir comandante para outra aliança",
+        "hint": "Use quando este comandante se mudou para outro servidor de estado. Atualiza o servidor lar do comandante, mescla o histórico da entrada de roster de destino neste comandante e vincula esta conta do HQ a essa entrada.",
+        "destinationAlliance": "Aliança de destino",
+        "chooseAlliance": "Escolher aliança…",
+        "destinationMember": "Entrada de roster de destino",
+        "chooseMember": "Escolher entrada de roster…",
+        "noMembers": "Nenhuma entrada de roster sem vínculo nesta aliança.",
+        "preview": "Pré-visualizar",
+        "previewSummary": "Servidor {fromServer} → {toServer}. Vincula a {memberName} em {alliance} e move {historyCount, plural, =0 {nenhum registro de histórico} one {# registro de histórico} other {# registros de histórico}} do comandante duplicado.",
+        "confirm": "Transferir",
+        "cancel": "Cancelar",
+        "success": "Comandante transferido.",
+        "failed": "Não foi possível transferir o comandante.",
+        "errors": {
+          "commander_not_linked": "Este comandante não está vinculado a esta conta do HQ.",
+          "commander_missing_uid": "Este comandante não tem UID do jogo, então não pode ser transferido.",
+          "destination_server_unknown": "A aliança de destino não tem servidor do jogo definido.",
+          "destination_member_not_found": "Essa entrada de roster não está mais ativa na aliança de destino.",
+          "destination_member_claimed": "Essa entrada de roster já está vinculada a outra conta do HQ ou usuário do Discord.",
+          "destination_commander_has_uid": "Essa entrada de roster está vinculada a outro UID do jogo.",
+          "user_already_linked": "Esta conta do HQ já está vinculada a outra entrada de roster nessa aliança."
+        }
+      },
       "ids": {
         "hqUserId": "ID do usuário HQ",
         "membershipId": "ID da associação",
@@ -3470,11 +3495,14 @@
       "confirm": "Mesclar",
       "cancel": "Cancelar",
       "success": "{duplicate} foi mesclado em {name}.",
+      "ashedRetireFailed": "A HQ mesclou os membros, mas o Ashed ainda tem o duplicado como ativo. Não sincronize o roster até um oficial reconectar o Ashed e o duplicado ser aposentado lá — sincronizar antes pode trazer o duplicado de volta.",
       "errors": {
         "sameMember": "Escolha outro membro.",
         "notActive": "Os dois membros precisam estar ativos nesta aliança.",
         "differentServer": "Esses membros estão em servidores de jogo diferentes.",
         "conflictingLinks": "Os dois membros estão vinculados a contas diferentes, então não podem ser mesclados.",
+        "conflictingProfession": "Esses membros têm profissões diferentes, então não podem ser mesclados.",
+        "ashedConnectionRequired": "Reconecte o Ashed antes de mesclar — sem uma conexão Ashed da aliança funcionando, a próxima sincronização do roster pode trazer o duplicado de volta.",
         "generic": "Não foi possível mesclar esses membros. Tente novamente."
       }
     }
@@ -3591,7 +3619,10 @@
     "subtitle": "Senha e passkey para sua conta HQ. Links mágicos continuam disponíveis.",
     "passwordSectionTitle": "Senha",
     "passwordSectionBodyUnset": "Você ainda não definiu uma senha. Contas por link mágico podem adicionar uma aqui.",
-    "passwordSectionBodySet": "Atualize sua senha. Você ainda pode entrar com link mágico ou passkey.",
+    "passwordSectionBodySet": "Atualize sua senha. Informe a senha atual e escolha uma nova. Você ainda pode entrar com link mágico ou passkey.",
+    "currentPassword": "Senha atual",
+    "currentPasswordRequired": "Informe sua senha atual.",
+    "currentPasswordIncorrect": "A senha atual está incorreta.",
     "newPassword": "Nova senha",
     "confirmPassword": "Confirmar senha",
     "passwordRequired": "Informe uma senha.",
@@ -5854,6 +5885,8 @@
     "wrongServer": "Seu UID pertence a um servidor estadual diferente desta aliança. Confira se entrou na aliança certa ou peça um novo convite ao R5.",
     "confirmHomeServerPrompt": "Seu Comandante está posicionado no servidor {lookupServer}, mas [{allianceTag}] joga no servidor {allianceServer}. Qual servidor {commanderName} chama de lar?",
     "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
+    "confirmServerTransferPrompt": "O HQ viu {commanderName} pela última vez no servidor {knownServer}, mas [{allianceTag}] está no servidor {allianceServer}. {commanderName} se transferiu para o servidor {allianceServer}?",
+    "serverTransferSendHome": "O HQ viu {commanderName} pela última vez no servidor {knownServer}. Se você se transferiu para o servidor {allianceServer}, envie seu Comandante para casa no jogo e tente novamente.",
     "awaitingOwner": "Verificamos seu comandante, mas o nome do roster ainda não confere. O dono da aliança recebeu um e-mail — um oficial precisa confirmar o membro correto no Alliance HQ antes de concluir o vínculo.",
     "nameMismatchRetry": "O Last War mostra seu nome como {gameName}. Digite exatamente (ou cole de um colega de aliança) e tente novamente.",
     "confirmServerMissing": "Não conseguimos ler seu servidor estadual no Last War. Informe o número do servidor estadual da sua aliança.",
@@ -5941,6 +5974,10 @@
     "confirmHomeServerAllianceChoice": "[{tag}] no servidor {server}",
     "positionNotHomeTitle": "Envie seu Comandante para casa",
     "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
+    "confirmServerTransferTitle": "Você se transferiu de servidor?",
+    "confirmServerTransferYes": "Sim, me transferi para o servidor {server} de [{tag}]",
+    "confirmServerTransferNo": "Não, meu servidor lar ainda é o {server}",
+    "serverTransferSendHomeTitle": "Envie seu Comandante para casa",
     "uidBypass": {
       "title": "UIDs de teste (pré-produção)",
       "badge": "Só pré-prod",
@@ -6058,6 +6095,8 @@
       "linkedWithReviewNoHq": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later. Link an Alliance HQ account anytime for web features.",
       "confirmHomeServerPrompt": "Seu Comandante está posicionado no servidor {lookupServer}, mas [{allianceTag}] joga no servidor {allianceServer}. Qual servidor {commanderName} chama de lar?",
       "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
+      "confirmServerTransferPrompt": "O HQ viu {commanderName} pela última vez no servidor {knownServer}, mas [{allianceTag}] está no servidor {allianceServer}. {commanderName} se transferiu para o servidor {allianceServer}?",
+      "serverTransferSendHome": "O HQ viu {commanderName} pela última vez no servidor {knownServer}. Se você se transferiu para o servidor {allianceServer}, envie seu Comandante para casa no jogo e tente novamente.",
       "rosterFull": "Your alliance is full. Last War verified **{gameName}**, but we could not find **{gameName}** in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
     },
     "vr": {
@@ -6419,6 +6458,10 @@
     "confirmHomeHeading": "Qual servidor seu Comandante chama de lar?",
     "confirmHomeAllianceChoice": "[{tag}] no servidor {server}",
     "confirmHomeLookupChoice": "Servidor {server} (onde estou posicionado agora)",
+    "confirmServerTransferHeading": "Você se transferiu de servidor?",
+    "confirmServerTransferYes": "Sim, me transferi para o servidor {server} de [{tag}]",
+    "confirmServerTransferNo": "Não, meu servidor lar ainda é o {server}",
+    "serverTransferSendHomeHeading": "Envie seu Comandante para casa",
     "backToDiscord": "Você pode fechar esta aba e voltar ao Discord.",
     "invalidPlayerId": "Informe um ID de jogador com 12–16 dígitos do perfil no jogo.",
     "genericError": "Algo deu errado. Volte ao Discord e execute `/link-commander` novamente."

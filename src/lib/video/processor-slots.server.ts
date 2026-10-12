@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { resolveSessionAllianceId, listSessionAlliances } from "@/lib/alliance/session-memberships";
@@ -497,52 +497,80 @@ export async function grantVideoProcessor(params: {
   const { allianceId, hqUserId, grantedByHqUserId, viaCredentialShareId } =
     params;
 
-  if (await isAllianceVideoProcessor(allianceId, hqUserId)) {
-    return { ok: true, alreadyGranted: true };
-  }
-
-  if (!viaCredentialShareId) {
-    const count = await countAllianceVideoProcessors(allianceId);
-    if (count >= MAX_VIDEO_PROCESSORS) {
-      return { ok: false, code: "slots_full" };
-    }
-  } else {
-    const db = getDb();
-    const [share] = await db
-      .select({
-        allianceId: schema.ashedCredentialShares.allianceId,
-        delegateHqUserId: schema.ashedCredentialShares.delegateHqUserId,
-        status: schema.ashedCredentialShares.status,
-        capabilities: schema.ashedCredentialShares.capabilities,
-      })
-      .from(schema.ashedCredentialShares)
-      .where(eq(schema.ashedCredentialShares.id, viaCredentialShareId))
-      .limit(1);
-
-    const capabilities = share
-      ? parseCredentialShareCapabilities(share.capabilities)
-      : [];
-    if (
-      !share ||
-      share.status !== "active" ||
-      share.allianceId !== allianceId ||
-      share.delegateHqUserId !== hqUserId ||
-      !capabilities.includes("video:process")
-    ) {
-      return { ok: false, code: "invalid_share_link" };
-    }
-  }
-
   const db = getDb();
-  await db.insert(schema.allianceVideoProcessors).values({
-    id: nanoid(16),
-    allianceId,
-    hqUserId,
-    grantedByHqUserId,
-    viaCredentialShareId: viaCredentialShareId ?? null,
-  });
+  // Serialize count→insert for direct (non-share) grants so concurrent admins
+  // cannot race past MAX_VIDEO_PROCESSORS. There is no CHECK/unique on slot
+  // count — only (alliance_id, hq_user_id) uniqueness.
+  return db.transaction(async (tx) => {
+    if (!viaCredentialShareId) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`video-processors:${allianceId}`}, 0))`,
+      );
+    }
 
-  return { ok: true, alreadyGranted: false };
+    const [existing] = await tx
+      .select({ id: schema.allianceVideoProcessors.id })
+      .from(schema.allianceVideoProcessors)
+      .where(
+        and(
+          eq(schema.allianceVideoProcessors.allianceId, allianceId),
+          eq(schema.allianceVideoProcessors.hqUserId, hqUserId),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      return { ok: true as const, alreadyGranted: true };
+    }
+
+    if (!viaCredentialShareId) {
+      const counted = await tx
+        .select({ id: schema.allianceVideoProcessors.id })
+        .from(schema.allianceVideoProcessors)
+        .where(
+          and(
+            eq(schema.allianceVideoProcessors.allianceId, allianceId),
+            isNull(schema.allianceVideoProcessors.viaCredentialShareId),
+          ),
+        );
+      if (counted.length >= MAX_VIDEO_PROCESSORS) {
+        return { ok: false as const, code: "slots_full" as const };
+      }
+    } else {
+      const [share] = await tx
+        .select({
+          allianceId: schema.ashedCredentialShares.allianceId,
+          delegateHqUserId: schema.ashedCredentialShares.delegateHqUserId,
+          status: schema.ashedCredentialShares.status,
+          capabilities: schema.ashedCredentialShares.capabilities,
+        })
+        .from(schema.ashedCredentialShares)
+        .where(eq(schema.ashedCredentialShares.id, viaCredentialShareId))
+        .limit(1);
+
+      const capabilities = share
+        ? parseCredentialShareCapabilities(share.capabilities)
+        : [];
+      if (
+        !share ||
+        share.status !== "active" ||
+        share.allianceId !== allianceId ||
+        share.delegateHqUserId !== hqUserId ||
+        !capabilities.includes("video:process")
+      ) {
+        return { ok: false as const, code: "invalid_share_link" as const };
+      }
+    }
+
+    await tx.insert(schema.allianceVideoProcessors).values({
+      id: nanoid(16),
+      allianceId,
+      hqUserId,
+      grantedByHqUserId,
+      viaCredentialShareId: viaCredentialShareId ?? null,
+    });
+
+    return { ok: true as const, alreadyGranted: false };
+  });
 }
 
 export async function revokeVideoProcessor(params: {

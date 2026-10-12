@@ -10,6 +10,7 @@ const base44ListAlliances = vi.fn();
 const filterAccessibleAlliances = vi.fn();
 const canInstallAshedBotCredentials = vi.fn();
 const syncAshedAllianceForBot = vi.fn();
+const getAllianceAshedCredential = vi.fn();
 const upsertAllianceAshedCredential = vi.fn();
 const decryptSecret = vi.fn((value: string) => `decrypted:${value}`);
 const encryptSecret = vi.fn((value: string) => `encrypted:${value}`);
@@ -59,6 +60,8 @@ vi.mock("@/lib/rbac/sync-ashed-roles", () => ({
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
+  getAllianceAshedCredential: (...args: unknown[]) =>
+    getAllianceAshedCredential(...args),
   upsertAllianceAshedCredential: (...args: unknown[]) =>
     upsertAllianceAshedCredential(...args),
 }));
@@ -109,6 +112,7 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
       { id: "a1", tag: "LFgo", accessRole: "maintainer" },
     ]);
     canInstallAshedBotCredentials.mockReturnValue(false);
+    getAllianceAshedCredential.mockResolvedValue(null);
   });
 
   it("rejects Ashed collaborators/maintainers before upserting bot credentials", async () => {
@@ -131,7 +135,59 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
     expect(syncAshedAllianceForBot).not.toHaveBeenCalled();
   });
 
-  it("allows Ashed maintainers when allowAshedMaintainer is set for time-off repair", async () => {
+  it("rejects Ashed maintainer first-install even with allowAshedMaintainer", async () => {
+    getAllianceAshedCredential.mockResolvedValue(null);
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: expect.stringContaining("owner can install"),
+    });
+    expect(upsertAllianceAshedCredential).not.toHaveBeenCalled();
+    expect(syncAshedAllianceForBot).not.toHaveBeenCalled();
+  });
+
+  it("rejects Ashed maintainer overwrite while stored bot token is still valid", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: new Date("2099-06-01T00:00:00.000Z"),
+      registeredByHqUserId: "owner-hq",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: expect.stringContaining("still valid"),
+    });
+    expect(upsertAllianceAshedCredential).not.toHaveBeenCalled();
+  });
+
+  it("allows Ashed maintainers to repair expired credentials without stamping registrant", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      registeredByHqUserId: "owner-hq",
+    });
     syncAshedAllianceForBot.mockResolvedValue({
       hqAllianceId: "alliance-1",
       hqUserId: "hq-1",
@@ -150,12 +206,51 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
 
     expect(result).toEqual({ ok: true });
     expect(syncAshedAllianceForBot).toHaveBeenCalled();
-    expect(upsertAllianceAshedCredential).toHaveBeenCalledWith(
-      expect.objectContaining({ registeredByHqUserId: "hq-1" }),
+    const payload = upsertAllianceAshedCredential.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        allianceId: "alliance-1",
+        encryptedToken: "encrypted:decrypted:tok",
+      }),
+    );
+    expect(payload).not.toHaveProperty("registeredByHqUserId");
+  });
+
+  it("treats a null stored expiry as unknown and allows maintainer repair without stamping registrant", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: null,
+      registeredByHqUserId: "owner-hq",
+    });
+    syncAshedAllianceForBot.mockResolvedValue({
+      hqAllianceId: "alliance-1",
+      hqUserId: "hq-1",
+      roleName: "maintainer",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(upsertAllianceAshedCredential).toHaveBeenCalledTimes(1);
+    expect(upsertAllianceAshedCredential.mock.calls[0][0]).not.toHaveProperty(
+      "registeredByHqUserId",
     );
   });
 
-  it("allows maintainer credential shares for time-off repair via alliance_credentials:manage", async () => {
+  it("allows maintainer credential shares for expired time-off repair via alliance_credentials:manage", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      registeredByHqUserId: "owner-hq",
+    });
     sessionHoldsAshedIdentityForHqUser.mockResolvedValue(false);
     loadAshedConnectionForAllianceCapability.mockResolvedValue({
       appId: "shared-app",
@@ -186,6 +281,9 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
       delegatedAction: "alliance_credentials.upsert",
     });
     expect(upsertAllianceAshedCredential).toHaveBeenCalled();
+    expect(upsertAllianceAshedCredential.mock.calls[0][0]).not.toHaveProperty(
+      "registeredByHqUserId",
+    );
   });
 
   it("allows Ashed owners and does not clear Discord registrant on upsert", async () => {

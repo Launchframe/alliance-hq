@@ -279,9 +279,42 @@ export type MemberLinkServerGate =
  * roster-miss owner queue, etc.). Discord handlers use the eligibility helper
  * directly so they can map outcomes onto bot reply keys.
  */
+export function serverTransferMemberLinkResponse(input: {
+  kind: "confirm" | "send_home";
+  translate: ReturnType<typeof createMemberLinkTranslator>;
+  commanderName: string;
+  allianceTag: string;
+  knownServer: number;
+  allianceServer: number;
+}): MemberLinkApiResponse {
+  const values = {
+    commanderName: input.commanderName,
+    knownServer: input.knownServer,
+    allianceTag: input.allianceTag,
+    allianceServer: input.allianceServer,
+  };
+  return {
+    outcome:
+      input.kind === "confirm"
+        ? "confirm_server_transfer"
+        : "server_transfer_send_home",
+    message: input.translate(
+      input.kind === "confirm"
+        ? "confirmServerTransferPrompt"
+        : "serverTransferSendHome",
+      values,
+    ),
+    pending: null,
+    lookupGameUserName: input.commanderName,
+    knownServerNumber: input.knownServer,
+    allianceServerNumber: input.allianceServer,
+  };
+}
+
 export async function resolveMemberLinkServerGate(input: {
   allianceId: string;
   allianceTag: string;
+  hqUserId?: string | null;
   gameUid: string;
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
   translate: ReturnType<typeof createMemberLinkTranslator>;
@@ -296,7 +329,40 @@ export async function resolveMemberLinkServerGate(input: {
     lookupServer,
     allianceHomeConfirmed: input.allianceHomeConfirmed,
     userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+    hqUserId: input.hqUserId,
   });
+
+  if (eligibility.kind === "confirm_transfer") {
+    return {
+      ok: false,
+      response: serverTransferMemberLinkResponse({
+        kind: "confirm",
+        translate: input.translate,
+        commanderName: input.lookup.gameUserName,
+        allianceTag: input.allianceTag,
+        knownServer: eligibility.knownServer,
+        allianceServer: eligibility.allianceServer,
+      }),
+    };
+  }
+  if (
+    eligibility.kind === "rejected" &&
+    eligibility.reason === "transfer_position_mismatch" &&
+    eligibility.knownCommanderHomeServer != null &&
+    eligibility.allianceServer != null
+  ) {
+    return {
+      ok: false,
+      response: serverTransferMemberLinkResponse({
+        kind: "send_home",
+        translate: input.translate,
+        commanderName: input.lookup.gameUserName,
+        allianceTag: input.allianceTag,
+        knownServer: eligibility.knownCommanderHomeServer,
+        allianceServer: eligibility.allianceServer,
+      }),
+    };
+  }
 
   if (eligibility.kind === "confirm_home") {
     return {
@@ -673,6 +739,7 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
   const serverGate = await resolveMemberLinkServerGate({
     allianceId: input.allianceId,
     allianceTag: input.allianceTag,
+    hqUserId: input.hqUserId,
     gameUid: input.gameUid,
     lookup: input.lookup,
     translate,
@@ -721,6 +788,8 @@ export type DiscordRosterMissLinkRequestResult =
       lookupServer: number;
       allianceServer: number;
     }
+  | { status: "confirm_transfer"; knownServer: number; allianceServer: number }
+  | { status: "transfer_send_home"; knownServer: number; allianceServer: number }
   | { status: "position_not_home" }
   | { status: "wrong_server" }
   | { status: "failed" };
@@ -756,6 +825,8 @@ export async function createDiscordRosterMissLinkRequest(input: {
     lookupServer,
     allianceHomeConfirmed: input.allianceHomeConfirmed,
     userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+    hqUserId: input.hqUserId,
+    discordUserId: input.discordUserId,
   });
 
   if (eligibility.kind === "confirm_home") {
@@ -765,9 +836,27 @@ export async function createDiscordRosterMissLinkRequest(input: {
       allianceServer: eligibility.allianceServer,
     };
   }
+  if (eligibility.kind === "confirm_transfer") {
+    return {
+      status: "confirm_transfer",
+      knownServer: eligibility.knownServer,
+      allianceServer: eligibility.allianceServer,
+    };
+  }
   if (eligibility.kind === "rejected") {
     if (eligibility.reason === "user_claimed_lookup_home") {
       return { status: "position_not_home" };
+    }
+    if (
+      eligibility.reason === "transfer_position_mismatch" &&
+      eligibility.knownCommanderHomeServer != null &&
+      eligibility.allianceServer != null
+    ) {
+      return {
+        status: "transfer_send_home",
+        knownServer: eligibility.knownCommanderHomeServer,
+        allianceServer: eligibility.allianceServer,
+      };
     }
     return { status: "wrong_server" };
   }

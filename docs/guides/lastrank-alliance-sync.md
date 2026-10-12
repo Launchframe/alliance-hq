@@ -47,7 +47,7 @@ All current entries have `selfServiceImport: true`.
 
 ## Matching (LastRank name is canon)
 
-0. Stored `commanders.lastrank_public_id` when set
+0. Stored `commanders.lastrank_public_id` when set **and** the LastRank name exact-matches one of that commander's HQ current or previous names (normalized). An uncorroborated or ambiguous stored id (for example a wrong id from an older fuzzy match) does not bind; the row falls through to the steps below.
 1. Exact match against HQ **current** names (roster `current_name`, commander `primary_name`, stored `canonical_name`)
 2. Exact match against HQ **previous** names
 3. Fuzzy match against current names (`stringSimilarity` ≥ 0.6, unique winner)
@@ -55,6 +55,8 @@ All current entries have `selfServiceImport: true`.
 5. Still unmatched → CLI `--interactive` prompts for the HQ name to map
 
 Cron / API never prompts; unmatched rows are skipped.
+
+**Stale stored ids:** with `--apply`, any HQ commander whose stored `lastrank_public_id` points at a member on the current LastRank page but did not match (failed name corroboration or ambiguous) has that id cleared (counted as `stickyClearedStale` in the apply counts), so exact-name matching can reclaim the commander. Dry-run reports the same match result but leaves the stored id in the database until an `--apply` run.
 
 ## What HQ writes
 

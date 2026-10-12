@@ -38,6 +38,7 @@ function passwordErrorMessage(
 export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) {
   const t = useTranslations("accountSecurity");
   const [hasPassword, setHasPassword] = useState(initialHasPassword);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -50,6 +51,10 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
       setError(passwordErrorMessage(t, validation));
       return;
     }
+    if (hasPassword && !currentPassword.trim()) {
+      setError(t("currentPasswordRequired"));
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -58,12 +63,30 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
       const res = await fetch("/api/auth/password/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, confirmPassword }),
+        body: JSON.stringify({
+          password,
+          confirmPassword,
+          ...(hasPassword ? { currentPassword } : {}),
+        }),
       });
       if (!res.ok) {
-        setError(t("setPasswordFailed"));
+        let code: string | null = null;
+        try {
+          const data = (await res.json()) as { error?: string };
+          code = data.error ?? null;
+        } catch {
+          code = null;
+        }
+        if (code === "current_password_incorrect") {
+          setError(t("currentPasswordIncorrect"));
+        } else if (code === "current_password_required") {
+          setError(t("currentPasswordRequired"));
+        } else {
+          setError(t("setPasswordFailed"));
+        }
         return;
       }
+      setCurrentPassword("");
       setPassword("");
       setConfirmPassword("");
       setHasPassword(true);
@@ -88,6 +111,19 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
           void savePassword();
         }}
       >
+        {hasPassword ? (
+          <label className="block space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("currentPassword")}</span>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+              autoComplete="current-password"
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+            />
+          </label>
+        ) : null}
         <label className="block space-y-1 text-sm">
           <span className="text-hq-fg-muted">{t("newPassword")}</span>
           <input
