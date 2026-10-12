@@ -21,6 +21,7 @@ import { ROLE_IDS } from "@/lib/rbac/constants";
 
 import {
   assessMergeHqUsers,
+  mergeAllianceMembershipsIntoCanonical,
   preferredMembershipRoleId,
 } from "./merge-hq-users.server";
 
@@ -276,5 +277,168 @@ describe("preferredMembershipRoleId", () => {
     expect(
       preferredMembershipRoleId(ROLE_IDS.member, "custom-role"),
     ).toBe(ROLE_IDS.member);
+  });
+
+  it("proves revoked ashed seats escalate without an active-only filter", () => {
+    // BUG (pre-fix path): after revokeAshedMembershipsForHqUser, the source
+    // still had a status=revoked ashed owner row. Selecting every membership
+    // (no status filter) fed that owner roleId into preferredMembershipRoleId
+    // and permanently upgraded the canonical manual member seat.
+    const sourceAfterRevoke = [
+      { status: "revoked", roleId: ROLE_IDS.owner },
+      { status: "active", roleId: ROLE_IDS.member },
+    ];
+    expect(
+      preferredMembershipRoleId(
+        ROLE_IDS.member,
+        sourceAfterRevoke[0]!.roleId,
+      ),
+    ).toBe(ROLE_IDS.owner);
+
+    // FIX: only status=active seats participate in role merge / transfer.
+    const transferable = sourceAfterRevoke.filter(
+      (row) => row.status === "active",
+    );
+    expect(transferable).toEqual([
+      { status: "active", roleId: ROLE_IDS.member },
+    ]);
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.member, transferable[0]!.roleId),
+    ).toBe(ROLE_IDS.member);
+  });
+});
+
+type MembershipRow = {
+  id: string;
+  allianceId: string;
+  hqUserId: string;
+  roleId: string;
+  status: string;
+};
+
+type MembershipWrite =
+  | { kind: "update"; id: string; set: Record<string, unknown> }
+  | { kind: "delete"; id: string };
+
+function whereParamValue(condition: unknown): string {
+  const chunks = (condition as { queryChunks: unknown[] }).queryChunks;
+  const param = chunks.find(
+    (chunk) =>
+      chunk !== null &&
+      typeof chunk === "object" &&
+      (chunk as { constructor: { name: string } }).constructor.name ===
+        "Param",
+  ) as { value: string } | undefined;
+  if (!param) throw new Error("expected eq(id, value) condition");
+  return param.value;
+}
+
+function membershipTx(rows: MembershipRow[]) {
+  const writes: MembershipWrite[] = [];
+  const tx = {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({ where: vi.fn().mockResolvedValue(rows) })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn((set: Record<string, unknown>) => ({
+        where: vi.fn(async (condition: unknown) => {
+          writes.push({ kind: "update", id: whereParamValue(condition), set });
+        }),
+      })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(async (condition: unknown) => {
+        writes.push({ kind: "delete", id: whereParamValue(condition) });
+      }),
+    })),
+  };
+  return { tx: tx as never, writes };
+}
+
+describe("mergeAllianceMembershipsIntoCanonical", () => {
+  const now = new Date("2026-10-11T00:00:00.000Z");
+  const ids = { sourceId: "source", canonicalId: "canonical", now };
+
+  it("does not upgrade the canonical seat from a revoked ashed owner row", async () => {
+    const { tx, writes } = membershipTx([
+      {
+        id: "canonical-manual",
+        allianceId: "alliance-1",
+        hqUserId: "canonical",
+        roleId: ROLE_IDS.member,
+        status: "active",
+      },
+      {
+        id: "source-ashed-owner",
+        allianceId: "alliance-1",
+        hqUserId: "source",
+        roleId: ROLE_IDS.owner,
+        status: "revoked",
+      },
+    ]);
+
+    await mergeAllianceMembershipsIntoCanonical(tx, ids);
+
+    expect(writes).toEqual([]);
+  });
+
+  it("upgrades from an active source seat and drops the source row", async () => {
+    const { tx, writes } = membershipTx([
+      {
+        id: "canonical-manual",
+        allianceId: "alliance-1",
+        hqUserId: "canonical",
+        roleId: ROLE_IDS.member,
+        status: "active",
+      },
+      {
+        id: "source-manual-officer",
+        allianceId: "alliance-1",
+        hqUserId: "source",
+        roleId: ROLE_IDS.officer,
+        status: "active",
+      },
+    ]);
+
+    await mergeAllianceMembershipsIntoCanonical(tx, ids);
+
+    expect(writes).toEqual([
+      {
+        kind: "update",
+        id: "canonical-manual",
+        set: { roleId: ROLE_IDS.officer, updatedAt: now },
+      },
+      { kind: "delete", id: "source-manual-officer" },
+    ]);
+  });
+
+  it("replaces a revoked canonical tombstone before moving an active source seat", async () => {
+    const { tx, writes } = membershipTx([
+      {
+        id: "canonical-revoked",
+        allianceId: "alliance-1",
+        hqUserId: "canonical",
+        roleId: ROLE_IDS.owner,
+        status: "revoked",
+      },
+      {
+        id: "source-manual-member",
+        allianceId: "alliance-1",
+        hqUserId: "source",
+        roleId: ROLE_IDS.member,
+        status: "active",
+      },
+    ]);
+
+    await mergeAllianceMembershipsIntoCanonical(tx, ids);
+
+    expect(writes).toEqual([
+      { kind: "delete", id: "canonical-revoked" },
+      {
+        kind: "update",
+        id: "source-manual-member",
+        set: { hqUserId: "canonical", updatedAt: now },
+      },
+    ]);
   });
 });

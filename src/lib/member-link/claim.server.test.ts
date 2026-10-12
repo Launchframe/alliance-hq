@@ -25,6 +25,13 @@ vi.mock("@/lib/native-alliance/invites", () => ({
   findAcceptedClaimInviteForUser: vi.fn(),
 }));
 
+vi.mock("@/lib/native-alliance/claim-invite-elevation.server", () => ({
+  elevateMembershipAfterClaimLink: vi.fn().mockResolvedValue({
+    elevated: true,
+    roleName: "owner",
+  }),
+}));
+
 vi.mock("@/lib/member-link/repository.server", () => ({
   getHqMemberLinkForUser: vi.fn(),
   linkHqMember: vi.fn(),
@@ -95,6 +102,9 @@ vi.mock("@/lib/db", () => ({
 }));
 
 const invites = await import("@/lib/native-alliance/invites");
+const elevation = await import(
+  "@/lib/native-alliance/claim-invite-elevation.server"
+);
 const repository = await import("@/lib/member-link/repository.server");
 const alerts = await import("@/lib/events/admin-alerts");
 const lookup = await import("@/lib/lastwar/player-lookup.server");
@@ -243,6 +253,11 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).not.toHaveBeenCalled();
     expect(helpQueue.recordMemberLinkHelpRequest).not.toHaveBeenCalled();
     expect(repository.linkHqMember).toHaveBeenCalled();
+    expect(elevation.elevateMembershipAfterClaimLink).toHaveBeenCalledWith({
+      allianceId: "a1",
+      hqUserId: "u1",
+      ownerEmail: undefined,
+    });
   });
 
   it("mirrors the invite commander name for the dev claim-invite UID", async () => {
@@ -400,6 +415,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
       reason: "commander_taken",
       gameUserName: "Alpha",
     });
+    expect(elevation.elevateMembershipAfterClaimLink).not.toHaveBeenCalled();
   });
 });
 

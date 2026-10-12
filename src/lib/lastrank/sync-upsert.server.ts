@@ -325,6 +325,27 @@ export async function applyInteractiveNameMapping(input: {
   return { renamed, ashedSynced, canonicalWritten };
 }
 
+/** Clear a poisoned or uncorroborated sticky LastRank public id. */
+export async function clearLastRankPublicId(
+  commanderId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ lastrankPublicId: schema.commanders.lastrankPublicId })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1);
+  if (!existing || existing.lastrankPublicId == null) return false;
+  await db
+    .update(schema.commanders)
+    .set({
+      lastrankPublicId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.commanders.id, commanderId));
+  return true;
+}
+
 export async function updateLastRankProfileFields(
   commanderId: string,
   lastRank: LastRankAllianceMember,

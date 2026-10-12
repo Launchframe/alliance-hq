@@ -69,6 +69,64 @@ describe("resolveMemberLinkServerEligibility", () => {
     ).toEqual({ kind: "rejected", reason: "known_home_mismatch" });
   });
 
+  describe("server transfer (known home differs from alliance)", () => {
+    const base = {
+      lookupServer: 1249,
+      allianceServer: 1249,
+      knownCommanderHomeServer: 1211,
+    };
+
+    it("rejects when the member was not invited or did not redeem a join code", () => {
+      expect(resolveMemberLinkServerEligibility(base)).toEqual({
+        kind: "rejected",
+        reason: "known_home_mismatch",
+      });
+    });
+
+    it("asks to confirm the transfer when vouched and positioned on the alliance server", () => {
+      expect(
+        resolveMemberLinkServerEligibility({ ...base, transferEligible: true }),
+      ).toEqual({ kind: "confirm_transfer", knownServer: 1211, allianceServer: 1249 });
+    });
+
+    it("allows after the member confirms the transfer", () => {
+      expect(
+        resolveMemberLinkServerEligibility({
+          ...base,
+          transferEligible: true,
+          allianceHomeConfirmed: true,
+        }),
+      ).toEqual({ kind: "eligible", reason: "user_confirmed_server_transfer" });
+    });
+
+    it("asks the member to return home when positioned elsewhere", () => {
+      expect(
+        resolveMemberLinkServerEligibility({
+          ...base,
+          lookupServer: 1288,
+          transferEligible: true,
+          allianceHomeConfirmed: true,
+        }),
+      ).toEqual({ kind: "rejected", reason: "transfer_position_mismatch" });
+    });
+
+    it("asks the member to return home when the position is unknown", () => {
+      expect(
+        resolveMemberLinkServerEligibility({
+          ...base,
+          lookupServer: null,
+          transferEligible: true,
+        }),
+      ).toEqual({ kind: "rejected", reason: "transfer_position_mismatch" });
+    });
+
+    it("never lets honor-system confirm alone override a known home", () => {
+      expect(
+        resolveMemberLinkServerEligibility({ ...base, allianceHomeConfirmed: true }),
+      ).toEqual({ kind: "rejected", reason: "known_home_mismatch" });
+    });
+  });
+
   it("rejects when user claims lookup position is home", () => {
     expect(
       resolveMemberLinkServerEligibility({

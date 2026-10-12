@@ -134,6 +134,68 @@ describe("credential share status CAS", () => {
     });
   });
 
+  it("accept refuses when the pending invite TTL has already elapsed", async () => {
+    selectMock.mockReturnValueOnce(
+      selectRows([
+        {
+          id: "share-expired",
+          allianceId: "alliance-1",
+          ownerHqUserId: "owner-1",
+          invitedHqUserId: "delegate-1",
+          delegateHqUserId: null,
+          status: "pending",
+          capabilities: ["roster:sync"],
+          encryptedToken: "enc",
+          expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+          tokenExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
+        },
+      ]),
+    );
+
+    await expect(
+      acceptCredentialShare({
+        shareId: "share-expired",
+        targetSessionId: "session-1",
+        acknowledged: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "CredentialShareError",
+      code: "NOT_FOUND",
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("accept refuses when only tokenExpiresAt has elapsed", async () => {
+    selectMock.mockReturnValueOnce(
+      selectRows([
+        {
+          id: "share-token-expired",
+          allianceId: "alliance-1",
+          ownerHqUserId: "owner-1",
+          invitedHqUserId: "delegate-1",
+          delegateHqUserId: null,
+          status: "pending",
+          capabilities: ["roster:sync"],
+          encryptedToken: "enc",
+          expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+          tokenExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+        },
+      ]),
+    );
+
+    await expect(
+      acceptCredentialShare({
+        shareId: "share-token-expired",
+        targetSessionId: "session-1",
+        acknowledged: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "CredentialShareError",
+      code: "NOT_FOUND",
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("revoke clears the encrypted token under a live-status CAS", async () => {
     selectMock.mockReturnValueOnce(
       selectRows([
