@@ -922,6 +922,39 @@ export async function listSeasonVrRows(
   }));
 }
 
+/**
+ * Locks one commander's season VR state: `commanders` row first, then the
+ * `commander_season_vr` summary row (when present). Every writer of season VR
+ * summaries/events must lock through here so self-submit and officer history
+ * edits cannot diverge in lock order. Returns null when the commander is gone.
+ */
+async function lockCommanderSeasonVrRows(
+  tx: ActivityTransaction,
+  commanderId: string,
+  seasonKey: string,
+): Promise<{ highestBaseVr: number | null } | null> {
+  const [commander] = await tx
+    .select({ id: schema.commanders.id })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1)
+    .for("update");
+  if (!commander) return null;
+
+  const [current] = await tx
+    .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
+    .from(schema.commanderSeasonVr)
+    .where(
+      and(
+        eq(schema.commanderSeasonVr.commanderId, commanderId),
+        eq(schema.commanderSeasonVr.seasonKey, seasonKey),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return { highestBaseVr: current?.highestBaseVr ?? null };
+}
+
 export async function upsertCommanderSeasonVr(input: {
   commanderId: string;
   allianceId: string;
@@ -1018,28 +1051,15 @@ export async function upsertCommanderSeasonVr(input: {
     }
 
     const now = new Date();
-    const [locked] = await db
-      .select({ id: schema.commanders.id })
-      .from(schema.commanders)
-      .where(eq(schema.commanders.id, input.commanderId))
-      .limit(1)
-      .for("update");
+    const locked = await lockCommanderSeasonVrRows(
+      db,
+      input.commanderId,
+      input.seasonKey,
+    );
     if (!locked) {
       throw new Error("commander_required_for_vr");
     }
-
-    const [current] = await db
-      .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
-      .from(schema.commanderSeasonVr)
-      .where(
-        and(
-          eq(schema.commanderSeasonVr.commanderId, input.commanderId),
-          eq(schema.commanderSeasonVr.seasonKey, input.seasonKey),
-        ),
-      )
-      .limit(1)
-      .for("update");
-    const previousBaseVr = current?.highestBaseVr ?? null;
+    const previousBaseVr = locked.highestBaseVr;
 
     if (
       activityInput &&
@@ -1318,35 +1338,6 @@ async function recomputeCommanderSeasonSummaryFromEvents(
     });
 }
 
-async function lockCommanderSeasonVrForOfficerEdit(
-  tx: ActivityTransaction,
-  commanderId: string,
-  seasonKey: string,
-): Promise<boolean> {
-  const [locked] = await tx
-    .select({ id: schema.commanders.id })
-    .from(schema.commanders)
-    .where(eq(schema.commanders.id, commanderId))
-    .limit(1)
-    .for("update");
-  if (!locked) return false;
-
-  // Same season-row lock as upsertCommanderSeasonVr so self-submit waits
-  // until mutate + recompute commit (or vice versa).
-  await tx
-    .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
-    .from(schema.commanderSeasonVr)
-    .where(
-      and(
-        eq(schema.commanderSeasonVr.commanderId, commanderId),
-        eq(schema.commanderSeasonVr.seasonKey, seasonKey),
-      ),
-    )
-    .limit(1)
-    .for("update");
-  return true;
-}
-
 export async function updateCommanderSeasonVrEvent(input: {
   eventId: string;
   allianceId: string;
@@ -1381,7 +1372,7 @@ export async function updateCommanderSeasonVrEvent(input: {
       .limit(1);
     if (!membership[0]) return { ok: false, error: "Event not found." };
 
-    const locked = await lockCommanderSeasonVrForOfficerEdit(
+    const locked = await lockCommanderSeasonVrRows(
       tx,
       event.commanderId,
       event.seasonKey,
@@ -1438,7 +1429,7 @@ export async function deleteCommanderSeasonVrEvent(input: {
       .limit(1);
     if (!membership[0]) return { ok: false, error: "Event not found." };
 
-    const locked = await lockCommanderSeasonVrForOfficerEdit(
+    const locked = await lockCommanderSeasonVrRows(
       tx,
       event.commanderId,
       event.seasonKey,
