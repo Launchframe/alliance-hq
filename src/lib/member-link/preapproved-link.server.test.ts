@@ -26,6 +26,13 @@ vi.mock("@/lib/native-alliance/invites", () => ({
   findAcceptedClaimInviteForUser: vi.fn(),
 }));
 
+vi.mock("@/lib/native-alliance/claim-invite-elevation.server", () => ({
+  elevateMembershipAfterClaimLink: vi.fn().mockResolvedValue({
+    elevated: true,
+    roleName: "owner",
+  }),
+}));
+
 vi.mock("@/lib/member-link/roster-link-resolve.server", () => ({
   reconcileAllianceMemberForRosterLink: vi.fn(),
 }));

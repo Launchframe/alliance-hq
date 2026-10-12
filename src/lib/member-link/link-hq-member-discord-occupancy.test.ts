@@ -42,11 +42,16 @@ vi.mock("@/lib/members/member-tenure.server", () => ({
 }));
 
 vi.mock("@/lib/members/commander-identity.server", () => ({
+  resolveCommanderByUid: vi.fn().mockResolvedValue(null),
   syncCommanderIdentityFromMemberLink: vi.fn(),
 }));
 
 vi.mock("@/lib/member-link/inherit-hq-to-discord.server", () => ({
   inheritHqMemberLinkToDiscordIfLinked: vi.fn(),
+}));
+
+vi.mock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
+  isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
 }));
 
 import { linkHqMember } from "./repository.server";
