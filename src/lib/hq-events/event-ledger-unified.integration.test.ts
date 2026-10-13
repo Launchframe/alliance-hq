@@ -200,5 +200,83 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)(
       const batch = await f.sql`SELECT status FROM hq_event_evidence_batches WHERE alliance_id = ${f.allianceId}`;
       expect(batch[0]!.status).toBe("retracted");
     });
+
+    it("retractEventEvidenceBatch recomputes every board when the batch board_id is null", async () => {
+      const f = await setup({
+        family: "desert-storm",
+        boards: [{ boardKey: "a" }, { boardKey: "b" }],
+      });
+      const [boardA, boardB] = f.boardIds;
+      const memberB = `m-${nanoid(8)}`;
+      await createAllianceRosterMember(f.sql, {
+        allianceId: f.allianceId,
+        currentName: "Member Two",
+        ashedMemberId: memberB,
+      });
+      const sourceRef = `ashed-${nanoid(8)}`;
+
+      await commitReviewedEventEvidence(f.actor, {
+        eventId: f.eventId,
+        requestId: `req-${nanoid(12)}`,
+        sourceKind: "ashed_import",
+        sourceRef,
+        boards: [
+          {
+            boardId: boardA!,
+            observations: [
+              {
+                memberId: f.memberId,
+                memberName: "Member One",
+                kind: "leaderboard",
+                realScore: "111",
+                provenance: "ashed",
+              },
+            ],
+          },
+          {
+            boardId: boardB!,
+            observations: [
+              {
+                memberId: memberB,
+                memberName: "Member Two",
+                kind: "leaderboard",
+                realScore: "222",
+                provenance: "ashed",
+              },
+            ],
+          },
+        ],
+      });
+
+      const [batchRow] =
+        await f.sql`SELECT board_id FROM hq_event_evidence_batches WHERE source_ref = ${sourceRef}`;
+      expect(batchRow!.board_id).toBeNull();
+
+      const beforeA = await boardRow(f, boardA!);
+      const beforeB = await boardRow(f, boardB!);
+      expect(beforeA.evidence_version).toBe(2);
+      expect(beforeB.evidence_version).toBe(2);
+
+      const retracted = await retractEventEvidenceBatch(f.actor, {
+        eventId: f.eventId,
+        sourceRef,
+      });
+      expect(retracted.retracted).toBe(2);
+      expect(retracted.boardIds.sort()).toEqual([boardA, boardB].sort());
+
+      const afterA = await boardRow(f, boardA!);
+      const afterB = await boardRow(f, boardB!);
+      expect(afterA.evidence_version).toBe(3);
+      expect(afterB.evidence_version).toBe(3);
+
+      const [resultA] =
+        await f.sql`SELECT evidence_class, real_score FROM hq_event_member_results WHERE board_id = ${boardA} AND member_id = ${f.memberId}`;
+      const [resultB] =
+        await f.sql`SELECT evidence_class, real_score FROM hq_event_member_results WHERE board_id = ${boardB} AND member_id = ${memberB}`;
+      expect(resultA!.evidence_class).toBe("none");
+      expect(resultA!.real_score).toBeNull();
+      expect(resultB!.evidence_class).toBe("none");
+      expect(resultB!.real_score).toBeNull();
+    });
   },
 );

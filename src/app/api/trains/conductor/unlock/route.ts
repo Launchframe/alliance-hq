@@ -4,6 +4,7 @@ import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
+  ConductorUnlockForbiddenError,
   getConductorRecord,
   unlockConductorRecord,
 } from "@/lib/trains/repository";
@@ -53,29 +54,37 @@ export async function POST(request: Request) {
       session.id,
       ctx.allianceId,
     );
-    if (
-      !canUnlockLockedConductor({
-        unlimitedUnlock,
-        actorHqUserId,
-        lockedByHqUserId: record.lockedByHqUserId,
-        trainDate: record.date,
-        today: getServerCalendarDate(),
-        lockedAt: record.lockedAt,
-      })
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Ask the alliance owner or a platform maintainer to unlock this conductor.",
-          code: TRAIN_OWNERSHIP_REQUIRED_CODE,
-          date,
-          conductorName: record.conductorMemberName,
+    let previous = record;
+    let unlocked: Awaited<ReturnType<typeof unlockConductorRecord>>;
+    try {
+      unlocked = await unlockConductorRecord(record.id, ctx.allianceId, {
+        authorize: (existing) => {
+          previous = existing;
+          return canUnlockLockedConductor({
+            unlimitedUnlock,
+            actorHqUserId,
+            lockedByHqUserId: existing.lockedByHqUserId,
+            trainDate: existing.date,
+            today: getServerCalendarDate(),
+            lockedAt: existing.lockedAt,
+          });
         },
-        { status: 403 },
-      );
+      });
+    } catch (error) {
+      if (error instanceof ConductorUnlockForbiddenError) {
+        return NextResponse.json(
+          {
+            error:
+              "Ask the alliance owner or a platform maintainer to unlock this conductor.",
+            code: TRAIN_OWNERSHIP_REQUIRED_CODE,
+            date,
+            conductorName: previous.conductorMemberName,
+          },
+          { status: 403 },
+        );
+      }
+      throw error;
     }
-
-    const unlocked = await unlockConductorRecord(record.id, ctx.allianceId);
 
     await writeTrainsOfficerAudit({
       sessionId: session.id,
@@ -85,12 +94,12 @@ export async function POST(request: Request) {
       severity: "update",
       resourceType: "train_conductor_record",
       resourceId: record.id,
-      resourceName: record.conductorMemberName,
+      resourceName: previous.conductorMemberName,
       metadata: {
         date,
-        conductorMemberId: record.conductorMemberId,
-        previousLockedAt: record.lockedAt?.toISOString() ?? null,
-        previousLockedByHqUserId: record.lockedByHqUserId,
+        conductorMemberId: previous.conductorMemberId,
+        previousLockedAt: previous.lockedAt?.toISOString() ?? null,
+        previousLockedByHqUserId: previous.lockedByHqUserId,
       },
     });
 

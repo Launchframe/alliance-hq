@@ -393,6 +393,18 @@ export async function acceptCredentialShare(input: {
     throw new CredentialShareError("This invite is no longer available.", "NOT_FOUND");
   }
 
+  const now = new Date();
+  // Refuse expired invites before CAS. Accepting a past-expiresAt pending row
+  // would create status=active under idx_ashed_credential_shares_owner_active
+  // while getActiveShareForDelegate still treats it as dead — pinning the
+  // owner's single active share slot until revoke/expire cron.
+  if (row.expiresAt && row.expiresAt <= now) {
+    throw new CredentialShareError("This invite is no longer available.", "NOT_FOUND");
+  }
+  if (row.tokenExpiresAt && row.tokenExpiresAt <= now) {
+    throw new CredentialShareError("This invite is no longer available.", "NOT_FOUND");
+  }
+
   if (row.invitedHqUserId !== delegateHqUserId) {
     throw new CredentialShareError(
       "This invite was sent to a different officer.",
@@ -421,7 +433,6 @@ export async function acceptCredentialShare(input: {
     );
   }
 
-  const now = new Date();
   // CAS on status=pending so concurrent revoke/reject/expire cannot be
   // resurrected into an active delegated credential after the owner ended it.
   const [updated] = await db

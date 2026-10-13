@@ -24,11 +24,20 @@ import {
   loadSession,
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
-import { upsertAllianceAshedCredential } from "@/lib/vr/repository";
+import {
+  getAllianceAshedCredential,
+  upsertAllianceAshedCredential,
+} from "@/lib/vr/repository";
 
 export async function upsertAllianceAshedCredentialsFromSession(input: {
   sessionId: string;
   allianceId: string;
+  /**
+   * Time-off sync repair path: Ashed collaborators/maintainers may replace an
+   * **already installed, expired/unknown-expiry** bot credential. They must not
+   * first-install, overwrite a still-valid owner JWT, or become the sticky HQ
+   * registrant (#573 / #749 composition).
+   */
   allowAshedMaintainer?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const session = await loadSession(input.sessionId);
@@ -143,12 +152,38 @@ export async function upsertAllianceAshedCredentialsFromSession(input: {
       status: 403,
     };
   }
-  if (!input.allowAshedMaintainer && !canInstallAshedBotCredentials(ashedAlliance.accessRole)) {
+  const isAshedOwner = canInstallAshedBotCredentials(ashedAlliance.accessRole);
+  if (!input.allowAshedMaintainer && !isAshedOwner) {
     return {
       ok: false,
       error: `Only the Ashed alliance owner can connect bot credentials for tag "${ashedAlliance.tag}". Ask the owner to install credentials, or use an owner connection key.`,
       status: 403,
     };
+  }
+
+  // Maintainer/collaborator repair must stay narrower than owner install:
+  // no first-install, no live-token overwrite, no sticky registrant stamp.
+  let omitRegistrantStamp = false;
+  if (input.allowAshedMaintainer && !isAshedOwner) {
+    const existing = await getAllianceAshedCredential(input.allianceId);
+    if (!existing) {
+      return {
+        ok: false,
+        error: `Only the Ashed alliance owner can install bot credentials for tag "${ashedAlliance.tag}". Ask the owner to connect credentials first.`,
+        status: 403,
+      };
+    }
+    const storedExpiredOrUnknown =
+      !existing.tokenExpiresAt ||
+      existing.tokenExpiresAt.getTime() <= Date.now();
+    if (!storedExpiredOrUnknown) {
+      return {
+        ok: false,
+        error: `Alliance bot credentials for tag "${ashedAlliance.tag}" are still valid. Ask the Ashed alliance owner to reconnect if time-off sync reports a credential error.`,
+        status: 403,
+      };
+    }
+    omitRegistrantStamp = true;
   }
 
   const { hqAllianceId } = await syncAshedAllianceForBot({
@@ -174,9 +209,10 @@ export async function upsertAllianceAshedCredentialsFromSession(input: {
     originUrl: connection.originUrl,
     encryptedToken: encryptSecret(connection.token),
     tokenExpiresAt,
-    // Omit Discord registrant so web refresh cannot clear /link-alliance binding.
-    // For delegated installs this is the share *owner*, never the delegate.
-    registeredByHqUserId,
+    // Owner installs stamp HQ registrant (for delegated installs, the share
+    // *owner*, never the delegate). Maintainer repair omits it so onConflict
+    // leaves the existing registrant (and Discord binding) alone.
+    ...(omitRegistrantStamp ? {} : { registeredByHqUserId }),
   });
 
   return { ok: true };
