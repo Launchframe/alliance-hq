@@ -95,6 +95,10 @@
     {
       "path": "/api/internal/vs-compliance/weekly",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/cron/buster-day-reminders",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

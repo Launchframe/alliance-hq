@@ -2564,7 +2564,8 @@
       "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set Discord announcement channels. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains.",
       "r4Success": "✅ R4 channel set for **{tag}**. In-game schedule reminders will post to {channel}.",
       "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
-      "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}."
+      "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
+      "vsPerformanceSuccess": "✅ VS Performance channel set for **{tag}**. Parsed and finalized VS score reports will be posted to {channel}."
     },
     "chart": {
       "nowLabel": "Sekarang",

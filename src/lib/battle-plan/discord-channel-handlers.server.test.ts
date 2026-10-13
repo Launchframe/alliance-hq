@@ -10,6 +10,7 @@ vi.mock("@/lib/vr/repository", () => ({
   setGuildBankingChannel: vi.fn(),
   setGuildRegularEventsChannel: vi.fn(),
   setGuildSeasonalEventsChannel: vi.fn(),
+  setGuildVsPerformanceChannel: vi.fn(),
 }));
 
 import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
@@ -17,11 +18,13 @@ import {
   handleDiscordSetBankingChannel,
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
+  handleDiscordSetVsPerformanceChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
 import {
   getAllianceById,
   getGuildAllianceId,
   setGuildBankingChannel,
+  setGuildVsPerformanceChannel,
 } from "@/lib/vr/repository";
 
 describe("battle-plan Discord channel setters", () => {
@@ -92,5 +95,24 @@ describe("battle-plan Discord channel setters", () => {
     expect(regular.reply).toMatch(/R4/i);
     expect(seasonal.reply).not.toContain("errors.ownerOnly");
     expect(regular.reply).not.toContain("errors.ownerOnly");
+  });
+
+  it("sets the VS Performance channel when permitted", async () => {
+    vi.mocked(resolveDiscordChannelSetterAccess).mockResolvedValue({
+      allowed: true,
+      minRank: "officer",
+    });
+
+    const result = await handleDiscordSetVsPerformanceChannel({
+      guildId: "g1",
+      channelId: "c-vs",
+      discordUserId: "d1",
+      locale: "en-US",
+    });
+
+    expect(setGuildVsPerformanceChannel).toHaveBeenCalledWith("g1", "c-vs");
+    expect(result.reply).toMatch(/LFgo/);
+    expect(result.reply).toMatch(/<#c-vs>/);
+    expect(result.reply).toMatch(/VS Performance/i);
   });
 });

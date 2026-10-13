@@ -2820,6 +2820,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   bankingChannelId: text("banking_channel_id"),
   /** Message context-menu translation (Apps → Translate) for this guild. */
   translationEnabled: boolean("translation_enabled").notNull().default(true),
+  vsPerformanceChannelId: text("vs_performance_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
