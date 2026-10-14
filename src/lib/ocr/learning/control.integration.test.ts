@@ -13,7 +13,7 @@ import { confirmCasePair, createCandidateCase, freezeDataset, reviseCaseLabels, 
 import { disabledWorkerPolicy } from "./control.shared";
 import { loadWorkerPolicy, saveWorkerPolicy } from "./control-policy.server";
 import { cancelWorkerJob, createWorkerJob, loadWorkerJob, revokeModelVersion } from "./control-jobs.server";
-import { claimWorkerJob, heartbeatWorkerJob } from "./control-leases.server";
+import { claimWorkerJob, failWorkerJob, heartbeatWorkerJob } from "./control-leases.server";
 import { completeWorkerJob } from "./control-results.server";
 import { expireWorkerArtifacts } from "./control-retention.server";
 import { workerFrameAsset } from "./control-read.server";
@@ -166,6 +166,23 @@ describe.skipIf(process.env.OCR_LEARNING_DB_TEST !== "1")("durable worker contro
     expect(await claimWorkerJob(f.workerCodeHash)).toBeNull();
     const attempts = await getDb().select().from(schema.ocrWorkerAttempts).where(and(eq(schema.ocrWorkerAttempts.jobId, job.id), eq(schema.ocrWorkerAttempts.allianceId, f.allianceId)));
     expect(attempts).toHaveLength(2);
+    await cancelWorkerJob(f.allianceId, job.id, f.actor);
+  });
+
+  it("rejects fail after lease expiry so reclaimable work is not terminalized", async () => {
+    const f = await setup();
+    await saveWorkerPolicy(f.allianceId, 0, f.policy, f.actor);
+    const job = await createWorkerJob(f.request, f.actor);
+    const lease = (await claimWorkerJob(f.workerCodeHash))!;
+    await getDb().update(schema.ocrWorkerJobs).set({ leaseExpiresAt: new Date(0) }).where(eq(schema.ocrWorkerJobs.id, job.id));
+    await expect(failWorkerJob(job.id, lease.leaseToken, "worker_crashed")).rejects.toMatchObject({
+      code: "stale_worker_lease",
+    });
+    expect(await loadWorkerJob(f.allianceId, job.id)).toMatchObject({
+      state: "running",
+      attempts: 1,
+      errorCode: null,
+    });
     await cancelWorkerJob(f.allianceId, job.id, f.actor);
   });
 

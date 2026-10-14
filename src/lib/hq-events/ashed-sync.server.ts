@@ -30,6 +30,12 @@ import {
 } from "@/lib/hq-events/event-types.shared";
 import { resolveEventMemberEvidence } from "@/lib/hq-events/evidence-merge.shared";
 import type { EventActor } from "@/lib/hq-events/evidence-repository.server";
+import {
+  EVENT_SYNC_LEASE_MS,
+  EVENT_SYNC_POST_TIMEOUT_MS,
+  eventSyncUncertainLeasePatch,
+  shouldRetainEventSyncLeaseAfterUncertainPost,
+} from "@/lib/hq-events/ashed-sync-post.shared";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 
 /**
@@ -40,7 +46,7 @@ import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
  * is a documented blocker (see AGENTS.md "Event evidence").
  */
 
-const LEASE_MS = 60_000;
+const LEASE_MS = EVENT_SYNC_LEASE_MS;
 /** A list response at this size can't be proven complete → never POST. */
 const REMOTE_READ_CAP = 100;
 
@@ -312,11 +318,12 @@ export async function syncEventResults(
       // publish already-expired leases that a peer run steals mid-POST.
       // The updated_at fence rejects a row a peer touched after our snapshot
       // (our remote read may predate its POST).
+      const leaseExpiresAt = new Date(Date.now() + LEASE_MS);
       const claimed = await db
         .update(schema.hqEventSyncItems)
         .set({
           leaseToken: runLease,
-          leaseExpiresAt: new Date(Date.now() + LEASE_MS),
+          leaseExpiresAt,
           updatedAt: new Date(),
         })
         .where(
@@ -373,6 +380,7 @@ export async function syncEventResults(
         memberResult,
         event,
         leaseToken: runLease,
+        leaseExpiresAt,
       });
       summary[outcome] += 1;
     }
@@ -402,8 +410,9 @@ async function reconcileRemoteRow(input: {
   memberResult: typeof schema.hqEventMemberResults.$inferSelect | undefined;
   event: typeof schema.hqEvents.$inferSelect;
   leaseToken: string;
+  leaseExpiresAt: Date;
 }): Promise<Exclude<keyof EventSyncSummary, "status">> {
-  const { item, remote, desiredValue, leaseToken } = input;
+  const { item, remote, desiredValue, leaseToken, leaseExpiresAt } = input;
 
   if (remote.length > 1) {
     const marked = await markItem(
@@ -442,7 +451,7 @@ async function reconcileRemoteRow(input: {
     return marked ? "conflict" : "pending";
   }
 
-  // No remote row → POST the projection once.
+  // No remote row → POST the projection once (bounded under the lease).
   const payload: Record<string, unknown> = {
     alliance_id: input.ashedAllianceId,
     event_id: input.remoteEventId,
@@ -457,6 +466,7 @@ async function reconcileRemoteRow(input: {
       input.connection,
       input.submitEntity,
       payload,
+      { signal: AbortSignal.timeout(EVENT_SYNC_POST_TIMEOUT_MS) },
     )) as { id?: string };
     const marked = await markItem(
       item.id,
@@ -475,12 +485,20 @@ async function reconcileRemoteRow(input: {
     const code = remoteStatusCode(error);
     // 5xx/timeouts after POST: reply may have been lost — never re-POST
     // blindly; the next run re-reads and binds an unambiguous match.
-    const uncertain = code == null || code >= 500;
+    const uncertain = shouldRetainEventSyncLeaseAfterUncertainPost({
+      statusCode: code,
+    });
+    const leasePatch = eventSyncUncertainLeasePatch({
+      leaseExpiresAt,
+      retainLease: uncertain,
+    });
     const marked = await markItem(
       item.id,
       {
         status: uncertain ? "uncertain" : "failed",
         errorCode: uncertain ? "post_uncertain" : `remote_${code}`,
+        retryAt: leasePatch.retryAt,
+        clearLease: leasePatch.clearLease,
       },
       leaseToken,
     );
@@ -562,6 +580,9 @@ async function flagBoardItems(
  * Apply a sync outcome. When `leaseToken` is set, only the lease holder may
  * write — a stale runner must not clear a peer's lease or mark synced after a
  * double-POST race. Returns false when the lease was lost (or the row moved on).
+ *
+ * Uncertain create POSTs may keep the lease until the original expiry so a
+ * peer cannot reclaim while a late Ashed write may still land.
  */
 async function markItem(
   itemId: string,
@@ -571,10 +592,13 @@ async function markItem(
     lastSyncedRevision?: number | null;
     lastSyncedValueHash?: string | null;
     errorCode?: string | null;
+    retryAt?: Date | null;
+    clearLease?: boolean;
   },
   leaseToken?: string,
 ): Promise<boolean> {
   const db = getDb();
+  const clearLease = patch.clearLease !== false;
   const updated = await db
     .update(schema.hqEventSyncItems)
     .set({
@@ -587,9 +611,11 @@ async function markItem(
         ? { lastSyncedValueHash: patch.lastSyncedValueHash }
         : {}),
       errorCode: patch.errorCode ?? null,
-      leaseToken: null,
-      leaseExpiresAt: null,
-      retryAt: patch.status === "synced" ? null : new Date(Date.now() + 60_000),
+      ...(clearLease ? { leaseToken: null, leaseExpiresAt: null } : {}),
+      retryAt:
+        patch.status === "synced"
+          ? null
+          : (patch.retryAt ?? new Date(Date.now() + 60_000)),
       updatedAt: new Date(),
     })
     .where(

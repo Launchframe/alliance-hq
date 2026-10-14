@@ -124,8 +124,12 @@ describe("processVsDailyAnnouncements", () => {
     const result = await processVsDailyAnnouncements();
 
     expect(result).toEqual({ posted: 2, skipped: 0 });
-    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c1", "preview message");
-    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message");
+    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c1", "preview message", {
+      source: "vs.daily_announcement",
+    });
+    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message", {
+      source: "vs.daily_announcement",
+    });
     // Message is built once per alliance and shared across its channels.
     expect(buildVsDailyAnnouncementPreview).toHaveBeenCalledTimes(1);
   });
