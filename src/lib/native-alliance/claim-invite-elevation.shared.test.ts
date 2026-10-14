@@ -51,24 +51,24 @@ describe("resolveRoleIdForClaimPendingAccept", () => {
 });
 
 describe("resolveRoleIdForClaimBoundRebind", () => {
-  it("defers elevated roles on rebind when the acceptor has not linked yet", () => {
+  it("defers elevated roles on rebind when the bound commander is not linked yet", () => {
     // Pre-fix rebind passed invite.roleId raw into preserve_existing; with no
     // active membership that granted owner/officer before claim confirm.
     expect(
       resolveRoleIdForClaimBoundRebind({
         inviteRoleId: ROLE_IDS.owner,
         claimTargetAshedMemberId: "commander-r5",
-        acceptorHasMemberLink: false,
+        claimTargetHeldByAcceptor: false,
       }),
     ).toBe(ROLE_IDS.member);
   });
 
-  it("allows the invite role once the acceptor has an HQ member link", () => {
+  it("allows the invite role once the acceptor holds the bound commander", () => {
     expect(
       resolveRoleIdForClaimBoundRebind({
         inviteRoleId: ROLE_IDS.owner,
         claimTargetAshedMemberId: "commander-r5",
-        acceptorHasMemberLink: true,
+        claimTargetHeldByAcceptor: true,
       }),
     ).toBe(ROLE_IDS.owner);
   });
@@ -78,7 +78,7 @@ describe("resolveRoleIdForClaimBoundRebind", () => {
       resolveRoleIdForClaimBoundRebind({
         inviteRoleId: ROLE_IDS.officer,
         claimTargetAshedMemberId: null,
-        acceptorHasMemberLink: false,
+        claimTargetHeldByAcceptor: false,
       }),
     ).toBe(ROLE_IDS.officer);
   });

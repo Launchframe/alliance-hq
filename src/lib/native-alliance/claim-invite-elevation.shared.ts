@@ -25,19 +25,18 @@ export function resolveRoleIdForClaimPendingAccept(input: {
  * grants owner/officer before claim confirm (retry after provision failure,
  * concurrent rebind between mark-accepted and provision, or revoked row).
  *
- * When the acceptor already has an HQ member link, the claim is no longer
- * pending and the invite role may be used as the rebind target (still subject
- * to `preserve_existing` / never-demote policies).
+ * Defer until the **bound commander** is linked to this acceptor — not merely
+ * any alliance member link (a self-service link to a different roster row must
+ * not clear the pending claim).
  */
 export function resolveRoleIdForClaimBoundRebind(input: {
   inviteRoleId: string;
   claimTargetAshedMemberId: string | null | undefined;
-  acceptorHasMemberLink: boolean;
+  claimTargetHeldByAcceptor: boolean;
 }): string {
+  const claimTargetId = input.claimTargetAshedMemberId?.trim() || null;
   return resolveRoleIdForClaimPendingAccept({
     inviteRoleId: input.inviteRoleId,
-    pendingClaimTargetId: input.acceptorHasMemberLink
-      ? null
-      : input.claimTargetAshedMemberId,
+    pendingClaimTargetId: input.claimTargetHeldByAcceptor ? null : claimTargetId,
   });
 }

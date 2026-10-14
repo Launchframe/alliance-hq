@@ -23,10 +23,7 @@ import {
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
-import {
-  getHqMemberLinkByAllianceAndMember,
-  getHqMemberLinkForUser,
-} from "@/lib/member-link/repository.server";
+import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import {
   getDiscordHqLink,
@@ -38,6 +35,7 @@ import {
   resolveRoleIdForClaimBoundRebind,
   resolveRoleIdForClaimPendingAccept,
 } from "./claim-invite-elevation.shared";
+import { isCommanderReservedByPendingClaim } from "./claim-seat-reservation.server";
 import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
 
@@ -666,19 +664,21 @@ export async function rebindAcceptedInviteSession(input: {
     throw new Error("Alliance tag is missing.");
   }
 
-  // Already-accepted invite rebind: refresh session only — never re-apply a
-  // lower invite role over an active higher membership, and never escalate a
-  // claim-bound invite before the acceptor finishes member-link (preserve_existing
-  // still writes inviteRoleId when no active membership exists).
-  const acceptorLink = invite.targetAshedMemberId
-    ? await getHqMemberLinkForUser(invite.allianceId, input.hqUserId)
+  // Rebind falls back to the invite role when no active membership exists, so
+  // a still-pending claim must stay deferred exactly like first accept.
+  const claimTargetId = invite.targetAshedMemberId?.trim() || null;
+  const claimLink = claimTargetId
+    ? await getHqMemberLinkByAllianceAndMember(invite.allianceId, claimTargetId)
     : null;
   const provisionRoleId = resolveRoleIdForClaimBoundRebind({
     inviteRoleId: invite.roleId,
-    claimTargetAshedMemberId: invite.targetAshedMemberId,
-    acceptorHasMemberLink: acceptorLink != null,
+    claimTargetAshedMemberId: claimTargetId,
+    claimTargetHeldByAcceptor: claimLink?.hqUserId === input.hqUserId,
   });
 
+  // Already-accepted invite rebind: refresh session only — never re-apply the
+  // invite role (would demote after a later officer invite, or re-escalate
+  // after an intentional demotion).
   return provisionAllianceMembership({
     hqUserId: input.hqUserId,
     sessionId: input.sessionId,
@@ -687,9 +687,7 @@ export async function rebindAcceptedInviteSession(input: {
     rolePolicy: "preserve_existing",
     userLabel: normalizedEmail,
     ownerEmail:
-      systemRoleNameForId(provisionRoleId) === "owner"
-        ? normalizedEmail
-        : null,
+      systemRoleNameForId(provisionRoleId) === "owner" ? normalizedEmail : null,
   }).then((result) => ({
     ...result,
     redirectPath: invite.redirectPath,
@@ -801,6 +799,19 @@ export async function acceptHqInvite(
       // so /onboard is not stuck, but still grant the invite role.
       claimTargetId = null;
     }
+  }
+  if (
+    claimTargetId &&
+    (await isCommanderReservedByPendingClaim({
+      allianceId: invite.allianceId,
+      ashedMemberId: claimTargetId,
+      allowedHqUserId: hqUserId,
+    }))
+  ) {
+    throw new CommanderClaimInviteError(
+      "commander_already_claimed",
+      "This commander is already linked to an account.",
+    );
   }
 
   const acceptedRows = await db

@@ -49,7 +49,17 @@ export type AllianceCredentialRefreshDecision =
 /**
  * Opportunistic refresh: replace the alliance bot token with an officer's
  * fresh session token only when it outlives the stored one and the officer may
- * own that slot (Ashed alliance owner, or the same person who installed it).
+ * own that slot.
+ *
+ * Authorized when:
+ * - connecting Ashed role is alliance **owner**, or
+ * - the HQ registrant reconnects with the **same Ashed identity** already
+ *   stored on the bot credential (registrant alone is not enough — a share
+ *   delegate must not overwrite an owner JWT with a collaborator token).
+ *
+ * Matching the stored Ashed identity alone is also insufficient: a
+ * collaborator repair that left a non-owner JWT in place must not grant
+ * perpetual refresh without owner role or registrant+identity.
  */
 export function decideAllianceCredentialRefresh(input: {
   hasAllianceCredential: boolean;
@@ -73,7 +83,10 @@ export function decideAllianceCredentialRefresh(input: {
   ) {
     return { refresh: false, reason: "not_longer_lived" };
   }
-  if (!input.isAshedOwner && !input.isSameRegistrant && !input.isSameAshedIdentity) {
+  const authorized =
+    input.isAshedOwner ||
+    (input.isSameRegistrant && input.isSameAshedIdentity);
+  if (!authorized) {
     return { refresh: false, reason: "not_authorized" };
   }
   return { refresh: true };

@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { isPostgresUniqueViolation } from "@/lib/auth/postgres-unique.shared";
-import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
+import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
@@ -16,6 +16,7 @@ import {
   resolveRoleIdForClaimBoundRebind,
   resolveRoleIdForClaimPendingAccept,
 } from "./claim-invite-elevation.shared";
+import { isCommanderReservedByPendingClaim } from "./claim-seat-reservation.server";
 import {
   assertCommanderClaimTargetClaimable,
   CommanderClaimInviteError,
@@ -28,13 +29,17 @@ async function provisionRoleIdForJoinCodeRebind(input: {
   joinCodeRoleId: string;
   targetAshedMemberId: string | null;
 }): Promise<string> {
-  const acceptorLink = input.targetAshedMemberId
-    ? await getHqMemberLinkForUser(input.allianceId, input.hqUserId)
+  const claimTargetId = input.targetAshedMemberId?.trim() || null;
+  const claimLink = claimTargetId
+    ? await getHqMemberLinkByAllianceAndMember(
+        input.allianceId,
+        claimTargetId,
+      )
     : null;
   return resolveRoleIdForClaimBoundRebind({
     inviteRoleId: input.joinCodeRoleId,
-    claimTargetAshedMemberId: input.targetAshedMemberId,
-    acceptorHasMemberLink: acceptorLink != null,
+    claimTargetAshedMemberId: claimTargetId,
+    claimTargetHeldByAcceptor: claimLink?.hqUserId === input.hqUserId,
   });
 }
 
@@ -239,6 +244,8 @@ export async function redeemAllianceJoinCode(
     )
     .limit(1);
 
+  const claimTargetId = joinCode.targetAshedMemberId?.trim() || null;
+
   if (existingRedemption) {
     // Re-visit / auto-redeem remount: refresh session only — do not re-apply
     // the join-code role over an active membership (blocks silent re-escalation
@@ -261,6 +268,20 @@ export async function redeemAllianceJoinCode(
 
   if (joinCode.redemptionCount >= joinCode.maxRedemptions) {
     throw new Error("This join code has reached its redemption limit.");
+  }
+
+  if (
+    claimTargetId &&
+    (await isCommanderReservedByPendingClaim({
+      allianceId: joinCode.allianceId,
+      ashedMemberId: claimTargetId,
+      allowedHqUserId: input.hqUserId,
+    }))
+  ) {
+    throw new CommanderClaimInviteError(
+      "commander_already_claimed",
+      "This commander is already linked to an account.",
+    );
   }
 
   // Claim a redemption slot and insert the redemption row atomically.

@@ -15,6 +15,10 @@ import {
 /**
  * After a successful claim confirm, apply the invite/join-code role that was
  * deferred at accept time (member until the bound commander is linked).
+ *
+ * `elevated` is true only when this call applied a non-member invite role.
+ * It is false for member-role claim invites and when an existing higher role
+ * was kept (`never_demote`), so callers must not read it as "claim succeeded".
  */
 export async function elevateMembershipAfterClaimLink(input: {
   allianceId: string;

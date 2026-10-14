@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   getDb,
   provisionAllianceMembership,
-  getHqMemberLinkForUser,
   getHqMemberLinkByAllianceAndMember,
 } = vi.hoisted(() => ({
   getDb: vi.fn(),
   provisionAllianceMembership: vi.fn(),
-  getHqMemberLinkForUser: vi.fn(),
   getHqMemberLinkByAllianceAndMember: vi.fn(),
 }));
 
@@ -17,7 +15,6 @@ vi.mock("./provision-membership", () => ({
 }));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
-  getHqMemberLinkForUser,
   getHqMemberLinkByAllianceAndMember,
 }));
 
@@ -63,7 +60,7 @@ describe("rebindAcceptedInviteSession claim-bound RBAC defer", () => {
       hqUserId: "bob",
       roleName: "member",
     });
-    getHqMemberLinkForUser.mockResolvedValue(null);
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue(null);
   });
 
   it("provisions member (not owner) when claim is still pending and no membership exists", async () => {
@@ -87,7 +84,10 @@ describe("rebindAcceptedInviteSession claim-bound RBAC defer", () => {
       userEmail: "bob@example.com",
     });
 
-    expect(getHqMemberLinkForUser).toHaveBeenCalledWith("a1", "bob");
+    expect(getHqMemberLinkByAllianceAndMember).toHaveBeenCalledWith(
+      "a1",
+      "m-r5",
+    );
     expect(provisionAllianceMembership).toHaveBeenCalledWith(
       expect.objectContaining({
         roleId: ROLE_IDS.member,
@@ -97,11 +97,11 @@ describe("rebindAcceptedInviteSession claim-bound RBAC defer", () => {
     );
   });
 
-  it("keeps the invite owner role target once the acceptor has linked", async () => {
+  it("keeps the invite owner role target once the acceptor holds the bound commander", async () => {
     const invite = acceptedOwnerClaimInvite();
     const alliance = { id: "a1", tag: "TAG", name: "Test" };
     const selectResults = [[invite], [alliance]];
-    getHqMemberLinkForUser.mockResolvedValue({
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue({
       hqUserId: "bob",
       ashedMemberId: "m-r5",
     });
@@ -127,6 +127,39 @@ describe("rebindAcceptedInviteSession claim-bound RBAC defer", () => {
         roleId: ROLE_IDS.owner,
         rolePolicy: "preserve_existing",
         ownerEmail: "bob@example.com",
+      }),
+    );
+  });
+
+  it("still defers when the acceptor linked a different commander", async () => {
+    const invite = acceptedOwnerClaimInvite();
+    const alliance = { id: "a1", tag: "TAG", name: "Test" };
+    const selectResults = [[invite], [alliance]];
+    getHqMemberLinkByAllianceAndMember.mockResolvedValue({
+      hqUserId: "other-user",
+      ashedMemberId: "m-r5",
+    });
+    getDb.mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(selectResults.shift() ?? []),
+          }),
+        }),
+      })),
+    });
+
+    await rebindAcceptedInviteSession({
+      token: "invite-token",
+      sessionId: "sess-1",
+      hqUserId: "bob",
+      userEmail: "bob@example.com",
+    });
+
+    expect(provisionAllianceMembership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleId: ROLE_IDS.member,
+        ownerEmail: null,
       }),
     );
   });
