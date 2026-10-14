@@ -6,6 +6,7 @@ import {
   formatWheelShareWinChance,
   rankedWheelShareLeaderboard,
   resolveWheelShareEligibility,
+  wheelShareScoreBoard,
   winProbabilityFromTicketPool,
 } from "@/lib/trains/conductor-wheel-share.shared";
 
@@ -239,5 +240,41 @@ describe("rankedWheelShareLeaderboard", () => {
         score: 39_100_000,
       },
     ]);
+  });
+});
+
+describe("wheelShareScoreBoard", () => {
+  const candidates = [
+    { memberId: "top", memberName: "Top", priorDayVsScore: 8_500_000 },
+    { memberId: "mid", memberName: "Mid", priorDayVsScore: 7_900_000 },
+    { memberId: "low", memberName: "Low", priorDayVsScore: 7_250_000 },
+    { memberId: "cliff", memberName: "Cliff", priorDayVsScore: 7_200_000 },
+    { memberId: "under", memberName: "Under", priorDayVsScore: 7_100_000 },
+  ];
+
+  it("ranks Price Is Freight weekday from the cliff up", () => {
+    const board = wheelShareScoreBoard(
+      { kind: "price_is_freight", board: "weekday" },
+      candidates,
+    );
+    expect(board?.kind).toBe("closest_above_cliff");
+    expect(board?.rows.map((row) => [row.rank, row.memberId])).toEqual([
+      [1, "cliff"],
+      [2, "low"],
+      [3, "mid"],
+      [4, "top"],
+    ]);
+  });
+
+  it("keeps Top VS boards highest first", () => {
+    const board = wheelShareScoreBoard({ kind: "vs_top_n", topN: 10 }, candidates);
+    expect(board?.kind).toBe("top");
+    expect(board?.rows[0]?.memberId).toBe("top");
+  });
+
+  it("has no board for rules without scores", () => {
+    expect(
+      wheelShareScoreBoard({ kind: "rank_pool", pool: "r3", draw: "wheel" }, candidates),
+    ).toBeNull();
   });
 });

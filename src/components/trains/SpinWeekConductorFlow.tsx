@@ -15,7 +15,10 @@ import {
   parseTrainRollError,
   type TrainRollErrorDetails,
 } from "@/lib/trains/roll-errors.shared";
-import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
 import type { PoolRefreshedInfo, RollResult } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import {
@@ -109,7 +112,9 @@ export const SpinWeekConductorFlow = forwardRef<
     memberName: string;
     priorDayVsScore?: number;
   } | null>(null);
-  const [wheelRule, setWheelRule] = useState<ConductorRule | null>(null);
+  const [wheelRule, setWheelRule] = useState<ConductorRule | VipRule | null>(
+    null,
+  );
   const [wheelStats, setWheelStats] = useState<RollResponse["stats"] | null>(
     null,
   );
@@ -237,7 +242,10 @@ export const SpinWeekConductorFlow = forwardRef<
           );
           setWheelWinner(result);
           setWheelRule(
-            dayConfigs.find((row) => row.date === date)?.conductorRule ?? null,
+            result.rule !== undefined
+              ? result.rule
+              : (dayConfigs.find((row) => row.date === date)?.conductorRule ??
+                  null),
           );
           setWheelStats(body.stats ?? null);
           setWheelQualification(result.qualification ?? null);

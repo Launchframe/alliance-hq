@@ -114,6 +114,11 @@ export type RollResult = {
   qualification?: MemberQualificationPayload;
   /** False when the roll landed on a disqualified member and no draft was saved yet. */
   draftPersisted?: boolean;
+  /**
+   * Rule the server drew under. The wheel labels its score board from this,
+   * never from the client's day config, which can be stale for the rolled day.
+   */
+  rule?: ConductorRule | VipRule | null;
 };
 
 export type PoolRefreshedInfo = {

@@ -7763,6 +7763,7 @@
       "title": "All aboard!",
       "vsShortfall": "VS: {score} pts (need {required}; short by {shortfall})",
       "vsValidation": {
+        "closestAboveCliffTitle": "{count} skor VS terendah di atas {cliff}",
         "top10Title": "Top 10 VS Scores",
         "top1Title": "Top VS Score",
         "topNVrTitle": "Top {count} VR Scores",

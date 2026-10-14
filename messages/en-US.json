@@ -5111,7 +5111,8 @@
         "top1Title": "Top VS Score",
         "top10Title": "Top 10 VS Scores",
         "topNVsTitle": "Top {count} VS Scores",
-        "topNVrTitle": "Top {count} VR Scores"
+        "topNVrTitle": "Top {count} VR Scores",
+        "closestAboveCliffTitle": "Lowest {count} VS Scores Above {cliff}"
       },
       "share": {
         "action": "Share image",
