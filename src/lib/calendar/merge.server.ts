@@ -151,8 +151,12 @@ export async function remapCalendarUserForMerge(
 ): Promise<void> {
   if (sourceId === canonicalId) return;
 
-  await lockCalendarUser(tx as CalendarTx, sourceId);
-  await lockCalendarUser(tx as CalendarTx, canonicalId);
+  const [lockFirst, lockSecond] =
+    sourceId < canonicalId
+      ? [sourceId, canonicalId]
+      : [canonicalId, sourceId];
+  await lockCalendarUser(tx as CalendarTx, lockFirst);
+  await lockCalendarUser(tx as CalendarTx, lockSecond);
 
   const prefs = await tx
     .select({ hqUserId: schema.calendarPreferences.hqUserId })
