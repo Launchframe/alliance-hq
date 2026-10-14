@@ -957,6 +957,40 @@ export async function resolveVsMatchConflict(
       });
       reviewDisposition = "reviewed_use_ashed";
       reviewHash = vsResultContentHash(reviewSnapshot);
+      // Day-head UI reads the confirmed result, but identity/sync desired
+      // state still comes from matchup.opponentDailyScores. Dual-write meta
+      // (same as HQ confirm) so use_ashed cannot leave a split brain that
+      // later keep_hq / dirty sync pushes stale HQ opponent scores to Ashed.
+      if (
+        reviewSnapshot.finality === "final" &&
+        reviewSnapshot.totals != null
+      ) {
+        const dayIndex = vsDatesForWeek(matchup.weekStart).indexOf(
+          observation.recordedDate,
+        );
+        if (dayIndex >= 0) {
+          const field = `day:${dayIndex + 1}` as VsOpponentField;
+          const opponentDailyScores: VsOpponentScores = matchup.opponentDailyScores
+            ? ([...matchup.opponentDailyScores] as VsOpponentScores)
+            : [null, null, null, null, null, null];
+          opponentDailyScores[dayIndex] = reviewSnapshot.totals.opponentScore;
+          const owned = new Set<string>(matchup.opponentInfoOwnedFields ?? []);
+          owned.add(field);
+          await tx
+            .update(schema.vsMatchups)
+            .set({
+              opponentDailyScores,
+              opponentInfoOwnedFields: [...owned] as VsOpponentField[],
+              version: matchup.version + 1,
+              updatedByHqUserId: actor.hqUserId,
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.vsMatchups.id, matchup.id));
+          await markVsOpponentFieldsDirty(tx, matchup.id, actor.allianceId, [
+            field,
+          ]);
+        }
+      }
     } else {
       reviewDisposition = "reviewed_keep_hq";
       reviewHash = observation.contentHash;

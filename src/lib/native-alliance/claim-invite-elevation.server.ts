@@ -19,6 +19,10 @@ import {
  *
  * Re-checks hybrid owner/officer rank gates here — accept-time checks alone are
  * insufficient once elevated RBAC is deferred until claim confirm (#754).
+ *
+ * `elevated` is true only when this call applied a non-member invite role.
+ * It is false for member-role claim invites and when an existing higher role
+ * was kept (`never_demote`), so callers must not read it as "claim succeeded".
  */
 export async function elevateMembershipAfterClaimLink(input: {
   allianceId: string;
