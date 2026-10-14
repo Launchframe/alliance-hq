@@ -315,6 +315,238 @@ export async function getEngActiveAssignment(
   return row ?? null;
 }
 
+type ProfessionTransaction = Parameters<
+  Parameters<ReturnType<typeof getDb>["transaction"]>[0]
+>[0];
+
+async function loadLockedCommanderProfession(
+  tx: ProfessionTransaction,
+  allianceId: string,
+  commanderId: string,
+): Promise<string | null> {
+  const [membership] = await tx
+    .select({ commanderId: schema.commanderAllianceMemberships.commanderId })
+    .from(schema.commanderAllianceMemberships)
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.commanderId, commanderId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  if (!membership) {
+    throw new Error("Commander is not a member of this alliance.");
+  }
+  const [commander] = await tx
+    .select({ profession: schema.commanders.profession })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1)
+    .for("update");
+  return commander?.profession ?? null;
+}
+
+async function assertAssignableUnderLock(
+  tx: ProfessionTransaction,
+  input: {
+    allianceId: string;
+    engCommanderId: string;
+    wlCommanderId: string;
+  },
+): Promise<void> {
+  const engProfession = await loadLockedCommanderProfession(
+    tx,
+    input.allianceId,
+    input.engCommanderId,
+  );
+  if (engProfession !== "Engineer") {
+    throw new Error("Commander must be an Engineer.");
+  }
+  const wlProfession = await loadLockedCommanderProfession(
+    tx,
+    input.allianceId,
+    input.wlCommanderId,
+  );
+  if (wlProfession !== "War Leader") {
+    throw new Error("Commander must be a War Leader.");
+  }
+
+  const activeRows = await tx
+    .select({
+      id: schema.wlEngAssignments.id,
+      wlCommanderId: schema.wlTeams.wlCommanderId,
+    })
+    .from(schema.wlEngAssignments)
+    .innerJoin(
+      schema.wlTeams,
+      eq(schema.wlEngAssignments.wlTeamId, schema.wlTeams.id),
+    )
+    .where(
+      and(
+        eq(schema.wlEngAssignments.allianceId, input.allianceId),
+        eq(schema.wlEngAssignments.engCommanderId, input.engCommanderId),
+        eq(schema.wlEngAssignments.status, "active"),
+      ),
+    )
+    .for("update");
+
+  if (activeRows.length === 0) return;
+  if (
+    activeRows.length === 1 &&
+    activeRows[0]!.wlCommanderId === input.wlCommanderId
+  ) {
+    throw new Error("Engineer is already assigned to this War Leader's team.");
+  }
+  throw new Error("Engineer is already assigned to another War Leader's team.");
+}
+
+async function assertAutomaticDutyAvailable(
+  tx: ProfessionTransaction,
+  input: {
+    allianceId: string;
+    wlTeamId: string;
+    engCommanderId: string;
+    wlCommanderId: string;
+    automaticDutyDate: string;
+  },
+): Promise<void> {
+  const away = await tx
+    .select({ id: schema.memberTimeOff.id })
+    .from(schema.memberTimeOff)
+    .innerJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          schema.memberTimeOff.ashedMemberId,
+        ),
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.memberTimeOff.allianceId, input.allianceId),
+        eq(schema.memberTimeOff.globalAbsence, true),
+        isNull(schema.memberTimeOff.cancelledAt),
+        lte(schema.memberTimeOff.startDate, input.automaticDutyDate),
+        gte(schema.memberTimeOff.endDate, input.automaticDutyDate),
+        inArray(schema.commanderAllianceMemberships.commanderId, [
+          input.engCommanderId,
+          input.wlCommanderId,
+        ]),
+      ),
+    );
+  if (away.length) {
+    throw new Error("No War Leaders available for assignment.");
+  }
+}
+
+/**
+ * Assign (or reactivate) an Eng under the alliance availability lock.
+ * Re-checks professions and single-active-assignment after the lock so
+ * concurrent switchProfession / dual-assign cannot corrupt pairings.
+ * The one-active-per-Eng partial unique index backstops this check.
+ */
+export async function commitEngAssignment(input: {
+  allianceId: string;
+  engCommanderId: string;
+  wlCommanderId: string;
+  automaticDutyDate?: string;
+}): Promise<{ assignmentId: string; wlTeamId: string }> {
+  return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, input.allianceId);
+    await assertAssignableUnderLock(tx, {
+      allianceId: input.allianceId,
+      engCommanderId: input.engCommanderId,
+      wlCommanderId: input.wlCommanderId,
+    });
+
+    const [existingTeam] = await tx
+      .select({ id: schema.wlTeams.id })
+      .from(schema.wlTeams)
+      .where(
+        and(
+          eq(schema.wlTeams.allianceId, input.allianceId),
+          eq(schema.wlTeams.wlCommanderId, input.wlCommanderId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    let wlTeamId = existingTeam?.id;
+    if (!wlTeamId) {
+      wlTeamId = nanoid();
+      await tx.insert(schema.wlTeams).values({
+        id: wlTeamId,
+        allianceId: input.allianceId,
+        wlCommanderId: input.wlCommanderId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
+    if (input.automaticDutyDate) {
+      await assertAutomaticDutyAvailable(tx, {
+        allianceId: input.allianceId,
+        wlTeamId,
+        engCommanderId: input.engCommanderId,
+        wlCommanderId: input.wlCommanderId,
+        automaticDutyDate: input.automaticDutyDate,
+      });
+    }
+
+    const [existing] = await tx
+      .select()
+      .from(schema.wlEngAssignments)
+      .where(
+        and(
+          eq(schema.wlEngAssignments.wlTeamId, wlTeamId),
+          eq(schema.wlEngAssignments.engCommanderId, input.engCommanderId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+
+    if (existing?.status === "active") {
+      throw new Error("Engineer is already assigned to this War Leader's team.");
+    }
+
+    if (existing) {
+      await tx
+        .update(schema.wlEngAssignments)
+        .set({
+          status: "active",
+          assignedAt: new Date(),
+          dismissedAt: null,
+          dismissedByCommanderId: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.wlEngAssignments.id, existing.id),
+            eq(schema.wlEngAssignments.allianceId, input.allianceId),
+          ),
+        );
+      return { assignmentId: existing.id, wlTeamId };
+    }
+
+    const assignmentId = nanoid();
+    await tx.insert(schema.wlEngAssignments).values({
+      id: assignmentId,
+      wlTeamId,
+      allianceId: input.allianceId,
+      engCommanderId: input.engCommanderId,
+      status: "active",
+      assignedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return { assignmentId, wlTeamId };
+  });
+}
+
 /** Create a new Eng assignment. Throws if Eng is already actively assigned to this team. */
 export async function createEngAssignment(input: {
   wlTeamId: string;
@@ -322,28 +554,26 @@ export async function createEngAssignment(input: {
   engCommanderId: string;
   automaticDutyDate?: string;
 }): Promise<string> {
-  return getDb().transaction(async (db) => {
-  await lockAllianceAvailability(db, input.allianceId);
-  if (input.automaticDutyDate) {
-    const [team] = await db.select({ wlCommanderId: schema.wlTeams.wlCommanderId }).from(schema.wlTeams).where(and(eq(schema.wlTeams.id, input.wlTeamId), eq(schema.wlTeams.allianceId, input.allianceId)));
-    const away = await db.select({ id: schema.memberTimeOff.id }).from(schema.memberTimeOff)
-      .innerJoin(schema.commanderAllianceMemberships, and(eq(schema.commanderAllianceMemberships.ashedMemberId, schema.memberTimeOff.ashedMemberId), eq(schema.commanderAllianceMemberships.allianceId, input.allianceId), isNull(schema.commanderAllianceMemberships.leftAt)))
-      .where(and(eq(schema.memberTimeOff.allianceId, input.allianceId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), lte(schema.memberTimeOff.startDate, input.automaticDutyDate), gte(schema.memberTimeOff.endDate, input.automaticDutyDate), inArray(schema.commanderAllianceMemberships.commanderId, [input.engCommanderId, team?.wlCommanderId ?? ""])));
-    if (!team || away.length) throw new Error("No War Leaders available for assignment.");
+  const [team] = await getDb()
+    .select({ wlCommanderId: schema.wlTeams.wlCommanderId })
+    .from(schema.wlTeams)
+    .where(
+      and(
+        eq(schema.wlTeams.id, input.wlTeamId),
+        eq(schema.wlTeams.allianceId, input.allianceId),
+      ),
+    )
+    .limit(1);
+  if (!team) {
+    throw new Error("No War Leaders available for assignment.");
   }
-  const id = nanoid();
-  await db.insert(schema.wlEngAssignments).values({
-    id,
-    wlTeamId: input.wlTeamId,
+  const result = await commitEngAssignment({
     allianceId: input.allianceId,
     engCommanderId: input.engCommanderId,
-    status: "active",
-    assignedAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    wlCommanderId: team.wlCommanderId,
+    automaticDutyDate: input.automaticDutyDate,
   });
-  return id;
-  });
+  return result.assignmentId;
 }
 
 /**
@@ -354,19 +584,173 @@ export async function reactivateEngAssignment(
   assignmentId: string,
   automaticDutyDate?: string,
 ): Promise<void> {
-  const [snapshot] = await getDb().select().from(schema.wlEngAssignments).where(eq(schema.wlEngAssignments.id, assignmentId));
+  const [snapshot] = await getDb()
+    .select()
+    .from(schema.wlEngAssignments)
+    .where(eq(schema.wlEngAssignments.id, assignmentId));
   if (!snapshot) return;
-  await getDb().transaction(async (db) => {
-    await lockAllianceAvailability(db, snapshot.allianceId);
-    if (automaticDutyDate) {
-      const [team] = await db.select().from(schema.wlTeams).where(and(eq(schema.wlTeams.id, snapshot.wlTeamId), eq(schema.wlTeams.allianceId, snapshot.allianceId)));
-      const away = await db.select({ id: schema.memberTimeOff.id }).from(schema.memberTimeOff)
-        .innerJoin(schema.commanderAllianceMemberships, and(eq(schema.commanderAllianceMemberships.ashedMemberId, schema.memberTimeOff.ashedMemberId), eq(schema.commanderAllianceMemberships.allianceId, snapshot.allianceId), isNull(schema.commanderAllianceMemberships.leftAt)))
-        .where(and(eq(schema.memberTimeOff.allianceId, snapshot.allianceId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), lte(schema.memberTimeOff.startDate, automaticDutyDate), gte(schema.memberTimeOff.endDate, automaticDutyDate), inArray(schema.commanderAllianceMemberships.commanderId, [snapshot.engCommanderId, team?.wlCommanderId ?? ""])));
-      if (!team || away.length) throw new Error("No War Leaders available for assignment.");
+  const [team] = await getDb()
+    .select({ wlCommanderId: schema.wlTeams.wlCommanderId })
+    .from(schema.wlTeams)
+    .where(
+      and(
+        eq(schema.wlTeams.id, snapshot.wlTeamId),
+        eq(schema.wlTeams.allianceId, snapshot.allianceId),
+      ),
+    )
+    .limit(1);
+  if (!team) {
+    throw new Error("No War Leaders available for assignment.");
+  }
+  await commitEngAssignment({
+    allianceId: snapshot.allianceId,
+    engCommanderId: snapshot.engCommanderId,
+    wlCommanderId: team.wlCommanderId,
+    automaticDutyDate,
+  });
+}
+
+/**
+ * Dismiss / self-remove team links and update profession under the same
+ * alliance availability lock used by commitEngAssignment.
+ */
+export async function applyProfessionSwitch(input: {
+  allianceId: string;
+  commanderId: string;
+  fromProfession: "Engineer" | "War Leader";
+  toProfession: "Engineer" | "War Leader";
+  source?: string;
+}): Promise<{
+  freedEngs: string[];
+  selfRemoved: {
+    wlTeamId: string;
+    wlCommanderId: string;
+  } | null;
+}> {
+  return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, input.allianceId);
+
+    const current = await loadLockedCommanderProfession(
+      tx,
+      input.allianceId,
+      input.commanderId,
+    );
+    if (current !== input.fromProfession) {
+      throw new Error("Profession changed concurrently.");
     }
-    await db.update(schema.wlEngAssignments).set({ status: "active", assignedAt: new Date(), dismissedAt: null, dismissedByCommanderId: null, updatedAt: new Date() })
-      .where(and(eq(schema.wlEngAssignments.id, assignmentId), eq(schema.wlEngAssignments.allianceId, snapshot.allianceId)));
+
+    const freedEngs: string[] = [];
+    let selfRemoved: { wlTeamId: string; wlCommanderId: string } | null = null;
+    const now = new Date();
+
+    if (input.fromProfession === "War Leader") {
+      const [team] = await tx
+        .select({ id: schema.wlTeams.id })
+        .from(schema.wlTeams)
+        .where(
+          and(
+            eq(schema.wlTeams.allianceId, input.allianceId),
+            eq(schema.wlTeams.wlCommanderId, input.commanderId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (team) {
+        const activeEngs = await tx
+          .select({
+            assignmentId: schema.wlEngAssignments.id,
+            engCommanderId: schema.wlEngAssignments.engCommanderId,
+          })
+          .from(schema.wlEngAssignments)
+          .where(
+            and(
+              eq(schema.wlEngAssignments.wlTeamId, team.id),
+              eq(schema.wlEngAssignments.status, "active"),
+            ),
+          )
+          .for("update");
+        for (const eng of activeEngs) {
+          await tx
+            .update(schema.wlEngAssignments)
+            .set({
+              status: "dismissed",
+              dismissedAt: now,
+              dismissedByCommanderId: input.commanderId,
+              updatedAt: now,
+            })
+            .where(eq(schema.wlEngAssignments.id, eng.assignmentId));
+          freedEngs.push(eng.engCommanderId);
+        }
+      }
+    } else if (input.fromProfession === "Engineer") {
+      const [assignment] = await tx
+        .select({
+          assignmentId: schema.wlEngAssignments.id,
+          wlTeamId: schema.wlEngAssignments.wlTeamId,
+          wlCommanderId: schema.wlTeams.wlCommanderId,
+        })
+        .from(schema.wlEngAssignments)
+        .innerJoin(
+          schema.wlTeams,
+          eq(schema.wlEngAssignments.wlTeamId, schema.wlTeams.id),
+        )
+        .where(
+          and(
+            eq(schema.wlEngAssignments.allianceId, input.allianceId),
+            eq(schema.wlEngAssignments.engCommanderId, input.commanderId),
+            eq(schema.wlEngAssignments.status, "active"),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (assignment) {
+        await tx
+          .update(schema.wlEngAssignments)
+          .set({
+            status: "self_removed",
+            dismissedAt: now,
+            dismissedByCommanderId: null,
+            updatedAt: now,
+          })
+          .where(eq(schema.wlEngAssignments.id, assignment.assignmentId));
+        selfRemoved = {
+          wlTeamId: assignment.wlTeamId,
+          wlCommanderId: assignment.wlCommanderId,
+        };
+        await tx.insert(schema.wlTeamEvents).values({
+          id: nanoid(),
+          allianceId: input.allianceId,
+          wlTeamId: assignment.wlTeamId,
+          eventKind: "eng_self_removed",
+          actorCommanderId: input.commanderId,
+          subjectCommanderId: assignment.wlCommanderId,
+          detailsJson: null,
+          createdAt: now,
+        });
+      }
+    }
+
+    await tx
+      .update(schema.commanders)
+      .set({ profession: input.toProfession, updatedAt: now })
+      .where(eq(schema.commanders.id, input.commanderId));
+
+    await tx.insert(schema.wlTeamEvents).values({
+      id: nanoid(),
+      allianceId: input.allianceId,
+      wlTeamId: null,
+      eventKind: "profession_switched",
+      actorCommanderId: input.commanderId,
+      subjectCommanderId: null,
+      detailsJson: {
+        from: input.fromProfession,
+        to: input.toProfession,
+        ...(input.source ? { source: input.source } : {}),
+      },
+      createdAt: now,
+    });
+
+    return { freedEngs, selfRemoved };
   });
 }
 
