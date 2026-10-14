@@ -5,7 +5,7 @@ import { assertE2eDatabaseUrl } from "../../../../scripts/e2e-database-url-guard
 import { createNativeAlliance, createPlatformMaintainerSession, getE2eSql, closeE2eSql } from "../../../../e2e/fixtures/db";
 import { getDb, getSqlClient, schema } from "@/lib/db";
 import { getDatabaseUrl } from "@/lib/db/url";
-import { claimMediaTask, createMediaUpload, enqueueMediaTask, loadMediaPolicy, reserveMediaFrame, saveMediaPolicy } from "./media-queue.server";
+import { claimMediaTask, createMediaUpload, enqueueMediaTask, failMediaTask, loadMediaPolicy, reserveMediaFrame, saveMediaPolicy } from "./media-queue.server";
 import { disabledMediaPolicy } from "./media.shared";
 
 let used = false;
@@ -60,5 +60,17 @@ describe.skipIf(process.env.OCR_LEARNING_DB_TEST !== "1")("bounded media collect
     await expect(reserveMediaFrame(task.id, first.leaseToken!, 10, "b".repeat(64))).rejects.toMatchObject({ code: "stale_media_lease" });
     await reserveMediaFrame(task.id, second.leaseToken!, 10, "b".repeat(64));
     expect((await loadMediaPolicy(f.allianceId)).reservedBytes).toBe(1210);
+  });
+
+  it("no-ops fail after lease expiry so reclaimable work is not terminalized", async () => {
+    const f = await fixture();
+    await saveMediaPolicy(f.allianceId, 0, { ...f.policy, storageBudgetBytes: 2000 }, f.actor);
+    const task = await createMediaUpload(f.input, f.actor);
+    await enqueueMediaTask(f.allianceId, task.id, f.actor);
+    const lease = (await claimMediaTask(task.id))!;
+    await getDb().update(schema.ocrMediaTasks).set({ leaseExpiresAt: new Date(0) }).where(eq(schema.ocrMediaTasks.id, task.id));
+    await failMediaTask(task.id, lease.leaseToken!, "media_processing_failed");
+    const [row] = await getDb().select().from(schema.ocrMediaTasks).where(eq(schema.ocrMediaTasks.id, task.id));
+    expect(row).toMatchObject({ state: "running", attempts: 1, errorCode: null });
   });
 });
