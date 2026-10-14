@@ -136,6 +136,20 @@ describe("processDueRegularEventAnnouncements claim-before-post", () => {
     expect(result.skipped).toBe(1);
   });
 
+  it("clears the claim when Discord delivery throws after claim", async () => {
+    mocks.postDiscord.mockRejectedValueOnce(new Error("discord boom"));
+
+    const result = await processDueRegularEventAnnouncements(
+      new Date("2026-06-23T20:35:00.000Z"),
+    );
+
+    expect(mocks.claimAnnounced).toHaveBeenCalledWith("occ-1", expect.any(Date));
+    expect(mocks.materializeInbox).toHaveBeenCalled();
+    expect(mocks.clearAnnounced).toHaveBeenCalledWith("occ-1");
+    expect(result.posted).toBe(0);
+    expect(result.inbox).toBe(1);
+  });
+
   it("continues later occurrences when one post-claim delivery throws", async () => {
     mocks.listDue.mockResolvedValue([
       dueOccurrence,
