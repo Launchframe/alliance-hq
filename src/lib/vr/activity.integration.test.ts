@@ -22,6 +22,7 @@ import type { ActivityPrincipal } from "../activity/access.server";
 import { ActivityWriteError } from "../activity/errors.server";
 import { scheduleActivityBlockedAlert } from "../activity/monitoring.server";
 import {
+  deleteCommanderSeasonVrEvent,
   upsertMemberSeasonVr,
   VrPendingChangedError,
   VrSubmissionChangedError,
@@ -1137,5 +1138,159 @@ describe.skipIf(!enabled)("vr activity integration", () => {
     expect(events).toHaveLength(0);
     const summary = await seasonSummary(commanderId);
     expect(summary?.highestBaseVr).toBe(3400);
+  });
+
+  it("officer history delete waits for a concurrent submit and recomputes over its event", async () => {
+    const allianceId = await insertAlliance();
+    const { commanderId } = await insertCommanderFixture(allianceId, {
+      highestBaseVr: 3200,
+    });
+    const officer = await insertWebActor(allianceId, commanderId);
+    const db = getDb();
+    const realTransaction = db.transaction.bind(db);
+
+    const olderEventId = uid("evt");
+    const deletedEventId = uid("evt");
+    await db.insert(schema.commanderSeasonVrEvents).values([
+      {
+        id: olderEventId,
+        commanderId,
+        seasonKey: SEASON_KEY,
+        baseVr: 3000,
+        source: "backfill",
+        allianceId,
+        createdAt: new Date(Date.now() - 2 * 60 * 1000),
+      },
+      {
+        id: deletedEventId,
+        commanderId,
+        seasonKey: SEASON_KEY,
+        baseVr: 3200,
+        previousBaseVr: 3000,
+        source: "backfill",
+        allianceId,
+        createdAt: new Date(Date.now() - 60 * 1000),
+      },
+    ]);
+
+    let blockerReady!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      blockerReady = resolve;
+    });
+    let releaseBlocker!: () => void;
+    const released = new Promise<void>((resolve) => {
+      releaseBlocker = resolve;
+    });
+    let blockerPidResolve!: (pid: number) => void;
+    const blockerPidReady = new Promise<number>((resolve) => {
+      blockerPidResolve = resolve;
+    });
+
+    // Mirrors the self-submit write set: commander lock, a higher event, and
+    // the summary bump, held open until the officer delete is queued.
+    const blockerPromise = realTransaction(async (tx) => {
+      const pidRows = (await tx.execute(
+        sql`select pg_backend_pid() as pid`,
+      )) as unknown as { pid: number }[];
+      blockerPidResolve(Number(pidRows[0].pid));
+      await tx
+        .select({ id: schema.commanders.id })
+        .from(schema.commanders)
+        .where(eq(schema.commanders.id, commanderId))
+        .for("update");
+      await tx.insert(schema.commanderSeasonVrEvents).values({
+        id: uid("evt"),
+        commanderId,
+        seasonKey: SEASON_KEY,
+        baseVr: 5000,
+        previousBaseVr: 3200,
+        source: "web",
+        allianceId,
+        createdAt: new Date(),
+      });
+      await tx
+        .update(schema.commanderSeasonVr)
+        .set({ highestBaseVr: 5000, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.commanderSeasonVr.commanderId, commanderId),
+            eq(schema.commanderSeasonVr.seasonKey, SEASON_KEY),
+          ),
+        );
+      blockerReady();
+      await released;
+    });
+
+    const blockerPid = await Promise.race([
+      blockerPidReady,
+      blockerPromise.then(() => {
+        throw new Error("blocker_finished_before_pid");
+      }),
+    ]);
+    await Promise.race([
+      ready,
+      blockerPromise.then(() => {
+        throw new Error("blocker_finished_before_lock");
+      }),
+    ]);
+
+    let officerPidResolve!: (pid: number) => void;
+    const officerPidReady = new Promise<number>((resolve) => {
+      officerPidResolve = resolve;
+    });
+    const spy = vi.spyOn(db, "transaction").mockImplementationOnce((work) =>
+      realTransaction(async (tx) => {
+        const pidRows = (await tx.execute(
+          sql`select pg_backend_pid() as pid`,
+        )) as unknown as { pid: number }[];
+        officerPidResolve(Number(pidRows[0].pid));
+        return work(tx);
+      }),
+    );
+
+    let results: PromiseSettledResult<unknown>[] = [];
+    const deletePromise = deleteCommanderSeasonVrEvent({
+      eventId: deletedEventId,
+      allianceId,
+      hqUserId: officer.hqUserId,
+    });
+    try {
+      const officerPid = await Promise.race([
+        officerPidReady,
+        deletePromise.then(() => {
+          throw new Error("delete_finished_before_pid_observation");
+        }),
+      ]);
+      await vi.waitFor(
+        async () => {
+          const [row] = (await db.execute(
+            sql`select ${blockerPid} = any(pg_blocking_pids(${officerPid})) as waiting`,
+          )) as unknown as { waiting: boolean }[];
+          expect(row.waiting).toBe(true);
+        },
+        { timeout: 5000, interval: 20 },
+      );
+    } finally {
+      releaseBlocker();
+      spy.mockRestore();
+      results = await Promise.allSettled([blockerPromise, deletePromise]);
+    }
+
+    expect(results[0]?.status).toBe("fulfilled");
+    expect(results[1]).toMatchObject({
+      status: "fulfilled",
+      value: { ok: true },
+    });
+    const remaining = await getDb()
+      .select({
+        id: schema.commanderSeasonVrEvents.id,
+        baseVr: schema.commanderSeasonVrEvents.baseVr,
+      })
+      .from(schema.commanderSeasonVrEvents)
+      .where(eq(schema.commanderSeasonVrEvents.commanderId, commanderId));
+    expect(remaining.map((row) => row.id)).not.toContain(deletedEventId);
+    expect(remaining.map((row) => row.baseVr).sort((a, b) => a - b)).toEqual([3000, 5000]);
+    const summary = await seasonSummary(commanderId);
+    expect(summary?.highestBaseVr).toBe(5000);
   });
 });
