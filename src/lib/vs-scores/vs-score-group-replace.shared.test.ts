@@ -63,6 +63,22 @@ describe("shouldClearVsHeadOnGroupReplace", () => {
     ).toBe(true);
   });
 
+  it("does not clear a sibling pass head on a different period", () => {
+    expect(
+      shouldClearVsHeadOnGroupReplace({
+        head: {
+          sourceJobId: "job-a",
+          recordedDate: "2026-08-31",
+          period: "weekly",
+        },
+        commitJobId: "job-b",
+        commitRecordedDate: "2026-08-31",
+        commitPeriod: "daily",
+        replaceJobIds,
+      }),
+    ).toBe(false);
+  });
+
   it("does not clear a sibling pass head on a different date", () => {
     expect(
       shouldClearVsHeadOnGroupReplace({

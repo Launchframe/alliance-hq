@@ -167,7 +167,12 @@ export async function commitReviewedVsScoresTx(tx: VsTransaction, input: VsScore
       ? await tx
           .select({ id: schema.videoJobs.id })
           .from(schema.videoJobs)
-          .where(eq(schema.videoJobs.groupId, job.groupId))
+          .where(
+            and(
+              eq(schema.videoJobs.groupId, job.groupId),
+              eq(schema.videoJobs.allianceId, job.allianceId),
+            ),
+          )
       : [];
     const replaceJobIds = replaceSourceJobIdsForVsCommit({
       jobId: input.jobId,
