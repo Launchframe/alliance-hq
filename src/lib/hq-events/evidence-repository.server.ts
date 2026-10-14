@@ -14,6 +14,7 @@ import {
   type EventObservation,
   type ResolvedEventMember,
 } from "@/lib/hq-events/evidence-merge.shared";
+import { boardIdsForEvidenceRetract } from "@/lib/hq-events/evidence-retract-boards.shared";
 import type {
   EventEvidenceKind,
   EventProvenanceKind,
@@ -1000,10 +1001,11 @@ export async function bootstrapEventBoardFromLegacyMetadata(
 
 /**
  * Retract every observation a committed evidence batch contributed, recompute
- * the affected board's results, bump evidence_version (invalidating any
+ * the affected boards' results, bump evidence_version (invalidating any
  * readiness mark), and re-derive desired sync items — one transaction.
  * Used by data-management batch deletion so eligibility never points at
- * deleted evidence.
+ * deleted evidence. Multi-board batches (`board_id` null) resolve boards from
+ * their observations via {@link boardIdsForEvidenceRetract}.
  */
 export async function retractEventEvidenceBatch(
   actor: EventActor,
@@ -1070,19 +1072,25 @@ export async function retractEventEvidenceBatch(
       .set({ status: "retracted", updatedAt: now })
       .where(inArray(schema.hqEventEvidenceBatches.id, batchIds));
 
-    const boardIds = [
-      ...new Set(
-        batches
-          .map((batch) => batch.boardId)
-          .filter((id): id is string => id != null),
-      ),
-    ];
-    const { byId: boardsById } = await lockBoardsInOrder(
-      tx,
-      actor.allianceId,
-      boardIds,
+    // Multi-board commits store batch.boardId = null (see commit path). Discover
+    // affected boards from observations so retract still recomputes results and
+    // bumps evidence_version (otherwise deleted scores stay live).
+    const observationBoards = await tx
+      .selectDistinct({ boardId: schema.hqEventObservations.boardId })
+      .from(schema.hqEventObservations)
+      .where(
+        and(
+          eq(schema.hqEventObservations.allianceId, actor.allianceId),
+          inArray(schema.hqEventObservations.batchId, batchIds),
+        ),
+      );
+    const boardIds = boardIdsForEvidenceRetract(
+      batches.map((batch) => batch.boardId),
+      observationBoards.map((row) => row.boardId),
     );
-    for (const boardId of boardIds) {
+    const { sorted: boardIdsInLockOrder, byId: boardsById } =
+      await lockBoardsInOrder(tx, actor.allianceId, boardIds);
+    for (const boardId of boardIdsInLockOrder) {
       const board = boardsById.get(boardId);
       if (!board) continue;
       const { results } = await recomputeBoardResults(
@@ -1134,10 +1142,10 @@ export async function retractEventEvidenceBatch(
         batchIds,
         sourceRef: input.sourceRef ?? null,
         retracted: retractedRows.length,
-        boardIds,
+        boardIds: boardIdsInLockOrder,
       },
     });
 
-    return { retracted: retractedRows.length, boardIds };
+    return { retracted: retractedRows.length, boardIds: boardIdsInLockOrder };
   });
 }

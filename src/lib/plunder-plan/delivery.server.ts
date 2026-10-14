@@ -69,7 +69,38 @@ export async function materializePlunderDeliveries(allianceId: string, now = new
   return getDb().transaction(async (tx) => {
     await lockPlans(tx, allianceId);
     const due = await candidates(tx, allianceId, now);
-    for (const { kind, recipientId, occurrenceKey, dueAt, expiresAt } of due) await tx.insert(schema.plunderPlanDeliveries).values({ id: nanoid(), allianceId, kind, recipientId, occurrenceKey, dueAt, expiresAt }).onConflictDoNothing();
+    // Unique (alliance, kind, recipient, occurrence) is intentional anti-dupe. Terminal
+    // `sent` / `uncertain` must remain blockers. `cancelled` is a temporary suppress —
+    // revive when the candidate window returns so time-off clear / reminder re-enable
+    // can DM again before expires_at.
+    for (const { kind, recipientId, occurrenceKey, dueAt, expiresAt } of due) {
+      await tx.insert(schema.plunderPlanDeliveries).values({
+        id: nanoid(),
+        allianceId,
+        kind,
+        recipientId,
+        occurrenceKey,
+        dueAt,
+        expiresAt,
+      }).onConflictDoUpdate({
+        target: [
+          schema.plunderPlanDeliveries.allianceId,
+          schema.plunderPlanDeliveries.kind,
+          schema.plunderPlanDeliveries.recipientId,
+          schema.plunderPlanDeliveries.occurrenceKey,
+        ],
+        set: {
+          dueAt: sql`excluded.due_at`,
+          expiresAt: sql`excluded.expires_at`,
+          status: "pending",
+          leaseToken: null,
+          leaseUntil: null,
+          attempts: 0,
+          messageId: null,
+        },
+        setWhere: eq(schema.plunderPlanDeliveries.status, "cancelled"),
+      });
+    }
     await tx.update(schema.plunderPlanState).set({ nextTickAt: new Date(now.getTime() + MINUTE) }).where(eq(schema.plunderPlanState.allianceId, allianceId));
     return due.length;
   });
