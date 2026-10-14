@@ -4,12 +4,15 @@ const loadSession = vi.fn();
 const resolveEffectiveHqUserIdForSession = vi.fn();
 const sessionHoldsAshedIdentityForHqUser = vi.fn();
 const getAshedCredentialRecord = vi.fn();
-const loadAshedConnectionForAllianceCapability = vi.fn();
+const getAshedConnection = vi.fn();
+const resolveAshedConnectionForAlliance = vi.fn();
+const requireActiveShareCapability = vi.fn();
 const verifyBase44Connection = vi.fn();
 const base44ListAlliances = vi.fn();
 const filterAccessibleAlliances = vi.fn();
 const canInstallAshedBotCredentials = vi.fn();
 const syncAshedAllianceForBot = vi.fn();
+const getAllianceAshedCredential = vi.fn();
 const upsertAllianceAshedCredential = vi.fn();
 const decryptSecret = vi.fn((value: string) => `decrypted:${value}`);
 const encryptSecret = vi.fn((value: string) => `encrypted:${value}`);
@@ -25,6 +28,7 @@ vi.mock("@/lib/session", () => ({
     resolveEffectiveHqUserIdForSession(...args),
   getAshedCredentialRecord: (...args: unknown[]) =>
     getAshedCredentialRecord(...args),
+  getAshedConnection: (...args: unknown[]) => getAshedConnection(...args),
 }));
 
 vi.mock("@/lib/rbac/ashed-session-membership", () => ({
@@ -32,9 +36,11 @@ vi.mock("@/lib/rbac/ashed-session-membership", () => ({
     sessionHoldsAshedIdentityForHqUser(...args),
 }));
 
-vi.mock("@/lib/ashed/load-ashed-connection.server", () => ({
-  loadAshedConnectionForAllianceCapability: (...args: unknown[]) =>
-    loadAshedConnectionForAllianceCapability(...args),
+vi.mock("@/lib/ashed/credential-share.server", () => ({
+  resolveAshedConnectionForAlliance: (...args: unknown[]) =>
+    resolveAshedConnectionForAlliance(...args),
+  requireActiveShareCapability: (...args: unknown[]) =>
+    requireActiveShareCapability(...args),
 }));
 
 vi.mock("@/lib/base44/server", () => ({
@@ -59,6 +65,8 @@ vi.mock("@/lib/rbac/sync-ashed-roles", () => ({
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
+  getAllianceAshedCredential: (...args: unknown[]) =>
+    getAllianceAshedCredential(...args),
   upsertAllianceAshedCredential: (...args: unknown[]) =>
     upsertAllianceAshedCredential(...args),
 }));
@@ -98,6 +106,9 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
       originUrl: "https://ashed.example",
       encryptedToken: "tok",
     });
+    getAshedConnection.mockResolvedValue(null);
+    resolveAshedConnectionForAlliance.mockResolvedValue(null);
+    requireActiveShareCapability.mockResolvedValue(null);
     verifyBase44Connection.mockResolvedValue({
       id: "ashed-user",
       email: "collab@example.com",
@@ -109,6 +120,7 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
       { id: "a1", tag: "LFgo", accessRole: "maintainer" },
     ]);
     canInstallAshedBotCredentials.mockReturnValue(false);
+    getAllianceAshedCredential.mockResolvedValue(null);
   });
 
   it("rejects Ashed collaborators/maintainers before upserting bot credentials", async () => {
@@ -131,7 +143,59 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
     expect(syncAshedAllianceForBot).not.toHaveBeenCalled();
   });
 
-  it("allows Ashed maintainers when allowAshedMaintainer is set for time-off repair", async () => {
+  it("rejects Ashed maintainer first-install even with allowAshedMaintainer", async () => {
+    getAllianceAshedCredential.mockResolvedValue(null);
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: expect.stringContaining("owner can install"),
+    });
+    expect(upsertAllianceAshedCredential).not.toHaveBeenCalled();
+    expect(syncAshedAllianceForBot).not.toHaveBeenCalled();
+  });
+
+  it("rejects Ashed maintainer overwrite while stored bot token is still valid", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: new Date("2099-06-01T00:00:00.000Z"),
+      registeredByHqUserId: "owner-hq",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: expect.stringContaining("still valid"),
+    });
+    expect(upsertAllianceAshedCredential).not.toHaveBeenCalled();
+  });
+
+  it("allows Ashed maintainers to repair expired credentials without stamping registrant", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      registeredByHqUserId: "owner-hq",
+    });
     syncAshedAllianceForBot.mockResolvedValue({
       hqAllianceId: "alliance-1",
       hqUserId: "hq-1",
@@ -150,17 +214,21 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
 
     expect(result).toEqual({ ok: true });
     expect(syncAshedAllianceForBot).toHaveBeenCalled();
-    expect(upsertAllianceAshedCredential).toHaveBeenCalledWith(
-      expect.objectContaining({ registeredByHqUserId: "hq-1" }),
+    const payload = upsertAllianceAshedCredential.mock.calls[0][0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        allianceId: "alliance-1",
+        encryptedToken: "encrypted:decrypted:tok",
+      }),
     );
+    expect(payload).not.toHaveProperty("registeredByHqUserId");
   });
 
-  it("allows maintainer credential shares for time-off repair via alliance_credentials:manage", async () => {
-    sessionHoldsAshedIdentityForHqUser.mockResolvedValue(false);
-    loadAshedConnectionForAllianceCapability.mockResolvedValue({
-      appId: "shared-app",
-      originUrl: "https://ashed.example",
-      token: "shared-token",
+  it("treats a null stored expiry as unknown and allows maintainer repair without stamping registrant", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: null,
+      registeredByHqUserId: "owner-hq",
     });
     syncAshedAllianceForBot.mockResolvedValue({
       hqAllianceId: "alliance-1",
@@ -179,13 +247,125 @@ describe("upsertAllianceAshedCredentialsFromSession", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(loadAshedConnectionForAllianceCapability).toHaveBeenCalledWith({
+    expect(upsertAllianceAshedCredential).toHaveBeenCalledTimes(1);
+    expect(upsertAllianceAshedCredential.mock.calls[0][0]).not.toHaveProperty(
+      "registeredByHqUserId",
+    );
+  });
+
+  it("delegated owner-key install must stamp share owner, not delegate", async () => {
+    loadSession.mockResolvedValue({ hqUserId: "hq-delegate" });
+    resolveEffectiveHqUserIdForSession.mockResolvedValue("hq-delegate");
+    sessionHoldsAshedIdentityForHqUser.mockResolvedValue(false);
+    resolveAshedConnectionForAlliance.mockResolvedValue({
+      connection: {
+        appId: "shared-app",
+        originUrl: "https://ashed.example",
+        token: "owner-shared-token",
+      },
+      shareId: "share-1",
+      isDelegated: true,
+    });
+    requireActiveShareCapability.mockResolvedValue({
+      connection: {
+        appId: "shared-app",
+        originUrl: "https://ashed.example",
+        token: "owner-shared-token",
+      },
+      shareId: "share-1",
+      ownerHqUserId: "hq-owner",
+    });
+    verifyBase44Connection.mockResolvedValue({
+      id: "ashed-owner",
+      email: "owner@example.com",
+      full_name: "Owner",
+    });
+    filterAccessibleAlliances.mockReturnValue([
+      { id: "a1", tag: "LFgo", accessRole: "owner" },
+    ]);
+    canInstallAshedBotCredentials.mockReturnValue(true);
+    syncAshedAllianceForBot.mockResolvedValue({
+      hqAllianceId: "alliance-1",
+      hqUserId: "hq-delegate",
+      roleName: "owner",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-delegate",
+      allianceId: "alliance-1",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(requireActiveShareCapability).toHaveBeenCalledWith({
+      sessionId: "sess-delegate",
+      allianceId: "alliance-1",
+      capability: "alliance_credentials:manage",
+      delegatedAction: "alliance_credentials.upsert",
+    });
+    // Before fix: registeredByHqUserId was "hq-delegate" (sticky #749 hole).
+    expect(upsertAllianceAshedCredential).toHaveBeenCalledWith(
+      expect.objectContaining({ registeredByHqUserId: "hq-owner" }),
+    );
+    const payload = upsertAllianceAshedCredential.mock.calls[0][0];
+    expect(payload.registeredByHqUserId).not.toBe("hq-delegate");
+  });
+
+  it("allows maintainer credential shares for expired time-off repair via alliance_credentials:manage", async () => {
+    getAllianceAshedCredential.mockResolvedValue({
+      allianceId: "alliance-1",
+      tokenExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      registeredByHqUserId: "owner-hq",
+    });
+    sessionHoldsAshedIdentityForHqUser.mockResolvedValue(false);
+    resolveAshedConnectionForAlliance.mockResolvedValue({
+      connection: {
+        appId: "shared-app",
+        originUrl: "https://ashed.example",
+        token: "shared-token",
+      },
+      shareId: "share-1",
+      isDelegated: true,
+    });
+    requireActiveShareCapability.mockResolvedValue({
+      connection: {
+        appId: "shared-app",
+        originUrl: "https://ashed.example",
+        token: "shared-token",
+      },
+      shareId: "share-1",
+      ownerHqUserId: "hq-owner",
+    });
+    syncAshedAllianceForBot.mockResolvedValue({
+      hqAllianceId: "alliance-1",
+      hqUserId: "hq-1",
+      roleName: "maintainer",
+    });
+
+    const { upsertAllianceAshedCredentialsFromSession } = await import(
+      "./alliance-credentials-manage.server"
+    );
+
+    const result = await upsertAllianceAshedCredentialsFromSession({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      allowAshedMaintainer: true,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(requireActiveShareCapability).toHaveBeenCalledWith({
       sessionId: "sess-1",
       allianceId: "alliance-1",
       capability: "alliance_credentials:manage",
       delegatedAction: "alliance_credentials.upsert",
     });
     expect(upsertAllianceAshedCredential).toHaveBeenCalled();
+    expect(upsertAllianceAshedCredential.mock.calls[0][0]).not.toHaveProperty(
+      "registeredByHqUserId",
+    );
   });
 
   it("allows Ashed owners and does not clear Discord registrant on upsert", async () => {

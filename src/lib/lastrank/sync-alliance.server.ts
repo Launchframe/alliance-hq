@@ -17,6 +17,7 @@ import {
   LASTRANK_PROFESSION_HQ_RECENT_DAYS,
   lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
+  collectStaleLastRankStickyCommanderIds,
   matchLastRankMembersToHq,
   resolveHqNameToRosterRow,
   type LastRankHqRosterRow,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/lastrank/alliance-page.shared";
 import type { LastRankSyncTarget } from "@/lib/lastrank/sync-registry.shared";
 import {
+  clearLastRankPublicId,
   createAllianceMemberFromLastRank,
   listActiveMemberIdsNotInSet,
   retireAllianceMembers,
@@ -64,6 +66,8 @@ import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { namesMatch } from "@/lib/vr/link-helpers";
 
 export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
+  /** Cleared sticky public ids that failed name corroboration. */
+  stickyClearedStale: number;
   thpApplied: number;
   thpSkipped: number;
   thpConflict: number;
@@ -138,6 +142,7 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     ashedMembersCreated: 0,
     ashedMembersRetired: 0,
     ashedSkipped: 0,
+    stickyClearedStale: 0,
     thpApplied: 0,
     thpSkipped: 0,
     thpConflict: 0,
@@ -946,6 +951,19 @@ export async function syncLastRankAlliance(input: {
       applyCounts.ashedMembersCreated += created.ashedCreated;
       if (ashed && created.created > created.ashedCreated) {
         applyCounts.ashedSkipped += created.created - created.ashedCreated;
+      }
+    }
+
+    // Quarantine poisoned sticky public ids (pre-#604 fuzzy writes, or
+    // divergent renames without name corroboration) so exact name can reclaim
+    // and cron cannot keep applying the wrong LastRank player's ranks.
+    for (const commanderId of collectStaleLastRankStickyCommanderIds(
+      page.members,
+      hqRows,
+      match,
+    )) {
+      if (await clearLastRankPublicId(commanderId)) {
+        applyCounts.stickyClearedStale += 1;
       }
     }
 

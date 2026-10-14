@@ -1252,56 +1252,86 @@ export async function clearConductorDepartingSoonAnnounced(
     );
 }
 
+export class ConductorUnlockForbiddenError extends Error {
+  constructor() {
+    super("Conductor unlock is not permitted for this actor.");
+    this.name = "ConductorUnlockForbiddenError";
+  }
+}
+
 export async function unlockConductorRecord(
   recordId: string,
   allianceId: string,
+  options?: {
+    /**
+     * Runs on the row read under the schedule lock + FOR UPDATE, so ownership
+     * is checked against the lock state actually being undone. Return false to
+     * abort with `ConductorUnlockForbiddenError`. Must not perform I/O.
+     */
+    authorize?: (
+      existing: typeof schema.trainConductorRecords.$inferSelect,
+    ) => boolean;
+  },
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
-  const db = getDb();
-  const [existing] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, recordId))
-    .limit(1);
+  // Hold the alliance schedule lock + row FOR UPDATE for the whole unlock.
+  // A prior CAS-then-delete outside the lock let a concurrent re-lock spawn a
+  // train that this delete then wiped while lockedAt stayed set.
+  return withTrainScheduleWriteLock(allianceId, undefined, async (db) => {
+    const [existing] = await db
+      .select()
+      .from(schema.trainConductorRecords)
+      .where(
+        and(
+          eq(schema.trainConductorRecords.id, recordId),
+          eq(schema.trainConductorRecords.allianceId, allianceId),
+        ),
+      )
+      .for("update");
 
-  if (!existing || existing.allianceId !== allianceId) {
-    throw new Error("Conductor record not found.");
-  }
-  if (!existing.lockedAt) {
-    throw new Error("Conductor is not locked.");
-  }
+    if (!existing || existing.allianceId !== allianceId) {
+      throw new Error("Conductor record not found.");
+    }
+    if (!existing.lockedAt) {
+      throw new Error("Conductor is not locked.");
+    }
+    if (options?.authorize && !options.authorize(existing)) {
+      throw new ConductorUnlockForbiddenError();
+    }
 
-  // CAS unlock first so a concurrent re-lock cannot leave us having deleted
-  // trains while the day is still considered locked.
-  const updatedAt = new Date();
-  const unlocked = await db
-    .update(schema.trainConductorRecords)
-    .set({
-      lockedAt: null,
-      lockedByHqUserId: null,
-      discordDepartingSoonAt: null,
-      updatedAt,
-    })
-    .where(
-      and(
-        eq(schema.trainConductorRecords.id, recordId),
-        eq(schema.trainConductorRecords.allianceId, allianceId),
-        isNotNull(schema.trainConductorRecords.lockedAt),
-      ),
-    )
-    .returning();
+    // Keep depleting-pool consumption while the conductor assignment remains.
+    // Re-roll / clear / open-target swap release or remaps the slot only when the
+    // member is no longer assigned for this date (see roll/pick replace paths).
+    const updatedAt = new Date();
+    const unlocked = await db
+      .update(schema.trainConductorRecords)
+      .set({
+        lockedAt: null,
+        lockedByHqUserId: null,
+        discordDepartingSoonAt: null,
+        updatedAt,
+      })
+      .where(
+        and(
+          eq(schema.trainConductorRecords.id, recordId),
+          eq(schema.trainConductorRecords.allianceId, allianceId),
+          isNotNull(schema.trainConductorRecords.lockedAt),
+        ),
+      )
+      .returning();
 
-  if (unlocked.length === 0) {
-    throw new Error("Conductor is not locked.");
-  }
+    if (unlocked.length === 0) {
+      throw new Error("Conductor is not locked.");
+    }
 
-  // Keep depleting-pool consumption while the conductor assignment remains.
-  // Re-roll / clear / open-target swap release or remaps the slot only when the
-  // member is no longer assigned for this date (see roll/pick replace paths).
-  await db
-    .delete(schema.trains)
-    .where(eq(schema.trains.conductorRecordId, recordId));
+    // Still holding the alliance + row lock: concurrent lockConductorRecord
+    // cannot spawn until this transaction commits, so this delete cannot wipe
+    // a freshly re-locked train.
+    await db
+      .delete(schema.trains)
+      .where(eq(schema.trains.conductorRecordId, recordId));
 
-  return unlocked[0]!;
+    return unlocked[0]!;
+  });
 }
 
 export async function spawnEmptyTrain(
