@@ -3,14 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockRepo = vi.hoisted(() => ({
   getCommanderAllianceProfession: vi.fn(),
   getEngActiveAssignment: vi.fn(),
-  getEngAssignment: vi.fn(),
-  upsertWlTeam: vi.fn(),
-  createEngAssignment: vi.fn(),
-  reactivateEngAssignment: vi.fn(),
+  commitEngAssignment: vi.fn(),
+  applyProfessionSwitch: vi.fn(),
   logWlTeamEvent: vi.fn(),
-  getWlTeam: vi.fn(),
-  getActiveAssignmentsForTeam: vi.fn(),
-  updateAssignmentStatus: vi.fn(),
+  loadAwayProfessionCommanderIds: vi.fn(),
 }));
 
 vi.mock("./repository", () => mockRepo);
@@ -47,12 +43,13 @@ function mockProfessions(
 describe("assignEngToWl", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRepo.upsertWlTeam.mockResolvedValue("wl-team-1");
-    mockRepo.getEngAssignment.mockResolvedValue(null);
-    mockRepo.createEngAssignment.mockResolvedValue("assignment-1");
-    mockRepo.reactivateEngAssignment.mockResolvedValue(undefined);
+    mockRepo.commitEngAssignment.mockResolvedValue({
+      assignmentId: "assignment-1",
+      wlTeamId: "wl-team-1",
+    });
     mockRepo.logWlTeamEvent.mockResolvedValue(undefined);
     mockRepo.getEngActiveAssignment.mockResolvedValue(null);
+    mockRepo.loadAwayProfessionCommanderIds.mockResolvedValue(new Set());
   });
 
   it("rejects when Engineer is not in the alliance", async () => {
@@ -64,7 +61,7 @@ describe("assignEngToWl", () => {
         wlCommanderId: "wl-1",
       }),
     ).rejects.toThrow("Commander is not a member of this alliance.");
-    expect(mockRepo.createEngAssignment).not.toHaveBeenCalled();
+    expect(mockRepo.commitEngAssignment).not.toHaveBeenCalled();
   });
 
   it("rejects when War Leader is not in the alliance", async () => {
@@ -86,7 +83,7 @@ describe("assignEngToWl", () => {
         engCommanderId: "eng-1",
         wlCommanderId: "wl-1",
       }),
-    ).rejects.toThrow("Commander must be a Engineer.");
+    ).rejects.toThrow("Commander must be an Engineer.");
   });
 
   it("enforces a single active assignment per Engineer", async () => {
@@ -105,7 +102,7 @@ describe("assignEngToWl", () => {
     ).rejects.toThrow(
       "Engineer is already assigned to another War Leader's team.",
     );
-    expect(mockRepo.createEngAssignment).not.toHaveBeenCalled();
+    expect(mockRepo.commitEngAssignment).not.toHaveBeenCalled();
   });
 
   it("creates an assignment when professions and availability are valid", async () => {
@@ -119,10 +116,11 @@ describe("assignEngToWl", () => {
       assignmentId: "assignment-1",
       wlTeamId: "wl-team-1",
     });
-    expect(mockRepo.createEngAssignment).toHaveBeenCalledWith({
-      wlTeamId: "wl-team-1",
+    expect(mockRepo.commitEngAssignment).toHaveBeenCalledWith({
       allianceId: "alliance-a",
       engCommanderId: "eng-1",
+      wlCommanderId: "wl-1",
+      automaticDutyDate: undefined,
     });
     expect(notifyProfessionEvent).toHaveBeenCalled();
   });
@@ -139,13 +137,11 @@ describe("assignEngToWl", () => {
     expect(notifyProfessionEvent).not.toHaveBeenCalled();
   });
 
-  it("reactivates a dismissed/self_removed row instead of inserting a duplicate", async () => {
+  it("commits under lock for reactivate and create paths alike", async () => {
     mockProfessions({ profession: "Engineer" }, { profession: "War Leader" });
-    mockRepo.getEngAssignment.mockResolvedValue({
-      id: "assignment-old",
-      status: "self_removed",
+    mockRepo.commitEngAssignment.mockResolvedValue({
+      assignmentId: "assignment-old",
       wlTeamId: "wl-team-1",
-      engCommanderId: "eng-1",
     });
     const result = await assignEngToWl({
       allianceId: "alliance-a",
@@ -156,10 +152,7 @@ describe("assignEngToWl", () => {
       assignmentId: "assignment-old",
       wlTeamId: "wl-team-1",
     });
-    expect(mockRepo.reactivateEngAssignment).toHaveBeenCalledWith(
-      "assignment-old", undefined,
-    );
-    expect(mockRepo.createEngAssignment).not.toHaveBeenCalled();
+    expect(mockRepo.commitEngAssignment).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -169,15 +162,16 @@ describe("switchProfession", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRepo.logWlTeamEvent.mockResolvedValue(undefined);
-    mockRepo.updateAssignmentStatus.mockResolvedValue(undefined);
+    mockRepo.applyProfessionSwitch.mockResolvedValue({
+      freedEngs: [],
+      selfRemoved: null,
+    });
   });
 
   it("Engineer → War Leader notifies the War Leader they left and asks officers for Engineers", async () => {
-    mockRepo.getEngActiveAssignment.mockResolvedValue({
-      assignmentId: "assignment-1",
-      wlTeamId: "wl-team-1",
-      wlCommanderId: "wl-1",
+    mockRepo.applyProfessionSwitch.mockResolvedValue({
+      freedEngs: [],
+      selfRemoved: { wlTeamId: "wl-team-1", wlCommanderId: "wl-1" },
     });
 
     await switchProfession({
@@ -187,15 +181,12 @@ describe("switchProfession", () => {
       toProfession: "War Leader",
     });
 
-    expect(mockRepo.updateAssignmentStatus).toHaveBeenCalledWith("assignment-1", "self_removed");
-    expect(mockRepo.logWlTeamEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventKind: "eng_self_removed",
-        wlTeamId: "wl-team-1",
-        actorCommanderId: "eng-1",
-        subjectCommanderId: "wl-1",
-      }),
-    );
+    expect(mockRepo.applyProfessionSwitch).toHaveBeenCalledWith({
+      allianceId: "alliance-a",
+      commanderId: "eng-1",
+      fromProfession: "Engineer",
+      toProfession: "War Leader",
+    });
     expect(notifyProfessionEvent).toHaveBeenCalledWith({
       kind: "eng_self_removed",
       allianceId: "alliance-a",
@@ -210,8 +201,6 @@ describe("switchProfession", () => {
   });
 
   it("unassigned Engineer → War Leader still asks officers for Engineers", async () => {
-    mockRepo.getEngActiveAssignment.mockResolvedValue(null);
-
     await switchProfession({
       allianceId: "alliance-a",
       commanderId: "eng-1",
@@ -223,11 +212,10 @@ describe("switchProfession", () => {
   });
 
   it("War Leader → Engineer notifies each freed Engineer and does not ask for Engineers", async () => {
-    mockRepo.getWlTeam.mockResolvedValue({ id: "wl-team-1" });
-    mockRepo.getActiveAssignmentsForTeam.mockResolvedValue([
-      { assignmentId: "a-1", engCommanderId: "eng-1" },
-      { assignmentId: "a-2", engCommanderId: "eng-2" },
-    ]);
+    mockRepo.applyProfessionSwitch.mockResolvedValue({
+      freedEngs: ["eng-1", "eng-2"],
+      selfRemoved: null,
+    });
 
     const result = await switchProfession({
       allianceId: "alliance-a",
@@ -237,6 +225,10 @@ describe("switchProfession", () => {
     });
 
     expect(result.freedEngs).toEqual(["eng-1", "eng-2"]);
-    expect(notifiedKinds()).toEqual(["eng_dismissed", "eng_dismissed", "profession_switched"]);
+    expect(notifiedKinds()).toEqual([
+      "eng_dismissed",
+      "eng_dismissed",
+      "profession_switched",
+    ]);
   });
 });

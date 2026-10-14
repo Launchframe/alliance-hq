@@ -14,6 +14,7 @@ vi.mock("./repository", () => ({
   loadAwayProfessionCommanderIds: mocks.away,
   getWlSuggestions: mocks.suggestions,
   getEngActiveAssignment: mocks.active,
+  commitEngAssignment: mocks.create,
   createEngAssignment: mocks.create,
   upsertWlTeam: mocks.team,
   getCommanderAllianceProfession: mocks.profession,
@@ -59,7 +60,9 @@ describe("profession duty availability", () => {
   });
 
   it("rechecks an automatic assignment after a lead leaves during validation", async () => {
-    mocks.assignment.mockImplementation(async () => { mocks.away.mockResolvedValue(new Set(["wl"])); return null; });
+    mocks.away
+      .mockResolvedValueOnce(new Set())
+      .mockResolvedValueOnce(new Set(["wl"]));
     await expect(assignEngToRandomWl("alliance-1", "eng")).rejects.toThrow("No War Leaders available for assignment.");
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.event).not.toHaveBeenCalled();

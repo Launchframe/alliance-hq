@@ -129,8 +129,12 @@ describe("processVsDailyAnnouncements", () => {
     const result = await processVsDailyAnnouncements();
 
     expect(result).toEqual({ posted: 2, skipped: 0 });
-    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c1", "preview message");
-    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message");
+    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c1", "preview message", {
+      source: "vs.daily_announcement",
+    });
+    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message", {
+      source: "vs.daily_announcement",
+    });
     // Message is built once per alliance and shared across its channels.
     expect(buildVsDailyAnnouncementPreview).toHaveBeenCalledTimes(1);
   });
@@ -200,7 +204,9 @@ describe("processVsDailyAnnouncements", () => {
     // a1 failed (claim cleared + skipped); a2 still posts.
     expect(result).toEqual({ posted: 1, skipped: 1 });
     expect(db.delete).toHaveBeenCalledTimes(1);
-    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message");
+    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message", {
+      source: "vs.daily_announcement",
+    });
   });
 
   it("keeps the claim when at least one channel posts successfully", async () => {

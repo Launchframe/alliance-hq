@@ -396,7 +396,19 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     postFailsAfterWrite = true;
     const first = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(first.uncertain).toBe(1);
-    expect((await syncItemFor(f))?.status).toBe("uncertain");
+    const afterLostReply = await syncItemFor(f);
+    expect(afterLostReply?.status).toBe("uncertain");
+    expect(afterLostReply?.error_code).toBe("post_uncertain");
+    expect(afterLostReply?.lease_token).toBeTruthy();
+
+    // Live lease fence: no reclaim (and no duplicate POST) until expiry.
+    const blocked = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(blocked.pending).toBe(1);
+    expect(blocked.synced).toBe(0);
+    expect(posts).toHaveLength(1);
+
+    await f.sql`UPDATE hq_event_sync_items SET lease_expires_at = now() - interval '1 second'
+      WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId}`;
 
     const second = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(second.synced).toBe(1);
@@ -456,6 +468,13 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     const ours = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(ours.pending).toBe(1);
     expect(posts).toHaveLength(1);
+
+    const blocked = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(blocked.pending).toBe(1);
+    expect(blocked.synced).toBe(0);
+
+    await f.sql`UPDATE hq_event_sync_items SET lease_expires_at = now() - interval '1 second'
+      WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId}`;
 
     const next = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(next.synced).toBe(1);

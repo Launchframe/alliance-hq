@@ -110,7 +110,9 @@ export async function processVsDailyAnnouncements(options?: {
       });
 
       for (const channelId of channels) {
-        const ok = await postDiscordChannelMessage(channelId, message);
+        const ok = await postDiscordChannelMessage(channelId, message, {
+          source: "vs.daily_announcement",
+        });
         channelsHandled += 1;
         if (ok) {
           posted += 1;
