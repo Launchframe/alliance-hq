@@ -33,7 +33,7 @@ type ChannelRow = {
   channelId: string | null;
 };
 
-/** Builds a getDb() mock covering the select (channel lookup) and insert (claim) chains used here. */
+/** Builds a getDb() mock covering the select (channel lookup), insert (claim), and delete (retry clear) chains. */
 function mockDb(input: {
   channelRows: ChannelRow[];
   /** One entry per expected insert().values()...returning() call, in call order. */
@@ -45,6 +45,7 @@ function mockDb(input: {
     claimCallIndex += 1;
     return Promise.resolve(result);
   });
+  const deleteWhere = vi.fn().mockResolvedValue([]);
 
   return {
     select: vi.fn().mockReturnValue({
@@ -61,6 +62,10 @@ function mockDb(input: {
         }),
       }),
     }),
+    delete: vi.fn().mockReturnValue({
+      where: deleteWhere,
+    }),
+    __deleteWhere: deleteWhere,
   };
 }
 
@@ -168,15 +173,58 @@ describe("processVsDailyAnnouncements", () => {
 
   it("counts a failed Discord post as skipped, not posted", async () => {
     vi.mocked(postDiscordChannelMessage).mockResolvedValueOnce(false);
-    vi.spyOn(dbModule, "getDb").mockReturnValue(
-      mockDb({
-        channelRows: [{ guildId: "g1", allianceId: "a1", channelId: "c1" }],
-        claimResults: [[{ id: "claim-1" }]],
-      }) as never,
-    );
+    const db = mockDb({
+      channelRows: [{ guildId: "g1", allianceId: "a1", channelId: "c1" }],
+      claimResults: [[{ id: "claim-1" }]],
+    });
+    vi.spyOn(dbModule, "getDb").mockReturnValue(db as never);
 
     const result = await processVsDailyAnnouncements();
     expect(result).toEqual({ posted: 0, skipped: 1 });
+    // Total Discord failure must clear the claim so a later cron tick can retry.
+    expect(db.delete).toHaveBeenCalled();
+    expect(db.__deleteWhere).toHaveBeenCalled();
+  });
+
+  it("clears the claim when message build throws so the alliance is not permanently skipped", async () => {
+    vi.mocked(buildVsDailyAnnouncementPreview).mockRejectedValueOnce(
+      new Error("build boom"),
+    );
+    const db = mockDb({
+      channelRows: [
+        { guildId: "g1", allianceId: "a1", channelId: "c1" },
+        { guildId: "g2", allianceId: "a2", channelId: "c2" },
+      ],
+      claimResults: [[{ id: "claim-a1" }], [{ id: "claim-a2" }]],
+    });
+    vi.spyOn(dbModule, "getDb").mockReturnValue(db as never);
+
+    const result = await processVsDailyAnnouncements();
+
+    // a1 failed (claim cleared + skipped); a2 still posts.
+    expect(result).toEqual({ posted: 1, skipped: 1 });
+    expect(db.delete).toHaveBeenCalledTimes(1);
+    expect(postDiscordChannelMessage).toHaveBeenCalledWith("c2", "preview message", {
+      source: "vs.daily_announcement",
+    });
+  });
+
+  it("keeps the claim when at least one channel posts successfully", async () => {
+    vi.mocked(postDiscordChannelMessage)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const db = mockDb({
+      channelRows: [
+        { guildId: "g1", allianceId: "a1", channelId: "c1" },
+        { guildId: "g2", allianceId: "a1", channelId: "c2" },
+      ],
+      claimResults: [[{ id: "claim-1" }]],
+    });
+    vi.spyOn(dbModule, "getDb").mockReturnValue(db as never);
+
+    const result = await processVsDailyAnnouncements();
+    expect(result).toEqual({ posted: 1, skipped: 1 });
+    expect(db.delete).not.toHaveBeenCalled();
   });
 
   it("processes multiple alliances independently (one claimed, one already posted)", async () => {
