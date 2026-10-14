@@ -9,10 +9,6 @@ import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentati
 import { computeQualityScore } from "@/lib/video/quality-score";
 import { recordConfirmedReview } from "@/lib/ocr/learning/feedback.server";
 import { evaluateVsWeek, parseVsScore, validateVsPeriod, vsWeekEndingDate, VsEvidenceError, type VsPeriod } from "./evidence.shared";
-import {
-  replaceSourceJobIdsForVsCommit,
-  shouldClearVsHeadOnGroupReplace,
-} from "./vs-score-group-replace.shared";
 
 export type VsTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 export type VsHead = typeof schema.vsScoreHeads.$inferSelect;
@@ -163,60 +159,12 @@ export async function commitReviewedVsScoresTx(tx: VsTransaction, input: VsScore
     const roster = await tx.select({ id: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, status: schema.allianceMembers.status }).from(schema.allianceMembers).where(eq(schema.allianceMembers.allianceId, input.allianceId));
     const names = new Map(roster.filter((row) => row.status !== "former").map((row) => [row.id, row.name]));
     if (active.some((row) => !names.has(row.memberId!))) throw new VsEvidenceError("invalid_member");
-    const siblingJobs = job.groupId
-      ? await tx
-          .select({ id: schema.videoJobs.id })
-          .from(schema.videoJobs)
-          .where(eq(schema.videoJobs.groupId, job.groupId))
-      : [];
-    const replaceJobIds = replaceSourceJobIdsForVsCommit({
-      jobId: input.jobId,
-      groupId: job.groupId,
-      siblingJobIds: siblingJobs.map((row) => row.id),
-    });
-    const priorHeads = await tx
-      .select()
-      .from(schema.vsScoreHeads)
-      .where(
-        and(
-          eq(schema.vsScoreHeads.allianceId, input.allianceId),
-          inArray(schema.vsScoreHeads.sourceJobId, replaceJobIds),
-          eq(schema.vsScoreHeads.origin, "hq"),
-          isNotNull(schema.vsScoreHeads.score),
-        ),
-      );
-    const old = priorHeads.filter((row) =>
-      shouldClearVsHeadOnGroupReplace({
-        head: row,
-        commitJobId: input.jobId,
-        commitRecordedDate: input.recordedDate,
-        commitPeriod: input.period,
-        replaceJobIds,
-      }),
-    );
+    const old = await tx.select().from(schema.vsScoreHeads).where(and(eq(schema.vsScoreHeads.allianceId, input.allianceId), eq(schema.vsScoreHeads.sourceJobId, input.jobId), eq(schema.vsScoreHeads.origin, "hq"), isNotNull(schema.vsScoreHeads.score)));
     const context = await mutationContext(tx, input.allianceId, input.hqUserId, [input.recordedDate, ...old.map((row) => row.recordedDate)]);
     const now = new Date();
     const reuseBatch = previous?.status === "active" && previous.recordedDate === input.recordedDate && previous.contextJson.vsPeriod === input.period;
     const batchId = reuseBatch ? previous.id : nanoid(16);
     if (previous?.status === "active" && !reuseBatch) await tx.update(schema.dataUploadBatches).set({ status: "moved", movedToDate: input.recordedDate, updatedAt: now }).where(eq(schema.dataUploadBatches.id, previous.id));
-    const siblingBatchJobIds = replaceJobIds.filter((id) => id !== input.jobId);
-    if (siblingBatchJobIds.length) {
-      // Selected-pass replace supersedes companion active batches for this date+period
-      // so day views cannot keep two live video batches for the same scope.
-      await tx
-        .update(schema.dataUploadBatches)
-        .set({ status: "moved", movedToDate: input.recordedDate, updatedAt: now })
-        .where(
-          and(
-            eq(schema.dataUploadBatches.allianceId, input.allianceId),
-            inArray(schema.dataUploadBatches.sourceJobId, siblingBatchJobIds),
-            eq(schema.dataUploadBatches.recordedDate, input.recordedDate),
-            eq(schema.dataUploadBatches.scoreTarget, "vs-performance"),
-            eq(schema.dataUploadBatches.status, "active"),
-            sql`${schema.dataUploadBatches.contextJson}->>'vsPeriod' = ${input.period}`,
-          ),
-        );
-    }
     const batchValues = {
       recordedDate: input.recordedDate, contextJson: { storage: "hq", vsPeriod: input.period, vsRevision: revision + 1, vsDigest: digest, vsRequestId: input.requestId },
       rowCount: active.length, submittedAt: now, status: "active", updatedAt: now, movedToDate: null, deletedAt: null,
