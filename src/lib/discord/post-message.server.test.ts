@@ -42,4 +42,70 @@ describe("postDiscordChannelMessage", () => {
       false,
     );
   });
+
+  it("logs HTTP failures with status, source, and no duplicate risk", async () => {
+    process.env.DISCORD_BOT_TOKEN = "test-token";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"code":50013}', { status: 403 })),
+    );
+    await expect(
+      postDiscordChannelMessage("chan-1", "hi", { source: "vs.daily_announcement" }),
+    ).resolves.toBe(false);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discord] channel post failed",
+      expect.objectContaining({
+        source: "vs.daily_announcement",
+        channelId: "chan-1",
+        outcome: "http_error",
+        status: 403,
+        retryMayDuplicate: false,
+      }),
+    );
+  });
+
+  it("flags post-send network errors as possible duplicates", async () => {
+    process.env.DISCORD_BOT_TOKEN = "test-token";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      }),
+    );
+    await expect(postDiscordChannelMessage("chan-1", "hi")).resolves.toBe(false);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discord] channel post threw",
+      expect.objectContaining({
+        source: "unspecified",
+        outcome: "network_error",
+        errorName: "TimeoutError",
+        retryMayDuplicate: true,
+      }),
+    );
+  });
+
+  it("does not flag connection-phase failures as possible duplicates", async () => {
+    process.env.DISCORD_BOT_TOKEN = "test-token";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed", {
+          cause: Object.assign(new Error("connect ECONNREFUSED"), {
+            code: "ECONNREFUSED",
+          }),
+        });
+      }),
+    );
+    await expect(postDiscordChannelMessage("chan-1", "hi")).resolves.toBe(false);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discord] channel post threw",
+      expect.objectContaining({
+        errorCode: "ECONNREFUSED",
+        retryMayDuplicate: false,
+      }),
+    );
+  });
 });

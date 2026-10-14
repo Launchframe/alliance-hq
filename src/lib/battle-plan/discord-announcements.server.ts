@@ -143,7 +143,9 @@ export async function processPreCaptureAnnouncements(): Promise<{
       let eventPosted = 0;
       try {
         for (const channelId of channels) {
-          const ok = await postDiscordChannelMessage(channelId, message);
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "battle_plan.pre_capture",
+          });
           if (ok) {
             posted++;
             eventPosted++;
@@ -268,7 +270,9 @@ export async function processBankProtectionAnnouncements(): Promise<{
       let bankPosted = 0;
       try {
         for (const channelId of channels) {
-          const ok = await postDiscordChannelMessage(channelId, message);
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "battle_plan.bank_protection",
+          });
           if (ok) {
             posted++;
             bankPosted++;

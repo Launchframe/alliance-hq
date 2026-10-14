@@ -96,6 +96,7 @@ describe("processDueRegularEventAnnouncements claim-before-post", () => {
     expect(mocks.postDiscord).toHaveBeenCalledWith(
       "channel-1",
       expect.any(String),
+      { source: "regular_events.announcement" },
     );
     expect(mocks.clearAnnounced).toHaveBeenCalledWith("occ-1");
     expect(result.posted).toBe(0);

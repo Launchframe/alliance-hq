@@ -354,7 +354,9 @@ export async function processDueRegularEventAnnouncements(
       } else {
         clearOnTotalFailure = true;
         for (const channelId of channels) {
-          const ok = await postDiscordChannelMessage(channelId, message);
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "regular_events.announcement",
+          });
           if (ok) {
             posted += 1;
             occurrencePosted += 1;
@@ -414,7 +416,9 @@ export async function processDueRegularEventScheduleReminders(
       } else {
         clearOnTotalFailure = true;
         for (const channelId of channels) {
-          const ok = await postDiscordChannelMessage(channelId, message);
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "regular_events.schedule_reminder",
+          });
           if (ok) {
             schedulePosted += 1;
             occurrencePosted += 1;
