@@ -1,4 +1,5 @@
 import { nameMatchScore } from "@/lib/video/member-matcher";
+import { foldOcrLatin } from "@/lib/video/normalize-rows";
 
 import type { AppSelectOption } from "./AppSelect";
 
@@ -43,11 +44,44 @@ export const APP_SELECT_FUZZY_MIN_SCORE = 0.45;
 
 export type AppSelectSearchMode = "substring" | "fuzzy";
 
+/** Score keeps the closest fuzzy hits first. Prefix-alpha lists names that start with the query first, then other matches, each group A–Z. */
+export type AppSelectSearchRank = "score" | "prefix-alpha";
+
+function foldForSearch(value: string): string {
+  return foldOcrLatin(value).trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function optionFoldedText(option: AppSelectOption): string {
+  return foldForSearch(appSelectOptionSearchText(option));
+}
+
+/** Whole name or any word starts with the folded query. One character counts. */
+export function appSelectOptionPrefixMatches(
+  option: AppSelectOption,
+  query: string,
+): boolean {
+  const needle = foldForSearch(query);
+  if (!needle) return true;
+  const haystack = optionFoldedText(option);
+  if (!haystack) return false;
+  if (haystack.startsWith(needle)) return true;
+  return haystack.split(" ").some((token) => token.startsWith(needle));
+}
+
+function bySearchLabel(a: AppSelectOption, b: AppSelectOption): number {
+  return appSelectOptionSearchText(a).localeCompare(
+    appSelectOptionSearchText(b),
+    undefined,
+    { sensitivity: "base" },
+  );
+}
+
 export function filterAppSelectOptions(
   options: AppSelectOption[],
   query: string,
   mode: AppSelectSearchMode,
   hideEmptyOnQuery = false,
+  rank: AppSelectSearchRank = "score",
 ): AppSelectOption[] {
   if (!query.trim()) {
     return options;
@@ -63,6 +97,27 @@ export function filterAppSelectOptions(
       appSelectOptionMatchesQuery(option, query),
     );
     return [...prefix, ...filtered];
+  }
+
+  if (rank === "prefix-alpha") {
+    const foldedNeedle = foldForSearch(query);
+    const matched = rest.filter((option) => {
+      if (appSelectOptionPrefixMatches(option, query)) return true;
+      if (
+        foldedNeedle.length === 1 &&
+        optionFoldedText(option).includes(foldedNeedle)
+      ) {
+        return true;
+      }
+      return appSelectOptionFuzzyScore(option, query) >= APP_SELECT_FUZZY_MIN_SCORE;
+    });
+    const prefixes = matched
+      .filter((option) => appSelectOptionPrefixMatches(option, query))
+      .sort(bySearchLabel);
+    const others = matched
+      .filter((option) => !appSelectOptionPrefixMatches(option, query))
+      .sort(bySearchLabel);
+    return [...prefix, ...prefixes, ...others];
   }
 
   const scored = rest

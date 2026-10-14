@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   emitVideoJobStatus: vi.fn(),
   syncVsScoresForAlliance: vi.fn(),
   getSolicitedEligibility: vi.fn(),
+  prepareReviewRosterForSubmit: vi.fn(),
   afterCallbacks: [] as Array<() => Promise<unknown> | void>,
   VsPerformanceErrorStub: class extends Error {
     readonly code: string;
@@ -98,6 +99,10 @@ vi.mock("@/lib/vs-scores/errors.server", () => ({
 vi.mock("@/lib/vs-performance/matchup-sync.server", () => ({
   attemptVsOpponentSync: vi.fn(async () => null),
 }));
+vi.mock("@/lib/video/review-roster-recovery.server", () => ({
+  prepareReviewRosterForSubmit: (...args: unknown[]) =>
+    mocks.prepareReviewRosterForSubmit(...args),
+}));
 
 import { attemptVsOpponentSync } from "@/lib/vs-performance/matchup-sync.server";
 import { submitVsReview } from "./submit.server";
@@ -171,6 +176,7 @@ describe("submitVsReview", () => {
         replayed: false,
       },
     });
+    mocks.prepareReviewRosterForSubmit.mockResolvedValue(null);
   });
 
   it("keeps the legacy score-only path when vsMatchReview is absent", async () => {
@@ -334,5 +340,21 @@ describe("submitVsReview", () => {
     const res = await submitVsReview({ ...baseInput, hqUserId: null });
     expect(res.status).toBe(403);
     expect(mocks.commitReviewedVsScores).not.toHaveBeenCalled();
+  });
+
+  it("returns roster gap before score or match commit", async () => {
+    mocks.prepareReviewRosterForSubmit.mockResolvedValue("roster_refresh_ashed");
+    const res = await submitVsReview({
+      ...baseInput,
+      body: { ...baseInput.body, vsMatchReview: { source: "manual" } },
+    });
+    expect(res.status).toBe(400);
+    expect(mocks.prepareReviewRosterForSubmit).toHaveBeenCalledWith({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      memberIds: ["m-1"],
+    });
+    expect(mocks.commitReviewedVsScores).not.toHaveBeenCalled();
+    expect(mocks.commitVsVideoSubmission).not.toHaveBeenCalled();
   });
 });

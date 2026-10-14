@@ -724,7 +724,9 @@ export function DepositSlipVideoReviewTable({
                         }`}
                         searchable
                         searchMode="fuzzy"
+                        searchRank="prefix-alpha"
                         combobox
+                        clearSearchLabel={t("clearMemberSearch")}
                         hideEmptyOptionWhileSearching
                         searchPlaceholder={tMembers("searchPlaceholder")}
                         noSearchResultsLabel={t("memberSearchNoResults")}
