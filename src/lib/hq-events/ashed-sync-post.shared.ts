@@ -37,5 +37,8 @@ export function eventSyncUncertainLeasePatch(input: {
   if (input.retainLease && input.leaseExpiresAt.getTime() > now.getTime()) {
     return { clearLease: false, retryAt: input.leaseExpiresAt };
   }
-  return { clearLease: true, retryAt: new Date(now.getTime() + 60_000) };
+  return {
+    clearLease: true,
+    retryAt: new Date(now.getTime() + EVENT_SYNC_LEASE_MS),
+  };
 }
