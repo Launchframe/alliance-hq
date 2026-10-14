@@ -37,6 +37,7 @@ import {
   professionLabelKey,
   professionLevelDisplay,
 } from "@/lib/professions/profession-label.shared";
+import { formatKillsDisplay } from "@/lib/kills/format.shared";
 
 export function CommanderProfileView({ initial, donationLaunchError }: Props) {
   const t = useTranslations("members.profile");
@@ -205,6 +206,14 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
               {member.totalHeroPower != null
                 ? formatThpDisplay(member.totalHeroPower)
                 : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
+              {t("kills")}
+            </dt>
+            <dd className="mt-1 font-mono text-sm text-hq-fg">
+              {formatKillsDisplay(member.kills, locale)}
             </dd>
           </div>
           <div>

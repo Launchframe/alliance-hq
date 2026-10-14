@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
 import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
@@ -21,10 +21,12 @@ import {
   professionLevelDisplay,
 } from "@/lib/professions/profession-label.shared";
 import {
+  rosterRowKills,
   rosterRowPowerLevel,
   rosterRowThpDisplay,
   visibleRosterColumns,
 } from "@/lib/members/roster-index.shared";
+import { formatKillsDisplay } from "@/lib/kills/format.shared";
 
 function rankDisplay(rank: number | null): string {
   return rank != null ? `R${rank}` : "—";
@@ -81,6 +83,7 @@ export function RosterMemberRow({
   showSquadEditColumn,
   squadEdit,
 }: Props) {
+  const locale = useLocale();
   const tMembers = useTranslations("members");
   const tCommanders = useTranslations("commandersIndex");
   const tProfessions = useTranslations("professions");
@@ -166,6 +169,12 @@ export function RosterMemberRow({
       case "thp":
         return (
           <span className="font-mono">{rosterRowThpDisplay(row)}</span>
+        );
+      case "kills":
+        return (
+          <span className="font-mono">
+            {formatKillsDisplay(rosterRowKills(row), locale)}
+          </span>
         );
       case "mainSquad":
         return commander?.mainSquad ? (
@@ -349,6 +358,7 @@ export function rosterColumnHeaderLabel(
   tCommanders: (key: string) => string,
 ): string {
   if (columnId === "thp") return tCommanders("colThp");
+  if (columnId === "kills") return tCommanders("colKills");
   if (columnId === "powerLevel") return tCommanders("colPowerLevel");
   if (columnId === "mainSquad") return tCommanders("colSquad");
   if (columnId === "inGameRank") return tCommanders("colInGameRank");

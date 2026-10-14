@@ -195,7 +195,7 @@ describe("support board client contracts", () => {
     expect(matchesUnsortedFilters(row, { baseLevel: { min: 30, unknown: "exclude" } })).toBe(false);
     expect(matchesUnsortedFilters(row, { baseLevel: { min: 30, unknown: "include" } })).toBe(true);
     expect(matchesUnsortedFilters(row, { thp: { min: 1000 } })).toBe(false);
-    expect(defaultDisplayPreferences).toEqual({ professionLevel: false, baseLevel: false, thp: true, tenureDays: false });
+    expect(defaultDisplayPreferences).toEqual({ professionLevel: false, baseLevel: false, thp: true, kills: true, tenureDays: false });
   });
   it("validates country flags with locale-correct accessible names", () => {
     expect(countryPresentation("br", "pt-BR", "Desconhecido").label).toBe("Brasil");
