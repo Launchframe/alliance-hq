@@ -934,6 +934,39 @@ export async function listSeasonVrRows(
   }));
 }
 
+/**
+ * Locks one commander's season VR state: `commanders` row first, then the
+ * `commander_season_vr` summary row (when present). Every writer of season VR
+ * summaries/events must lock through here so self-submit and officer history
+ * edits cannot diverge in lock order. Returns null when the commander is gone.
+ */
+async function lockCommanderSeasonVrRows(
+  tx: ActivityTransaction,
+  commanderId: string,
+  seasonKey: string,
+): Promise<{ highestBaseVr: number | null } | null> {
+  const [commander] = await tx
+    .select({ id: schema.commanders.id })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1)
+    .for("update");
+  if (!commander) return null;
+
+  const [current] = await tx
+    .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
+    .from(schema.commanderSeasonVr)
+    .where(
+      and(
+        eq(schema.commanderSeasonVr.commanderId, commanderId),
+        eq(schema.commanderSeasonVr.seasonKey, seasonKey),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return { highestBaseVr: current?.highestBaseVr ?? null };
+}
+
 export async function upsertCommanderSeasonVr(input: {
   commanderId: string;
   allianceId: string;
@@ -1030,28 +1063,15 @@ export async function upsertCommanderSeasonVr(input: {
     }
 
     const now = new Date();
-    const [locked] = await db
-      .select({ id: schema.commanders.id })
-      .from(schema.commanders)
-      .where(eq(schema.commanders.id, input.commanderId))
-      .limit(1)
-      .for("update");
+    const locked = await lockCommanderSeasonVrRows(
+      db,
+      input.commanderId,
+      input.seasonKey,
+    );
     if (!locked) {
       throw new Error("commander_required_for_vr");
     }
-
-    const [current] = await db
-      .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
-      .from(schema.commanderSeasonVr)
-      .where(
-        and(
-          eq(schema.commanderSeasonVr.commanderId, input.commanderId),
-          eq(schema.commanderSeasonVr.seasonKey, input.seasonKey),
-        ),
-      )
-      .limit(1)
-      .for("update");
-    const previousBaseVr = current?.highestBaseVr ?? null;
+    const previousBaseVr = locked.highestBaseVr;
 
     if (
       activityInput &&
@@ -1249,8 +1269,9 @@ export async function upsertMemberSeasonVr(input: {
 export async function listCommanderSeasonVrEvents(
   commanderId: string,
   seasonKey: string,
+  tx?: ActivityTransaction,
 ) {
-  const db = getDb();
+  const db = tx ?? getDb();
   return db
     .select()
     .from(schema.commanderSeasonVrEvents)
@@ -1263,13 +1284,18 @@ export async function listCommanderSeasonVrEvents(
     .orderBy(asc(schema.commanderSeasonVrEvents.createdAt));
 }
 
+/**
+ * Caller must hold `commanders` FOR UPDATE (and the season summary row when
+ * present) on `db` so concurrent self-submit cannot insert a higher event
+ * between the event read and the blind summary overwrite.
+ */
 async function recomputeCommanderSeasonSummaryFromEvents(
+  db: ActivityTransaction,
   commanderId: string,
   seasonKey: string,
   hqUserId: string | null,
 ): Promise<void> {
-  const db = getDb();
-  const events = await listCommanderSeasonVrEvents(commanderId, seasonKey);
+  const events = await listCommanderSeasonVrEvents(commanderId, seasonKey, db);
   if (events.length === 0) {
     await db
       .delete(schema.commanderSeasonVr)
@@ -1332,45 +1358,55 @@ export async function updateCommanderSeasonVrEvent(input: {
   hqUserId: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = getDb();
-  const [event] = await db
-    .select()
-    .from(schema.commanderSeasonVrEvents)
-    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId))
-    .limit(1);
-  if (!event) return { ok: false, error: "Event not found." };
+  return db.transaction(async (tx) => {
+    const [event] = await tx
+      .select()
+      .from(schema.commanderSeasonVrEvents)
+      .where(eq(schema.commanderSeasonVrEvents.id, input.eventId))
+      .limit(1);
+    if (!event) return { ok: false, error: "Event not found." };
 
-  const membership = await db
-    .select({
-      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
-    })
-    .from(schema.commanderAllianceMemberships)
-    .where(
-      and(
-        eq(
-          schema.commanderAllianceMemberships.commanderId,
-          event.commanderId,
+    const membership = await tx
+      .select({
+        ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      })
+      .from(schema.commanderAllianceMemberships)
+      .where(
+        and(
+          eq(
+            schema.commanderAllianceMemberships.commanderId,
+            event.commanderId,
+          ),
+          eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+          isNull(schema.commanderAllianceMemberships.leftAt),
         ),
-        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
-        isNull(schema.commanderAllianceMemberships.leftAt),
-      ),
-    )
-    .limit(1);
-  if (!membership[0]) return { ok: false, error: "Event not found." };
+      )
+      .limit(1);
+    if (!membership[0]) return { ok: false, error: "Event not found." };
 
-  await db
-    .update(schema.commanderSeasonVrEvents)
-    .set({
-      baseVr: input.baseVr,
-      instituteLevel: input.instituteLevel,
-    })
-    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
+    const locked = await lockCommanderSeasonVrRows(
+      tx,
+      event.commanderId,
+      event.seasonKey,
+    );
+    if (!locked) return { ok: false, error: "Event not found." };
 
-  await recomputeCommanderSeasonSummaryFromEvents(
-    event.commanderId,
-    event.seasonKey,
-    input.hqUserId,
-  );
-  return { ok: true };
+    await tx
+      .update(schema.commanderSeasonVrEvents)
+      .set({
+        baseVr: input.baseVr,
+        instituteLevel: input.instituteLevel,
+      })
+      .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
+
+    await recomputeCommanderSeasonSummaryFromEvents(
+      tx,
+      event.commanderId,
+      event.seasonKey,
+      input.hqUserId,
+    );
+    return { ok: true };
+  });
 }
 
 export async function deleteCommanderSeasonVrEvent(input: {
@@ -1379,41 +1415,51 @@ export async function deleteCommanderSeasonVrEvent(input: {
   hqUserId: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = getDb();
-  const [event] = await db
-    .select()
-    .from(schema.commanderSeasonVrEvents)
-    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId))
-    .limit(1);
-  if (!event) return { ok: false, error: "Event not found." };
+  return db.transaction(async (tx) => {
+    const [event] = await tx
+      .select()
+      .from(schema.commanderSeasonVrEvents)
+      .where(eq(schema.commanderSeasonVrEvents.id, input.eventId))
+      .limit(1);
+    if (!event) return { ok: false, error: "Event not found." };
 
-  const membership = await db
-    .select({
-      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
-    })
-    .from(schema.commanderAllianceMemberships)
-    .where(
-      and(
-        eq(
-          schema.commanderAllianceMemberships.commanderId,
-          event.commanderId,
+    const membership = await tx
+      .select({
+        ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      })
+      .from(schema.commanderAllianceMemberships)
+      .where(
+        and(
+          eq(
+            schema.commanderAllianceMemberships.commanderId,
+            event.commanderId,
+          ),
+          eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+          isNull(schema.commanderAllianceMemberships.leftAt),
         ),
-        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
-        isNull(schema.commanderAllianceMemberships.leftAt),
-      ),
-    )
-    .limit(1);
-  if (!membership[0]) return { ok: false, error: "Event not found." };
+      )
+      .limit(1);
+    if (!membership[0]) return { ok: false, error: "Event not found." };
 
-  await db
-    .delete(schema.commanderSeasonVrEvents)
-    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
+    const locked = await lockCommanderSeasonVrRows(
+      tx,
+      event.commanderId,
+      event.seasonKey,
+    );
+    if (!locked) return { ok: false, error: "Event not found." };
 
-  await recomputeCommanderSeasonSummaryFromEvents(
-    event.commanderId,
-    event.seasonKey,
-    input.hqUserId,
-  );
-  return { ok: true };
+    await tx
+      .delete(schema.commanderSeasonVrEvents)
+      .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
+
+    await recomputeCommanderSeasonSummaryFromEvents(
+      tx,
+      event.commanderId,
+      event.seasonKey,
+      input.hqUserId,
+    );
+    return { ok: true };
+  });
 }
 
 export async function listCommanderSeasonVrEventsBulk(
