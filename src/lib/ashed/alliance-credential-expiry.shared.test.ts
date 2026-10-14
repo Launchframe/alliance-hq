@@ -45,25 +45,59 @@ describe("decideAllianceCredentialRefresh", () => {
     newExpiresAt: days(90),
     isAshedOwner: false,
     isSameRegistrant: true,
-    isSameAshedIdentity: false,
+    isSameAshedIdentity: true,
     now,
   };
 
-  it("refreshes an expired token for its registrant", () => {
+  it("refreshes an expired token for its registrant when Ashed identity matches", () => {
     expect(decideAllianceCredentialRefresh(base)).toEqual({ refresh: true });
   });
 
-  it("refreshes for the Ashed owner or the same Ashed identity", () => {
+  it("registrant alone must not authorize collaborator overwrite", () => {
+    // Share delegate stamped as registrant reconnects with a different Ashed
+    // identity (collaborator JWT) — must not replace the stored owner token.
     expect(
-      decideAllianceCredentialRefresh({ ...base, isSameRegistrant: false, isAshedOwner: true }),
-    ).toEqual({ refresh: true });
+      decideAllianceCredentialRefresh({
+        ...base,
+        isSameRegistrant: true,
+        isSameAshedIdentity: false,
+        isAshedOwner: false,
+      }),
+    ).toEqual({ refresh: false, reason: "not_authorized" });
+  });
+
+  it("same Ashed identity alone must not authorize non-owner refresh", () => {
+    // Collaborator JWT left in place by time-off repair — reconnect must not
+    // grant perpetual refresh without owner role or registrant+identity.
     expect(
-      decideAllianceCredentialRefresh({ ...base, isSameRegistrant: false, isSameAshedIdentity: true }),
+      decideAllianceCredentialRefresh({
+        ...base,
+        isSameRegistrant: false,
+        isSameAshedIdentity: true,
+        isAshedOwner: false,
+      }),
+    ).toEqual({ refresh: false, reason: "not_authorized" });
+  });
+
+  it("refreshes for the Ashed owner", () => {
+    expect(
+      decideAllianceCredentialRefresh({
+        ...base,
+        isSameRegistrant: false,
+        isSameAshedIdentity: false,
+        isAshedOwner: true,
+      }),
     ).toEqual({ refresh: true });
   });
 
   it("refuses other officers", () => {
-    expect(decideAllianceCredentialRefresh({ ...base, isSameRegistrant: false })).toEqual({
+    expect(
+      decideAllianceCredentialRefresh({
+        ...base,
+        isSameRegistrant: false,
+        isSameAshedIdentity: false,
+      }),
+    ).toEqual({
       refresh: false,
       reason: "not_authorized",
     });
