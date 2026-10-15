@@ -1,8 +1,13 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getTranslations } from "next-intl/server";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  nextEurOccurrenceStart,
+  pickEurSatisfyingJobId,
+  type EurSatisfactionOccurrenceCandidate,
+} from "@/lib/eur/satisfaction-match.shared";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
 import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
 import { canReadTeamWorkInbox } from "@/lib/support-teams/work-inbox.server";
@@ -13,39 +18,87 @@ const SATISFIED_JOB_STATUSES = ["review", "submitting", "complete"] as const;
 
 export async function runEurSatisfactionPass(now = new Date()): Promise<number> {
   const db = getDb();
+  // Chronological order so earlier slots claim jobs before later siblings.
   const openOccurrences = await db
     .select()
     .from(schema.eurOccurrences)
-    .where(eq(schema.eurOccurrences.status, "open"));
+    .where(eq(schema.eurOccurrences.status, "open"))
+    .orderBy(asc(schema.eurOccurrences.scheduledStartAt));
+
+  const openForMatch: EurSatisfactionOccurrenceCandidate[] = openOccurrences
+    .filter(
+      (row): row is typeof row & { scoreTarget: string } =>
+        row.scoreTarget != null && row.scoreTarget.length > 0,
+    )
+    .map((row) => ({
+      id: row.id,
+      allianceId: row.allianceId,
+      scoreTarget: row.scoreTarget,
+      scheduledStartAt: row.scheduledStartAt,
+    }));
 
   let satisfied = 0;
+  const usedJobIds = new Set<string>();
+  const jobsByKey = new Map<
+    string,
+    Array<{ id: string; at: Date }>
+  >();
 
-  for (const occurrence of openOccurrences) {
-    if (!occurrence.scoreTarget) continue;
+  for (const occurrence of openForMatch) {
+    const key = `${occurrence.allianceId}\0${occurrence.scoreTarget}`;
+    let candidates = jobsByKey.get(key);
+    if (!candidates) {
+      const rows = await db
+        .select({
+          id: schema.videoJobs.id,
+          updatedAt: schema.videoJobs.updatedAt,
+          createdAt: schema.videoJobs.createdAt,
+        })
+        .from(schema.videoJobs)
+        .where(
+          and(
+            eq(schema.videoJobs.allianceId, occurrence.allianceId),
+            eq(schema.videoJobs.scoreTarget, occurrence.scoreTarget),
+            inArray(schema.videoJobs.status, [...SATISFIED_JOB_STATUSES]),
+          ),
+        );
+      candidates = rows.map((row) => ({
+        id: row.id,
+        at: row.updatedAt ?? row.createdAt,
+      }));
+      jobsByKey.set(key, candidates);
+    }
 
-    const [job] = await db
-      .select({ id: schema.videoJobs.id })
-      .from(schema.videoJobs)
-      .where(
-        and(
-          eq(schema.videoJobs.allianceId, occurrence.allianceId),
-          eq(schema.videoJobs.scoreTarget, occurrence.scoreTarget),
-          inArray(schema.videoJobs.status, [...SATISFIED_JOB_STATUSES]),
-          sql`coalesce(${schema.videoJobs.updatedAt}, ${schema.videoJobs.createdAt}) >= ${occurrence.scheduledStartAt}`,
-        ),
-      )
-      .limit(1);
+    const jobId = pickEurSatisfyingJobId({
+      occurrenceScheduledStartAt: occurrence.scheduledStartAt,
+      nextOccurrenceScheduledStartAt: nextEurOccurrenceStart(
+        occurrence,
+        openForMatch,
+      ),
+      candidateJobs: candidates,
+      usedJobIds,
+    });
+    if (!jobId) continue;
 
-    if (!job) continue;
-
-    await db
+    // CAS: concurrent ticks must not double-satisfy the same open row.
+    const updated = await db
       .update(schema.eurOccurrences)
       .set({
         status: "satisfied",
         satisfiedAt: now,
-        satisfiedByJobId: job.id,
+        satisfiedByJobId: jobId,
       })
-      .where(eq(schema.eurOccurrences.id, occurrence.id));
+      .where(
+        and(
+          eq(schema.eurOccurrences.id, occurrence.id),
+          eq(schema.eurOccurrences.status, "open"),
+        ),
+      )
+      .returning({ id: schema.eurOccurrences.id });
+
+    if (updated.length === 0) continue;
+
+    usedJobIds.add(jobId);
 
     await db
       .update(schema.inboxReminderItems)
