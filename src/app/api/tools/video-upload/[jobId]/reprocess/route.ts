@@ -62,6 +62,13 @@ export async function POST(_request: Request, { params }: Props) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    if (job.ingestMethod === "spreadsheet") {
+      return NextResponse.json(
+        { error: "Spreadsheet imports cannot be reprocessed as video." },
+        { status: 400 },
+      );
+    }
+
     if (
       session.currentAllianceId &&
       job.allianceId &&
