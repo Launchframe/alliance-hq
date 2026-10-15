@@ -16,12 +16,12 @@ vi.mock("./claim-seat-reservation.server", () => ({
   isCommanderReservedByPendingClaim,
 }));
 
-vi.mock("@/lib/member-link/repository.server", () => ({
-  getHqMemberLinkByAllianceAndMember,
-}));
-
 vi.mock("./provision-membership", () => ({
   provisionAllianceMembership,
+}));
+
+vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkByAllianceAndMember,
 }));
 
 vi.mock("@/lib/db", async (importOriginal) => {
@@ -156,6 +156,10 @@ describe("redeemAllianceJoinCode claim-bound RBAC defer", () => {
       sessionId: "sess-1",
     });
 
+    expect(getHqMemberLinkByAllianceAndMember).toHaveBeenCalledWith(
+      "a1",
+      "m-r5",
+    );
     expect(provisionAllianceMembership).toHaveBeenCalledWith(
       expect.objectContaining({
         roleId: ROLE_IDS.member,

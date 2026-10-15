@@ -320,54 +320,72 @@ export async function markLatestVideoParseKillsAshedSynced(
  * latest event total still equal that prior-batch score. This prevents
  * re-submitting an older KillScore date from discarding a newer day's event
  * (same commander, higher/different total).
+ *
+ * Serialized under the same commander `FOR UPDATE` lock as `upsertCommanderKills`
+ * so a concurrent self-submit cannot land between the tip check and the restore
+ * write (which would clobber the newer total with `previousTotal`).
  */
 export async function revertLatestVideoParseKillsIfStillCurrent(
   commanderId: string,
   expectedTotal?: number,
 ): Promise<boolean> {
-  const db = getDb();
-  const state = await getCommanderKillsState(commanderId);
-  const [latest] = await db
-    .select()
-    .from(schema.commanderKillsEvents)
-    .where(
-      and(
-        eq(schema.commanderKillsEvents.commanderId, commanderId),
-        isNull(schema.commanderKillsEvents.discardedAt),
-      ),
-    )
-    .orderBy(desc(schema.commanderKillsEvents.createdAt))
-    .limit(1);
+  return getDb().transaction(async (db) => {
+    const [state] = await db
+      .select({
+        currentKills: schema.commanders.currentKills,
+      })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, commanderId))
+      .limit(1)
+      .for("update");
+    if (!state) {
+      return false;
+    }
 
-  if (!latest || latest.source !== "video_parse") {
-    return false;
-  }
-  if (
-    expectedTotal != null &&
-    (latest.total !== expectedTotal || state?.currentKills !== expectedTotal)
-  ) {
-    return false;
-  }
-  if (state?.currentKills !== latest.total) {
-    return false;
-  }
+    // Commander lock above serializes against upsertCommanderKills; re-read the
+    // tip under that lock so a concurrent submit cannot slip between check/write.
+    const [latest] = await db
+      .select()
+      .from(schema.commanderKillsEvents)
+      .where(
+        and(
+          eq(schema.commanderKillsEvents.commanderId, commanderId),
+          isNull(schema.commanderKillsEvents.discardedAt),
+        ),
+      )
+      .orderBy(desc(schema.commanderKillsEvents.createdAt))
+      .limit(1);
 
-  const now = new Date();
-  await db
-    .update(schema.commanderKillsEvents)
-    .set({ discardedAt: now })
-    .where(eq(schema.commanderKillsEvents.id, latest.id));
+    if (!latest || latest.source !== "video_parse") {
+      return false;
+    }
+    if (
+      expectedTotal != null &&
+      (latest.total !== expectedTotal || state.currentKills !== expectedTotal)
+    ) {
+      return false;
+    }
+    if (state.currentKills !== latest.total) {
+      return false;
+    }
 
-  await db
-    .update(schema.commanders)
-    .set({
-      currentKills: latest.previousTotal,
-      killsUpdatedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(schema.commanders.id, commanderId));
+    const now = new Date();
+    await db
+      .update(schema.commanderKillsEvents)
+      .set({ discardedAt: now })
+      .where(eq(schema.commanderKillsEvents.id, latest.id));
 
-  return true;
+    await db
+      .update(schema.commanders)
+      .set({
+        currentKills: latest.previousTotal,
+        killsUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.commanders.id, commanderId));
+
+    return true;
+  });
 }
 
 export async function getHqKillsPending(

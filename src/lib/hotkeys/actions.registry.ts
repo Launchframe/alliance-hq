@@ -647,6 +647,14 @@ const VS_PERFORMANCE_ACTIONS: HotkeyActionDef[] = [
     kind: "custom",
     requiredPermission: "trains:write",
   },
+  {
+    id: "vsPerformance.importSpreadsheet",
+    labelKey: "actions.vsPerformance.importSpreadsheet",
+    category: "tools",
+    scope: "page:vs-performance",
+    kind: "custom",
+    requiredPermission: "scores:write",
+  },
 ];
 
 const GLOBAL_ACTIONS: HotkeyActionDef[] = [

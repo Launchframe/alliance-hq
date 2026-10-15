@@ -169,10 +169,12 @@ export async function base44EntityPost<T>(
   connection: ParsedConnection,
   entity: string,
   row: T,
+  init?: Omit<RequestInit, "method" | "body">,
 ): Promise<unknown> {
   return base44Json(connection, `/entities/${entity}`, {
     method: "POST",
     body: JSON.stringify(row),
+    ...init,
   });
 }
 

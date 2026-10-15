@@ -10,6 +10,7 @@ import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { VsMatchupResults } from "@/components/vs-performance/VsMatchupResults";
 import { VsMemberPerformance } from "@/components/vs-performance/VsMemberPerformance";
 import { VsScreenshotCapture } from "@/components/vs-performance/VsScreenshotCapture";
+import { VsSpreadsheetImportDialog } from "@/components/vs-performance/VsSpreadsheetImportDialog";
 import { WeeklyPriceIsFreightPodium } from "@/components/vs-performance/WeeklyPriceIsFreightPodium";
 import { WeeklyVsPlan } from "@/components/vs-performance/WeeklyVsPlan";
 import { addCalendarDays, getWeekStartMonday } from "@/lib/trains/game-time";
@@ -47,6 +48,7 @@ export function VsPerformanceClient({
   const [tab, setTab] = useState<"native" | "ashed">("native");
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [spreadsheetOpen, setSpreadsheetOpen] = useState(false);
   const [autoPull, setAutoPull] = useState<{ attemptedScope: string | null; pullingScope: string | null; errorScope: string | null }>({ attemptedScope: null, pullingScope: null, errorScope: null });
   const autoPullSeq = useRef(0);
   const payloadRevision = useRef(0);
@@ -185,6 +187,10 @@ export function VsPerformanceClient({
         if (payload.canEdit && !navLocked && tab === "native")
           setCaptureOpen(true);
       },
+      "vsPerformance.importSpreadsheet": () => {
+        if (payload.canEdit && !navLocked && tab === "native")
+          setSpreadsheetOpen(true);
+      },
     },
     payload.canEdit && !navLocked,
   );
@@ -304,6 +310,19 @@ export function VsPerformanceClient({
               {t("capture.open")}
             </button>
           ) : null}
+          {payload.canEdit && tab === "native" ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (!navLocked) setSpreadsheetOpen(true);
+              }}
+              disabled={navLocked}
+              className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50"
+              data-testid="vs-spreadsheet-import-open"
+            >
+              {t("import.button")}
+            </button>
+          ) : null}
           {scoreTargetId ? (
             <Link
               href={buildVideoUploadHref(scoreTargetId)}
@@ -405,6 +424,10 @@ export function VsPerformanceClient({
             setDraftFlag={setDraftFlag}
             open={captureOpen}
             onOpenChange={setCaptureOpen}
+          />
+          <VsSpreadsheetImportDialog
+            open={spreadsheetOpen}
+            onClose={() => setSpreadsheetOpen(false)}
           />
         </div>
       )}

@@ -61,5 +61,33 @@ for (const path of ["draft", "vip", "lock"] as const) describe(`transaction-boun
       await expect(run()).rejects.toThrow("Conductor is already locked for this day.");
       expect(mocks.writes).not.toHaveBeenCalled();
     });
+
+    it("releases the displaced conductor's depleting-pool claim under the same write lock", async () => {
+      mocks.notices = [];
+      mocks.row = {
+        id: "draft",
+        allianceId: "alliance",
+        date: input.date,
+        conductorMemberId: "member-a",
+        conductorMemberName: "Alice",
+        vipMemberId: null,
+        vipMemberName: null,
+        lockedAt: null,
+      };
+      await upsertConductorDraft({
+        allianceId: "alliance",
+        date: input.date,
+        conductorMemberId: "member-b",
+        conductorMemberName: "Bob",
+      });
+      expect(mocks.writes).toHaveBeenCalledWith(
+        schema.trainConductorRecords,
+        expect.objectContaining({ conductorMemberId: "member-b" }),
+      );
+      expect(mocks.writes).toHaveBeenCalledWith(
+        schema.conductorPoolEntries,
+        expect.objectContaining({ selectedAt: null, selectedForDate: null }),
+      );
+    });
   }
 });

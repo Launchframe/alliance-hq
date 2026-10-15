@@ -2210,7 +2210,8 @@
       },
       "vsPerformance": {
         "editPlan": "Editar plano VS",
-        "capture": "Enviar captura de tela do VS"
+        "capture": "Enviar captura de tela do VS",
+        "importSpreadsheet": "Importar planilha de VS"
       }
     }
   },
@@ -5261,6 +5262,7 @@
     "engineNative": "Tesseract interno",
     "engineMock": "OCR simulado (dev/teste)",
     "backToUploads": "← Voltar aos envios",
+    "sourceSpreadsheet": "Importado de {fileName}",
     "summary": "{matched} correspondidos · {total} entradas",
     "noEntriesHint": "O OCR terminou, mas nenhuma linha foi interpretada. Geralmente era um bug de formato de resposta — tente executar o OCR novamente.",
     "reprocess": "Executar OCR novamente",
@@ -5418,6 +5420,7 @@
     "duplicateMemberItem": "{member} aparece em {count} linhas",
     "duplicateMemberHint": "Cada membro só pode ter uma pontuação neste placar. Verifique nome e pontuação, depois exclua linhas duplicadas ou alucinadas.",
     "duplicateMemberRow": "Atribuição duplicada ao membro",
+    "keepRowDiscardOthers": "Manter esta linha e descartar as outras",
     "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar.",
     "scoreGhostClusterTitle": "Pontuações duplicadas do OCR de rolagem",
     "scoreGhostClusterHint": "Parecem ser a mesma linha do ranking lida com nomes distorcidos em quadros próximos. Duplicatas sem correspondência são descartadas automaticamente ao salvar — apenas a linha correspondida é mantida.",
@@ -8379,6 +8382,30 @@
       "pointMismatch": "Os resultados diários não correspondem aos pontos de vitória semanais. Verifique a revisão.",
       "ongoing": "Isto parece ser um duelo em andamento. Pontuações zeradas e resultados em branco permanecem pendentes.",
       "noFinals": "Nenhum resultado final de dia foi confirmado. Apenas as informações de confronto revisadas serão salvas."
+    },
+    "import": {
+      "button": "Importar planilha",
+      "title": "Importar pontuações VS de uma planilha",
+      "help": "Envie um arquivo CSV ou Excel (.xlsx) com uma coluna de nome e uma coluna de pontos. Você revisará as correspondências de membros antes de salvar qualquer coisa.",
+      "fileLabel": "Arquivo da planilha",
+      "detectedWeek": "Detectado: totais semanais da semana que termina em {date}",
+      "period": "Tipo de pontuação",
+      "periodWeekly": "Semanal",
+      "periodDaily": "Diário",
+      "recordedDate": "Data registrada",
+      "weeklyDateOption": "Semana terminando no domingo · {date}",
+      "submit": "Revisar pontuações",
+      "submitting": "Importando…",
+      "cancel": "Cancelar",
+      "errors": {
+        "unsupportedType": "Envie um arquivo .csv ou .xlsx.",
+        "tooLarge": "Esse arquivo é grande demais (máximo de 1 MB).",
+        "noRows": "Não encontramos nomes e pontuações nesse arquivo.",
+        "tooManyRows": "Esse arquivo tem mais de 300 linhas.",
+        "parseFailed": "Não foi possível ler essa planilha. Verifique as colunas e tente de novo.",
+        "weeklyDateInvalid": "Totais semanais de VS usam domingo. Escolha uma data de domingo.",
+        "dailyDateInvalid": "Pontuações diárias de VS usam uma data de segunda a sábado."
+      }
     },
     "videoEvidence": {
       "attachmentLabel": "Adicionar captura de tela dos resultados do VS (opcional)",
