@@ -309,6 +309,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
       reportedName: "Bravo",
     });
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
+    expect(elevation.elevateMembershipAfterClaimLink).not.toHaveBeenCalled();
   });
 
   it("refuses to link when lookup name does not match the claim target", async () => {
@@ -329,6 +330,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
       gameUserName: "Bravo",
     });
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
+    expect(elevation.elevateMembershipAfterClaimLink).not.toHaveBeenCalled();
   });
 
   it("allows a UID whose fetched name matches a previous target name", async () => {
