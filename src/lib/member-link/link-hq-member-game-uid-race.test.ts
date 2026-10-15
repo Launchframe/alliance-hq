@@ -50,8 +50,8 @@ vi.mock("@/lib/member-link/inherit-hq-to-discord.server", () => ({
   inheritHqMemberLinkToDiscordIfLinked: vi.fn(),
 }));
 
-vi.mock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
-  isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
+vi.mock("@/lib/member-link/game-uid-global-claim.server", () => ({
+  isGameUidClaimedByOtherPrincipal: vi.fn().mockResolvedValue(false),
 }));
 
 import { HQ_MEMBER_LINK_GAME_UID_UNIQUE } from "./member-link-game-uid-unique.shared";
