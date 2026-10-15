@@ -56,7 +56,11 @@ import {
 } from "@/lib/video/score-targets";
 import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 import { EventEvidenceReview } from "@/components/video/EventEvidenceReview";
-import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";import {
+import {
+  parseVideoUploadRecordedDateParam,
+  parseVideoUploadReturnToParam,
+} from "@/lib/video/score-target-nav";
+import {
   defaultVsPerformanceRecordedDate,
   coerceVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
