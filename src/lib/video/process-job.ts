@@ -30,6 +30,7 @@ import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.s
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { putObject, frameStorageKey, prefersLocalStorage, r2Configured, streamObjectToFile } from "@/lib/storage";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
+import { collapseTrivialListFrames } from "@/lib/video/collapse-trivial-list-frames.server";
 import {
   cleanupFrameTempDir,
   extractLeaderboardFrames,
@@ -459,6 +460,31 @@ export async function processVideoJob(
           fs.unlink(tmpVideo).catch(() => undefined),
         );
       }
+      }
+
+      // Drop pause / 1–2px scroll-jitter frames before storage + Ashed upload.
+      // Deposit-slip OCR resumes by frame index — do not collapse that path.
+      if (!isDepositSlipTarget && frames.length > 1) {
+        const collapse = await timer.measureStep(
+          "frames.collapse_trivial",
+          () => collapseTrivialListFrames(frames),
+          (result) => ({
+            inputCount: result.inputCount,
+            keptCount: result.keptCount,
+            droppedCount: result.dropped.length,
+            droppedIndexes: result.dropped.map((d) => d.originalIndex),
+            dropReasons: result.dropped.map((d) => ({
+              index: d.originalIndex,
+              reason: d.reason,
+              wholeDistance: d.wholeDistance,
+              topDistance: d.topDistance,
+              bottomDistance: d.bottomDistance,
+              replacedPrevious: d.replacedPrevious,
+            })),
+            jobId,
+          }),
+        );
+        frames = collapse.frames;
       }
 
       frameCount = frames.length;
