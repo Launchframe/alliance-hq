@@ -15,12 +15,13 @@ export const LIST_FRAME_WHOLE_MAX_MEAN_DIFF = 2.0;
 
 /**
  * Mean abs greyscale distance under which a snapped row strip still matches.
- * Tuned from synthetic list fixtures: ~2px peak-snap jitter lands under ~8,
- * while a one-row advance (different end-row glyphs) lands above ~10.
+ * Tuned from synthetic list fixtures: ~2px peak-snap jitter across *all*
+ * row strips lands under ~10, while a one-row advance or a middle-row glyph
+ * change lands above that.
  */
-export const LIST_FRAME_STRIP_MAX_MEAN_DIFF = 9;
+export const LIST_FRAME_STRIP_MAX_MEAN_DIFF = 10;
 
-/** Normalized strip size used for end-row comparison. */
+/** Normalized strip size used for row-strip comparison. */
 export const LIST_FRAME_STRIP_WIDTH = 64;
 /** Tall enough for ±2 row align search after peak snap. */
 export const LIST_FRAME_STRIP_HEIGHT = 16;
@@ -36,17 +37,18 @@ export type ListFrameSignature = {
   reliable: boolean;
   sharpness: number;
   wholeFingerprint: Uint8Array;
-  topStrip: Uint8Array | null;
-  bottomStrip: Uint8Array | null;
+  /** One downsampled strip per detected text-row peak (top → bottom). */
+  rowStrips: Uint8Array[];
   peakCount: number;
 };
 
 export type TrivialCollapseDrop = {
   originalIndex: number;
-  reason: "whole_frame" | "end_rows";
+  reason: "whole_frame" | "row_strips";
   wholeDistance: number;
-  topDistance: number | null;
-  bottomDistance: number | null;
+  /** Per-row strip distances when the row-strip path decided; null on fail-open. */
+  stripDistances: number[] | null;
+  maxStripDistance: number | null;
   replacedPrevious: boolean;
 };
 
@@ -222,7 +224,7 @@ export function stripDistanceWithVerticalAlign(
 }
 
 /**
- * Build a list-frame signature: whole-frame fingerprint + snapped top/bottom strips.
+ * Build a list-frame signature: whole-frame fingerprint + one strip per peak.
  * Fail-open (`reliable: false`) when fewer than {@link LIST_FRAME_MIN_PEAKS} peaks.
  */
 export async function buildListFrameSignature(
@@ -261,8 +263,7 @@ export async function buildListFrameSignature(
       reliable: false,
       sharpness,
       wholeFingerprint,
-      topStrip: null,
-      bottomStrip: null,
+      rowStrips: [],
       peakCount: peaks.length,
     };
   }
@@ -273,69 +274,68 @@ export async function buildListFrameSignature(
   }
   const medianPitch = medianPositive(pitches) ?? 12;
   const stripHalfHeight = Math.max(2, Math.round(0.3 * medianPitch));
-
-  const topPeak = peaks[0]!;
-  const bottomPeak = peaks[peaks.length - 1]!;
   // Pad half-height so vertical align can absorb residual peak-snap error.
   const paddedHalf = stripHalfHeight + 2;
-  const topRaw = extractCenteredStrip(
-    pixels,
-    width,
-    height,
-    topPeak,
-    paddedHalf,
-  );
-  const bottomRaw = extractCenteredStrip(
-    pixels,
-    width,
-    height,
-    bottomPeak,
-    paddedHalf,
-  );
 
-  const [topStrip, bottomStrip] = await Promise.all([
-    downsampleStrip(topRaw.pixels, width, topRaw.height),
-    downsampleStrip(bottomRaw.pixels, width, bottomRaw.height),
-  ]);
+  const rowStrips = await Promise.all(
+    peaks.map(async (peakY) => {
+      const raw = extractCenteredStrip(
+        pixels,
+        width,
+        height,
+        peakY,
+        paddedHalf,
+      );
+      return downsampleStrip(raw.pixels, width, raw.height);
+    }),
+  );
 
   return {
     reliable: true,
     sharpness,
     wholeFingerprint,
-    topStrip,
-    bottomStrip,
+    rowStrips,
     peakCount: peaks.length,
   };
 }
 
-function endRowsMatch(
+/**
+ * Require every corresponding row strip under the threshold.
+ * Peak-count mismatch or missing strips fail open (do not collapse).
+ */
+export function rowStripsMatch(
   prev: ListFrameSignature,
   next: ListFrameSignature,
-): { match: boolean; topDistance: number | null; bottomDistance: number | null } {
+): {
+  match: boolean;
+  stripDistances: number[] | null;
+  maxStripDistance: number | null;
+} {
   if (
     !prev.reliable ||
     !next.reliable ||
-    !prev.topStrip ||
-    !prev.bottomStrip ||
-    !next.topStrip ||
-    !next.bottomStrip
+    prev.rowStrips.length === 0 ||
+    next.rowStrips.length === 0 ||
+    prev.rowStrips.length !== next.rowStrips.length
   ) {
-    return { match: false, topDistance: null, bottomDistance: null };
+    return { match: false, stripDistances: null, maxStripDistance: null };
   }
-  const topDistance = stripDistanceWithVerticalAlign(
-    prev.topStrip,
-    next.topStrip,
-  );
-  const bottomDistance = stripDistanceWithVerticalAlign(
-    prev.bottomStrip,
-    next.bottomStrip,
-  );
+
+  const stripDistances: number[] = [];
+  let maxStripDistance = 0;
+  for (let i = 0; i < prev.rowStrips.length; i++) {
+    const distance = stripDistanceWithVerticalAlign(
+      prev.rowStrips[i]!,
+      next.rowStrips[i]!,
+    );
+    stripDistances.push(distance);
+    if (distance > maxStripDistance) maxStripDistance = distance;
+  }
+
   return {
-    match:
-      topDistance < LIST_FRAME_STRIP_MAX_MEAN_DIFF &&
-      bottomDistance < LIST_FRAME_STRIP_MAX_MEAN_DIFF,
-    topDistance,
-    bottomDistance,
+    match: stripDistances.every((d) => d < LIST_FRAME_STRIP_MAX_MEAN_DIFF),
+    stripDistances,
+    maxStripDistance,
   };
 }
 
@@ -349,8 +349,8 @@ type AnnotatedFrame = {
  * Drop consecutive frames whose visible list window has not materially changed.
  *
  * - Whole-frame near-identical pauses collapse (chat-style fingerprint).
- * - Otherwise both snapped first+last row strips must match the previous kept frame.
- * - Weak signatures fail open (frame kept).
+ * - Otherwise every snapped row strip must match the previous kept frame.
+ * - Weak signatures / peak-count mismatch fail open (frame kept).
  * - Among a trivial run, keep the sharpest capture.
  * - Kept frames are reindexed from 0; `videoTimestampSeconds` is preserved.
  */
@@ -389,7 +389,7 @@ export async function collapseTrivialListFrames(
       last.signature.wholeFingerprint,
       current.signature.wholeFingerprint,
     );
-    const rows = endRowsMatch(last.signature, current.signature);
+    const rows = rowStripsMatch(last.signature, current.signature);
 
     const trivialWhole = wholeDistance < LIST_FRAME_WHOLE_MAX_MEAN_DIFF;
     const trivialRows = rows.match;
@@ -404,10 +404,10 @@ export async function collapseTrivialListFrames(
     }
     dropped.push({
       originalIndex: current.originalIndex,
-      reason: trivialWhole ? "whole_frame" : "end_rows",
+      reason: trivialWhole ? "whole_frame" : "row_strips",
       wholeDistance,
-      topDistance: rows.topDistance,
-      bottomDistance: rows.bottomDistance,
+      stripDistances: rows.stripDistances,
+      maxStripDistance: rows.maxStripDistance,
       replacedPrevious,
     });
   }

@@ -10,6 +10,7 @@ import {
   findHorizontalTextPeaks,
   LIST_FRAME_STRIP_MAX_MEAN_DIFF,
   meanAbsDistance,
+  rowStripsMatch,
   stripDistanceWithVerticalAlign,
 } from "@/lib/video/collapse-trivial-list-frames.server";
 import type { ExtractedFrame } from "@/lib/video/frame-extractor";
@@ -152,15 +153,20 @@ describe("collapseTrivialListFrames", () => {
     const shiftedSig = await buildListFrameSignature(shifted);
     expect(baseSig.reliable).toBe(true);
     expect(shiftedSig.reliable).toBe(true);
-    expect(baseSig.topStrip).not.toBeNull();
-    expect(shiftedSig.topStrip).not.toBeNull();
+    expect(baseSig.rowStrips.length).toBeGreaterThanOrEqual(3);
+    expect(shiftedSig.rowStrips.length).toBe(baseSig.rowStrips.length);
+    const match = rowStripsMatch(baseSig, shiftedSig);
+    expect(match.match).toBe(true);
+    expect(match.maxStripDistance).not.toBeNull();
+    expect(match.maxStripDistance!).toBeLessThan(LIST_FRAME_STRIP_MAX_MEAN_DIFF);
+    // Spot-check first/last still align under threshold for telemetry parity.
     const topDist = stripDistanceWithVerticalAlign(
-      baseSig.topStrip!,
-      shiftedSig.topStrip!,
+      baseSig.rowStrips[0]!,
+      shiftedSig.rowStrips[0]!,
     );
     const botDist = stripDistanceWithVerticalAlign(
-      baseSig.bottomStrip!,
-      shiftedSig.bottomStrip!,
+      baseSig.rowStrips[baseSig.rowStrips.length - 1]!,
+      shiftedSig.rowStrips[shiftedSig.rowStrips.length - 1]!,
     );
     expect(topDist).toBeLessThan(LIST_FRAME_STRIP_MAX_MEAN_DIFF);
     expect(botDist).toBeLessThan(LIST_FRAME_STRIP_MAX_MEAN_DIFF);
@@ -171,7 +177,7 @@ describe("collapseTrivialListFrames", () => {
     ]);
     expect(result.keptCount).toBe(1);
     expect(result.dropped).toHaveLength(1);
-    expect(["end_rows", "whole_frame"]).toContain(result.dropped[0]!.reason);
+    expect(["row_strips", "whole_frame"]).toContain(result.dropped[0]!.reason);
   });
 
   it("keeps a one-row scroll (top and/or bottom content changes)", async () => {
@@ -199,6 +205,49 @@ describe("collapseTrivialListFrames", () => {
     expect(result.frames[1]!.videoTimestampSeconds).toBe(0.3);
   });
 
+  it("keeps a frame when only a middle row changes (ends unchanged)", async () => {
+    const base = await listFramePng(BASE_ROWS);
+    // Same first/last fills as BASE_ROWS so end strips still match; only the
+    // middle score-row glyphs diverge — must not collapse. fill:50 keeps the
+    // same peak count (unlike very dark fills that drop a peak).
+    const middleEdited: RowSpec[] = [
+      { label: "A", fill: 220 },
+      { label: "B", fill: 200 },
+      { label: "C", fill: 180 },
+      { label: "D-mid", fill: 50 },
+      { label: "E", fill: 140 },
+      { label: "F", fill: 120 },
+      { label: "G", fill: 100 },
+      { label: "H", fill: 80 },
+    ];
+    const edited = await listFramePng(middleEdited);
+    const baseSig = await buildListFrameSignature(base);
+    const editedSig = await buildListFrameSignature(edited);
+    expect(baseSig.reliable).toBe(true);
+    expect(editedSig.reliable).toBe(true);
+    expect(baseSig.rowStrips.length).toBe(editedSig.rowStrips.length);
+    // Ends alone would still look similar; all-row path must diverge.
+    const topDist = stripDistanceWithVerticalAlign(
+      baseSig.rowStrips[0]!,
+      editedSig.rowStrips[0]!,
+    );
+    const botDist = stripDistanceWithVerticalAlign(
+      baseSig.rowStrips[baseSig.rowStrips.length - 1]!,
+      editedSig.rowStrips[editedSig.rowStrips.length - 1]!,
+    );
+    expect(topDist).toBeLessThan(LIST_FRAME_STRIP_MAX_MEAN_DIFF);
+    expect(botDist).toBeLessThan(LIST_FRAME_STRIP_MAX_MEAN_DIFF);
+    const match = rowStripsMatch(baseSig, editedSig);
+    expect(match.match).toBe(false);
+
+    const result = await collapseTrivialListFrames([
+      asExtracted(0, base),
+      asExtracted(1, edited),
+    ]);
+    expect(result.keptCount).toBe(2);
+    expect(result.dropped).toHaveLength(0);
+  });
+
   it("keeps frames when the signature is too weak", async () => {
     const flat = await sharp({
       create: {
@@ -216,7 +265,7 @@ describe("collapseTrivialListFrames", () => {
     ]);
     // Whole-frame fingerprint still collapses true pauses even without peaks.
     // Use a second flat with a different solid color so whole FP diverges and
-    // end-row path is the only possible collapse (which must fail open).
+    // row-strip path is the only possible collapse (which must fail open).
     const other = await sharp({
       create: {
         width: WIDTH,

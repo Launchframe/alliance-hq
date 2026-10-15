@@ -463,8 +463,13 @@ export async function processVideoJob(
       }
 
       // Drop pause / 1–2px scroll-jitter frames before storage + Ashed upload.
+      // Ashed-only: native/mock keep every extracted frame for evidence fidelity.
       // Deposit-slip OCR resumes by frame index — do not collapse that path.
-      if (!isDepositSlipTarget && frames.length > 1) {
+      if (
+        engineRequiresAshed(ocrEngine) &&
+        !isDepositSlipTarget &&
+        frames.length > 1
+      ) {
         const collapse = await timer.measureStep(
           "frames.collapse_trivial",
           () => collapseTrivialListFrames(frames),
@@ -477,8 +482,8 @@ export async function processVideoJob(
               index: d.originalIndex,
               reason: d.reason,
               wholeDistance: d.wholeDistance,
-              topDistance: d.topDistance,
-              bottomDistance: d.bottomDistance,
+              maxStripDistance: d.maxStripDistance,
+              stripDistances: d.stripDistances,
               replacedPrevious: d.replacedPrevious,
             })),
             jobId,
