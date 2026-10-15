@@ -38,7 +38,7 @@ export async function resolveScoreUploadSpinDate(input: {
   const today = getServerCalendarDate();
   const firstCandidate = addCalendarDays(input.vsRecordedDate, 1);
   const start = firstCandidate > today ? firstCandidate : today;
-  const end = addCalendarDays(input.vsRecordedDate, 2 + leadDays);
+  const end = addCalendarDays(input.vsRecordedDate, 1 + leadDays);
   if (end < start) return null;
 
   const { seasonKey } = await getEffectiveSeasonForAlliance(input.allianceId);

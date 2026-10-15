@@ -4,8 +4,16 @@ import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 
 import { pickScoreUploadSpinDate } from "./score-upload-spin-prompt.shared";
 
-const vsRule = { kind: "vs_top_n", n: 10 } as unknown as ConductorRule;
-const randomRule = { kind: "random_eligible" } as unknown as ConductorRule;
+const vsRule: ConductorRule = { kind: "vs_top_n", topN: 10 };
+const pifRule: ConductorRule = {
+  kind: "price_is_freight",
+  board: "weekday",
+};
+const r4Wheel: ConductorRule = {
+  kind: "rank_pool",
+  pool: "r4_plus",
+  draw: "wheel",
+};
 
 describe("pickScoreUploadSpinDate", () => {
   const base = {
@@ -50,12 +58,21 @@ describe("pickScoreUploadSpinDate", () => {
     ).toBeNull();
   });
 
-  it("skips rules that do not use VS scores", () => {
+  it("includes Price Is Freight days that read the uploaded scores", () => {
+    expect(
+      pickScoreUploadSpinDate({
+        ...base,
+        days: [{ date: "2026-10-15", conductorRule: pifRule }],
+      }),
+    ).toBe("2026-10-15");
+  });
+
+  it("skips non-VS train rules even when the score date matches", () => {
     expect(
       pickScoreUploadSpinDate({
         ...base,
         days: [
-          { date: "2026-10-15", conductorRule: randomRule },
+          { date: "2026-10-15", conductorRule: r4Wheel },
           { date: "2026-10-15", conductorRule: null },
         ],
       }),
