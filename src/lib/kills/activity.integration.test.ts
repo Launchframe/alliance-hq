@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -21,7 +21,11 @@ import { assertE2eDatabaseUrl } from "../../../scripts/e2e-database-url-guard.mj
 import type { ActivityPrincipal } from "../activity/access.server";
 import { ActivityWriteError } from "../activity/errors.server";
 import { scheduleActivityBlockedAlert } from "../activity/monitoring.server";
-import { KillsPendingChangedError, upsertCommanderKills } from "./repository";
+import {
+  KillsPendingChangedError,
+  revertLatestVideoParseKillsIfStillCurrent,
+  upsertCommanderKills,
+} from "./repository";
 import type { KillsPendingState } from "./types";
 
 const enabled = process.env.ACTIVITY_DB_TEST === "1";
@@ -833,5 +837,95 @@ describe.skipIf(!enabled)("kills activity integration", () => {
     expect(await historyCount(commanderId)).toBe(1);
     const events = await activityRows(commanderId);
     expect(events).toHaveLength(0);
+  });
+
+  it("reverts a video_parse tip under the commander row lock", async () => {
+    const allianceId = await insertAlliance();
+    const { commanderId, memberId } = await insertCommanderFixture(allianceId);
+
+    await upsertCommanderKills({
+      commanderId,
+      total: 2_500,
+      allianceId,
+      ashedMemberId: memberId,
+      source: "video_parse",
+      markAshedSynced: true,
+    });
+
+    await expect(
+      revertLatestVideoParseKillsIfStillCurrent(commanderId, 2_500),
+    ).resolves.toBe(true);
+
+    const [commander] = await getDb()
+      .select({
+        total: schema.commanders.currentKills,
+      })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, commanderId));
+    expect(commander?.total).toBe(100_000);
+
+    const history = await getDb()
+      .select({
+        source: schema.commanderKillsEvents.source,
+        discardedAt: schema.commanderKillsEvents.discardedAt,
+      })
+      .from(schema.commanderKillsEvents)
+      .where(eq(schema.commanderKillsEvents.commanderId, commanderId));
+    expect(history).toHaveLength(1);
+    expect(history[0]?.discardedAt).not.toBeNull();
+  });
+
+  it("does not revert when a newer submit moved current kills past the video batch", async () => {
+    const allianceId = await insertAlliance();
+    const { commanderId, memberId } = await insertCommanderFixture(allianceId);
+    const principal = await insertWebActor(allianceId, commanderId);
+
+    await upsertCommanderKills({
+      commanderId,
+      total: 2_500,
+      allianceId,
+      ashedMemberId: memberId,
+      source: "video_parse",
+      markAshedSynced: true,
+    });
+
+    await upsertCommanderKills({
+      commanderId,
+      total: 3_000,
+      allianceId,
+      ashedMemberId: memberId,
+      source: "web",
+      hqUserId: principal.hqUserId,
+      activity: {
+        identity: { kind: "web", principal },
+        method: "manual",
+      },
+    });
+
+    await expect(
+      revertLatestVideoParseKillsIfStillCurrent(commanderId, 2_500),
+    ).resolves.toBe(false);
+
+    const [commander] = await getDb()
+      .select({ total: schema.commanders.currentKills })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, commanderId));
+    expect(commander?.total).toBe(3_000);
+
+    const [latestActive] = await getDb()
+      .select({
+        source: schema.commanderKillsEvents.source,
+        total: schema.commanderKillsEvents.total,
+      })
+      .from(schema.commanderKillsEvents)
+      .where(
+        and(
+          eq(schema.commanderKillsEvents.commanderId, commanderId),
+          isNull(schema.commanderKillsEvents.discardedAt),
+        ),
+      )
+      .orderBy(desc(schema.commanderKillsEvents.createdAt))
+      .limit(1);
+    expect(latestActive).toMatchObject({ source: "web", total: 3_000 });
   });
 });

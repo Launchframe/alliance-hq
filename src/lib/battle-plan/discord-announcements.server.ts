@@ -141,14 +141,24 @@ export async function processPreCaptureAnnouncements(): Promise<{
       const message = `🏰 We take the ${parts.join(" ")}`;
 
       let eventPosted = 0;
-      for (const channelId of channels) {
-        const ok = await postDiscordChannelMessage(channelId, message);
-        if (ok) {
-          posted++;
-          eventPosted++;
-        } else {
-          skipped++;
+      try {
+        for (const channelId of channels) {
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "battle_plan.pre_capture",
+          });
+          if (ok) {
+            posted++;
+            eventPosted++;
+          } else {
+            skipped++;
+          }
         }
+      } catch (error) {
+        console.error(
+          "[battle-plan] pre-capture announcement failed after claim",
+          { eventId: event.id, allianceId, error },
+        );
+        skipped += channels.length - eventPosted;
       }
 
       if (eventPosted === 0) {
@@ -258,14 +268,24 @@ export async function processBankProtectionAnnouncements(): Promise<{
       }
 
       let bankPosted = 0;
-      for (const channelId of channels) {
-        const ok = await postDiscordChannelMessage(channelId, message);
-        if (ok) {
-          posted++;
-          bankPosted++;
-        } else {
-          skipped++;
+      try {
+        for (const channelId of channels) {
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "battle_plan.bank_protection",
+          });
+          if (ok) {
+            posted++;
+            bankPosted++;
+          } else {
+            skipped++;
+          }
         }
+      } catch (error) {
+        console.error(
+          "[battle-plan] bank protection announcement failed after claim",
+          { bankId: bank.id, allianceId, milestone, error },
+        );
+        skipped += channels.length - bankPosted;
       }
 
       if (bankPosted === 0) {

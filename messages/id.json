@@ -80,6 +80,9 @@
     "changeEmailSuccess": "Your account email was updated.",
     "changeEmailTitle": "Account email",
     "confirmPassword": "Confirm password",
+    "currentPassword": "Current password",
+    "currentPasswordIncorrect": "Current password is incorrect.",
+    "currentPasswordRequired": "Enter your current password.",
     "confirmUnlink": "Confirm unlink",
     "consolidateAshedConflict": "These accounts are linked to different Ashed identities. Connect Ashed on one account first.",
     "consolidateBack": "Kembali",
@@ -138,7 +141,7 @@
     "passwordInvalid": "Enter a valid password.",
     "passwordMismatch": "Passwords do not match.",
     "passwordRequired": "Enter a password.",
-    "passwordSectionBodySet": "Update your password. You can still sign in with a magic link or passkey.",
+    "passwordSectionBodySet": "Update your password. Enter your current password, then choose a new one. You can still sign in with a magic link or passkey.",
     "passwordSectionBodyUnset": "You have not set a password yet. Magic-link accounts can add one here.",
     "passwordSectionTitle": "Kata sandi",
     "passwordTooLong": "Password is too long.",
@@ -3632,7 +3635,8 @@
       },
       "vsPerformance": {
         "capture": "Upload VS screenshot",
-        "editPlan": "Edit VS plan"
+        "editPlan": "Edit VS plan",
+        "importSpreadsheet": "Import VS spreadsheet"
       }
     },
     "adminSequenceDescription": "Press a key below to open an admin page.",
@@ -4053,8 +4057,11 @@
       "cancel": "Batal",
       "confirm": "Gabungkan",
       "description": "Gunakan ini jika satu orang tercatat sebagai dua anggota, misalnya setelah berganti nama. {name} mempertahankan riwayatnya; nama, data game, dan tautan duplikat dipindahkan ke sini, dan duplikat dinonaktifkan.",
+      "ashedRetireFailed": "HQ sudah menggabungkan anggota, tetapi Ashed masih menandai duplikat sebagai aktif. Jangan sinkronkan roster sampai petugas menyambungkan ulang Ashed dan duplikat dinonaktifkan di sana — sinkron lebih dulu dapat mengembalikan duplikat.",
       "errors": {
+        "ashedConnectionRequired": "Sambungkan ulang Ashed sebelum menggabungkan — tanpa koneksi Ashed aliansi yang berfungsi, sinkron roster berikutnya dapat mengembalikan duplikat.",
         "conflictingLinks": "Kedua anggota tertaut ke akun yang berbeda, jadi tidak dapat digabungkan.",
+        "conflictingProfession": "Anggota ini memiliki profesi yang berbeda, jadi tidak dapat digabungkan.",
         "differentServer": "Anggota ini berada di server game yang berbeda.",
         "generic": "Tidak dapat menggabungkan anggota ini. Coba lagi.",
         "notActive": "Kedua anggota harus aktif di aliansi ini.",
@@ -8028,6 +8035,7 @@
     "addRow": "Add row",
     "addingRow": "Adding row…",
     "backToUploads": "← Back to uploads",
+    "sourceSpreadsheet": "Imported from {fileName}",
     "bankContextCreateFailed": "Could not create the bank from video.",
     "bankContextCreateSubmit": "Create bank from video",
     "bankContextCreating": "Creating…",
@@ -8159,6 +8167,7 @@
     "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
     "duplicateMemberItem": "{member} appears on {count} rows",
     "duplicateMemberRow": "Duplicate member assignment",
+    "keepRowDiscardOthers": "Keep this row and discard the others",
     "duplicateMemberTitle": "Multiple rows map to the same member",
     "duplicateOcrNameRow": "Duplicate name — delete extra rows from repeated frames.",
     "engineAshed": "Ashed",
@@ -8659,6 +8668,30 @@
       "unknown": "Not visible or not finished",
       "week": "VS week",
       "weekType": "Weekly overview"
+    },
+    "import": {
+      "button": "Import spreadsheet",
+      "title": "Import VS scores from a spreadsheet",
+      "help": "Upload a CSV or Excel (.xlsx) file with a name column and a points column. You'll review member matches before anything is saved.",
+      "fileLabel": "Spreadsheet file",
+      "detectedWeek": "Detected: weekly totals for the week ending {date}",
+      "period": "Score type",
+      "periodWeekly": "Weekly",
+      "periodDaily": "Daily",
+      "recordedDate": "Recorded date",
+      "weeklyDateOption": "Week ending Sunday · {date}",
+      "submit": "Review scores",
+      "submitting": "Importing…",
+      "cancel": "Cancel",
+      "errors": {
+        "unsupportedType": "Upload a .csv or .xlsx file.",
+        "tooLarge": "That file is too large (1 MB max).",
+        "noRows": "We couldn't find any names and scores in that file.",
+        "tooManyRows": "That file has more than 300 rows.",
+        "parseFailed": "Could not read that spreadsheet. Check the columns and try again.",
+        "weeklyDateInvalid": "Weekly VS totals use Sunday. Pick a Sunday recorded date.",
+        "dailyDateInvalid": "Daily VS scores use a Monday–Saturday recorded date."
+      }
     },
     "defaults": {
       "body": "Choose the Top VS reward for each VS weekday. These defaults apply to new plans; saved plans keep their choices.",

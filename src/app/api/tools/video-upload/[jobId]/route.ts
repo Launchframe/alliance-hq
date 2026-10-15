@@ -314,11 +314,26 @@ export async function GET(_request: Request, { params }: Props) {
       scoreTargetId === "vs-performance" && allianceIdForJob
         ? await loadVsJobContext(allianceIdForJob, jobId)
         : null;
+    const isSpreadsheetIngest = job.ingestMethod === "spreadsheet";
+    const spreadsheetPeriod =
+      isSpreadsheetIngest &&
+      job.extractionConfigJson &&
+      typeof job.extractionConfigJson === "object" &&
+      !Array.isArray(job.extractionConfigJson) &&
+      ((job.extractionConfigJson as { vsPeriod?: unknown }).vsPeriod ===
+        "weekly" ||
+        (job.extractionConfigJson as { vsPeriod?: unknown }).vsPeriod ===
+          "daily")
+        ? ((job.extractionConfigJson as { vsPeriod: "daily" | "weekly" })
+            .vsPeriod)
+        : null;
     const useEvidenceContext =
       vsEvidence != null &&
-      vsEvidence.evidence.version > 0 &&
       vsJobContext != null &&
-      (vsJobContext.vsRevision === 0 || vsEvidence.evidence.draft != null);
+      (isSpreadsheetIngest || vsEvidence.evidence.version > 0) &&
+      (vsJobContext.vsRevision === 0 ||
+        vsEvidence.evidence.draft != null ||
+        isSpreadsheetIngest);
 
     let expectedRowCount: number | null = null;
     let shadowPassInFlight = false;
@@ -365,10 +380,17 @@ export async function GET(_request: Request, { params }: Props) {
         status: job.status,
         fileName: job.fileName,
         scoreTarget: scoreTargetId,
+        ingestMethod: job.ingestMethod,
         ...(vsJobContext
           ? {
               recordedDate: job.recordedDate,
               ...vsJobContext,
+              ...(spreadsheetPeriod
+                ? {
+                    recordedDate: job.recordedDate,
+                    vsPeriod: spreadsheetPeriod,
+                  }
+                : {}),
               ...(useEvidenceContext && vsEvidence
                 ? {
                     recordedDate: vsEvidence.evidence.recordedDate,
@@ -394,7 +416,7 @@ export async function GET(_request: Request, { params }: Props) {
           ? (job.extractionConfigJson ?? null)
           : null,
       },
-      hasSourceVideo: storageKey != null,
+      hasSourceVideo: storageKey != null && !isSpreadsheetIngest,
       frameTimestamps,
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
       ...(isFrontlineBreakthroughVideoTarget(scoreTargetId) && allianceIdForJob

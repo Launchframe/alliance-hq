@@ -2209,7 +2209,8 @@
       },
       "vsPerformance": {
         "editPlan": "Edit VS plan",
-        "capture": "Upload VS screenshot"
+        "capture": "Upload VS screenshot",
+        "importSpreadsheet": "Import VS spreadsheet"
       }
     }
   },
@@ -3548,11 +3549,14 @@
       "confirm": "Merge",
       "cancel": "Cancel",
       "success": "Merged {duplicate} into {name}.",
+      "ashedRetireFailed": "HQ merged the members, but Ashed still has the duplicate as active. Do not sync the roster until an officer reconnects Ashed and the duplicate is retired there — syncing first can bring the duplicate back.",
       "errors": {
         "sameMember": "Pick a different member.",
         "notActive": "Both members must be active in this alliance.",
         "differentServer": "These members are on different game servers.",
         "conflictingLinks": "Both members are linked to different accounts, so they can't be merged.",
+        "conflictingProfession": "These members have different professions, so they can't be merged.",
+        "ashedConnectionRequired": "Reconnect Ashed before merging — without a working alliance Ashed connection, the next roster sync can bring the duplicate back.",
         "generic": "Couldn't merge these members. Try again."
       }
     }
@@ -3669,7 +3673,10 @@
     "subtitle": "Password and passkey sign-in for your HQ account. Magic links still work anytime.",
     "passwordSectionTitle": "Password",
     "passwordSectionBodyUnset": "You have not set a password yet. Magic-link accounts can add one here.",
-    "passwordSectionBodySet": "Update your password. You can still sign in with a magic link or passkey.",
+    "passwordSectionBodySet": "Update your password. Enter your current password, then choose a new one. You can still sign in with a magic link or passkey.",
+    "currentPassword": "Current password",
+    "currentPasswordRequired": "Enter your current password.",
+    "currentPasswordIncorrect": "Current password is incorrect.",
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
     "passwordRequired": "Enter a password.",
@@ -5308,6 +5315,7 @@
     "engineNative": "In-house Tesseract",
     "engineMock": "Mock OCR (dev/test)",
     "backToUploads": "← Back to uploads",
+    "sourceSpreadsheet": "Imported from {fileName}",
     "summary": "{matched} matched · {total} entries",
     "noEntriesHint": "OCR finished but no rows were parsed. This was usually a response-format bug — try re-running OCR.",
     "reprocess": "Re-run OCR",
@@ -5465,6 +5473,7 @@
     "duplicateMemberItem": "{member} appears on {count} rows",
     "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
     "duplicateMemberRow": "Duplicate member assignment",
+    "keepRowDiscardOthers": "Keep this row and discard the others",
     "duplicateMemberBlocked": "Fix duplicate member rows before saving.",
     "scoreGhostClusterTitle": "Duplicate scores from scroll OCR",
     "scoreGhostClusterHint": "These look like the same leaderboard row read with mangled names on nearby frames. Unmatched duplicates are discarded automatically when you save — only the matched row is kept.",
@@ -8372,6 +8381,30 @@
       "pointMismatch": "The daily results do not match the weekly victory points. Check the review.",
       "ongoing": "This appears to be an ongoing duel. Zero scores and blank results remain pending.",
       "noFinals": "No final day results are confirmed. Only the reviewed matchup information will be saved."
+    },
+    "import": {
+      "button": "Import spreadsheet",
+      "title": "Import VS scores from a spreadsheet",
+      "help": "Upload a CSV or Excel (.xlsx) file with a name column and a points column. You'll review member matches before anything is saved.",
+      "fileLabel": "Spreadsheet file",
+      "detectedWeek": "Detected: weekly totals for the week ending {date}",
+      "period": "Score type",
+      "periodWeekly": "Weekly",
+      "periodDaily": "Daily",
+      "recordedDate": "Recorded date",
+      "weeklyDateOption": "Week ending Sunday · {date}",
+      "submit": "Review scores",
+      "submitting": "Importing…",
+      "cancel": "Cancel",
+      "errors": {
+        "unsupportedType": "Upload a .csv or .xlsx file.",
+        "tooLarge": "That file is too large (1 MB max).",
+        "noRows": "We couldn't find any names and scores in that file.",
+        "tooManyRows": "That file has more than 300 rows.",
+        "parseFailed": "Could not read that spreadsheet. Check the columns and try again.",
+        "weeklyDateInvalid": "Weekly VS totals use Sunday. Pick a Sunday recorded date.",
+        "dailyDateInvalid": "Daily VS scores use a Monday–Saturday recorded date."
+      }
     },
     "videoEvidence": {
       "attachmentLabel": "Add a VS results screenshot (optional)",

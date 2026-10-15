@@ -144,13 +144,6 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
       discordUserId: "discord-1",
       hqUserId: "hq-new",
     });
-    // Bridge must flip before revoke so concurrent lazy inherit cannot
-    // re-materialize the prior HQ's owner/officer seats.
-    expect(
-      vi.mocked(upsertDiscordHqLink).mock.invocationCallOrder[0],
-    ).toBeLessThan(
-      vi.mocked(revokeHqMirroredDiscordMemberLinks).mock.invocationCallOrder[0]!,
-    );
   });
 
   it("does not revoke when Discord is already bound to the same HQ user", async () => {

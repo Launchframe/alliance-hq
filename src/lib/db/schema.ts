@@ -2825,34 +2825,6 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
     .notNull(),
 });
 
-/** Idempotent record of Discord VR daily-report posts per guild + report date. */
-export const vrDailyReportPosts = pgTable(
-  "vr_daily_report_posts",
-  {
-    id: text("id").primaryKey(),
-    guildId: text("guild_id")
-      .notNull()
-      .references(() => discordGuildAlliances.guildId, { onDelete: "cascade" }),
-    allianceId: text("alliance_id")
-      .notNull()
-      .references(() => alliances.id, { onDelete: "cascade" }),
-    /** Game-server calendar date (YYYY-MM-DD) for the report tick. */
-    reportDate: text("report_date").notNull(),
-    postedAt: timestamp("posted_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex("vr_daily_report_posts_guild_report_date_unique").on(
-      table.guildId,
-      table.reportDate,
-    ),
-    index("vr_daily_report_posts_alliance_idx").on(table.allianceId),
-  ],
-);
-
-export type VrDailyReportPost = typeof vrDailyReportPosts.$inferSelect;
-
 /** Per-alliance Ashed connection for bot roster sync (encrypted token). */
 export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
   id: text("id").primaryKey(),

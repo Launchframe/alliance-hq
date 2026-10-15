@@ -108,25 +108,12 @@ export async function base44ListMemberRecords(
     method: "GET",
   });
 
-  // Defensive client-side tenant filter. Never trust a Member list that omits
-  // alliance_id on every row — Base44 `q=` filters have historically been
-  // ignored for some tokens, and syncing that payload would import foreign
-  // commanders into the caller's HQ alliance.
-  const typedAllianceIds = rows.filter(
-    (member) => typeof member.alliance_id === "string" && member.alliance_id.length > 0,
-  );
-  if (typedAllianceIds.length === 0) {
-    if (rows.length === 0) return rows;
-    throw new Error(
-      "Ashed Member list omitted alliance_id; refusing unfiltered member list.",
-    );
+  const hasAllianceField = rows.some((member) => member.alliance_id);
+  if (hasAllianceField) {
+    return rows.filter((member) => member.alliance_id === allianceId);
   }
 
-  // Keep exact matches and legacy rows that omit alliance_id (partial payloads).
-  // Drop any row that explicitly belongs to another alliance.
-  return rows.filter(
-    (member) => !member.alliance_id || member.alliance_id === allianceId,
-  );
+  return rows;
 }
 
 export async function base44ListMembers(
@@ -182,10 +169,12 @@ export async function base44EntityPost<T>(
   connection: ParsedConnection,
   entity: string,
   row: T,
+  init?: Omit<RequestInit, "method" | "body">,
 ): Promise<unknown> {
   return base44Json(connection, `/entities/${entity}`, {
     method: "POST",
     body: JSON.stringify(row),
+    ...init,
   });
 }
 

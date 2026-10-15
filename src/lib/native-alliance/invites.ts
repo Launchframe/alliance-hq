@@ -31,6 +31,11 @@ import {
   getLinkedMemberIds,
 } from "@/lib/vr/repository";
 
+import {
+  resolveRoleIdForClaimBoundRebind,
+  resolveRoleIdForClaimPendingAccept,
+} from "./claim-invite-elevation.shared";
+import { isCommanderReservedByPendingClaim } from "./claim-seat-reservation.server";
 import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
 
@@ -659,6 +664,18 @@ export async function rebindAcceptedInviteSession(input: {
     throw new Error("Alliance tag is missing.");
   }
 
+  // Rebind falls back to the invite role when no active membership exists, so
+  // a still-pending claim must stay deferred exactly like first accept.
+  const claimTargetId = invite.targetAshedMemberId?.trim() || null;
+  const claimLink = claimTargetId
+    ? await getHqMemberLinkByAllianceAndMember(invite.allianceId, claimTargetId)
+    : null;
+  const provisionRoleId = resolveRoleIdForClaimBoundRebind({
+    inviteRoleId: invite.roleId,
+    claimTargetAshedMemberId: claimTargetId,
+    claimTargetHeldByAcceptor: claimLink?.hqUserId === input.hqUserId,
+  });
+
   // Already-accepted invite rebind: refresh session only — never re-apply the
   // invite role (would demote after a later officer invite, or re-escalate
   // after an intentional demotion).
@@ -666,11 +683,11 @@ export async function rebindAcceptedInviteSession(input: {
     hqUserId: input.hqUserId,
     sessionId: input.sessionId,
     allianceId: invite.allianceId,
-    roleId: invite.roleId,
+    roleId: provisionRoleId,
     rolePolicy: "preserve_existing",
     userLabel: normalizedEmail,
     ownerEmail:
-      systemRoleNameForId(invite.roleId) === "owner" ? normalizedEmail : null,
+      systemRoleNameForId(provisionRoleId) === "owner" ? normalizedEmail : null,
   }).then((result) => ({
     ...result,
     redirectPath: invite.redirectPath,
@@ -783,6 +800,19 @@ export async function acceptHqInvite(
       claimTargetId = null;
     }
   }
+  if (
+    claimTargetId &&
+    (await isCommanderReservedByPendingClaim({
+      allianceId: invite.allianceId,
+      ashedMemberId: claimTargetId,
+      allowedHqUserId: hqUserId,
+    }))
+  ) {
+    throw new CommanderClaimInviteError(
+      "commander_already_claimed",
+      "This commander is already linked to an account.",
+    );
+  }
 
   const acceptedRows = await db
     .update(schema.hqInvites)
@@ -811,14 +841,22 @@ export async function acceptHqInvite(
     .delete(schema.ashedCredentials)
     .where(eq(schema.ashedCredentials.sessionId, input.sessionId));
 
+  // Defer elevated invite roles until claim confirm when a commander seat is
+  // still pending. Accept-time owner/officer RBAC survives claim failure and is
+  // usable via APIs (member-link is only a page gate).
+  const provisionRoleId = resolveRoleIdForClaimPendingAccept({
+    inviteRoleId: invite.roleId,
+    pendingClaimTargetId: claimTargetId,
+  });
+
   const result = await provisionAllianceMembership({
     hqUserId,
     sessionId: input.sessionId,
     allianceId: invite.allianceId,
-    roleId: invite.roleId,
+    roleId: provisionRoleId,
     userLabel: input.displayName?.trim() || sessionEmail,
     ownerEmail:
-      systemRoleNameForId(invite.roleId) === "owner" ? sessionEmail : null,
+      systemRoleNameForId(provisionRoleId) === "owner" ? sessionEmail : null,
   });
 
   await auditInviteAccepted({

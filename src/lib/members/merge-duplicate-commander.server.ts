@@ -26,6 +26,8 @@ export type MergeDuplicateSummary = {
   newName: string;
   oldName: string;
   historyCount: number;
+  /** Set when HQ merged but Ashed retire/name sync failed — do not refresh roster yet. */
+  ashedRetireFailed?: boolean;
 };
 
 export type MergeDuplicateResult =
@@ -132,6 +134,7 @@ async function loadSide(
     gameServerNumber: commander?.gameServerNumber ?? null,
     gameUid: commander?.gameUid ?? roster.gameUid ?? null,
     lastrankPublicId: commander?.lastrankPublicId ?? null,
+    profession: commander?.profession ?? null,
     hqUserIds: [
       ...new Set([...hqLinks, ...ownerRows].map((row) => row.hqUserId)),
     ],
@@ -348,6 +351,16 @@ export async function moveCommanderKeyedHistory(
     .delete(schema.hqAshedStatSyncConflicts)
     .where(eq(schema.hqAshedStatSyncConflicts.commanderId, D));
 
+  // Deposit identity is [bank, commander, depositAt]. Drop the duplicate's
+  // slips that would collide with the kept commander's after remap (kept wins).
+  await tx.execute(sql`
+    DELETE FROM bank_deposit_slips AS dup
+    USING bank_deposit_slips AS kept
+    WHERE dup.commander_id = ${D}
+      AND kept.commander_id = ${K}
+      AND dup.bank_id = kept.bank_id
+      AND dup.deposit_at = kept.deposit_at
+  `);
   await tx
     .update(schema.bankDepositSlips)
     .set({ commanderId: K })
@@ -702,182 +715,6 @@ async function moveHistory(
   `);
   count([...remappedEventMembers]);
 
-  // Modern event evidence ledger (observations → results → sync items). Legacy
-  // hq_event_members remap above is not enough: train readiness and Ashed sync
-  // read hq_event_member_results keyed by member_id.
-  const remappedObservations = await tx.execute(sql`
-    UPDATE hq_event_observations AS o
-    SET member_id = ${kept.ashedMemberId},
-        member_name = COALESCE(${kept.currentName}, o.member_name)
-    FROM hq_events AS e
-    WHERE o.hq_event_id = e.id
-      AND e.alliance_id = ${allianceId}
-      AND o.member_id = ${dup.ashedMemberId}
-    RETURNING o.id
-  `);
-  count([...remappedObservations]);
-
-  await tx.execute(sql`
-    DELETE FROM hq_event_member_results AS dup
-    USING hq_event_member_results AS kept
-    WHERE dup.alliance_id = ${allianceId}
-      AND dup.member_id = ${dup.ashedMemberId}
-      AND kept.alliance_id = dup.alliance_id
-      AND kept.hq_event_id = dup.hq_event_id
-      AND kept.board_id = dup.board_id
-      AND kept.member_id = ${kept.ashedMemberId}
-  `);
-  const remappedEventResults = await tx.execute(sql`
-    UPDATE hq_event_member_results AS r
-    SET member_id = ${kept.ashedMemberId},
-        member_name = COALESCE(${kept.currentName}, r.member_name),
-        updated_at = NOW()
-    WHERE r.alliance_id = ${allianceId}
-      AND r.member_id = ${dup.ashedMemberId}
-    RETURNING r.id
-  `);
-  count([...remappedEventResults]);
-
-  await tx.execute(sql`
-    DELETE FROM hq_event_sync_items AS dup
-    USING hq_event_sync_items AS kept
-    WHERE dup.alliance_id = ${allianceId}
-      AND dup.member_id = ${dup.ashedMemberId}
-      AND kept.alliance_id = dup.alliance_id
-      AND kept.hq_event_id = dup.hq_event_id
-      AND kept.member_id = ${kept.ashedMemberId}
-      AND dup.board_id IS NOT DISTINCT FROM kept.board_id
-  `);
-  const remappedSyncItems = await tx.execute(sql`
-    UPDATE hq_event_sync_items AS s
-    SET member_id = ${kept.ashedMemberId},
-        remote_key = s.hq_event_id || ':' || CASE WHEN s.board_id IS NULL THEN 'null' ELSE s.board_id END || ':' || ${kept.ashedMemberId},
-        status = CASE WHEN s.status IN ('synced', 'pending') THEN 'pending' ELSE s.status END,
-        updated_at = NOW()
-    WHERE s.alliance_id = ${allianceId}
-      AND s.member_id = ${dup.ashedMemberId}
-    RETURNING s.id
-  `);
-  count([...remappedSyncItems]);
-
-  await tx.execute(sql`
-    UPDATE hq_event_boards AS b
-    SET evidence_version = b.evidence_version + 1,
-        updated_at = NOW()
-    WHERE b.alliance_id = ${allianceId}
-      AND EXISTS (
-        SELECT 1
-        FROM hq_event_member_results AS r
-        WHERE r.alliance_id = b.alliance_id
-          AND r.board_id = b.id
-          AND r.member_id = ${kept.ashedMemberId}
-      )
-  `);
-
-  // VS compliance settlements are member-keyed. Without remap, waivers/demotes
-  // stay on the retired slot and the kept commander can be re-actioned.
-  await tx.execute(sql`
-    DELETE FROM vs_compliance_reviews AS review
-    USING vs_compliance_actions AS action
-    INNER JOIN vs_compliance_evaluations AS dup_eval
-      ON dup_eval.id = action.event_id
-    INNER JOIN vs_compliance_evaluations AS kept_eval
-      ON kept_eval.alliance_id = dup_eval.alliance_id
-      AND kept_eval.week_ending = dup_eval.week_ending
-      AND kept_eval.member_id = ${kept.ashedMemberId}
-    WHERE review.action_id = action.id
-      AND action.alliance_id = ${allianceId}
-      AND dup_eval.member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    DELETE FROM vs_compliance_roster_guards AS guard
-    USING vs_compliance_actions AS action
-    INNER JOIN vs_compliance_evaluations AS dup_eval
-      ON dup_eval.id = action.event_id
-    INNER JOIN vs_compliance_evaluations AS kept_eval
-      ON kept_eval.alliance_id = dup_eval.alliance_id
-      AND kept_eval.week_ending = dup_eval.week_ending
-      AND kept_eval.member_id = ${kept.ashedMemberId}
-    WHERE guard.action_id = action.id
-      AND guard.alliance_id = ${allianceId}
-      AND dup_eval.member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    DELETE FROM vs_compliance_sync_jobs AS job
-    USING vs_compliance_actions AS action
-    INNER JOIN vs_compliance_evaluations AS dup_eval
-      ON dup_eval.id = action.event_id
-    INNER JOIN vs_compliance_evaluations AS kept_eval
-      ON kept_eval.alliance_id = dup_eval.alliance_id
-      AND kept_eval.week_ending = dup_eval.week_ending
-      AND kept_eval.member_id = ${kept.ashedMemberId}
-    WHERE job.action_id = action.id
-      AND action.alliance_id = ${allianceId}
-      AND dup_eval.member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    DELETE FROM vs_compliance_actions AS action
-    USING vs_compliance_evaluations AS dup_eval
-    INNER JOIN vs_compliance_evaluations AS kept_eval
-      ON kept_eval.alliance_id = dup_eval.alliance_id
-      AND kept_eval.week_ending = dup_eval.week_ending
-      AND kept_eval.member_id = ${kept.ashedMemberId}
-    WHERE action.event_id = dup_eval.id
-      AND action.alliance_id = ${allianceId}
-      AND dup_eval.member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    DELETE FROM vs_compliance_evaluations AS dup_eval
-    USING vs_compliance_evaluations AS kept_eval
-    WHERE dup_eval.alliance_id = ${allianceId}
-      AND dup_eval.member_id = ${dup.ashedMemberId}
-      AND kept_eval.alliance_id = dup_eval.alliance_id
-      AND kept_eval.week_ending = dup_eval.week_ending
-      AND kept_eval.member_id = ${kept.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    DELETE FROM vs_compliance_roster_guards AS dup_guard
-    USING vs_compliance_roster_guards AS kept_guard
-    WHERE dup_guard.alliance_id = ${allianceId}
-      AND dup_guard.member_id = ${dup.ashedMemberId}
-      AND kept_guard.alliance_id = dup_guard.alliance_id
-      AND kept_guard.member_id = ${kept.ashedMemberId}
-  `);
-  const remappedComplianceEvals = await tx.execute(sql`
-    UPDATE vs_compliance_evaluations
-    SET member_id = ${kept.ashedMemberId},
-        member_name = ${kept.currentName},
-        updated_at = NOW()
-    WHERE alliance_id = ${allianceId}
-      AND member_id = ${dup.ashedMemberId}
-    RETURNING id
-  `);
-  count([...remappedComplianceEvals]);
-  await tx.execute(sql`
-    UPDATE vs_compliance_actions
-    SET member_id = ${kept.ashedMemberId}
-    WHERE alliance_id = ${allianceId}
-      AND member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    UPDATE vs_compliance_sync_jobs
-    SET member_id = ${kept.ashedMemberId}
-    WHERE alliance_id = ${allianceId}
-      AND member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    UPDATE vs_compliance_roster_guards
-    SET member_id = ${kept.ashedMemberId}
-    WHERE alliance_id = ${allianceId}
-      AND member_id = ${dup.ashedMemberId}
-  `);
-  await tx.execute(sql`
-    UPDATE vs_score_manual_edits
-    SET member_id = ${kept.ashedMemberId}
-    WHERE alliance_id = ${allianceId}
-      AND member_id = ${dup.ashedMemberId}
-  `);
-
   await tx.execute(sql`
     DELETE FROM conductor_pool_entries AS dup
     USING conductor_pool_entries AS kept
@@ -1172,15 +1009,18 @@ export async function previewDuplicateMerge(
   throw new Error("merge preview did not roll back");
 }
 
+/** @returns false when an Ashed-linked retire/name sync failed. */
 async function syncMergeToAshed(input: {
   allianceId: string;
   keptAshedMemberId: string;
   duplicateAshedMemberId: string;
-}): Promise<void> {
+}): Promise<boolean> {
   const ashedAllianceId = await getAshedAllianceIdIfLinked(input.allianceId);
-  if (!ashedAllianceId || isSyntheticNativeAshedAllianceId(ashedAllianceId)) return;
+  if (!ashedAllianceId || isSyntheticNativeAshedAllianceId(ashedAllianceId)) {
+    return true;
+  }
   const connection = await resolveAllianceAshedBotConnection(input.allianceId);
-  if (!connection) return;
+  if (!connection) return false;
 
   const rows = await getDb()
     .select({
@@ -1199,6 +1039,7 @@ async function syncMergeToAshed(input: {
         ]),
       ),
     );
+  let ok = true;
   for (const row of rows) {
     if (row.ashedAllianceId !== ashedAllianceId) continue;
     try {
@@ -1213,6 +1054,7 @@ async function syncMergeToAshed(input: {
         await markAshedMemberFormer({ connection, ashedMemberId: row.ashedMemberId });
       }
     } catch (error) {
+      ok = false;
       console.error(
         `[merge-duplicate] Ashed write failed for alliance ${input.allianceId}: ${
           error instanceof Error ? error.message : "unknown"
@@ -1220,17 +1062,40 @@ async function syncMergeToAshed(input: {
       );
     }
   }
+  return ok;
 }
 
 export async function mergeDuplicateCommander(
   input: MergeInput & { actorHqUserId: string | null; sessionId: string | null },
 ): Promise<MergeDuplicateResult> {
+  // Ashed-linked alliances must be able to retire the duplicate remotely;
+  // otherwise the next roster sync re-activates it and undoes the merge.
+  const ashedAllianceId = await getAshedAllianceIdIfLinked(input.allianceId);
+  if (ashedAllianceId && !isSyntheticNativeAshedAllianceId(ashedAllianceId)) {
+    const connection = await resolveAllianceAshedBotConnection(input.allianceId);
+    if (!connection) {
+      return { ok: false, code: "ashed_connection_required" };
+    }
+  }
+
   const result = await getDb().transaction((tx) => runMerge(tx, input));
   if (!result.ok) return result;
 
-  await syncMergeToAshed(input);
+  const ashedOk = await syncMergeToAshed(input);
   const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
   await pruneFormerMembersFromOpenPools(input.allianceId);
+  if (
+    ashedAllianceId &&
+    !isSyntheticNativeAshedAllianceId(ashedAllianceId) &&
+    !ashedOk
+  ) {
+    // Local merge already committed — warn so officers do not refresh roster
+    // (Ashed still lists the duplicate as active and sync would revive it).
+    return {
+      ok: true,
+      summary: { ...result.summary, ashedRetireFailed: true },
+    };
+  }
   return result;
 }
 

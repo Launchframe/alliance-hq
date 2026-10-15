@@ -26,6 +26,9 @@ import { commitReviewedEventEvidence } from "@/lib/hq-events/evidence-repository
 const remoteRows = new Map<string, Record<string, unknown>[]>();
 let postFailsAfterWrite = false;
 const posts: Record<string, unknown>[] = [];
+/** One-shot hooks that simulate a concurrent peer runner. */
+let afterListRead: (() => Promise<void>) | null = null;
+let afterPostWrite: (() => Promise<void>) | null = null;
 
 vi.mock("@/lib/base44/fetch", () => ({
   base44Json: vi.fn(async (_conn: unknown, path: string) => {
@@ -36,18 +39,26 @@ vi.mock("@/lib/base44/fetch", () => ({
       unknown
     >;
     const rows = remoteRows.get(match[1]!) ?? [];
-    return rows.filter(
+    const snapshot = rows.filter(
       (row) =>
         row.alliance_id === query.alliance_id &&
         row.event_id === query.event_id &&
         (query.team == null || row.team === query.team),
     );
+    const hook = afterListRead;
+    afterListRead = null;
+    // The caller sees the pre-hook snapshot (a stale read).
+    if (hook) await hook();
+    return snapshot;
   }),
   base44EntityPost: vi.fn(
     async (_conn: unknown, entity: string, row: Record<string, unknown>) => {
       posts.push({ entity, ...row });
       const created = { id: `remote-${nanoid(8)}`, ...row };
       remoteRows.get(entity)!.push(created);
+      const hook = afterPostWrite;
+      afterPostWrite = null;
+      if (hook) await hook();
       if (postFailsAfterWrite) {
         postFailsAfterWrite = false;
         throw new Error("Ashed request failed (503)");
@@ -189,6 +200,8 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     remoteRows.clear();
     posts.length = 0;
     postFailsAfterWrite = false;
+    afterListRead = null;
+    afterPostWrite = null;
   });
 
   afterAll(async () => {
@@ -304,15 +317,8 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     await syncEventResults(f.actor, { eventId: f.eventId });
     expect((await syncItemFor(f))?.status).toBe("conflict");
 
-    seedRemote("SeasonalScore", [
-      {
-        id: "remote-1",
-        alliance_id: f.ashedAllianceId,
-        event_id: f.remoteEventId,
-        member_id: f.memberId,
-        score: 5000,
-      },
-    ]);
+    // Correct the existing remote row in place (appending would be a duplicate).
+    remoteRows.get("SeasonalScore")![0]!.score = 5000;
     const second = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(second.synced).toBe(1);
     expect(posts).toHaveLength(0);
@@ -390,7 +396,19 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     postFailsAfterWrite = true;
     const first = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(first.uncertain).toBe(1);
-    expect((await syncItemFor(f))?.status).toBe("uncertain");
+    const afterLostReply = await syncItemFor(f);
+    expect(afterLostReply?.status).toBe("uncertain");
+    expect(afterLostReply?.error_code).toBe("post_uncertain");
+    expect(afterLostReply?.lease_token).toBeTruthy();
+
+    // Live lease fence: no reclaim (and no duplicate POST) until expiry.
+    const blocked = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(blocked.pending).toBe(1);
+    expect(blocked.synced).toBe(0);
+    expect(posts).toHaveLength(1);
+
+    await f.sql`UPDATE hq_event_sync_items SET lease_expires_at = now() - interval '1 second'
+      WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId}`;
 
     const second = await syncEventResults(f.actor, { eventId: f.eventId });
     expect(second.synced).toBe(1);
@@ -399,6 +417,84 @@ describe.skipIf(!process.env.EVENT_EVIDENCE_DB_TEST)("syncEventResults", () => {
     const item = await syncItemFor(f);
     expect(item?.status).toBe("synced");
     expect(item?.remote_row_id).toBeTruthy();
+  });
+
+  it("a runner that loses its lease mid-POST reports uncertain and the next run binds without re-POSTing", async () => {
+    const f = await setup();
+    seedRemote("SeasonalScore", []);
+    await commitScore(f, "5000");
+
+    // A peer steals the lease while our POST is in flight.
+    afterPostWrite = async () => {
+      await f.sql`UPDATE hq_event_sync_items
+        SET lease_token = 'peer-lease', lease_expires_at = now() + interval '1 minute'
+        WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId}`;
+    };
+    const first = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(first.uncertain).toBe(1);
+    expect(first.synced).toBe(0);
+    const held = await syncItemFor(f);
+    // markItem was fenced out: the peer lease and pre-POST status survive.
+    expect(held?.status).toBe("pending");
+    expect(held?.lease_token).toBe("peer-lease");
+
+    // While the peer lease is live, another run must not touch the row.
+    const blocked = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(blocked.pending).toBe(1);
+    expect(posts).toHaveLength(1);
+
+    await f.sql`UPDATE hq_event_sync_items SET lease_expires_at = now() - interval '1 second'
+      WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId}`;
+    const recovered = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(recovered.synced).toBe(1);
+    expect(posts).toHaveLength(1);
+    const item = await syncItemFor(f);
+    expect(item?.status).toBe("synced");
+    expect(item?.remote_row_id).toBeTruthy();
+  });
+
+  it("two runners: a peer that POSTs after our remote read cannot be duplicated", async () => {
+    const f = await setup();
+    seedRemote("SeasonalScore", []);
+    await commitScore(f, "5000");
+
+    // Our runner reads an empty remote list; before it claims, a full peer
+    // run POSTs and loses the reply (row stays in the retryable set).
+    afterListRead = async () => {
+      postFailsAfterWrite = true;
+      const peer = await syncEventResults(f.actor, { eventId: f.eventId });
+      expect(peer.uncertain).toBe(1);
+    };
+    const ours = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(ours.pending).toBe(1);
+    expect(posts).toHaveLength(1);
+
+    const blocked = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(blocked.pending).toBe(1);
+    expect(blocked.synced).toBe(0);
+
+    await f.sql`UPDATE hq_event_sync_items SET lease_expires_at = now() - interval '1 second'
+      WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId}`;
+
+    const next = await syncEventResults(f.actor, { eventId: f.eventId });
+    expect(next.synced).toBe(1);
+    expect(posts).toHaveLength(1);
+  });
+
+  it("two concurrent runners POST a member at most once", async () => {
+    const f = await setup();
+    seedRemote("SeasonalScore", []);
+    await commitScore(f, "5000");
+
+    const [a, b] = await Promise.all([
+      syncEventResults(f.actor, { eventId: f.eventId }),
+      syncEventResults(f.actor, { eventId: f.eventId }),
+    ]);
+    expect(posts).toHaveLength(1);
+    // The loser either fails its claim (pending) or snapshots after the
+    // winner finished (nothing to do) — never a second POST.
+    expect(a.synced + b.synced).toBe(1);
+    expect((await syncItemFor(f))?.status).toBe("synced");
   });
 
   it("marks scores beyond the JSON safe-integer boundary unsupported", async () => {

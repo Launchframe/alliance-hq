@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { MAX_ACTIVE_CREDENTIAL_SHARES } from "@/lib/ashed/credential-share-cap.shared";
@@ -285,53 +285,46 @@ export async function createCredentialShareInvite(input: {
   const ttlHours = validateTtlHours(input.ttlHours);
 
   const db = getDb();
+  const [shareCountRow] = await db
+    .select({ value: count() })
+    .from(schema.ashedCredentialShares)
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.allianceId, input.allianceId),
+        eq(schema.ashedCredentialShares.ownerHqUserId, ownerHqUserId),
+        inArray(schema.ashedCredentialShares.status, ["pending", "active"]),
+      ),
+    );
+  const activeShareCount = Number(shareCountRow?.value ?? 0);
+
+  if (activeShareCount >= MAX_ACTIVE_CREDENTIAL_SHARES) {
+    throw new CredentialShareError(
+      `You already have ${MAX_ACTIVE_CREDENTIAL_SHARES} active shares. Revoke one below, then try again.`,
+      "CONFLICT",
+    );
+  }
+
   const now = new Date();
   const inviteToken = randomBytes(24).toString("base64url");
   const shareId = nanoid(16);
   const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
 
-  // Serialize count+insert under an owner/alliance advisory lock so concurrent
-  // creates cannot race past MAX_ACTIVE_CREDENTIAL_SHARES (pending+active).
-  await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`ashed-share-cap:${input.allianceId}:${ownerHqUserId}`}, 0))`,
-    );
-    const [shareCountRow] = await tx
-      .select({ value: count() })
-      .from(schema.ashedCredentialShares)
-      .where(
-        and(
-          eq(schema.ashedCredentialShares.allianceId, input.allianceId),
-          eq(schema.ashedCredentialShares.ownerHqUserId, ownerHqUserId),
-          inArray(schema.ashedCredentialShares.status, ["pending", "active"]),
-        ),
-      );
-    const activeShareCount = Number(shareCountRow?.value ?? 0);
-
-    if (activeShareCount >= MAX_ACTIVE_CREDENTIAL_SHARES) {
-      throw new CredentialShareError(
-        `You already have ${MAX_ACTIVE_CREDENTIAL_SHARES} active shares. Revoke one below, then try again.`,
-        "CONFLICT",
-      );
-    }
-
-    await tx.insert(schema.ashedCredentialShares).values({
-      id: shareId,
-      allianceId: input.allianceId,
-      ownerHqUserId,
-      invitedHqUserId: input.invitedHqUserId,
-      status: "pending",
-      capabilities,
-      encryptedToken: credential.encryptedToken,
-      appId: credential.appId,
-      originUrl: credential.originUrl,
-      tokenExpiresAt: credential.tokenExpiresAt,
-      ashedUserId: credential.ashedUserId,
-      expiresAt,
-      inviteTokenHash: hashInviteToken(inviteToken),
-      createdAt: now,
-      updatedAt: now,
-    });
+  await db.insert(schema.ashedCredentialShares).values({
+    id: shareId,
+    allianceId: input.allianceId,
+    ownerHqUserId,
+    invitedHqUserId: input.invitedHqUserId,
+    status: "pending",
+    capabilities,
+    encryptedToken: credential.encryptedToken,
+    appId: credential.appId,
+    originUrl: credential.originUrl,
+    tokenExpiresAt: credential.tokenExpiresAt,
+    ashedUserId: credential.ashedUserId,
+    expiresAt,
+    inviteTokenHash: hashInviteToken(inviteToken),
+    createdAt: now,
+    updatedAt: now,
   });
 
   await writeCredentialShareAudit({
@@ -400,6 +393,18 @@ export async function acceptCredentialShare(input: {
     throw new CredentialShareError("This invite is no longer available.", "NOT_FOUND");
   }
 
+  const now = new Date();
+  // Refuse expired invites before CAS. Accepting a past-expiresAt pending row
+  // would create status=active under idx_ashed_credential_shares_owner_active
+  // while getActiveShareForDelegate still treats it as dead — pinning the
+  // owner's single active share slot until revoke/expire cron.
+  if (row.expiresAt && row.expiresAt <= now) {
+    throw new CredentialShareError("This invite is no longer available.", "NOT_FOUND");
+  }
+  if (row.tokenExpiresAt && row.tokenExpiresAt <= now) {
+    throw new CredentialShareError("This invite is no longer available.", "NOT_FOUND");
+  }
+
   if (row.invitedHqUserId !== delegateHqUserId) {
     throw new CredentialShareError(
       "This invite was sent to a different officer.",
@@ -428,7 +433,6 @@ export async function acceptCredentialShare(input: {
     );
   }
 
-  const now = new Date();
   // CAS on status=pending so concurrent revoke/reject/expire cannot be
   // resurrected into an active delegated credential after the owner ended it.
   const [updated] = await db

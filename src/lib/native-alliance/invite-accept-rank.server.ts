@@ -68,11 +68,13 @@ async function officerInviteRequiredHybridRank(
 }
 
 /**
- * Re-check hybrid rank gates at accept time.
+ * Re-check hybrid rank gates at accept **and** claim-confirm elevation.
  *
  * Create-time `assertInviteRoleAllowed` only snapshots rank when the invite is
- * minted. Without this gate, an R5 hybrid owner invite (or R4 hybrid officer
- * invite) still provisions elevated RBAC after the commander is demoted.
+ * minted. Accept alone is insufficient after #754 deferred elevated RBAC until
+ * claim confirm — without this gate at elevation, an R5 hybrid owner invite
+ * (or R4 hybrid officer invite) still grants owner/officer after demotion
+ * between accept and claim.
  */
 export async function assertHybridClaimInviteRankAtAccept(input: {
   allianceId: string;

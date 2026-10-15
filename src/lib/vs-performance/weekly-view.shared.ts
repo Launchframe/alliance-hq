@@ -123,7 +123,8 @@ export type VsPlanPreview = {
     scoreDate: string;
     trainDate: string;
     before: ConductorRule | null;
-    after: ConductorRule;
+    /** `null` = free choice after clearing a prior planned rule (e.g. undecided). */
+    after: ConductorRule | null;
     clearConductorName: string | null;
   }>;
   protectedDates: string[];

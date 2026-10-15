@@ -122,6 +122,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
 
   "vsPerformance.editPlan": { key: "e" },
   "vsPerformance.capture": { key: "u" },
+  "vsPerformance.importSpreadsheet": chord("i", ["shift"]),
 } satisfies Record<HotkeyActionId, HotkeyBinding>;
 
 export const DEFAULT_HOTKEY_BINDINGS: Record<HotkeyActionId, HotkeyBinding> =
