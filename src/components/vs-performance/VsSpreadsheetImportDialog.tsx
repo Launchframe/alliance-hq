@@ -14,7 +14,10 @@ import {
   listRecentVsPerformanceDates,
   type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
-import { VS_SPREADSHEET_MAX_BYTES } from "@/lib/vs-scores/spreadsheet-import.shared";
+import {
+  detectVsSpreadsheetPeriodAndDate,
+  VS_SPREADSHEET_MAX_BYTES,
+} from "@/lib/vs-scores/spreadsheet-import.shared";
 
 type Props = {
   open: boolean;
@@ -92,16 +95,18 @@ export function VsSpreadsheetImportDialog({ open, onClose }: Props) {
       return;
     }
     setFile(next);
-    // Client-side date hint from filename Saturday / Week of patterns.
-    const weekOf = /week\s+of\s+(\d{4}-\d{2}-\d{2})/i.exec(next.name)?.[1];
-    const bare = /(\d{4}-\d{2}-\d{2})/.exec(next.name)?.[1];
-    const seed = weekOf ?? bare;
-    if (seed) {
-      const sunday = coerceVsPerformanceRecordedDate(seed, "weekly");
-      setPeriod("weekly");
-      setRecordedDate(sunday);
-      setDetected({ period: "weekly", recordedDate: sunday });
-    }
+    // Filename-only hint via the shared detector (Week of / Saturday→Sunday /
+    // daily Mon–Sat). Server re-detects from sheet contents on upload.
+    const hint = detectVsSpreadsheetPeriodAndDate({
+      cells: [],
+      fileName: next.name,
+    });
+    setPeriod(hint.period);
+    setRecordedDate(hint.recordedDate);
+    setDetected({
+      period: hint.period,
+      recordedDate: hint.recordedDate,
+    });
   }, [t]);
 
   const submit = useCallback(async () => {

@@ -74,6 +74,23 @@ describe("spreadsheet-file.server", () => {
     expect(parsed.rows[2]?.name).toBe("ʳʰᶦⁿᵒ");
   });
 
+  it("rejects worksheets whose declared range exceeds the scan bound", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Huge");
+    sheet.getCell("A1").value = "Rank";
+    sheet.getCell("B1").value = "Name";
+    sheet.getCell("C1").value = "Points";
+    sheet.getCell("A5").value = 1;
+    sheet.getCell("B5").value = "Alpha";
+    sheet.getCell("C5").value = 100;
+    // Sparse content far below the supported scan window.
+    sheet.getCell("A400").value = "padding";
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    await expect(worksheetToCells(buffer)).rejects.toMatchObject({
+      code: "too_many_rows",
+    });
+  });
+
   it("rejects empty spreadsheets", async () => {
     await expect(
       parseVsSpreadsheetFile({

@@ -6,10 +6,16 @@ import {
   cellGridFromCsvMatrix,
   parseVsSpreadsheetTable,
   VS_SPREADSHEET_MAX_BYTES,
+  VS_SPREADSHEET_MAX_ROWS,
   type VsSpreadsheetParseResult,
 } from "@/lib/vs-scores/spreadsheet-import.shared";
 
 export { VS_SPREADSHEET_MAX_BYTES };
+
+/** Columns beyond rank/name/score are unused; keep the scan narrow. */
+const VS_SPREADSHEET_MAX_COLS = 16;
+/** Title/header slack above the 300 data-row commit cap. */
+const VS_SPREADSHEET_MAX_SCAN_ROWS = VS_SPREADSHEET_MAX_ROWS + 40;
 
 export type VsSpreadsheetFileKind = "csv" | "xlsx";
 
@@ -116,9 +122,28 @@ export async function worksheetToCells(
   await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];
+
+  const declaredRows = Math.max(
+    sheet.rowCount || 0,
+    sheet.actualRowCount || 0,
+  );
+  if (declaredRows > VS_SPREADSHEET_MAX_SCAN_ROWS) {
+    throw new VsSpreadsheetFileError("too_many_rows");
+  }
+
+  const declaredCols = Math.max(
+    sheet.actualColumnCount || 0,
+    sheet.columnCount || 0,
+    1,
+  );
+  const maxCol = Math.min(declaredCols, VS_SPREADSHEET_MAX_COLS);
   const cells: string[][] = [];
-  const maxCol = Math.max(sheet.actualColumnCount || 0, sheet.columnCount || 0, 1);
-  sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+
+  // Skip empty spacer rows so sparse formatting ranges cannot expand the grid.
+  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber > VS_SPREADSHEET_MAX_SCAN_ROWS) {
+      throw new VsSpreadsheetFileError("too_many_rows");
+    }
     const line: string[] = [];
     for (let c = 1; c <= maxCol; c++) {
       line.push(cellValueToText(row.getCell(c).value));

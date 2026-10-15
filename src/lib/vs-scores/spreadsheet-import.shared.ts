@@ -178,7 +178,8 @@ export function detectVsSpreadsheetPeriodAndDate(input: {
     }
   }
 
-  for (const date of titleDates) {
+  // Daily dates may appear only in the filename (e.g. VS Daily - 2026-10-01.csv).
+  for (const date of [...titleDates, ...fileDates]) {
     if (isValidVsPerformanceRecordedDate(date, "daily")) {
       return { period: "daily", recordedDate: date };
     }

@@ -117,4 +117,29 @@ describe("detectVsSpreadsheetPeriodAndDate", () => {
       recordedDate: "2026-10-04",
     });
   });
+
+  it("detects a daily date from the filename when the sheet has no dates", () => {
+    const detected = detectVsSpreadsheetPeriodAndDate({
+      cells: [
+        ["Rank", "Name", "Points"],
+        ["1", "Alpha", "100"],
+      ],
+      fileName: "VS Daily - 2026-10-01.csv",
+    });
+    expect(detected).toEqual({
+      period: "daily",
+      recordedDate: "2026-10-01",
+    });
+  });
+
+  it("filename-only Week of detection matches the client dialog hint path", () => {
+    const detected = detectVsSpreadsheetPeriodAndDate({
+      cells: [],
+      fileName: "report Week of 2026-09-28.xlsx",
+    });
+    expect(detected).toEqual({
+      period: "weekly",
+      recordedDate: "2026-10-04",
+    });
+  });
 });

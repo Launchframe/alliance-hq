@@ -7,14 +7,11 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
-import { initializeVsVideoEvidence } from "@/lib/vs-performance/video-evidence.server";
 import {
   buildMemberIndex,
   matchMemberName,
 } from "@/lib/video/member-matcher";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
-import { dedupeSameScoreOcrTwins } from "@/lib/video/score-ocr-twin-dedupe.shared";
-import { stripUnmatchedScoreGhostEntries } from "@/lib/video/score-ghost-clusters.shared";
 import {
   isValidVsPerformanceRecordedDate,
 } from "@/lib/video/vs-recorded-date.shared";
@@ -118,12 +115,9 @@ export async function importVsSpreadsheetScores(
         },
   }));
 
-  const dedupedRows = stripUnmatchedScoreGhostEntries(
-    dedupeMatchedParseEntries(
-      dedupeSameScoreOcrTwins(matchedRows, allianceTag),
-      allianceTag,
-    ),
-  );
+  // Spreadsheet rows are authoritative — do not apply OCR twin/ghost collapse.
+  // Member-id collisions are still resolved by dedupeMatchedParseEntries.
+  const dedupedRows = dedupeMatchedParseEntries(matchedRows, allianceTag);
 
   if (dedupedRows.length === 0) {
     throw new VsSpreadsheetFileError("no_rows");
@@ -272,10 +266,9 @@ export async function importVsSpreadsheetScores(
     );
   });
 
-  await initializeVsVideoEvidence(jobId, input.sessionId, {
-    recordedDate,
-    period,
-  });
+  // Period/date live on the job (recordedDate + extractionConfigJson). Do not
+  // call initializeVsVideoEvidence — that path requires hq:video:enqueue and
+  // spreadsheet review never uses the VS evidence panel.
 
   return {
     jobId,
