@@ -498,6 +498,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [dedupeReport, setDedupeReport] = useState<DedupeReport | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [hasSourceVideo, setHasSourceVideo] = useState(false);
+  const [isSpreadsheetIngest, setIsSpreadsheetIngest] = useState(false);
   const {
     device: previewDevice,
     placement: previewPlacement,
@@ -691,7 +692,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const vsEvidenceController = useVsVideoEvidence({
     jobId,
-    enabled: isVsPerformanceTarget === true,
+    enabled: isVsPerformanceTarget === true && !isSpreadsheetIngest,
     context: { recordedDate: vsSafeRecordedDate, period: vsPeriod },
     jobStatus,
     locale,
@@ -757,6 +758,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (holdEventRedirect) return;
     if (
       isVsPerformanceTarget &&
+      !isSpreadsheetIngest &&
       (!vsEvidenceLoaded || vsHasUnappliedEvidence || vsEvidenceDirty)
     ) {
       return;
@@ -785,6 +787,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     router,
     viewMode,
     isVsPerformanceTarget,
+    isSpreadsheetIngest,
     vsEvidenceLoaded,
     vsHasUnappliedEvidence,
     vsEvidenceDirty,
@@ -930,6 +933,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             recordedDate?: string | null;
             vsPeriod?: VsScorePeriod;
             vsRevision?: number;
+            ingestMethod?: string | null;
           };
           hasSourceVideo?: boolean;
           frameTimestamps?: FrameTimestampMap;
@@ -1032,7 +1036,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setJobRating(data.job.rating);
         }
         setFileName(data.job?.fileName ?? null);
-        setHasSourceVideo(Boolean(data.hasSourceVideo));
+        setIsSpreadsheetIngest(data.job?.ingestMethod === "spreadsheet");
+        setHasSourceVideo(
+          Boolean(data.hasSourceVideo) &&
+            data.job?.ingestMethod !== "spreadsheet",
+        );
         setFrameTimestamps(data.frameTimestamps ?? {});
         setTimings(
           isVideoProcessTimings(data.job?.timingsJson)
@@ -2667,7 +2675,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setSuccess(null);
     try {
       let vsMatchReview: VsVideoMatchSubmission | undefined;
-      if (isVsPerformanceTarget) {
+      if (isVsPerformanceTarget && !isSpreadsheetIngest) {
         try {
           vsMatchReview = await vsEvidenceController.prepareSubmission();
         } catch {
@@ -2990,6 +2998,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const showReprocessAction =
     canProcessVideo &&
+    !isSpreadsheetIngest &&
     !allianceStale &&
     canReprocessVideoJob(
       resolveReprocessGateStatus(jobStatus, liveJob?.status),
@@ -3853,7 +3862,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
       ) : null}
 
-      {isVsPerformanceTarget ? (
+      {isSpreadsheetIngest && fileName ? (
+        <p
+          className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-2 text-sm text-hq-fg-muted"
+          data-testid="vs-spreadsheet-source"
+        >
+          {t("sourceSpreadsheet", { fileName })}
+        </p>
+      ) : null}
+
+      {isVsPerformanceTarget && !isSpreadsheetIngest ? (
         <VsVideoEvidencePanel
           controller={vsEvidenceController}
           jobStatus={jobStatus}
