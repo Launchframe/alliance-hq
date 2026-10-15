@@ -19,8 +19,21 @@ import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
 
+import { resolveScoreUploadSpinDate } from "@/lib/trains/score-upload-spin-prompt.server";
+
 import { vsEvidenceErrorResponse } from "./errors.server";
 export { vsEvidenceErrorResponse } from "./errors.server";
+
+/** Never fails the save: the spin hand-off is a convenience. */
+async function trainSpinDateAfterSave(
+  sessionId: string,
+  allianceId: string,
+  period: "daily" | "weekly",
+  recordedDate: string | undefined,
+): Promise<string | null> {
+  if (period !== "daily" || !recordedDate) return null;
+  return resolveScoreUploadSpinDate({ sessionId, allianceId, vsRecordedDate: recordedDate }).catch(() => null);
+}
 
 export async function submitVsReview(input: {
   sessionId: string; hqUserId: string | null; job: VideoJob;
@@ -69,7 +82,8 @@ export async function submitVsReview(input: {
         ? "local"
         : ((vsEvidence.matchup as { sync?: { status?: string } } | null)?.sync?.status ?? "idle");
       const feedback = await getSolicitedEligibility({ hqUserId: input.hqUserId, videoJobId: input.job.id }).catch(() => ({ showSolicitedFeedback: false, completedUploadCount: 0 }));
-      return NextResponse.json({ ok: true, ...scoreResult, storage: "hq", vsEvidence, matchResultsSaved: true, matchSyncStatus, ...feedback });
+      const trainSpinDate = await trainSpinDateAfterSave(input.sessionId, allianceId, period, input.body.recordedDate);
+      return NextResponse.json({ ok: true, ...scoreResult, storage: "hq", vsEvidence, matchResultsSaved: true, matchSyncStatus, trainSpinDate, ...feedback });
     }
     const result = await commitReviewedVsScores({
       allianceId, hqUserId: input.hqUserId, jobId: input.job.id, parseSessionId: input.job.parseSessionId,
@@ -86,7 +100,8 @@ export async function submitVsReview(input: {
       ]);
     });
     const feedback = await getSolicitedEligibility({ hqUserId: input.hqUserId, videoJobId: input.job.id }).catch(() => ({ showSolicitedFeedback: false, completedUploadCount: 0 }));
-    return NextResponse.json({ ok: true, ...result, storage: "hq", ...feedback });
+    const trainSpinDate = await trainSpinDateAfterSave(input.sessionId, allianceId, period, input.body.recordedDate);
+    return NextResponse.json({ ok: true, ...result, storage: "hq", trainSpinDate, ...feedback });
   } catch (error) {
     if (error instanceof VsPerformanceError) return vsErrorResponse(error);
     return vsEvidenceErrorResponse(error, period);

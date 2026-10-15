@@ -56,7 +56,8 @@ import {
 } from "@/lib/video/score-targets";
 import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 import { EventEvidenceReview } from "@/components/video/EventEvidenceReview";
-import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";import {
+import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";
+import { buildTrainsScoresReadyReturnPath } from "@/lib/trains/guided-video-upload.shared";import {
   defaultVsPerformanceRecordedDate,
   coerceVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
@@ -414,9 +415,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const presetRecordedDate = parseVideoUploadRecordedDateParam(
     searchParams.get("recordedDate") ?? undefined,
   );
-  const postSubmitReturnTo = parseVideoUploadReturnToParam(
+  const requestedReturnTo = parseVideoUploadReturnToParam(
     searchParams.get("returnTo"),
   );
+  const [trainSpinDate, setTrainSpinDate] = useState<string | null>(null);
+  const postSubmitReturnTo =
+    trainSpinDate && !requestedReturnTo?.startsWith("/trains")
+      ? buildTrainsScoresReadyReturnPath(trainSpinDate)
+      : requestedReturnTo;
   const { showExperienceFeedback } = useFeedback();
   const liveJob = useVideoJob(jobId);
 
@@ -2870,6 +2876,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         vsEvidence?: VsVideoEvidenceResponse;
         matchResultsSaved?: boolean;
         matchSyncStatus?: string;
+        trainSpinDate?: string | null;
       };
       if (!res.ok) {
         if (data.code === "ashed_not_connected") {
@@ -2929,6 +2936,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       clearDraft();
       setServerFrontlineIssues([]);
+      if (!isEventView && typeof data.trainSpinDate === "string") {
+        setTrainSpinDate(data.trainSpinDate);
+      }
       if (scoreGhostDiscardRowIds.size > 0 || blankSupersededRowIds.size > 0) {
         setRows((prev) =>
           prev.map((row) =>
