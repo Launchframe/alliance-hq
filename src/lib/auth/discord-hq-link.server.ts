@@ -73,18 +73,27 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
 
   // Discord rebind to a different HQ user: drop the prior HQ's inherited
   // commander links so stale owner/officer Discord gates cannot survive.
+  //
+  // Upsert the HQ bridge *before* revoking prior mirrors. Lazy
+  // `ensureDiscordMemberLinksFromHq` (officer/owner gates, /vr, help) reads
+  // `discord_hq_links` and would otherwise re-inherit the prior HQ's
+  // commanders into the gap after revoke and before upsert — restoring
+  // owner/officer Discord gates the rebind intended to clear.
   const existingForDiscord = await getDiscordHqLink(discordUserId);
-  if (
-    existingForDiscord &&
-    existingForDiscord.hqUserId !== hqUserId
-  ) {
+  const priorHqUserId =
+    existingForDiscord && existingForDiscord.hqUserId !== hqUserId
+      ? existingForDiscord.hqUserId
+      : null;
+
+  await upsertDiscordHqLink({ discordUserId, hqUserId });
+
+  if (priorHqUserId) {
     await revokeHqMirroredDiscordMemberLinks({
       discordUserId,
-      hqUserId: existingForDiscord.hqUserId,
+      hqUserId: priorHqUserId,
     });
   }
 
-  await upsertDiscordHqLink({ discordUserId, hqUserId });
   // Web commanders should work on Discord without a second name+UID pass.
   await inheritHqMemberLinksToDiscord({ discordUserId, hqUserId });
   await claimDiscordKnowledgeResourcesForHqUser(hqUserId);
