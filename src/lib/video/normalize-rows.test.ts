@@ -183,6 +183,26 @@ describe("collapseEntriesBySanitizedName", () => {
     expect(entries.every((entry) => entry.scoreConflict)).toBe(true);
   });
 
+  it("drops a blank-score read when the same player has a real score", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Unknown Caller", score: "7567900" },
+      { name: "Unknown Caller", score: "" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toEqual([{ name: "Unknown Caller", score: "7567900" }]);
+  });
+
+  it("keeps a single row when every read for the player is blank", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Doc Gobbo", score: "" },
+      { name: "Doc Gobbo", score: "" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toEqual([{ name: "Doc Gobbo", score: "" }]);
+  });
+
   it("prefers cleaner display names within the same sanitized group", () => {
     const { entries } = collapseEntriesBySanitizedName(
       [
