@@ -33,9 +33,12 @@ import {
   isAshedEventAutoCreateId,
 } from "@/lib/video/ashed-event-review-options.shared";
 import {
+  blankScoreSupersededRowIds,
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
-  liveScoreConflictRowIds,
+  groupSiblingRowsTogether,
+  liveScoreConflictGroups,
+  mergeSiblingGroups,
 } from "@/lib/video/review-validation";
 import {
   findScoreGhostClusters,
@@ -53,8 +56,7 @@ import {
 } from "@/lib/video/score-targets";
 import { isWarzoneEvidenceTarget } from "@/lib/video/warzone-evidence.shared";
 import { EventEvidenceReview } from "@/components/video/EventEvidenceReview";
-import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";
-import {
+import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";import {
   defaultVsPerformanceRecordedDate,
   coerceVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
@@ -1828,9 +1830,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     scoreTargetMeta?.id ?? "",
   );
 
+  const blankSupersededRowIds = useMemo(() => {
+    if (
+      scoreTargetMeta?.showRosterColumns ||
+      scoreTargetMeta?.showDepositSlipColumns ||
+      scoreTargetMeta?.showScoreColumn === false ||
+      isFrontlineTarget
+    ) {
+      return new Set<string>();
+    }
+    return blankScoreSupersededRowIds(rows.filter((r) => !r.deleted));
+  }, [
+    rows,
+    scoreTargetMeta?.showRosterColumns,
+    scoreTargetMeta?.showDepositSlipColumns,
+    scoreTargetMeta?.showScoreColumn,
+    isFrontlineTarget,
+  ]);
+
   const activeRows = useMemo(
-    () => rows.filter((r) => !r.deleted),
-    [rows],
+    () =>
+      rows.filter((r) => !r.deleted && !blankSupersededRowIds.has(r.id)),
+    [rows, blankSupersededRowIds],
   );
 
   const depositSlipDisplayRows = useMemo(() => {
@@ -2109,6 +2130,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows],
   );
 
+  const scoreConflictGroups = useMemo(
+    () => {
+      if (scoreTargetMeta?.showScoreColumn === false || isFrontlineTarget) {
+        return [];
+      }
+      return liveScoreConflictGroups(
+        activeRows.map((row) => ({
+          id: row.id,
+          memberId: row.memberId,
+          ocrName: row.ocrName,
+          score: row.score,
+        })),
+        allianceTag,
+      );
+    },
+    [
+      activeRows,
+      allianceTag,
+      scoreTargetMeta?.showScoreColumn,
+      isFrontlineTarget,
+    ],
+  );
+
   const liveScoreConflictIds = useMemo(
     () => {
       if (scoreTargetMeta?.showScoreColumn === false) {
@@ -2127,21 +2171,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           allianceTag,
         );
       }
-      return liveScoreConflictRowIds(
-        activeRows.map((row) => ({
-          id: row.id,
-          memberId: row.memberId,
-          ocrName: row.ocrName,
-          score: row.score,
-        })),
-        allianceTag,
-      );
+      return new Set(scoreConflictGroups.flatMap((group) => group.conflictRowIds));
     },
     [
       activeRows,
       allianceTag,
       scoreTargetMeta?.showScoreColumn,
       isFrontlineTarget,
+      scoreConflictGroups,
     ],
   );
 
@@ -2254,15 +2291,32 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ? depositSlipValidation.duplicateRowIds
       : scoreDuplicateRowIds;
 
+  const reviewSiblingGroups = useMemo(
+    () =>
+      mergeSiblingGroups([
+        ...duplicateMemberIssues.map((issue) => issue.rowIds),
+        ...scoreConflictGroups.map((group) => group.rowIds),
+      ]),
+    [duplicateMemberIssues, scoreConflictGroups],
+  );
+
+  const reviewTableRows = useMemo(
+    () => groupSiblingRowsTogether(filteredRows, reviewSiblingGroups),
+    [filteredRows, reviewSiblingGroups],
+  );
+
   const allReviewRowIds = useMemo(() => {
     if (scoreTargetMeta?.showDepositSlipColumns) {
       return depositSlipRowsForUi.map((row) => row.id);
     }
-    return activeRows.map((row) => row.id);
+    return groupSiblingRowsTogether(activeRows, reviewSiblingGroups).map(
+      (row) => row.id,
+    );
   }, [
     scoreTargetMeta?.showDepositSlipColumns,
     depositSlipRowsForUi,
     activeRows,
+    reviewSiblingGroups,
   ]);
 
   const reviewProblemRowIds = useMemo(() => {
@@ -2424,9 +2478,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const comparisonRows = useMemo(
     () =>
       rows.filter(
-        (row) => !row.deleted && !scoreGhostDiscardRowIds.has(row.id),
+        (row) =>
+          !row.deleted &&
+          !scoreGhostDiscardRowIds.has(row.id) &&
+          !blankSupersededRowIds.has(row.id),
       ),
-    [rows, scoreGhostDiscardRowIds],
+    [rows, scoreGhostDiscardRowIds, blankSupersededRowIds],
   );
 
   const comparisonComplete = useMemo(
@@ -2528,6 +2585,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, deleted: 1 } : r)),
+    );
+  }
+
+  function keepRowDiscardSiblings(keepId: string) {
+    const group = reviewSiblingGroups.find((ids) => ids.includes(keepId));
+    if (!group) return;
+    const discardIds = new Set(group.filter((id) => id !== keepId));
+    if (discardIds.size === 0) return;
+    markDraftDirty();
+    if (isFrontlineTarget) {
+      setServerFrontlineIssues((prev) =>
+        prev.filter((issue) => !discardIds.has(issue.id)),
+      );
+    }
+    setRows((prev) =>
+      prev.map((r) => (discardIds.has(r.id) ? { ...r, deleted: 1 } : r)),
     );
   }
 
@@ -2678,7 +2751,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const isDepositSlip = scoreTargetMeta?.showDepositSlipColumns;
       const usesOcrFeedback = isVsPerformanceTarget || isAllianceKillsVideoTarget(scoreTargetMeta?.id ?? "");
       if (usesOcrFeedback) {
-        const signature = JSON.stringify([jobId, scoreTargetMeta?.id, isVsPerformanceTarget ? vsSafeRecordedDate : recordedDate, isVsPerformanceTarget ? vsPeriod : null, vsMatchReview ?? null, rows.map((row) => [row.id, row.ocrName, row.score, row.memberId, row.memberName, row.rank, row.deleted, row.frameIndex, scoreGhostDiscardRowIds.has(row.id)])]);
+        const signature = JSON.stringify([jobId, scoreTargetMeta?.id, isVsPerformanceTarget ? vsSafeRecordedDate : recordedDate, isVsPerformanceTarget ? vsPeriod : null, vsMatchReview ?? null, rows.map((row) => [row.id, row.ocrName, row.score, row.memberId, row.memberName, row.rank, row.deleted, row.frameIndex, scoreGhostDiscardRowIds.has(row.id), blankSupersededRowIds.has(row.id)])]);
         if (!scoreSubmissionRequestId.current || scoreSubmissionSignature.current !== signature) {
           scoreSubmissionRequestId.current = crypto.randomUUID();
           scoreSubmissionSignature.current = signature;
@@ -2771,7 +2844,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       : {}),
                     ocrName: usesOcrFeedback ? source.ocrName : undefined,
                     frameIndex: usesOcrFeedback ? source.frameIndex : undefined,
-                    deleted: source.deleted === 1 || (!usesOcrFeedback && autoDiscardScoreGhost),
+                    deleted:
+                      source.deleted === 1 ||
+                      blankSupersededRowIds.has(source.id) ||
+                      (!usesOcrFeedback && autoDiscardScoreGhost),
                   };
           }),
         }),
@@ -2853,10 +2929,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       clearDraft();
       setServerFrontlineIssues([]);
-      if (scoreGhostDiscardRowIds.size > 0) {
+      if (scoreGhostDiscardRowIds.size > 0 || blankSupersededRowIds.size > 0) {
         setRows((prev) =>
           prev.map((row) =>
-            scoreGhostDiscardRowIds.has(row.id) ? { ...row, deleted: 1 } : row,
+            scoreGhostDiscardRowIds.has(row.id) ||
+            blankSupersededRowIds.has(row.id)
+              ? { ...row, deleted: 1 }
+              : row,
           ),
         );
       }
@@ -4342,7 +4421,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((row) => {
+            {reviewTableRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
               const isScoreConflict = liveScoreConflictIds.has(row.id);
               const isScoreGhost = scoreGhostDiscardRowIds.has(row.id);
@@ -4452,6 +4531,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     <p className="mt-1 text-xs text-hq-danger">
                       {t("duplicateMemberRow")}
                     </p>
+                  ) : null}
+                  {(isScoreConflict || isDuplicateMember) &&
+                  reviewSiblingGroups.some((ids) => ids.includes(row.id)) ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        keepRowDiscardSiblings(row.id);
+                      }}
+                      className="mt-1 text-left text-xs font-medium text-hq-accent underline underline-offset-2 hover:text-hq-fg"
+                    >
+                      {t("keepRowDiscardOthers")}
+                    </button>
                   ) : null}
                   {isScoreGhost ? (
                     <p className="mt-1 text-xs text-[#58a6ff]">

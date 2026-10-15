@@ -8165,6 +8165,7 @@
     "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
     "duplicateMemberItem": "{member} appears on {count} rows",
     "duplicateMemberRow": "Duplicate member assignment",
+    "keepRowDiscardOthers": "Keep this row and discard the others",
     "duplicateMemberTitle": "Multiple rows map to the same member",
     "duplicateOcrNameRow": "Duplicate name — delete extra rows from repeated frames.",
     "engineAshed": "Ashed",
