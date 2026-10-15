@@ -207,9 +207,16 @@ function paintPatchesForDraft(input: {
       input.savedDays == null ||
       conductorRuleChanged(previousRule, rule);
     const reapply = input.reapplyDates.has(day.scoreDate);
+    const current = resolution.currentRule;
     if (intentChanged || reapply) {
       if (rule == null) {
-        if (previousRule != null || (reapply && resolution.currentRule != null)) {
+        // A clear only undoes the plan's own paint. A day whose rule was changed
+        // by hand after the plan painted it is left alone unless explicitly reapplied.
+        const stillPlanned =
+          previousRule != null &&
+          current != null &&
+          !conductorRuleChanged(current, previousRule);
+        if (reapply ? current != null : stillPlanned) {
           patches.push({ date: resolution.trainDate, conductorRule: null });
         }
         return;
@@ -217,7 +224,6 @@ function paintPatchesForDraft(input: {
       patches.push({ date: resolution.trainDate, conductorRule: rule });
       return;
     }
-    const current = resolution.currentRule;
     if (rule != null && current != null && !conductorRuleChanged(current, rule)) {
       patches.push({ date: resolution.trainDate, conductorRule: rule });
     }
