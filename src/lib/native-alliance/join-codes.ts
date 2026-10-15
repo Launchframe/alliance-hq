@@ -7,18 +7,41 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { isPostgresUniqueViolation } from "@/lib/auth/postgres-unique.shared";
+import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
-import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 
-import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
+import {
+  resolveRoleIdForClaimBoundRebind,
+  resolveRoleIdForClaimPendingAccept,
+} from "./claim-invite-elevation.shared";
 import { isCommanderReservedByPendingClaim } from "./claim-seat-reservation.server";
 import {
   assertCommanderClaimTargetClaimable,
   CommanderClaimInviteError,
 } from "./invites";
 import { provisionAllianceMembership } from "./provision-membership";
+
+async function provisionRoleIdForJoinCodeRebind(input: {
+  allianceId: string;
+  hqUserId: string;
+  joinCodeRoleId: string;
+  targetAshedMemberId: string | null;
+}): Promise<string> {
+  const claimTargetId = input.targetAshedMemberId?.trim() || null;
+  const claimLink = claimTargetId
+    ? await getHqMemberLinkByAllianceAndMember(
+        input.allianceId,
+        claimTargetId,
+      )
+    : null;
+  return resolveRoleIdForClaimBoundRebind({
+    inviteRoleId: input.joinCodeRoleId,
+    claimTargetAshedMemberId: claimTargetId,
+    claimTargetHeldByAcceptor: claimLink?.hqUserId === input.hqUserId,
+  });
+}
 
 const DEFAULT_JOIN_CODE_TTL_DAYS = 7;
 /** Hex suffix entropy for generated codes (8 bytes = 64 bits). */
@@ -223,30 +246,21 @@ export async function redeemAllianceJoinCode(
 
   const claimTargetId = joinCode.targetAshedMemberId?.trim() || null;
 
-  // preserve_existing falls back to the code role when no active membership
-  // exists, so a still-pending claim stays deferred on every rebind path.
-  const rebindRoleId = async () => {
-    const claimLink = claimTargetId
-      ? await getHqMemberLinkByAllianceAndMember(
-          joinCode.allianceId,
-          claimTargetId,
-        )
-      : null;
-    return resolveRoleIdForClaimPendingAccept({
-      inviteRoleId: joinCode.roleId,
-      pendingClaimTargetId:
-        claimLink?.hqUserId === input.hqUserId ? null : claimTargetId,
-    });
-  };
-
   if (existingRedemption) {
     // Re-visit / auto-redeem remount: refresh session only — do not re-apply
-    // the join-code role (blocks silent re-escalation after demotion).
+    // the join-code role over an active membership (blocks silent re-escalation
+    // after demotion), and defer claim-bound elevation until member-link.
+    const rebindRoleId = await provisionRoleIdForJoinCodeRebind({
+      allianceId: joinCode.allianceId,
+      hqUserId: input.hqUserId,
+      joinCodeRoleId: joinCode.roleId,
+      targetAshedMemberId: joinCode.targetAshedMemberId,
+    });
     return provisionAllianceMembership({
       hqUserId: input.hqUserId,
       sessionId: input.sessionId,
       allianceId: joinCode.allianceId,
-      roleId: await rebindRoleId(),
+      roleId: rebindRoleId,
       rolePolicy: "preserve_existing",
       userLabel: input.userLabel,
     });
@@ -320,11 +334,17 @@ export async function redeemAllianceJoinCode(
         )
         .limit(1);
       if (racedRedemption) {
+        const rebindRoleId = await provisionRoleIdForJoinCodeRebind({
+          allianceId: joinCode.allianceId,
+          hqUserId: input.hqUserId,
+          joinCodeRoleId: joinCode.roleId,
+          targetAshedMemberId: joinCode.targetAshedMemberId,
+        });
         return provisionAllianceMembership({
           hqUserId: input.hqUserId,
           sessionId: input.sessionId,
           allianceId: joinCode.allianceId,
-          roleId: await rebindRoleId(),
+          roleId: rebindRoleId,
           rolePolicy: "preserve_existing",
           userLabel: input.userLabel,
         });
@@ -333,11 +353,17 @@ export async function redeemAllianceJoinCode(
     }
     if (isPostgresUniqueViolation(error)) {
       // Concurrent insert won; our counter bump rolled back with the TX.
+      const rebindRoleId = await provisionRoleIdForJoinCodeRebind({
+        allianceId: joinCode.allianceId,
+        hqUserId: input.hqUserId,
+        joinCodeRoleId: joinCode.roleId,
+        targetAshedMemberId: joinCode.targetAshedMemberId,
+      });
       return provisionAllianceMembership({
         hqUserId: input.hqUserId,
         sessionId: input.sessionId,
         allianceId: joinCode.allianceId,
-        roleId: await rebindRoleId(),
+        roleId: rebindRoleId,
         rolePolicy: "preserve_existing",
         userLabel: input.userLabel,
       });

@@ -334,33 +334,47 @@ export async function processDueRegularEventAnnouncements(
       scheduledStartAt: occurrence.scheduledStartAt,
     });
 
-    await materializeRegularEventReminderInboxItem({
-      allianceId: occurrence.allianceId,
-      occurrenceId: occurrence.id,
-      title: message,
-      visibleAfter: occurrence.announceAt,
-    });
-    inbox += 1;
-
-    const channels = channelsByAlliance.get(occurrence.allianceId) ?? [];
-    if (channels.length === 0) {
-      // No channel configured — keep claim (inbox delivered; nothing to retry).
-      skipped += 1;
-      continue;
-    }
-
     let occurrencePosted = 0;
-    for (const channelId of channels) {
-      const ok = await postDiscordChannelMessage(channelId, message);
-      if (ok) {
-        posted += 1;
-        occurrencePosted += 1;
-      } else {
+    // Clear on total Discord failure / throw so a later tick can retry.
+    // Keep the claim when inbox-only (no channel) succeeds — nothing to retry.
+    let clearOnTotalFailure = false;
+    try {
+      await materializeRegularEventReminderInboxItem({
+        allianceId: occurrence.allianceId,
+        occurrenceId: occurrence.id,
+        title: message,
+        visibleAfter: occurrence.announceAt,
+      });
+      inbox += 1;
+
+      const channels = channelsByAlliance.get(occurrence.allianceId) ?? [];
+      if (channels.length === 0) {
+        // No channel configured — keep claim (inbox delivered; nothing to retry).
         skipped += 1;
+      } else {
+        clearOnTotalFailure = true;
+        for (const channelId of channels) {
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "regular_events.announcement",
+          });
+          if (ok) {
+            posted += 1;
+            occurrencePosted += 1;
+          } else {
+            skipped += 1;
+          }
+        }
       }
+    } catch (error) {
+      console.error(
+        "[regular-events] announcement delivery failed after claim",
+        { occurrenceId: occurrence.id, allianceId: occurrence.allianceId, error },
+      );
+      clearOnTotalFailure = true;
+      skipped += 1;
     }
 
-    if (occurrencePosted === 0) {
+    if (clearOnTotalFailure && occurrencePosted === 0) {
       await clearRegularEventOccurrenceAnnounced(occurrence.id);
     }
   }
@@ -391,25 +405,38 @@ export async function processDueRegularEventScheduleReminders(
       eventKey: occurrence.eventKey,
       scheduledStartAt: occurrence.scheduledStartAt,
     });
-    const channels = channelsByAlliance.get(occurrence.allianceId) ?? [];
-    if (channels.length === 0) {
-      // Nothing to post; keep claim so we do not spin forever.
-      scheduleSkipped += 1;
-      continue;
-    }
 
     let occurrencePosted = 0;
-    for (const channelId of channels) {
-      const ok = await postDiscordChannelMessage(channelId, message);
-      if (ok) {
-        schedulePosted += 1;
-        occurrencePosted += 1;
-      } else {
+    let clearOnTotalFailure = false;
+    try {
+      const channels = channelsByAlliance.get(occurrence.allianceId) ?? [];
+      if (channels.length === 0) {
+        // Nothing to post; keep claim so we do not spin forever.
         scheduleSkipped += 1;
+      } else {
+        clearOnTotalFailure = true;
+        for (const channelId of channels) {
+          const ok = await postDiscordChannelMessage(channelId, message, {
+            source: "regular_events.schedule_reminder",
+          });
+          if (ok) {
+            schedulePosted += 1;
+            occurrencePosted += 1;
+          } else {
+            scheduleSkipped += 1;
+          }
+        }
       }
+    } catch (error) {
+      console.error(
+        "[regular-events] schedule reminder delivery failed after claim",
+        { occurrenceId: occurrence.id, allianceId: occurrence.allianceId, error },
+      );
+      clearOnTotalFailure = true;
+      scheduleSkipped += 1;
     }
 
-    if (occurrencePosted === 0) {
+    if (clearOnTotalFailure && occurrencePosted === 0) {
       await clearRegularEventOccurrenceScheduleReminded(occurrence.id);
     }
   }

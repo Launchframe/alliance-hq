@@ -31,7 +31,10 @@ import {
   getLinkedMemberIds,
 } from "@/lib/vr/repository";
 
-import { resolveRoleIdForClaimPendingAccept } from "./claim-invite-elevation.shared";
+import {
+  resolveRoleIdForClaimBoundRebind,
+  resolveRoleIdForClaimPendingAccept,
+} from "./claim-invite-elevation.shared";
 import { isCommanderReservedByPendingClaim } from "./claim-seat-reservation.server";
 import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
@@ -667,10 +670,10 @@ export async function rebindAcceptedInviteSession(input: {
   const claimLink = claimTargetId
     ? await getHqMemberLinkByAllianceAndMember(invite.allianceId, claimTargetId)
     : null;
-  const provisionRoleId = resolveRoleIdForClaimPendingAccept({
+  const provisionRoleId = resolveRoleIdForClaimBoundRebind({
     inviteRoleId: invite.roleId,
-    pendingClaimTargetId:
-      claimLink?.hqUserId === input.hqUserId ? null : claimTargetId,
+    claimTargetAshedMemberId: claimTargetId,
+    claimTargetHeldByAcceptor: claimLink?.hqUserId === input.hqUserId,
   });
 
   // Already-accepted invite rebind: refresh session only — never re-apply the

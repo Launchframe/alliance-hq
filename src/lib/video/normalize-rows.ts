@@ -131,7 +131,12 @@ export function collapseEntriesBySanitizedName(
   const collapsed: OcrEntry[] = [];
   const unresolvedConflicts: string[] = [];
 
-  for (const [key, group] of groups) {
+  for (const [key, allEntries] of groups) {
+    // A blank score is a missed read on that frame, not a competing value.
+    const scoredEntries = allEntries.filter(
+      (entry) => normalizeScoreValue(entry.score) !== "",
+    );
+    const group = scoredEntries.length > 0 ? scoredEntries : allEntries;
     const scoreCounts = new Map<string, number>();
     for (const entry of group) {
       const score = normalizeScoreValue(entry.score);

@@ -516,11 +516,13 @@ export async function upsertConductorDraft(input: {
   }
 
   if (existing) {
+    const nextConductorMemberId =
+      input.conductorMemberId ?? existing.conductorMemberId;
     const updated = await db
       .update(schema.trainConductorRecords)
       .set({
         seasonKey: input.seasonKey ?? existing.seasonKey,
-        conductorMemberId: input.conductorMemberId ?? existing.conductorMemberId,
+        conductorMemberId: nextConductorMemberId,
         conductorMemberName:
           input.conductorMemberName ?? existing.conductorMemberName,
         conductorRankEventId:
@@ -581,6 +583,25 @@ export async function upsertConductorDraft(input: {
 
     if (updated.length === 0) {
       throw new Error("Conductor is already locked for this day.");
+    }
+
+    // Concurrent depleting-pool rolls claim under a separate advisory lock,
+    // then persist here under the alliance availability lock. The losing
+    // spin's claim would otherwise stay selectedForDate with no conductor
+    // seat — permanently removing that member from the generation. Release
+    // the displaced member from the FOR UPDATE snapshot in this same tx.
+    const displacedMemberId = existing.conductorMemberId;
+    if (
+      displacedMemberId &&
+      nextConductorMemberId &&
+      displacedMemberId !== nextConductorMemberId
+    ) {
+      await releasePoolSelectionForDate(
+        input.allianceId,
+        input.date,
+        displacedMemberId,
+        db,
+      );
     }
 
     const [row] = await db
