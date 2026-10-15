@@ -2209,7 +2209,8 @@
       },
       "vsPerformance": {
         "editPlan": "Edit VS plan",
-        "capture": "Upload VS screenshot"
+        "capture": "Upload VS screenshot",
+        "importSpreadsheet": "Import VS spreadsheet"
       }
     }
   },
@@ -5314,6 +5315,7 @@
     "engineNative": "In-house Tesseract",
     "engineMock": "Mock OCR (dev/test)",
     "backToUploads": "← Back to uploads",
+    "sourceSpreadsheet": "Imported from {fileName}",
     "summary": "{matched} matched · {total} entries",
     "noEntriesHint": "OCR finished but no rows were parsed. This was usually a response-format bug — try re-running OCR.",
     "reprocess": "Re-run OCR",
@@ -5471,6 +5473,7 @@
     "duplicateMemberItem": "{member} appears on {count} rows",
     "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
     "duplicateMemberRow": "Duplicate member assignment",
+    "keepRowDiscardOthers": "Keep this row and discard the others",
     "duplicateMemberBlocked": "Fix duplicate member rows before saving.",
     "scoreGhostClusterTitle": "Duplicate scores from scroll OCR",
     "scoreGhostClusterHint": "These look like the same leaderboard row read with mangled names on nearby frames. Unmatched duplicates are discarded automatically when you save — only the matched row is kept.",
@@ -8378,6 +8381,30 @@
       "pointMismatch": "The daily results do not match the weekly victory points. Check the review.",
       "ongoing": "This appears to be an ongoing duel. Zero scores and blank results remain pending.",
       "noFinals": "No final day results are confirmed. Only the reviewed matchup information will be saved."
+    },
+    "import": {
+      "button": "Import spreadsheet",
+      "title": "Import VS scores from a spreadsheet",
+      "help": "Upload a CSV or Excel (.xlsx) file with a name column and a points column. You'll review member matches before anything is saved.",
+      "fileLabel": "Spreadsheet file",
+      "detectedWeek": "Detected: weekly totals for the week ending {date}",
+      "period": "Score type",
+      "periodWeekly": "Weekly",
+      "periodDaily": "Daily",
+      "recordedDate": "Recorded date",
+      "weeklyDateOption": "Week ending Sunday · {date}",
+      "submit": "Review scores",
+      "submitting": "Importing…",
+      "cancel": "Cancel",
+      "errors": {
+        "unsupportedType": "Upload a .csv or .xlsx file.",
+        "tooLarge": "That file is too large (1 MB max).",
+        "noRows": "We couldn't find any names and scores in that file.",
+        "tooManyRows": "That file has more than 300 rows.",
+        "parseFailed": "Could not read that spreadsheet. Check the columns and try again.",
+        "weeklyDateInvalid": "Weekly VS totals use Sunday. Pick a Sunday recorded date.",
+        "dailyDateInvalid": "Daily VS scores use a Monday–Saturday recorded date."
+      }
     },
     "videoEvidence": {
       "attachmentLabel": "Add a VS results screenshot (optional)",

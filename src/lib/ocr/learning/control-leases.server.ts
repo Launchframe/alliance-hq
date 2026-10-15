@@ -6,6 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { datasetHash } from "../benchmark/dataset.server";
 import { OcrLearningError, ocrHashSchema, ocrIdSchema } from "../benchmark/types.shared";
 import { loadUsableDataset } from "./corpus.server";
+import { isLiveOcrLease } from "./control-lease-live.shared";
 import { workerPolicySchema } from "./control.shared";
 import { loadModelVersion } from "./control-jobs.server";
 import { lockWorker, workerHash, workerUsage } from "./control-policy.server";
@@ -34,7 +35,7 @@ export async function leasedWorkerJob(tx: OcrTransaction, id: string, leaseToken
   const [configured] = await tx.select().from(schema.ocrWorkerPolicies).where(eq(schema.ocrWorkerPolicies.allianceId, job.allianceId)).limit(1);
   const [owner] = job.createdByHqUserId ? await tx.select({ maintainer: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, job.createdByHqUserId)).limit(1) : [];
   const parsed = workerPolicySchema.safeParse(configured?.policy);
-  if (job.state !== "running" || job.leaseToken !== leaseToken || !job.leaseExpiresAt || job.leaseExpiresAt <= new Date() || job.expiresAt <= new Date()) throw new OcrLearningError("stale_worker_lease", 409);
+  if (!isLiveOcrLease(job, leaseToken)) throw new OcrLearningError("stale_worker_lease", 409);
   if (!parsed.success || !parsed.data.enabled || configured!.revision !== job.policyRevision || !owner?.maintainer) throw new OcrLearningError("worker_policy_changed", 409);
   return { job, policy: parsed.data, dataset: await checkedJobDataset(tx, job) };
 }
@@ -93,8 +94,9 @@ export async function failWorkerJob(id: string, token: string, code: string) {
     const [peek] = await tx.select({ allianceId: schema.ocrWorkerJobs.allianceId }).from(schema.ocrWorkerJobs).where(eq(schema.ocrWorkerJobs.id, id)).limit(1);
     if (!peek) throw new OcrLearningError("worker_job_not_found", 404);
     await lockWorker(tx, peek.allianceId);
-    const [job] = await tx.select().from(schema.ocrWorkerJobs).where(and(eq(schema.ocrWorkerJobs.id, id), eq(schema.ocrWorkerJobs.leaseToken, token), eq(schema.ocrWorkerJobs.state, "running"))).limit(1);
-    if (!job) throw new OcrLearningError("stale_worker_lease", 409);
+    const [job] = await tx.select().from(schema.ocrWorkerJobs).where(eq(schema.ocrWorkerJobs.id, id)).limit(1).for("update");
+    // Match complete/heartbeat: expired leases stay running so claimWorkerJob can reclaim.
+    if (!job || !isLiveOcrLease(job, token)) throw new OcrLearningError("stale_worker_lease", 409);
     await tx.update(schema.ocrWorkerJobs).set({ state: "failed", errorCode, leaseToken: null, updatedAt: new Date() }).where(eq(schema.ocrWorkerJobs.id, id));
     await tx.update(schema.ocrWorkerAttempts).set({ finishedAt: new Date() }).where(and(eq(schema.ocrWorkerAttempts.jobId, id), eq(schema.ocrWorkerAttempts.attempt, job.attempts)));
     return { id, state: "failed" };

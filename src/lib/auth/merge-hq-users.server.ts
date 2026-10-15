@@ -16,6 +16,7 @@ import type { ActivityTransaction } from "@/lib/activity/writer.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { revokeAshedMembershipsForHqUser } from "@/lib/ashed/rebind-session";
 import { getDb, schema } from "@/lib/db";
+import { remapCalendarUserForMerge } from "@/lib/calendar/merge.server";
 import { remapKnowledgeUser } from "@/lib/notes/resources.server";
 import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
@@ -758,8 +759,11 @@ export async function mergeHqUsersIntoCanonical(input: {
       );
 
     // Remap cascade-owned rows before deleting the source user. Without this,
-    // passkeys, EUR subscriptions, tip links, donation receipts, and inbox
-    // dismissals are wiped by ON DELETE CASCADE on hq_users.
+    // passkeys, EUR subscriptions, tip links, donation receipts, inbox
+    // dismissals, and Google calendar OAuth/sync rows are wiped by
+    // ON DELETE CASCADE on hq_users.
+    await remapCalendarUserForMerge(tx, sourceId, canonicalId);
+
     await tx
       .update(schema.hqAuthenticators)
       .set({ hqUserId: canonicalId })

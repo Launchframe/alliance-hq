@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  blankScoreSupersededRowIds,
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
+  groupSiblingRowsTogether,
+  liveScoreConflictGroups,
   liveScoreConflictRowIds,
+  mergeSiblingGroups,
 } from "@/lib/video/review-validation";
 
 describe("findDuplicateMemberAssignments", () => {
@@ -150,5 +154,86 @@ describe("liveScoreConflictRowIds", () => {
       "LFgo",
     );
     expect([...ids].sort()).toEqual(["r1", "r2"]);
+  });
+});
+
+describe("blank scores in duplicate groups", () => {
+  it("does not treat a blank score as conflicting with a real score", () => {
+    const ids = liveScoreConflictRowIds([
+      { id: "a", memberId: "m1", ocrName: "Unknown Caller", score: "7567900" },
+      { id: "b", memberId: "m1", ocrName: "Unknown Caller", score: null },
+      { id: "c", memberId: "m2", ocrName: "Doc Gobbo", score: "" },
+      { id: "d", memberId: "m2", ocrName: "Doc Gobbo", score: "7200000" },
+    ]);
+    expect(ids.size).toBe(0);
+  });
+
+  it("flags only scored rows and keeps the blank sibling in the group", () => {
+    const groups = liveScoreConflictGroups([
+      { id: "a", memberId: "m1", ocrName: "Hawkeye", score: "8445000" },
+      { id: "b", memberId: "m1", ocrName: "Hawkeye", score: "8465000" },
+      { id: "c", memberId: "m1", ocrName: "Hawkeye", score: "" },
+    ]);
+    expect(groups).toEqual([
+      { rowIds: ["a", "b", "c"], conflictRowIds: ["a", "b"] },
+    ]);
+  });
+});
+
+describe("blankScoreSupersededRowIds", () => {
+  it("returns blank-score rows whose member already has a scored row", () => {
+    const ids = blankScoreSupersededRowIds([
+      { id: "a", memberId: "m1", score: "7567900" },
+      { id: "b", memberId: "m1", score: null },
+      { id: "c", memberId: "m1", score: "  " },
+      { id: "d", memberId: "m2", score: null },
+      { id: "e", memberId: null, score: null },
+    ]);
+    expect([...ids].sort()).toEqual(["b", "c"]);
+  });
+});
+
+describe("mergeSiblingGroups", () => {
+  it("collapses overlapping groups", () => {
+    expect(mergeSiblingGroups([["a", "b"], ["b", "c"], ["d"]])).toEqual([
+      ["a", "b", "c"],
+    ]);
+  });
+});
+
+describe("groupSiblingRowsTogether", () => {
+  it("pulls siblings next to the first row and keeps rank order otherwise", () => {
+    const rows = ["r19", "r46", "r47", "r73", "r90a", "r90b"].map((id) => ({
+      id,
+    }));
+    const ordered = groupSiblingRowsTogether(rows, [
+      ["r47", "r73"],
+      ["r90a", "r90b"],
+    ]);
+    expect(ordered.map((row) => row.id)).toEqual([
+      "r19",
+      "r46",
+      "r47",
+      "r73",
+      "r90a",
+      "r90b",
+    ]);
+
+    const spread = groupSiblingRowsTogether(
+      ["x1", "dupA", "x2", "x3", "dupB"].map((id) => ({ id })),
+      [["dupB", "dupA"]],
+    );
+    expect(spread.map((row) => row.id)).toEqual([
+      "x1",
+      "dupA",
+      "dupB",
+      "x2",
+      "x3",
+    ]);
+  });
+
+  it("returns the rows unchanged when there are no groups", () => {
+    const rows = [{ id: "a" }, { id: "b" }];
+    expect(groupSiblingRowsTogether(rows, [])).toEqual(rows);
   });
 });
