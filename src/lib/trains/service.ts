@@ -1712,7 +1712,7 @@ export async function rollForConductor(input: {
   }
 
   if (!gated.draftPersisted) {
-    return gated;
+    return { ...gated, rule };
   }
 
   const poolRefreshed = gated.poolType
@@ -1738,7 +1738,7 @@ export async function rollForConductor(input: {
     );
   }
 
-  return persisted;
+  return { ...persisted, rule };
 }
 
 export async function rollForVip(input: {
@@ -1838,7 +1838,7 @@ export async function rollForVip(input: {
         dayConfigId: dayConfig.dayConfigId,
       });
       result.draftPersisted = true;
-      return result;
+      return { ...result, rule: vipRule };
     }
     case "event_top_x": {
       throw new TrainRollError(
@@ -1861,7 +1861,7 @@ export async function rollForVip(input: {
           eventTopN: 10,
         })
       : null;
-  const out: RollResult = { ...result };
+  const out: RollResult = { ...result, rule: vipRule };
   if (poolRefreshed) out.poolRefreshed = poolRefreshed as PoolRefreshedInfo;
   return out;
 }

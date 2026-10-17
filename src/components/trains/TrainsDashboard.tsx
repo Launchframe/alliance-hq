@@ -2381,10 +2381,12 @@ export function TrainsDashboard({
         memberId: selectedRecord.conductorMemberId,
         memberName: selectedRecord.conductorMemberName,
       };
+      const shareRule =
+        selectedRecord.conductorRule ?? selectedConductorRule;
       const scoreProof = await fetchConductorShareScoreProof({
         trainDate: selectedDate,
         memberId: winner.memberId,
-        rule: selectedConductorRule,
+        rule: shareRule,
       });
       const winnerWithScore = {
         ...winner,
@@ -2418,7 +2420,7 @@ export function TrainsDashboard({
           : null;
       const eligibilityLine = formatWheelShareEligibilityLine(
         resolveWheelShareEligibility({
-          rule: selectedConductorRule,
+          rule: shareRule,
           winner: winnerWithScore,
           leaderboardRank: scoreProof.leaderboardRank,
           winProbability: scoreProof.winProbability,
@@ -2452,16 +2454,15 @@ export function TrainsDashboard({
         winnerScoreLabel:
           scoreProof.priorDayVsScore != null &&
           scoreProof.priorDayVsScore > 0 &&
-          (selectedConductorRule?.kind === "vs_top_n" ||
-            selectedConductorRule?.kind === "vr_top_n")
+          (shareRule?.kind === "vs_top_n" || shareRule?.kind === "vr_top_n")
             ? `${formatWheelShareScore(scoreProof.priorDayVsScore, locale)} ${
-                selectedConductorRule.kind === "vr_top_n" ? "VR" : "VS"
+                shareRule.kind === "vr_top_n" ? "VR" : "VS"
               }`
             : null,
         leaderboard:
           scoreProof.leaderboard.length > 0 &&
-          selectedConductorRule?.kind === "price_is_freight" &&
-          selectedConductorRule.board === "weekday"
+          shareRule?.kind === "price_is_freight" &&
+          shareRule.board === "weekday"
             ? {
                 title: t("wheel.vsValidation.closestAboveCliffTitle", {
                   count: scoreProof.leaderboard.length,
@@ -2474,11 +2475,10 @@ export function TrainsDashboard({
                 rows: scoreProof.leaderboard,
               }
             : scoreProof.leaderboard.length > 0 &&
-          (selectedConductorRule?.kind === "vs_top_n" ||
-            selectedConductorRule?.kind === "vr_top_n")
+          (shareRule?.kind === "vs_top_n" || shareRule?.kind === "vr_top_n")
             ? {
                 title:
-                  selectedConductorRule.kind === "vr_top_n"
+                  shareRule.kind === "vr_top_n"
                     ? t("wheel.vsValidation.topNVrTitle", {
                         count: scoreProof.leaderboard.length,
                       })

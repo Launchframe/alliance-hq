@@ -272,6 +272,14 @@ describe("wheelShareScoreBoard", () => {
     expect(board?.rows[0]?.memberId).toBe("top");
   });
 
+  it("drops a uniform Price Is Freight draw that has no scores attached", () => {
+    const board = wheelShareScoreBoard(
+      { kind: "price_is_freight", board: "weekday" },
+      [{ memberId: "m2", memberName: "Beta" }],
+    );
+    expect(board?.rows).toEqual([]);
+  });
+
   it("has no board for rules without scores", () => {
     expect(
       wheelShareScoreBoard({ kind: "rank_pool", pool: "r3", draw: "wheel" }, candidates),

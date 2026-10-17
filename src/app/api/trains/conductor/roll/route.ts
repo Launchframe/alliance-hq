@@ -126,11 +126,7 @@ export async function POST(request: Request) {
           })
         : null;
 
-    return NextResponse.json({
-      result: { ...result, rule: dayRule ?? null },
-      record,
-      stats,
-    });
+    return NextResponse.json({ result, record, stats });
   } catch (error) {
     const actionError = trainActionErrorResponse(error);
     if (actionError.status === 409) {

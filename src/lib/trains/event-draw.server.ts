@@ -152,6 +152,7 @@ export async function rollEventForTrain(
                 ? ("event_scores" as VipMechanismType)
                 : ("event_scores" as ConductorMechanismType),
             isAutomatic: false,
+            rule,
           },
           draw: existing,
           idempotentReplay: true,
@@ -316,6 +317,7 @@ export async function rollEventForTrain(
             : ("event_scores" as ConductorMechanismType),
         isAutomatic: false,
         draftPersisted: true,
+        rule,
       },
       draw,
       idempotentReplay: false,

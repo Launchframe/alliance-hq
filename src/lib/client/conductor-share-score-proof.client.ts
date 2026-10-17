@@ -39,7 +39,7 @@ export async function fetchConductorShareScoreProof(input: {
   if (conductorRuleUsesPriceIsFreightRoll(input.rule)) {
     try {
       const res = await fetch(
-        `/api/trains/price-is-right/tickets?date=${encodeURIComponent(input.trainDate)}`,
+        `/api/trains/price-is-right/tickets?date=${encodeURIComponent(input.trainDate)}&source=record`,
       );
       if (!res.ok) {
         return emptyProof();
