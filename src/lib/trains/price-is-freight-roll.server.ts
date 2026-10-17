@@ -243,6 +243,11 @@ export async function rollPriceIsFreightConductor(input: {
     memberName: winner.memberName,
     mechanism: "r3_lottery",
     isAutomatic: false,
-    wheelCandidates: eligible,
+    wheelCandidates: eligible.map((candidate) => {
+      const score = vsScores.get(candidate.memberId);
+      return score != null && score > 0
+        ? { ...candidate, priorDayVsScore: score }
+        : candidate;
+    }),
   };
 }

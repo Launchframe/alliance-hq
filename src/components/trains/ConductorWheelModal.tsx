@@ -16,10 +16,11 @@ import {
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
 import type { ConductorRule, VipRule } from "@/lib/trains/rules/catalog.shared";
 import { formatEventScore } from "@/lib/hq-events/workspace.shared";
+import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
-  rankedWheelShareLeaderboard,
+  wheelShareScoreBoard,
   formatWheelShareScore,
   winProbabilityFromTicketPool,
 } from "@/lib/trains/conductor-wheel-share.shared";
@@ -142,17 +143,28 @@ export function ConductorWheelModal({
     qualification != null && qualification.qualified === false;
 
   const boardKind = scoreBoardKind(rule);
-  const showScoreValidation = boardKind != null;
   const scoreSuffix = boardKind === "vr" ? "VR" : "VS";
   const winnerScore = winner
     ? (candidates.find((c) => c.memberId === winner.memberId)
         ?.priorDayVsScore ?? winner.priorDayVsScore)
     : undefined;
 
-  const rankedCandidates = useMemo(
-    () => rankedWheelShareLeaderboard(candidates),
-    [candidates],
+  const scoreBoard = useMemo(
+    () => wheelShareScoreBoard(rule, candidates),
+    [rule, candidates],
   );
+  const rankedCandidates = useMemo(() => scoreBoard?.rows ?? [], [scoreBoard]);
+  const scoreBoardTitle =
+    scoreBoard?.kind === "closest_above_cliff"
+      ? t("vsValidation.closestAboveCliffTitle", {
+          count: rankedCandidates.length,
+          cliff: formatWheelShareScore(PRICE_IS_RIGHT_MIN_VS_SCORE, locale),
+        })
+      : boardKind === "vr"
+        ? t("vsValidation.topNVrTitle", { count: rankedCandidates.length })
+        : rankedCandidates.length === 1
+          ? t("vsValidation.top1Title")
+          : t("vsValidation.topNVsTitle", { count: rankedCandidates.length });
 
   const reelSession = useMemo((): ReelSessionView | null => {
     if (!open || !winner || candidates.length === 0) return null;
@@ -175,7 +187,7 @@ export function ConductorWheelModal({
   const shareEligibilityLine = useMemo(() => {
     if (!winner) return null;
     const leaderboardRank =
-      showScoreValidation && rankedCandidates.length > 0
+      scoreBoard?.kind === "top" && rankedCandidates.length > 0
         ? rankedCandidates.find((candidate) => candidate.memberId === winner.memberId)
             ?.rank ?? null
         : null;
@@ -215,7 +227,7 @@ export function ConductorWheelModal({
     candidates,
     rule,
     qualification,
-    showScoreValidation,
+    scoreBoard,
     rankedCandidates,
     locale,
     t,
@@ -258,18 +270,9 @@ export function ConductorWheelModal({
             ? `${formatWheelShareScore(winnerScore, locale)} ${scoreSuffix}`
             : null,
         leaderboard:
-          showScoreValidation && rankedCandidates.length > 0
+          rankedCandidates.length > 0
             ? {
-                title:
-                  boardKind === "vr"
-                    ? t("vsValidation.topNVrTitle", {
-                        count: rankedCandidates.length,
-                      })
-                    : rankedCandidates.length === 1
-                      ? t("vsValidation.top1Title")
-                      : t("vsValidation.topNVsTitle", {
-                          count: rankedCandidates.length,
-                        }),
+                title: scoreBoardTitle,
                 winnerMemberId: winner.memberId,
                 rows: rankedCandidates,
               }
@@ -297,9 +300,8 @@ export function ConductorWheelModal({
     locale,
     winnerScore,
     scoreSuffix,
-    showScoreValidation,
     rankedCandidates,
-    boardKind,
+    scoreBoardTitle,
     t,
   ]);
 
@@ -533,19 +535,10 @@ export function ConductorWheelModal({
 
         {phase === "revealed" &&
           !disqualified &&
-          showScoreValidation &&
           rankedCandidates.length > 0 ? (
           <div className="mt-4">
             <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
-              {boardKind === "vr"
-                ? t("vsValidation.topNVrTitle", {
-                    count: rankedCandidates.length,
-                  })
-                : rankedCandidates.length === 1
-                  ? t("vsValidation.top1Title")
-                  : t("vsValidation.topNVsTitle", {
-                      count: rankedCandidates.length,
-                    })}
+              {scoreBoardTitle}
             </p>
             <div className="overflow-hidden rounded-lg border border-hq-border">
               <ul className="divide-y divide-hq-border/60">

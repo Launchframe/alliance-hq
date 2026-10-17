@@ -3,6 +3,7 @@
 import type { ScoreLeaderboardPayload } from "@/lib/trains/score-leaderboard-podium.shared";
 import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { closestAboveCliffWheelShareLeaderboard } from "@/lib/trains/conductor-wheel-share.shared";
 
 export type ConductorShareScoreProof = {
   priorDayVsScore: number | null;
@@ -19,6 +20,7 @@ export type ConductorShareScoreProof = {
 type TicketsBoardPayload = {
   board?: Array<{
     memberId: string;
+    memberName?: string;
     priorDayVsScore: number;
     winProbability: number;
     ticketCount: number;
@@ -37,20 +39,31 @@ export async function fetchConductorShareScoreProof(input: {
   if (conductorRuleUsesPriceIsFreightRoll(input.rule)) {
     try {
       const res = await fetch(
-        `/api/trains/price-is-right/tickets?date=${encodeURIComponent(input.trainDate)}`,
+        `/api/trains/price-is-right/tickets?date=${encodeURIComponent(input.trainDate)}&source=record`,
       );
       if (!res.ok) {
         return emptyProof();
       }
       const body = (await res.json()) as TicketsBoardPayload;
-      const row = body.board?.find((entry) => entry.memberId === input.memberId);
-      if (!row) return emptyProof();
+      const board = body.board ?? [];
+      const leaderboard =
+        input.rule?.kind === "price_is_freight" && input.rule.board === "weekday"
+          ? closestAboveCliffWheelShareLeaderboard(
+              board.map((entry) => ({
+                memberId: entry.memberId,
+                memberName: entry.memberName ?? "",
+                priorDayVsScore: entry.priorDayVsScore,
+              })),
+            )
+          : [];
+      const row = board.find((entry) => entry.memberId === input.memberId);
+      if (!row) return { ...emptyProof(), leaderboard };
       return {
         priorDayVsScore: row.priorDayVsScore > 0 ? row.priorDayVsScore : null,
         leaderboardRank: null,
         winProbability:
           row.winProbability > 0 ? row.winProbability : null,
-        leaderboard: [],
+        leaderboard,
       };
     } catch {
       return emptyProof();

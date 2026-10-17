@@ -242,3 +242,58 @@ export function rankedWheelShareLeaderboard(
       score: row.priorDayVsScore!,
     }));
 }
+
+/**
+ * Price Is Freight weekday board: the lowest prior-day VS scores at or above
+ * the cliff, closest first — the scores that win, not the highest ones.
+ */
+export function closestAboveCliffWheelShareLeaderboard(
+  candidates: ReadonlyArray<{
+    memberId: string;
+    memberName: string;
+    priorDayVsScore?: number;
+  }>,
+  cliff = PRICE_IS_RIGHT_MIN_VS_SCORE,
+  limit = 10,
+): WheelShareLeaderboardRow[] {
+  return [...candidates]
+    .filter(
+      (row) => row.priorDayVsScore != null && row.priorDayVsScore >= cliff,
+    )
+    .sort((a, b) => (a.priorDayVsScore ?? 0) - (b.priorDayVsScore ?? 0))
+    .slice(0, limit)
+    .map((row, index) => ({
+      memberId: row.memberId,
+      memberName: row.memberName,
+      rank: index + 1,
+      score: row.priorDayVsScore!,
+    }));
+}
+
+export type WheelShareScoreBoard = {
+  /** `top` ranks highest first; `closest_above_cliff` ranks from the cliff up. */
+  kind: "top" | "closest_above_cliff";
+  suffix: "VS" | "VR";
+  rows: WheelShareLeaderboardRow[];
+};
+
+/** Score board for the rule a wheel was drawn under, or null when it has none. */
+export function wheelShareScoreBoard(
+  rule: ConductorRule | VipRule | null,
+  candidates: ReadonlyArray<{
+    memberId: string;
+    memberName: string;
+    priorDayVsScore?: number;
+  }>,
+): WheelShareScoreBoard | null {
+  if (rule?.kind === "price_is_freight" && rule.board === "weekday") {
+    return {
+      kind: "closest_above_cliff",
+      suffix: "VS",
+      rows: closestAboveCliffWheelShareLeaderboard(candidates),
+    };
+  }
+  const suffix = vsLeaderboardSuffix(rule);
+  if (!suffix) return null;
+  return { kind: "top", suffix, rows: rankedWheelShareLeaderboard(candidates) };
+}
