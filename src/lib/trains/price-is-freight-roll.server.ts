@@ -239,13 +239,19 @@ export async function rollPriceIsFreightConductor(input: {
   if (emptyReason) {
     throwFromPriceIsFreightEmptyReason("r3", emptyReason);
   }
-  const winner = pickUniformRollCandidate(eligible);
+  const scored = eligible.map((candidate) => {
+    const score = vsScores.get(candidate.memberId);
+    return score != null && score > 0
+      ? { ...candidate, priorDayVsScore: score }
+      : candidate;
+  });
+  const winner = pickUniformRollCandidate(scored);
   if (!winner) {
     throwPoolUnavailable("r3");
   }
   return finishPriceIsFreightDraw({
     winner,
-    wheelCandidates: eligible,
+    wheelCandidates: scored,
     weighted: false,
     drawPairedVip: input.drawPairedVip,
   });

@@ -64,6 +64,9 @@ describe("loadPriceIsFreightR3Candidates", () => {
     const result = await rollPriceIsFreightConductor({ allianceId: "ally-1", date: "2026-06-10", rule: { kind: "price_is_freight", board: "weekday" } });
     expect(result.memberId).toBe("m2");
     expect(result.wheelCandidates?.map((candidate) => candidate.memberId)).toEqual(["m2"]);
+    if (!weighted) {
+      expect(result.wheelCandidates?.[0]?.priorDayVsScore).toBe(7_200_000);
+    }
     expect(mocks.loadTimeOffAvailability).toHaveBeenCalledWith("ally-1", "2026-06-10");
   });
 

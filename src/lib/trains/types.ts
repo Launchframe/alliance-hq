@@ -123,6 +123,11 @@ export type RollResult = {
     memberName: string;
     wheelCandidates?: RollCandidate[];
   };
+  /**
+   * Rule the server drew under. The wheel labels its score board from this,
+   * never from the client's day config, which can be stale for the rolled day.
+   */
+  rule?: ConductorRule | VipRule | null;
 };
 
 export type PoolRefreshedInfo = {

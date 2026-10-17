@@ -5060,7 +5060,8 @@
         "top1Title": "Maior Pontuação VS",
         "top10Title": "Top 10 Pontuações VS",
         "topNVsTitle": "Top {count} Pontuações VS",
-        "topNVrTitle": "Top {count} Pontuações VR"
+        "topNVrTitle": "Top {count} Pontuações VR",
+        "closestAboveCliffTitle": "{count} menores pontuações de VS acima de {cliff}"
       },
       "share": {
         "action": "Compartilhar imagem",
