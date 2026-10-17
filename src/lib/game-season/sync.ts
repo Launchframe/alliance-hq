@@ -7,6 +7,7 @@ import {
   upsertGameServerByNumber,
   linkAllianceToGameServer,
 } from "@/lib/game-season/game-servers.server";
+import { shouldRetainLastGoodCptSeason } from "@/lib/game-season/keep-last-good-cpt.shared";
 import {
   normalizeSeasonKey,
   resolveEffectiveSeasonFromRow,
@@ -106,6 +107,10 @@ export async function applyGameServerSeasonSync(
     .select({
       seasonKeyOverride: schema.gameServers.seasonKeyOverride,
       openTimestampMs: schema.gameServers.openTimestampMs,
+      seasonKeySynced: schema.gameServers.seasonKeySynced,
+      seasonKeySource: schema.gameServers.seasonKeySource,
+      seasonIsPostSeason: schema.gameServers.seasonIsPostSeason,
+      seasonWeek: schema.gameServers.seasonWeek,
     })
     .from(schema.gameServers)
     .where(eq(schema.gameServers.id, gameServerId))
@@ -143,12 +148,14 @@ export async function applyGameServerSeasonSync(
     };
   }
 
+  let cptRecordFound = false;
   try {
     const cptRecord = await fetchCptHedgeServerRecord(
       serverNumber,
       options.forceRefresh,
     );
     if (cptRecord) {
+      cptRecordFound = true;
       const resolved = resolveSeasonFromCptHedgeRecord(cptRecord);
       const seasonNumber = Math.max(1, parseInt(resolved.seasonKey, 10) || 1);
       const seasonId = await ensureGameSeason(seasonNumber);
@@ -188,6 +195,31 @@ export async function applyGameServerSeasonSync(
     }
   } catch (error) {
     console.warn("[game-season] cpt-hedge server sync failed", gameServerId, error);
+  }
+
+  // Keep last-good cpt-hedge season (incl. S5+ / post-season). Age-fallback caps
+  // at S4 and clears post-season — must not stomp a prior successful sync when
+  // the scrape misses, returns empty, or throws (Monday cron blast radius).
+  if (
+    shouldRetainLastGoodCptSeason({
+      cptRecordFound,
+      priorSeasonKeySource: serverRow.seasonKeySource,
+      priorSeasonKeySynced: serverRow.seasonKeySynced,
+    })
+  ) {
+    const seasonKey = normalizeSeasonKey(serverRow.seasonKeySynced);
+    console.warn(
+      "[game-season] retaining last-good cpt-hedge season after miss",
+      gameServerId,
+      seasonKey,
+    );
+    return {
+      seasonKey,
+      source: "cpt-hedge",
+      isPostSeason: serverRow.seasonIsPostSeason === 1,
+      week: serverRow.seasonWeek,
+      gameServerNumber: serverNumber,
+    };
   }
 
   const openTs = serverRow.openTimestampMs;

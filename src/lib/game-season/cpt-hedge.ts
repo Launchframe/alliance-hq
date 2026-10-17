@@ -81,6 +81,17 @@ export async function loadCptHedgeServerRecords(
     records = await loadRecordsFromChunks(html, fetchCptHedgePage);
   }
 
+  // Never cache an empty parse — that poisons every server lookup for CACHE_TTL_MS
+  // and forces age-fallback (caps at S4) across Monday season-sync.
+  if (records.length === 0) {
+    if (cachedRecords && cachedRecords.length > 0) {
+      // Keep last-good in-memory records; refresh TTL so we don't hammer a broken HTML.
+      cachedAt = now;
+      return cachedRecords;
+    }
+    return [];
+  }
+
   cachedRecords = records;
   cachedAt = now;
   return records;
