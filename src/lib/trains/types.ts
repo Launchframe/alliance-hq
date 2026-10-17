@@ -114,6 +114,15 @@ export type RollResult = {
   qualification?: MemberQualificationPayload;
   /** False when the roll landed on a disqualified member and no draft was saved yet. */
   draftPersisted?: boolean;
+  /**
+   * VIP drawn from the same Eligible VS scores list as the conductor.
+   * Saved with the conductor draft, before lock.
+   */
+  pairedVip?: {
+    memberId: string;
+    memberName: string;
+    wheelCandidates?: RollCandidate[];
+  };
 };
 
 export type PoolRefreshedInfo = {

@@ -52,6 +52,7 @@ import {
   type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
+  conductorRuleDrawsPairedVip,
   conductorRulePoolType,
   conductorRuleUsesPriceIsFreightRoll,
   vipRulePoolType,
@@ -736,12 +737,20 @@ async function persistConductorRoll(input: {
   conductorRule?: ConductorRule | null;
   vipRule?: VipRule | null;
   manualCoverageOverride?: boolean;
+  pairedVip?: RollResult["pairedVip"];
 }): Promise<RollResult> {
   const rankEvent = await getMemberRankAsOf(
     input.allianceId,
     input.result.memberId,
     input.date,
   );
+  const vipRankEvent = input.pairedVip
+    ? await getMemberRankAsOf(
+        input.allianceId,
+        input.pairedVip.memberId,
+        input.date,
+      )
+    : null;
 
   if (!input.manualCoverageOverride) await recheckAutomaticDutyAvailability(input);
   await upsertConductorDraft({
@@ -754,9 +763,12 @@ async function persistConductorRoll(input: {
     conductorMemberName: input.result.memberName,
     conductorRankEventId: rankEvent?.id ?? null,
     conductorMechanism: input.mechanism,
-    vipMechanism: encodeLegacyVipMechanism(
-      input.vipRule ?? null,
-    ) as VipMechanismType,
+    vipMemberId: input.pairedVip?.memberId,
+    vipMemberName: input.pairedVip?.memberName,
+    vipRankEventId: vipRankEvent?.id ?? null,
+    vipMechanism: input.pairedVip
+      ? "r3_lottery"
+      : (encodeLegacyVipMechanism(input.vipRule ?? null) as VipMechanismType),
     conductorRule: input.conductorRule ?? null,
     vipRule: input.vipRule ?? null,
     dayConfigId: input.dayConfigId,
@@ -1585,6 +1597,10 @@ export async function rollForConductor(input: {
       date: input.date,
       rule,
       excludedMemberIds: dayExcluded,
+      drawPairedVip: conductorRuleDrawsPairedVip({
+        conductorRule: rule,
+        vipRule: dayConfig.vipRule,
+      }),
     });
   } else if (rule?.kind === "rank_pool" || rule?.kind === "event_top_x") {
       if (rule.kind === "event_top_x") {
@@ -1695,6 +1711,7 @@ export async function rollForConductor(input: {
       dayConfigId: dayConfig.dayConfigId,
       vipRule: dayConfig.vipRule,
       conductorRule: rule,
+      pairedVip: gated.pairedVip,
     });
   } else {
     await recheckAutomaticDutyAvailability({ ...input, result: gated });
@@ -1709,10 +1726,19 @@ export async function rollForConductor(input: {
       memberId: gated.memberId,
       memberName: gated.memberName,
     });
+    if (gated.draftPersisted && gated.pairedVip) {
+      await recordDaySpinExclusion({
+        allianceId: input.allianceId,
+        date: input.date,
+        memberId: gated.pairedVip.memberId,
+        memberName: gated.pairedVip.memberName,
+      });
+    }
   }
 
   if (!gated.draftPersisted) {
-    return gated;
+    const { pairedVip: _unusedPairedVip, ...withoutVip } = gated;
+    return withoutVip;
   }
 
   const poolRefreshed = gated.poolType

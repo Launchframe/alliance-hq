@@ -113,7 +113,10 @@ import { FAMILY_LABEL_KEY } from "@/components/events/EventSourcePicker";
 import type { EventTarget } from "@/lib/hq-events/event-types.shared";
 import type { EventEligibilityPreview } from "@/lib/trains/event-eligibility.shared";
 import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
-import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
+import {
+  conductorRuleDrawsPairedVip,
+  conductorRulePoolType,
+} from "@/lib/trains/rules/derive.shared";
 import {
   conductorRuleIdentity,
   conductorRuleLabelKey,
@@ -282,6 +285,14 @@ export function TrainsDashboard({
     useState<MemberQualificationPayload | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [wheelRole, setWheelRole] = useState<"conductor" | "vip">("conductor");
+  const [wheelBoardRule, setWheelBoardRule] = useState<
+    ConductorRule | VipRule | null
+  >(null);
+  const [wheelRoleLabel, setWheelRoleLabel] = useState<string | null>(null);
+  const pairedVipFollowUpRef = useRef<{
+    vip: NonNullable<RollResult["pairedVip"]>;
+    boardRule: ConductorRule | null;
+  } | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(
@@ -546,11 +557,19 @@ export function TrainsDashboard({
   }, [setPoolRefreshedHint]);
 
   const handleWheelClose = useCallback(() => {
-    setWheelOpen(false);
-    setWheelQualification(null);
-    setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
+    const followUp =
+      pending?.role === "conductor" && pending.result.draftPersisted !== false
+        ? pairedVipFollowUpRef.current
+        : null;
+    pairedVipFollowUpRef.current = null;
     pendingWheelRollRef.current = null;
+    setWheelQualification(null);
+    if (!followUp) {
+      setWheelOpen(false);
+      setWheelDayLabel(null);
+      setWheelRoleLabel(null);
+    }
     if (!pending) return;
     if (pending.result.draftPersisted === false) return;
 
@@ -565,8 +584,32 @@ export function TrainsDashboard({
     if (pending.result.poolRefreshed) {
       presentPoolRefreshedHints([pending.result.poolRefreshed]);
     }
+    if (followUp) {
+      pendingWheelRollRef.current = {
+        date: pending.date,
+        role: "vip",
+        result: {
+          memberId: followUp.vip.memberId,
+          memberName: followUp.vip.memberName,
+          mechanism: "r3_lottery",
+          isAutomatic: false,
+          wheelCandidates: followUp.vip.wheelCandidates,
+          draftPersisted: true,
+        },
+      };
+      setWheelCandidates(followUp.vip.wheelCandidates ?? []);
+      setWheelWinner({
+        memberId: followUp.vip.memberId,
+        memberName: followUp.vip.memberName,
+      });
+      setWheelRole("vip");
+      setWheelBoardRule(followUp.boardRule);
+      setWheelRoleLabel(t("spinSource.vipRole"));
+      setWheelOpen(true);
+      return;
+    }
     void refreshRef.current();
-  }, [applySnapshot, presentPoolRefreshedHints]);
+  }, [applySnapshot, presentPoolRefreshedHints, t]);
 
   const handleWeekChange = useCallback((page: WeekSchedulePagePayload) => {
     viewedWeekStartRef.current = page.weekStart;
@@ -1210,6 +1253,7 @@ export function TrainsDashboard({
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     // Don't let page hotkeys / spin run "behind" open schedule dialogs.
     setTemplatePickerOpen(false);
+    pairedVipFollowUpRef.current = null;
     setError(null);
     setWheelBlocked(null);
     setPollFallbackConfirm(null);
@@ -1339,6 +1383,13 @@ export function TrainsDashboard({
         return;
       }
 
+      pairedVipFollowUpRef.current = body.result.pairedVip
+        ? { vip: body.result.pairedVip, boardRule: selectedConductorRule }
+        : null;
+      setWheelRoleLabel(
+        body.result.pairedVip ? t("spinSource.conductorRole") : null,
+      );
+      setWheelBoardRule(role === "vip" ? selectedVipRule : selectedConductorRule);
       pendingWheelRollRef.current = {
         date: selectedDate,
         role,
@@ -1376,6 +1427,7 @@ export function TrainsDashboard({
   });
 
   const handleWheelSpinAgain = useCallback(() => {
+    pairedVipFollowUpRef.current = null;
     pendingWheelRollRef.current = null;
     setWheelOpen(false);
     setWheelQualification(null);
@@ -3500,6 +3552,10 @@ export function TrainsDashboard({
                 canManualPick={canPickConductor}
                 canManualPickVip={canManualPickVip}
                 canSpinConductorWheel={canSpinConductorWheel}
+                drawsPairedVip={conductorRuleDrawsPairedVip({
+                  conductorRule: selectedConductorRule,
+                  vipRule: selectedVipRule,
+                })}
                 canSpinVipWheel={canSpinVipWheel}
                 busy={trainQuickActionBusy}
                 onChangeTemplate={() => setDayMechanismPickerOpen(true)}
@@ -3723,9 +3779,14 @@ export function TrainsDashboard({
                         ? t("assignNextInSequence", {
                             name: nextInSequence.memberName,
                           })
-                        : hasValidConductor
-                          ? t("wheel.spinAgain")
-                          : t("spinWheel")}
+                        : conductorRuleDrawsPairedVip({
+                              conductorRule: selectedConductorRule,
+                              vipRule: selectedVipRule,
+                            })
+                          ? t("spinConductorAndVip")
+                          : hasValidConductor
+                            ? t("wheel.spinAgain")
+                            : t("spinWheel")}
                   </button>
                 ) : null}
                 {canRoll && conductorRuleIsAutomatic(selectedConductorRule) ? (
@@ -3986,7 +4047,8 @@ export function TrainsDashboard({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        rule={wheelRole === "vip" ? selectedVipRule : selectedConductorRule}
+        rule={wheelBoardRule}
+        roleLabel={wheelRoleLabel}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}

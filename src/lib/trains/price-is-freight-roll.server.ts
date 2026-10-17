@@ -7,6 +7,7 @@ import { filterDaySpinCandidates } from "@/lib/trains/day-spin-exclusions.shared
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
   classifyPriceIsFreightEmptyReason,
+  pickPairedVipCandidate,
   pickUniformRollCandidate,
   pickWeightedRollCandidate,
 } from "@/lib/trains/price-is-freight-roll.shared";
@@ -116,6 +117,11 @@ export async function rollPriceIsFreightConductor(input: {
   rule: Extract<ConductorRule, { kind: "price_is_freight" }>;
   /** Day-scoped re-spin exclusions (does not touch depleting pools). */
   excludedMemberIds?: ReadonlySet<string>;
+  /**
+   * Also draw a VIP from the remaining Eligible VS scores list.
+   * Weekday board only; the caller checks the day's VIP rule.
+   */
+  drawPairedVip?: boolean;
 }): Promise<RollResult> {
   // The board is stated by the rule — no weekday inference.
   const isHeavyHitter = input.rule.board === "heavy_hitter";
@@ -193,13 +199,12 @@ export async function rollPriceIsFreightConductor(input: {
     if (!winner) {
       throwPoolUnavailable("r3");
     }
-    return {
-      memberId: winner.memberId,
-      memberName: winner.memberName,
-      mechanism: "r3_lottery",
-      isAutomatic: false,
+    return finishPriceIsFreightDraw({
+      winner,
       wheelCandidates: weighted.candidates,
-    };
+      weighted: true,
+      drawPairedVip: input.drawPairedVip,
+    });
   }
 
   if (rosterR3.length === 0) {
@@ -238,11 +243,43 @@ export async function rollPriceIsFreightConductor(input: {
   if (!winner) {
     throwPoolUnavailable("r3");
   }
-  return {
-    memberId: winner.memberId,
-    memberName: winner.memberName,
+  return finishPriceIsFreightDraw({
+    winner,
+    wheelCandidates: eligible,
+    weighted: false,
+    drawPairedVip: input.drawPairedVip,
+  });
+}
+
+function finishPriceIsFreightDraw(input: {
+  winner: RollCandidate;
+  wheelCandidates: RollCandidate[];
+  weighted: boolean;
+  drawPairedVip?: boolean;
+}): RollResult {
+  const result: RollResult = {
+    memberId: input.winner.memberId,
+    memberName: input.winner.memberName,
     mechanism: "r3_lottery",
     isAutomatic: false,
-    wheelCandidates: eligible,
+    wheelCandidates: input.wheelCandidates,
   };
+  if (!input.drawPairedVip) return result;
+  const paired = pickPairedVipCandidate(
+    input.wheelCandidates,
+    input.winner.memberId,
+    input.weighted,
+  );
+  if (!paired) {
+    throwNoWheelCandidates(
+      "vs",
+      "Need two eligible members to draw a conductor and a VIP.",
+    );
+  }
+  result.pairedVip = {
+    memberId: paired.vip.memberId,
+    memberName: paired.vip.memberName,
+    wheelCandidates: paired.wheelCandidates,
+  };
+  return result;
 }
