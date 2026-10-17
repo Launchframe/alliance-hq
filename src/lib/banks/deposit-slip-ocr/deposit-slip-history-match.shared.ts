@@ -166,6 +166,27 @@ export function isHistoricalDepositMatch(
 }
 
 /**
+ * Locked OCR timed **after** a stored terminal outcome is a new initiate
+ * (rapid re-deposit after loot/mature), not a blue re-read of the terminated
+ * slip. In-video dedupe peels these apart; history commit must too — otherwise
+ * proximity to the original `depositAt` skips the re-deposit and under-counts
+ * CrystalGold still at risk.
+ */
+export function isPostOutcomeRedepositLocked(
+  incoming: HistoricalDepositSlipIdentity,
+  existingTerminal: HistoricalDepositSlipIdentity,
+): boolean {
+  if (resolveStatus(incoming) !== "locked") return false;
+  if (resolveStatus(existingTerminal) === "locked") return false;
+  // Require an explicit outcome instant. Falling back to depositAt would treat
+  // any blue re-read with OCR noise after the stored initiate as a re-deposit.
+  const outcomeMs = depositAtMs(existingTerminal.outcomeAt);
+  const incomingMs = depositAtMs(incoming.depositAt);
+  if (incomingMs == null || outcomeMs == null) return false;
+  return incomingMs > outcomeMs;
+}
+
+/**
  * Terminal OCR on a later job upload can carry the outcome timestamp in
  * `depositAt` while HQ history still stores the blue initiate on a locked row.
  */
@@ -268,15 +289,25 @@ export function findHistoricalDepositMatch<
   }
 
   for (const slip of existing) {
-    if (isHighConfidenceHistoricalDepositMatch(incoming, slip, proximityMs)) {
-      return slip;
+    if (!isHighConfidenceHistoricalDepositMatch(incoming, slip, proximityMs)) {
+      continue;
     }
+    // Prefer a same-window locked re-deposit over the prior terminated slip
+    // whose initiate still falls inside DEPOSIT_AT_PROXIMITY_MS.
+    if (isPostOutcomeRedepositLocked(incoming, slip)) {
+      continue;
+    }
+    return slip;
   }
 
   for (const slip of existing) {
-    if (isMemberLinkedHistoricalDepositMatch(incoming, slip, proximityMs)) {
-      return slip;
+    if (!isMemberLinkedHistoricalDepositMatch(incoming, slip, proximityMs)) {
+      continue;
     }
+    if (isPostOutcomeRedepositLocked(incoming, slip)) {
+      continue;
+    }
+    return slip;
   }
 
   // NB: a second isTerminalOutcomeDuplicate pass here would be dead code —
@@ -304,7 +335,8 @@ export function findHighConfidenceHistoricalDepositMatch<
  * Skip when the OCR row is the same lifecycle event already stored (or a
  * locked re-read of a deposit that already terminated). Do **not** skip when
  * a locked slip should be advanced by a matured/looted OCR row — loot can land
- * inside {@link DEPOSIT_AT_PROXIMITY_MS} of initiate.
+ * inside {@link DEPOSIT_AT_PROXIMITY_MS} of initiate — or when locked OCR is a
+ * post-outcome re-deposit (initiate after the stored outcome instant).
  */
 export function shouldSkipHistoricalDepositDuplicate(
   incoming: HistoricalDepositSlipIdentity,
@@ -320,7 +352,11 @@ export function shouldSkipHistoricalDepositDuplicate(
   const incomingStatus = resolveStatus(incoming);
   const existingStatus = resolveStatus(existing);
   if (incomingStatus === existingStatus) return true;
-  if (incomingStatus === "locked" && existingStatus !== "locked") return true;
+  if (incomingStatus === "locked" && existingStatus !== "locked") {
+    // Same commander/amount/term within proximity of the *original* initiate
+    // is either a blue re-read (skip) or a rapid re-deposit after loot (keep).
+    return !isPostOutcomeRedepositLocked(incoming, existing);
+  }
   if (incomingStatus !== "locked" && existingStatus !== "locked") return true;
   return false;
 }
