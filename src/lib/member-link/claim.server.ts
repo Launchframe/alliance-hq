@@ -69,7 +69,7 @@ export async function blockSelfServiceWhenClaimPending(input: {
 export type ClaimConflictReason =
   | "name_collision"
   | "commander_taken"
-  /** @deprecated Legacy help rows only — claim confirm no longer emits this. */
+  /** @deprecated Legacy help rows only — claim confirm does not emit this. */
   | "server_mismatch"
   | "target_mismatch"
   /** Linked during Last War outage using the invite-bound commander name. */
@@ -190,17 +190,53 @@ export async function runWebMemberLinkClaimConfirm(input: {
         targetAshedMemberId: target.ashedMemberId,
       });
 
-  // Name mismatches are non-blocking: link the claim target, keep the roster
-  // name for now, and queue officer review to pick roster vs Last War name.
-  // Only a UID already claimed by another HQ user blocks completion.
-  // Honor system (Last War unreachable): trust the officer-bound commander name.
+  // Fail closed when Last War proves a different identity than the officer-bound
+  // seat (same as Discord tryPreApprovedMemberLink). Linking anyway let any
+  // claim-invite holder bind an arbitrary unclaimed UID to the reserved seat.
+  // Honor system (Last War unreachable): still trust the invite-bound name.
+  if (!honorSystem && !nameMatches) {
+    await surfaceClaimConflict({
+      allianceId: input.allianceId,
+      allianceTag,
+      hqUserId: input.hqUserId,
+      handle,
+      commanderName: target.commanderName,
+      gameUserName: lookupGameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
+      reason: "target_mismatch",
+    });
+    return {
+      outcome: "claim_conflict",
+      message: translate("claimConflict"),
+      pending: null,
+    };
+  }
+
+  if (!honorSystem && collisionName) {
+    await surfaceClaimConflict({
+      allianceId: input.allianceId,
+      allianceTag,
+      hqUserId: input.hqUserId,
+      handle,
+      commanderName: target.commanderName,
+      gameUserName: lookupGameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
+      reason: "name_collision",
+    });
+    return {
+      outcome: "claim_conflict",
+      message: translate("claimConflict"),
+      pending: null,
+    };
+  }
+
   const linked = await linkHqMember({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     ashedMemberId: target.ashedMemberId,
-    memberDisplayName: nameMatches
-      ? lookupGameUserName
-      : target.commanderName,
+    memberDisplayName: lookupGameUserName,
     gameUid: uid,
   });
 
@@ -256,34 +292,11 @@ export async function runWebMemberLinkClaimConfirm(input: {
         reason: "lastwar_lookup_request_failed",
       },
     });
-  } else if (nameMatches && !collisionName) {
+  } else {
     await reconcileAllianceMemberForRosterLink({
       allianceId: input.allianceId,
       ashedMemberId: target.ashedMemberId,
       gameUserName: lookupGameUserName,
-    });
-  } else {
-    const reason = !nameMatches ? "target_mismatch" : "name_collision";
-    await surfaceClaimConflict({
-      allianceId: input.allianceId,
-      allianceTag,
-      hqUserId: input.hqUserId,
-      handle,
-      commanderName: target.commanderName,
-      gameUserName: lookupGameUserName,
-      gameUid: uid,
-      ashedMemberId: target.ashedMemberId,
-      reason,
-    });
-    await writeAuditLog({
-      sessionId: input.sessionId,
-      hqUserId: input.hqUserId,
-      allianceId: input.allianceId,
-      action: "member_link.claim_name_review",
-      metadata: {
-        ashedMemberId: target.ashedMemberId,
-        reason,
-      },
     });
   }
 

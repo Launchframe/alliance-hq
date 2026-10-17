@@ -210,6 +210,14 @@ export async function loadMemberLinkHelpRequestReview(input: {
   );
   claimed.sort((a, b) => a.currentName.localeCompare(b.currentName));
 
+  const inviteTargetLink =
+    row.linkedAshedMemberId && row.hqUserId
+      ? await getHqMemberLinkByAllianceAndMember(
+          row.allianceId,
+          row.linkedAshedMemberId,
+        )
+      : null;
+
   return {
     request: {
       id: row.id,
@@ -226,6 +234,8 @@ export async function loadMemberLinkHelpRequestReview(input: {
       gameUidLast4: row.gameUid ? row.gameUid.slice(-4) : null,
       status: row.status,
       inviteTargetAshedMemberId: row.linkedAshedMemberId ?? null,
+      claimantLinkedToInviteTarget:
+        Boolean(row.hqUserId) && inviteTargetLink?.hqUserId === row.hqUserId,
       createdAt: row.createdAt,
       hqUserId: row.hqUserId,
       discordUsername: row.discordUsername,
@@ -504,8 +514,10 @@ export async function linkMemberLinkHelpRequest(input: {
 }
 
 /**
- * After a non-blocking claim name mismatch, officer picks roster vs Last War name.
- * Member is already linked; this only settles which display name we persist.
+ * Legacy claim name review: officer picks roster vs Last War name for a claimant
+ * who is already linked to the invite target. Claim confirm now fails closed on
+ * a mismatch, so newer conflict rows have no link — renaming the reserved seat
+ * to the claimant's Last War name would let them re-confirm onto it.
  */
 export async function resolveClaimNameReview(input: {
   requestId: string;
@@ -546,6 +558,14 @@ export async function resolveClaimNameReview(input: {
   const chosenName = input.chosen === "lookup" ? lookupName : rosterName;
   const targetAshedMemberId = row.linkedAshedMemberId;
 
+  const existingLink = await getHqMemberLinkByAllianceAndMember(
+    row.allianceId,
+    targetAshedMemberId,
+  );
+  if (!existingLink || existingLink.hqUserId !== row.hqUserId) {
+    return { ok: false, reason: "not_linked" };
+  }
+
   if (input.chosen === "lookup") {
     await reconcileAllianceMemberForRosterLink({
       allianceId: row.allianceId,
@@ -555,19 +575,13 @@ export async function resolveClaimNameReview(input: {
     });
   }
 
-  const existingLink = await getHqMemberLinkByAllianceAndMember(
-    row.allianceId,
-    targetAshedMemberId,
-  );
-  if (existingLink && existingLink.hqUserId === row.hqUserId) {
-    await linkHqMember({
-      allianceId: row.allianceId,
-      hqUserId: row.hqUserId,
-      ashedMemberId: targetAshedMemberId,
-      memberDisplayName: chosenName,
-      gameUid: existingLink.gameUid,
-    });
-  }
+  await linkHqMember({
+    allianceId: row.allianceId,
+    hqUserId: row.hqUserId,
+    ashedMemberId: targetAshedMemberId,
+    memberDisplayName: chosenName,
+    gameUid: existingLink.gameUid,
+  });
 
   const resolved = await resolveMemberLinkHelpRequest({
     requestId: input.requestId,
