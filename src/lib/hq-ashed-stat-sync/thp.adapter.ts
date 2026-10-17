@@ -22,9 +22,9 @@ export const thpStatSyncAdapter: StatSyncAdapter = {
   stat: "thp",
   ashedField: "current_total_hero_power",
 
-  async getHqCurrent(commanderId) {
-    const state = await getCommanderThpState(commanderId);
-    const meta = await loadLatestNonDiscardedEventMeta("thp", commanderId);
+  async getHqCurrent(commanderId, tx) {
+    const state = await getCommanderThpState(commanderId, tx);
+    const meta = await loadLatestNonDiscardedEventMeta("thp", commanderId, tx);
     return {
       total: state?.currentTotalHeroPower ?? null,
       updatedAt: state?.thpUpdatedAt ?? meta.createdAt,
@@ -44,6 +44,7 @@ export const thpStatSyncAdapter: StatSyncAdapter = {
       memberName: input.memberName,
       source: input.source,
       hqUserId: input.hqUserId,
+      tx: input.tx,
     });
   },
 
