@@ -21,6 +21,10 @@ const SEP26_GERMAN_FIXTURE = path.join(
   fixtureDir,
   "fixtures/power-details-2026-09-26-de-179979260.jpg",
 );
+const CROPPED_MENU_FIXTURE = path.join(
+  fixtureDir,
+  "fixtures/power-details-2026-10-17-cropped.png",
+);
 
 /**
  * Live geometry-first OCR against a real phone screenshot.
@@ -157,7 +161,33 @@ describe("parsePowerDetailsImage live fixture", () => {
       });
       expect(parsed.diagnostics.sampleLines).toContain("rowN:1797979260");
       expect(parsed.diagnostics.sampleLines).toContain("rowI:1797979260");
+      expect(parsed.diagnostics.layout).toBe("phone");
     },
     120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "reads a menu-only crop by skipping the phone window",
+    async () => {
+      const buffer = readFileSync(CROPPED_MENU_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.diagnostics.layout).toBe("menu");
+      expect(parsed.heroPowerTotal).toBe(163_154_877);
+      expect(parsed.complete).toBe(true);
+      expect(parsed.breakdown).toEqual({
+        heroLevel: 83_520_248,
+        decorationsAndBuildings: 40_315_295,
+        gear: 11_045_600,
+        exclusiveWeapons: 9_398_252,
+        heroSkill: 6_937_230,
+        heroTier: 6_596_952,
+        wallOfHonor: 5_341_300,
+      });
+      expect(sumThpBreakdown(parsed.breakdown as ThpBreakdown)).toBe(
+        163_154_877,
+      );
+    },
+    180_000,
   );
 });
