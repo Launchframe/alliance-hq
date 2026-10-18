@@ -1,3 +1,5 @@
+import "server-only";
+
 import { runTesseract } from "@/lib/members/roster-ocr/tesseract";
 import {
   inGameScreenshotLayoutFromTopRow,
@@ -5,7 +7,7 @@ import {
   type InGameScreenshotLayout,
 } from "@/lib/ocr/in-game-crop.shared";
 
-const TOP_ROW_WHITELIST = "0123456789.,KMGkmG ";
+const TOP_ROW_WHITELIST = "0123456789.,KMGkmg ";
 
 /**
  * Read the top row and decide whether the resource HUD is still in frame.

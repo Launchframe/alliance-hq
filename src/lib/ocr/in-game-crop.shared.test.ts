@@ -32,4 +32,11 @@ describe("in-game crop detection", () => {
     expect(topRowHasResourceHud("163,154,877")).toBe(false);
     expect(inGameScreenshotLayoutFromTopRow("")).toBe("menu");
   });
+
+  it("needs both a resource decimal and a suffix — partial HUD reads stay menu", () => {
+    expect(topRowHasResourceHud("173.5")).toBe(false);
+    expect(topRowHasResourceHud("173M")).toBe(false);
+    expect(topRowHasResourceHud("M")).toBe(false);
+    expect(inGameScreenshotLayoutFromTopRow("173.5")).toBe("menu");
+  });
 });

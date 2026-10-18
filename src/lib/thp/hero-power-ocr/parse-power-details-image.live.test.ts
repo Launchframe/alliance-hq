@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { parsePowerDetailsImage } from "@/lib/thp/hero-power-ocr/parse-power-details-image";
 import { terminateTesseractWorker } from "@/lib/members/roster-ocr/tesseract";
