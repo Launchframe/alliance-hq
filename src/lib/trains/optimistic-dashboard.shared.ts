@@ -173,6 +173,9 @@ export function applyOptimisticClearPendingConductor(
     substituteForMemberId: null,
     substituteForMemberName: null,
     eligibilityOverridden: false,
+    vipMemberId: null,
+    vipMemberName: null,
+    guardianIsVip: false,
   });
 }
 

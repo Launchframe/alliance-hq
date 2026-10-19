@@ -4,6 +4,7 @@ import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   canSpinConductorForRule,
   canSpinVipForRule,
+  conductorRuleDrawsPairedVip,
   conductorRuleAppliesMinimums,
   conductorRuleNeedsWheel,
   conductorRulePoolType,
@@ -205,6 +206,33 @@ describe("wheel and pool derivation", () => {
   it("blocks spinning a locked day", () => {
     expect(canSpinConductorForRule(VS_TOP_10, false)).toBe(true);
     expect(canSpinConductorForRule(VS_TOP_10, true)).toBe(false);
+  });
+
+  it("draws a paired VIP only for Eligible VS scores with a free-choice VIP", () => {
+    expect(
+      conductorRuleDrawsPairedVip({
+        conductorRule: PIF_WEEKDAY,
+        vipRule: null,
+      }),
+    ).toBe(true);
+    expect(
+      conductorRuleDrawsPairedVip({
+        conductorRule: PIF_HH,
+        vipRule: null,
+      }),
+    ).toBe(false);
+    expect(
+      conductorRuleDrawsPairedVip({
+        conductorRule: PIF_WEEKDAY,
+        vipRule: { kind: "none" },
+      }),
+    ).toBe(false);
+    expect(
+      conductorRuleDrawsPairedVip({
+        conductorRule: VS_TOP_10,
+        vipRule: null,
+      }),
+    ).toBe(false);
   });
 
   it("requires a lock before the VIP spins", () => {

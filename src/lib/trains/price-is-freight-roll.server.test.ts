@@ -97,6 +97,34 @@ describe("loadPriceIsFreightR3Candidates", () => {
     );
   });
 
+  it("draws a paired VIP from the weekday Eligible VS list when requested", async () => {
+    mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(null);
+    mocks.loadPriceIsRightTicketSettings.mockResolvedValue({
+      weightingEnabled: false,
+      maxTicketMemberIds: [],
+    });
+    mocks.fetchAlliancePriorDayVsScoresByMember.mockResolvedValue(
+      new Map([
+        ["m1", 7200000],
+        ["m2", 7200000],
+      ]),
+    );
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const result = await rollPriceIsFreightConductor({
+      allianceId: "ally-1",
+      date: "2026-06-10",
+      rule: { kind: "price_is_freight", board: "weekday" },
+      drawPairedVip: true,
+    });
+
+    expect(result.memberId).not.toBe(result.pairedVip?.memberId);
+    expect(result.pairedVip?.wheelCandidates?.map((row) => row.memberId)).not.toContain(
+      result.memberId,
+    );
+    vi.restoreAllMocks();
+  });
+
   it("returns minimum-qualified R3 candidates", async () => {
     const candidates = await loadPriceIsFreightR3Candidates({
       allianceId: "ally-1",

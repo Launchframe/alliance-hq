@@ -242,6 +242,21 @@ export function canSpinConductorForRule(
   return conductorRuleNeedsWheel(rule);
 }
 
+/**
+ * Eligible VS scores (Price Is Freight weekday) with a free-choice VIP:
+ * one conductor spin also draws the VIP from that same list, before lock.
+ */
+export function conductorRuleDrawsPairedVip(input: {
+  conductorRule: ConductorRule | null;
+  vipRule: VipRule | null;
+}): boolean {
+  return (
+    input.conductorRule?.kind === "price_is_freight" &&
+    input.conductorRule.board === "weekday" &&
+    input.vipRule == null
+  );
+}
+
 /** VIP boards after the conductor is locked / spawned in game. */
 export function canSpinVipForRule(
   rule: VipRule | null,

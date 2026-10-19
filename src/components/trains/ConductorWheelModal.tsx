@@ -58,6 +58,8 @@ type Props = {
   dayLabel?: string | null;
   /** Rule this roll was drawn under (conductor or VIP). */
   rule?: ConductorRule | VipRule | null;
+  /** Shown under the title when one click spins conductor, then VIP. */
+  roleLabel?: string | null;
   speedMultiplier?: number;
   automated?: boolean;
   onAutomatedRevealComplete?: () => void;
@@ -117,6 +119,7 @@ export function ConductorWheelModal({
   qualification,
   dayLabel,
   rule = null,
+  roleLabel = null,
   speedMultiplier = 1,
   automated = false,
   onAutomatedRevealComplete,
@@ -467,6 +470,11 @@ export function ConductorWheelModal({
         >
           {disqualified && phase === "revealed" ? t("disqualifiedTitle") : t("title")}
         </h2>
+        {roleLabel ? (
+          <p className="mt-1 text-center text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+            {roleLabel}
+          </p>
+        ) : null}
         {dayLabel ? (
           <p className="mt-1 text-center text-base font-semibold text-hq-fg">
             {dayLabel}
