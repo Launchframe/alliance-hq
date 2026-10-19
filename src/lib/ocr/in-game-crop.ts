@@ -4,6 +4,7 @@ import { runTesseract } from "@/lib/members/roster-ocr/tesseract";
 import {
   inGameScreenshotLayoutFromTopRow,
   inGameTopStripBox,
+  isPortraitPhoneFrame,
   type InGameScreenshotLayout,
 } from "@/lib/ocr/in-game-crop.shared";
 
@@ -20,8 +21,15 @@ export async function readInGameScreenshotLayout(
   image: Buffer,
 ): Promise<InGameScreenshotLayout> {
   try {
+    const sharp = (await import("sharp")).default;
+    const meta = await sharp(image).metadata();
+    const width = meta.width ?? 0;
+    const height = meta.height ?? 0;
+    // Skip the top-strip pass on a phone frame. That pass is what used to
+    // flip a full screenshot to menu geometry when a decimal or suffix dropped.
+    if (isPortraitPhoneFrame(width, height)) return "phone";
     const text = await readInGameTopRowText(image);
-    return inGameScreenshotLayoutFromTopRow(text);
+    return inGameScreenshotLayoutFromTopRow(text, { width, height });
   } catch {
     return "phone";
   }

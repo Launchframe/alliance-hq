@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   inGameScreenshotLayoutFromTopRow,
   inGameTopStripBox,
+  isPortraitPhoneFrame,
   topRowHasResourceHud,
 } from "@/lib/ocr/in-game-crop.shared";
 
@@ -38,5 +39,26 @@ describe("in-game crop detection", () => {
     expect(topRowHasResourceHud("173M")).toBe(false);
     expect(topRowHasResourceHud("M")).toBe(false);
     expect(inGameScreenshotLayoutFromTopRow("173.5")).toBe("menu");
+    expect(
+      inGameScreenshotLayoutFromTopRow("173.5", { width: 1024, height: 704 }),
+    ).toBe("menu");
+    expect(
+      inGameScreenshotLayoutFromTopRow("", { width: 1024, height: 704 }),
+    ).toBe("menu");
+  });
+
+  it("keeps a portrait phone frame on the phone layout when the HUD read is incomplete", () => {
+    expect(isPortraitPhoneFrame(399, 1024)).toBe(true);
+    expect(isPortraitPhoneFrame(473, 1024)).toBe(true);
+    expect(isPortraitPhoneFrame(1024, 704)).toBe(false);
+    expect(
+      inGameScreenshotLayoutFromTopRow("", { width: 399, height: 1024 }),
+    ).toBe("phone");
+    expect(
+      inGameScreenshotLayoutFromTopRow("173.5", { width: 473, height: 1024 }),
+    ).toBe("phone");
+    expect(
+      inGameScreenshotLayoutFromTopRow("173M", { width: 399, height: 1024 }),
+    ).toBe("phone");
   });
 });
