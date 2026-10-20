@@ -49,16 +49,16 @@ describe("parseFfprobeFrameRate", () => {
 });
 
 describe("forcedFirstFrameIndexForFps", () => {
-  it("targets ~50ms from probed frame rate", () => {
-    expect(forcedFirstFrameIndexForFps(30)).toBe(2);
-    expect(forcedFirstFrameIndexForFps(60)).toBe(3);
+  it("targets the first decoded frame", () => {
+    expect(forcedFirstFrameIndexForFps(30)).toBe(0);
+    expect(forcedFirstFrameIndexForFps(60)).toBe(0);
     expect(
       forcedFirstFrameIndexForFps(parseFfprobeFrameRate("30000/1001")),
-    ).toBe(1);
+    ).toBe(0);
   });
 
-  it("falls back to frame 2 when fps is unknown", () => {
-    expect(forcedFirstFrameIndexForFps(null)).toBe(2);
+  it("stays on frame 0 when fps is unknown", () => {
+    expect(forcedFirstFrameIndexForFps(null)).toBe(0);
   });
 });
 
@@ -136,6 +136,30 @@ describe("mergeSceneFramesWithBookends", () => {
       0.1, 1,
     ]);
     expect(merged.map((frame) => frame.index)).toEqual([0, 1]);
+  });
+
+  it("keeps an earlier opening frame beside a slightly later scene frame", () => {
+    const merged = mergeSceneFramesWithBookends(
+      [
+        {
+          index: 0,
+          filePath: "/tmp/scene.jpg",
+          buffer: Buffer.from("scene"),
+          videoTimestampSeconds: 0.04,
+        },
+      ],
+      [
+        {
+          index: 0,
+          filePath: "/tmp/open.jpg",
+          buffer: Buffer.from("open"),
+          videoTimestampSeconds: 0,
+        },
+      ],
+    );
+    expect(merged.map((frame) => frame.videoTimestampSeconds)).toEqual([
+      0, 0.04,
+    ]);
   });
 
   it("does not dedupe distinct scene frames that are close together", () => {
