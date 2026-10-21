@@ -117,6 +117,27 @@ export function classifyPriceIsFreightEmptyReason(input: {
   return { kind: "none_qualify" };
 }
 
+/**
+ * Second draw from the same Eligible VS scores list, leaving out the
+ * conductor just drawn. Weighted days keep ticket weights; uniform days
+ * stay an equal draw.
+ */
+export function pickPairedVipCandidate(
+  candidates: readonly RollCandidate[],
+  conductorMemberId: string,
+  weighted: boolean,
+): { vip: RollCandidate; wheelCandidates: RollCandidate[] } | null {
+  const wheelCandidates = candidates.filter(
+    (candidate) => candidate.memberId !== conductorMemberId,
+  );
+  if (wheelCandidates.length === 0) return null;
+  const vip = weighted
+    ? pickWeightedRollCandidate(wheelCandidates)
+    : pickUniformRollCandidate(wheelCandidates);
+  if (!vip) return null;
+  return { vip, wheelCandidates };
+}
+
 export function pickUniformRollCandidate<T>(candidates: T[]): T | null {
   if (candidates.length === 0) return null;
   return candidates[Math.floor(Math.random() * candidates.length)] ?? null;

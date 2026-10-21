@@ -7,6 +7,7 @@ import {
   findHighConfidenceHistoricalDepositMatch,
   isHighConfidenceHistoricalDepositMatch,
   isMemberLinkedHistoricalDepositMatch,
+  isPostOutcomeRedepositLocked,
   shouldSkipHistoricalDepositDuplicate,
   shouldUpdateHistoricalDepositOutcome,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
@@ -150,15 +151,95 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
     expect(
       shouldSkipHistoricalDepositDuplicate(
         identity({ status: "locked" }),
-        identity({ status: "looted" }),
+        identity({
+          status: "looted",
+          outcomeAt: "2026-07-10T12:20:00.000Z",
+        }),
       ),
     ).toBe(true);
     expect(
       shouldUpdateHistoricalDepositOutcome(
         identity({ status: "locked" }),
-        identity({ status: "looted" }),
+        identity({
+          status: "looted",
+          outcomeAt: "2026-07-10T12:20:00.000Z",
+        }),
       ),
     ).toBe(false);
+  });
+
+  it("does not skip a post-loot re-deposit within the proximity window", () => {
+    const looted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:00:00.000Z",
+      outcomeAt: "2026-07-10T12:05:00.000Z",
+    });
+    const redeposit = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:10:00.000Z",
+    });
+    expect(isPostOutcomeRedepositLocked(redeposit, looted)).toBe(true);
+    expect(shouldSkipHistoricalDepositDuplicate(redeposit, looted)).toBe(false);
+    expect(findHistoricalDepositMatch(redeposit, [looted])).toBeNull();
+  });
+
+  it("does not skip a post-maturity re-deposit within the proximity window", () => {
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-10T12:00:00.000Z",
+      outcomeAt: "2026-07-10T12:05:00.000Z",
+    });
+    const redeposit = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:10:00.000Z",
+    });
+    expect(isPostOutcomeRedepositLocked(redeposit, matured)).toBe(true);
+    expect(shouldSkipHistoricalDepositDuplicate(redeposit, matured)).toBe(false);
+    expect(shouldUpdateHistoricalDepositOutcome(redeposit, matured)).toBe(false);
+    expect(findHistoricalDepositMatch(redeposit, [matured])).toBeNull();
+  });
+
+  it("still skips a locked re-read of a legacy terminal without outcomeAt", () => {
+    const legacyLooted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:00:00.000Z",
+      outcomeAt: null,
+    });
+    const locked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:10:00.000Z",
+    });
+    expect(isPostOutcomeRedepositLocked(locked, legacyLooted)).toBe(false);
+    expect(shouldSkipHistoricalDepositDuplicate(locked, legacyLooted)).toBe(true);
+  });
+
+  it("matches a re-deposit locked history row instead of the prior loot", () => {
+    const looted = {
+      id: "hist-looted",
+      ...identity({
+        status: "looted",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        outcomeAt: "2026-07-10T12:05:00.000Z",
+      }),
+    };
+    const redepositStored = {
+      id: "hist-redeposit",
+      ...identity({
+        status: "locked",
+        depositAt: "2026-07-10T12:10:00.000Z",
+      }),
+    };
+    const redepositIncoming = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:11:00.000Z",
+    });
+    expect(
+      findHistoricalDepositMatch(redepositIncoming, [looted, redepositStored])
+        ?.id,
+    ).toBe("hist-redeposit");
+    expect(
+      shouldSkipHistoricalDepositDuplicate(redepositIncoming, redepositStored),
+    ).toBe(true);
   });
 
   it("skips without downgrading when two different terminal statuses match", () => {

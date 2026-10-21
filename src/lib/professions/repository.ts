@@ -1190,6 +1190,8 @@ export type ProfessionImportRosterRow = {
   memberName: string | null;
   previousNames: string[] | null;
   memberStatus: string | null;
+  /** In-game alliance rank 1–5, or null when the roster has no rank. */
+  allianceRank: number | null;
 };
 
 /** Active commanders in the alliance, with roster names when present. */
@@ -1206,6 +1208,7 @@ export async function listProfessionImportRoster(
       memberName: schema.allianceMembers.currentName,
       previousNames: schema.allianceMembers.previousNamesJson,
       memberStatus: schema.allianceMembers.status,
+      allianceRank: schema.allianceMembers.allianceRank,
     })
     .from(schema.commanderAllianceMemberships)
     .innerJoin(

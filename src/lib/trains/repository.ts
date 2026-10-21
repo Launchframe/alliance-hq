@@ -673,6 +673,7 @@ export async function clearConductorAssignment(
       : null;
 
   // CAS: refuse the clear if a concurrent lock won the race.
+  const vipRule = (existing.vipRule ?? null) as VipRule | null;
   const cleared = await db
     .update(schema.trainConductorRecords)
     .set({
@@ -684,6 +685,11 @@ export async function clearConductorAssignment(
       conductorEligibilityOverridden: 0,
       conductorEligibilityOverriddenAt: null,
       conductorEligibilityOverriddenByHqUserId: null,
+      vipMemberId: null,
+      vipMemberName: null,
+      vipRankEventId: null,
+      guardianIsVip: 0,
+      vipMechanism: encodeLegacyVipMechanism(vipRule),
       updatedAt: new Date(),
     })
     .where(

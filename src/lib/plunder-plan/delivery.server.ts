@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, lte, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { addCalendarDays } from "@/lib/trains/game-time";
@@ -16,6 +16,7 @@ import type { PlanTx } from "./access.server";
 type Delivery = typeof schema.plunderPlanDeliveries.$inferSelect;
 type Candidate = { kind: "reminder" | "digest"; recipientId: string; occurrenceKey: string; dueAt: Date; expiresAt: Date; content: string; target: { discordUserId: string } | { guildId: string; channelId: string } };
 const MINUTE = 60_000;
+const MAX_DELIVERY_ATTEMPTS = 4;
 const publicIdentity = { principalId: "delivery", aliases: [], memberIds: [], canSuggest: false, canManageSelf: false };
 const discordTime = (iso: string) => `<t:${Math.floor(Date.parse(iso) / 1000)}:t>`;
 
@@ -72,7 +73,8 @@ export async function materializePlunderDeliveries(allianceId: string, now = new
     // Unique (alliance, kind, recipient, occurrence) is intentional anti-dupe. Terminal
     // `sent` / `uncertain` must remain blockers. `cancelled` is a temporary suppress —
     // revive when the candidate window returns so time-off clear / reminder re-enable
-    // can DM again before expires_at.
+    // can DM again before expires_at. Revival keeps `attempts`, and rows that already
+    // exhausted the retry cap stay cancelled; otherwise each tick would reset the cap.
     for (const { kind, recipientId, occurrenceKey, dueAt, expiresAt } of due) {
       await tx.insert(schema.plunderPlanDeliveries).values({
         id: nanoid(),
@@ -95,10 +97,12 @@ export async function materializePlunderDeliveries(allianceId: string, now = new
           status: "pending",
           leaseToken: null,
           leaseUntil: null,
-          attempts: 0,
           messageId: null,
         },
-        setWhere: eq(schema.plunderPlanDeliveries.status, "cancelled"),
+        setWhere: and(
+          eq(schema.plunderPlanDeliveries.status, "cancelled"),
+          lt(schema.plunderPlanDeliveries.attempts, MAX_DELIVERY_ATTEMPTS),
+        ),
       });
     }
     await tx.update(schema.plunderPlanState).set({ nextTickAt: new Date(now.getTime() + MINUTE) }).where(eq(schema.plunderPlanState.allianceId, allianceId));
@@ -117,7 +121,7 @@ async function prepareDelivery(candidate: Delivery, leaseToken?: string, expecte
       return null;
     }
     if (leaseToken ? row.leaseToken !== leaseToken || row.status !== "leased" || !row.leaseUntil || row.leaseUntil <= now : row.dueAt > now || row.status === "leased" && row.leaseUntil && row.leaseUntil > now) return null;
-    const eligible = row.expiresAt > now && row.attempts < 4 ? (await candidates(tx, row.allianceId, now)).find((item) => item.kind === row.kind && item.recipientId === row.recipientId && item.occurrenceKey === row.occurrenceKey) : null;
+    const eligible = row.expiresAt > now && row.attempts < MAX_DELIVERY_ATTEMPTS ? (await candidates(tx, row.allianceId, now)).find((item) => item.kind === row.kind && item.recipientId === row.recipientId && item.occurrenceKey === row.occurrenceKey) : null;
     if (!eligible || expectedTarget && JSON.stringify(eligible.target) !== JSON.stringify(expectedTarget)) {
       await tx.update(schema.plunderPlanDeliveries).set({ status: "cancelled", leaseToken: null, leaseUntil: null }).where(eq(schema.plunderPlanDeliveries.id, row.id));
       return null;

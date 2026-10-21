@@ -491,6 +491,8 @@ export async function dismissEng(input: {
   allianceId: string;
   wlCommanderId: string;
   engCommanderId: string;
+  /** Bulk officer save — skip per-row Discord/email. */
+  suppressNotifications?: boolean;
 }): Promise<void> {
   const team = await getWlTeam(input.allianceId, input.wlCommanderId);
   if (!team) throw new Error("No team found for this War Leader.");
@@ -514,12 +516,14 @@ export async function dismissEng(input: {
     subjectCommanderId: input.engCommanderId,
   });
 
-  await notifyProfessionEvent({
-    kind: "eng_dismissed",
-    allianceId: input.allianceId,
-    engCommanderId: input.engCommanderId,
-    wlCommanderId: input.wlCommanderId,
-  });
+  if (!input.suppressNotifications) {
+    await notifyProfessionEvent({
+      kind: "eng_dismissed",
+      allianceId: input.allianceId,
+      engCommanderId: input.engCommanderId,
+      wlCommanderId: input.wlCommanderId,
+    });
+  }
 }
 
 /** WL requests more Engineers. Logs the event and posts to profession channel. */

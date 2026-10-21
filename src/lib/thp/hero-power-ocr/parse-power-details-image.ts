@@ -42,6 +42,8 @@ import {
   toThpBreakdown,
   type ParsePowerDetailsResult,
 } from "@/lib/thp/hero-power-ocr/parse-power-details";
+import { readInGameScreenshotLayout } from "@/lib/ocr/in-game-crop";
+import type { InGameScreenshotLayout } from "@/lib/ocr/in-game-crop.shared";
 import {
   POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
   POWER_DETAILS_LABEL_OCR_CONFIG,
@@ -61,6 +63,7 @@ export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
     sampleLines: string[];
     /** How many label↔value pairs mapped to a breakdown key with a numeric value. */
     pairedCount?: number;
+    layout: InGameScreenshotLayout;
   };
 };
 
@@ -72,6 +75,28 @@ type HeaderOcrPass = {
 const COMPONENT_ROW_OFFSETS = [-0.015, -0.005, 0.005, 0.015] as const;
 const COMPONENT_ROW_INITIAL_HEIGHTS = [0.05] as const;
 const COMPONENT_ROW_FALLBACK_HEIGHTS = [0.035, 0.04, 0.045] as const;
+
+/** A menu-only crop is mostly the hero section, so each row is a larger share of the file. */
+const MENU_COMPONENT_ROW_OFFSETS = [-0.02, 0, 0.02] as const;
+const MENU_COMPONENT_ROW_INITIAL_HEIGHTS = [0.09] as const;
+const MENU_COMPONENT_ROW_FALLBACK_HEIGHTS = [0.07, 0.11] as const;
+
+function componentRowScan(layout: InGameScreenshotLayout) {
+  if (layout === "menu") {
+    return {
+      offsets: MENU_COMPONENT_ROW_OFFSETS,
+      initial: MENU_COMPONENT_ROW_INITIAL_HEIGHTS,
+      fallback: MENU_COMPONENT_ROW_FALLBACK_HEIGHTS,
+      focusedHeight: 0.11,
+    };
+  }
+  return {
+    offsets: COMPONENT_ROW_OFFSETS,
+    initial: COMPONENT_ROW_INITIAL_HEIGHTS,
+    fallback: COMPONENT_ROW_FALLBACK_HEIGHTS,
+    focusedHeight: 0.07,
+  };
+}
 
 function toGeometryLines(lines: OcrLineResult[]): GeometryOcrLine[] {
   return lines.map((line) => ({
@@ -160,14 +185,18 @@ function pickBestHeaderCandidate(
 
 export async function parsePowerDetailsImage(
   imageBuffer: Buffer,
+  layoutOverride?: InGameScreenshotLayout,
 ): Promise<ParsePowerDetailsImageResult> {
   const t0 = Date.now();
+  const layout =
+    layoutOverride ?? (await readInGameScreenshotLayout(imageBuffer));
+  const rowScan = componentRowScan(layout);
 
   const [labelPre, valuePre, valueInvPre, headerPre] = await Promise.all([
-    preprocessPowerDetailsLabelBand(imageBuffer),
-    preprocessPowerDetailsValueBand(imageBuffer),
-    preprocessPowerDetailsValueBandInverted(imageBuffer),
-    preprocessPowerDetailsHeaderValue(imageBuffer),
+    preprocessPowerDetailsLabelBand(imageBuffer, undefined, layout),
+    preprocessPowerDetailsValueBand(imageBuffer, undefined, layout),
+    preprocessPowerDetailsValueBandInverted(imageBuffer, undefined, layout),
+    preprocessPowerDetailsHeaderValue(imageBuffer, undefined, layout),
   ]);
 
   // Tesseract worker is serialized internally — await sequentially for clarity.
@@ -180,11 +209,26 @@ export async function parsePowerDetailsImage(
   );
 
   const headerLabel = labels.find((line) => isHeroPowerHeaderLabel(line.text));
+  // Menu crops keep the header's dropdown in the value column. Tesseract
+  // reads that button as an extra 1 and the comma-slot repair shifts.
+  // Component numbers are right-aligned past the button, so only this crop
+  // stops short of it.
+  const headerWidthFraction = layout === "menu" ? 0.7 : 1;
   const focusedNormalPre = headerLabel
-    ? await cropPowerDetailsValueRow(valuePre, headerLabel.yNorm)
+    ? await cropPowerDetailsValueRow(
+        valuePre,
+        headerLabel.yNorm,
+        rowScan.focusedHeight,
+        headerWidthFraction,
+      )
     : null;
   const focusedInvertedPre = headerLabel
-    ? await cropPowerDetailsValueRow(valueInvPre, headerLabel.yNorm)
+    ? await cropPowerDetailsValueRow(
+        valueInvPre,
+        headerLabel.yNorm,
+        rowScan.focusedHeight,
+        headerWidthFraction,
+      )
     : null;
 
   const valueLinesRaw = await runTesseract(
@@ -294,16 +338,29 @@ export async function parsePowerDetailsImage(
     }
 
     const rowTexts = new Map<ThpBreakdownKey, string[]>();
+    if (layout === "menu") {
+      // The value column is one line per row on a menu-only crop. Seed
+      // those reads so comma-slot repair runs on them; the tighter row
+      // crops often slice the outlined digits.
+      for (const row of componentLabels) {
+        const texts: string[] = [];
+        for (const line of values) {
+          if (Math.abs(line.yNorm - row.yNorm) <= 0.03) texts.push(line.text);
+        }
+        if (texts.length > 0) rowTexts.set(row.key, texts);
+      }
+    }
     const ocrComponentRows = async (heightFractions: readonly number[]) => {
       for (const row of componentLabels) {
         const texts = rowTexts.get(row.key) ?? [];
         for (const heightFraction of heightFractions) {
-          for (const offset of COMPONENT_ROW_OFFSETS) {
+          for (const offset of rowScan.offsets) {
             const pre = await preprocessPowerDetailsComponentValueRow(
               imageBuffer,
               row.yNorm,
               offset,
               heightFraction,
+              layout,
             );
             const lines = await runTesseract(
               pre.buffer,
@@ -342,10 +399,10 @@ export async function parsePowerDetailsImage(
       });
     };
 
-    await ocrComponentRows(COMPONENT_ROW_INITIAL_HEIGHTS);
+    await ocrComponentRows(rowScan.initial);
     let resolved = resolveFromTexts();
     if (resolved == null) {
-      await ocrComponentRows(COMPONENT_ROW_FALLBACK_HEIGHTS);
+      await ocrComponentRows(rowScan.fallback);
       resolved = resolveFromTexts();
     }
     for (const row of componentLabels) {
@@ -407,7 +464,7 @@ export async function parsePowerDetailsImage(
   });
   logOcrDiagnostics(diagnostics);
 
-  return {
+  const result: ParsePowerDetailsImageResult = {
     heroPowerTotal: assembled.heroPowerTotal,
     breakdown: assembled.breakdown,
     complete: assembled.complete,
@@ -416,8 +473,22 @@ export async function parsePowerDetailsImage(
       durationMs: diagnostics.durationMs,
       sampleLines: diagnostics.sampleLines,
       pairedCount: assembled.pairedCount,
+      layout,
     },
   };
+
+  // A wide frame with no resource bar uses menu geometry. If that crop
+  // finds no header, the file is a full screenshot whose HUD OCR missed,
+  // so retry the phone window instead of failing the upload.
+  if (
+    layoutOverride == null &&
+    layout === "menu" &&
+    result.heroPowerTotal == null
+  ) {
+    return parsePowerDetailsImage(imageBuffer, "phone");
+  }
+
+  return result;
 }
 
 export { toThpBreakdown };

@@ -278,11 +278,18 @@ describe("optimistic dashboard state", () => {
   it("clears a pending conductor across schedule views", () => {
     const snap = snapshot({
       dayConfigs: [dayConfig("2026-06-10", R3_WHEEL)],
-      weekRecords: [conductorRecord("2026-06-10")],
+      weekRecords: [
+        conductorRecord("2026-06-10", {
+          vipMemberId: "m2",
+          vipMemberName: "Bob",
+        }),
+      ],
     });
     const next = applyOptimisticClearPendingConductor(snap, "2026-06-10");
     expect(next.viewedWeek.weekRecords[0]?.conductorMemberId).toBeNull();
     expect(next.viewedMonth.monthRecords[0]?.conductorMemberId).toBeNull();
+    expect(next.viewedWeek.weekRecords[0]?.vipMemberId).toBeNull();
+    expect(next.viewedWeek.weekRecords[0]?.vipMemberName).toBeNull();
   });
 });
 

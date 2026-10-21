@@ -57,4 +57,30 @@ describe("cpt-hedge chunk discovery", () => {
     expect(refreshed[0]?.currentSeason).toBe(5);
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
+
+  it("does not poison the cache with an empty parse (keeps last-good records)", async () => {
+    const html =
+      '<script src="/_next/static/chunks/app/servers/page-test.js"></script>';
+    const goodChunk =
+      '{"id":"1203","server":"State#1203","timestamp":"1735204501000","currentSeason":5,"isPostSeason":false,"currentWeek":1}';
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => html })
+      .mockResolvedValueOnce({ ok: true, text: async () => goodChunk })
+      // Second load (force): HTML has no embedded records; chunk is empty / broken.
+      .mockResolvedValueOnce({ ok: true, text: async () => html })
+      .mockResolvedValueOnce({ ok: true, text: async () => "/* no servers */" });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await loadCptHedgeServerRecords();
+    expect(first).toHaveLength(1);
+    expect(first[0]?.currentSeason).toBe(5);
+
+    const afterEmpty = await loadCptHedgeServerRecords(true);
+    // RED without empty-cache guard: afterEmpty === [] and caches empty for 1h.
+    expect(afterEmpty).toHaveLength(1);
+    expect(afterEmpty[0]?.currentSeason).toBe(5);
+  });
 });
