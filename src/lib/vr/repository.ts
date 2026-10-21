@@ -40,10 +40,10 @@ import {
   syncCommanderIdentityFromMemberLink,
 } from "@/lib/members/commander-identity.server";
 import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/discord-link-live-identity.server";
+import { isGameUidClaimedByOtherPrincipal } from "@/lib/member-link/game-uid-global-claim.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
-import { isCommanderReservedByPendingClaim } from "@/lib/native-alliance/claim-seat-reservation.server";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
@@ -542,12 +542,11 @@ export async function linkDiscordMember(input: {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 
-  const discordHqLink = await getDiscordHqLink(input.discordUserId);
+  // Alliance-scoped unique indexes do not cover cross-alliance hijacks.
   if (
-    await isCommanderReservedByPendingClaim({
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      allowedHqUserId: discordHqLink?.hqUserId ?? null,
+    await isGameUidClaimedByOtherPrincipal({
+      gameUid: input.gameUid,
+      discordUserId: input.discordUserId,
     })
   ) {
     return { ok: false, reason: "member_linked_to_other_discord" };
@@ -577,6 +576,8 @@ export async function linkDiscordMember(input: {
   );
   const homeServerBeforeLink =
     (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
+  const hqBridge = await getDiscordHqLink(input.discordUserId);
+  const authorizeHqUserId = hqBridge?.hqUserId ?? null;
 
   try {
     if (existingPair) {
@@ -619,6 +620,7 @@ export async function linkDiscordMember(input: {
         ashedMemberId: input.ashedMemberId,
         gameUid: input.gameUid,
         memberDisplayName: input.memberDisplayName,
+        hqUserId: authorizeHqUserId ?? undefined,
         homeServerBeforeLink,
       });
       return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
@@ -676,6 +678,7 @@ export async function linkDiscordMember(input: {
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
       memberDisplayName: input.memberDisplayName,
+      hqUserId: authorizeHqUserId ?? undefined,
       joinedAt: now,
       homeServerBeforeLink,
     });
