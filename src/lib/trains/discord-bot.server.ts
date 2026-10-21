@@ -72,7 +72,9 @@ export async function announceTrainReadyToAlliance(input: {
   let posted = 0;
   let skipped = 0;
   for (const target of targets) {
-    const ok = await postDiscordChannelMessage(target.channelId, message);
+    const ok = await postDiscordChannelMessage(target.channelId, message, {
+      source: "train.ready",
+    });
     if (ok) posted += 1;
     else skipped += 1;
   }
@@ -275,7 +277,9 @@ export async function processDepartingSoonReminders(): Promise<{
     let alliancePosted = 0;
     try {
       for (const channel of channels) {
-        const ok = await postDiscordChannelMessage(channel.channelId, message);
+        const ok = await postDiscordChannelMessage(channel.channelId, message, {
+          source: "train.departing_soon",
+        });
         if (ok) {
           alliancePosted += 1;
         } else {
