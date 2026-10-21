@@ -72,7 +72,9 @@ export async function announceTrainReadyToAlliance(input: {
   let posted = 0;
   let skipped = 0;
   for (const target of targets) {
-    const ok = await postDiscordChannelMessage(target.channelId, message);
+    const ok = await postDiscordChannelMessage(target.channelId, message, {
+      source: "train.ready",
+    });
     if (ok) posted += 1;
     else skipped += 1;
   }
@@ -273,13 +275,26 @@ export async function processDepartingSoonReminders(): Promise<{
     }
 
     let alliancePosted = 0;
-    for (const channel of channels) {
-      const ok = await postDiscordChannelMessage(channel.channelId, message);
-      if (ok) {
-        alliancePosted += 1;
-      } else {
-        skipped += 1;
+    try {
+      for (const channel of channels) {
+        const ok = await postDiscordChannelMessage(channel.channelId, message, {
+          source: "train.departing_soon",
+        });
+        if (ok) {
+          alliancePosted += 1;
+        } else {
+          skipped += 1;
+        }
       }
+    } catch (error) {
+      // Network-level Discord failures can throw; keep the claim only when at
+      // least one channel was delivered so a later tick does not double-post.
+      console.error(
+        "[train-departing-soon] Discord post failed after claim",
+        { allianceId, recordId: record.id },
+        error,
+      );
+      skipped += Math.max(0, channels.length - alliancePosted);
     }
 
     if (alliancePosted > 0) {
