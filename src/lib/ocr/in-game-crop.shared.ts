@@ -13,6 +13,14 @@ export type InGameScreenshotLayout = "phone" | "menu";
 export const IN_GAME_CROP_TOP_FRACTION = 0.12;
 export const IN_GAME_CROP_TOP_MIN_PX = 36;
 
+/**
+ * A full phone screenshot is about 9:16 or taller. A crop that keeps only
+ * the Power Details card is wide. Portrait frames stay on the phone window
+ * even when the resource-bar OCR misses a decimal or a suffix. That miss
+ * used to select the menu crop, which is the wrong window for a full screenshot.
+ */
+export const IN_GAME_PHONE_FRAME_MIN_RATIO = 1.6;
+
 /** 166.7 or 3,46 — dot or comma decimal, not a thousand-grouped integer. */
 const RESOURCE_DECIMAL_RE = /\d{1,3}[.,]\d{1,2}/g;
 const RESOURCE_SUFFIX_RE = /[KMG]/gi;
@@ -51,8 +59,19 @@ export function topRowHasResourceHud(text: string): boolean {
   );
 }
 
+export function isPortraitPhoneFrame(width: number, height: number): boolean {
+  return width > 0 && height / width >= IN_GAME_PHONE_FRAME_MIN_RATIO;
+}
+
 export function inGameScreenshotLayoutFromTopRow(
   text: string,
+  dimensions?: { width: number; height: number },
 ): InGameScreenshotLayout {
+  if (
+    dimensions != null &&
+    isPortraitPhoneFrame(dimensions.width, dimensions.height)
+  ) {
+    return "phone";
+  }
   return topRowHasResourceHud(text) ? "phone" : "menu";
 }

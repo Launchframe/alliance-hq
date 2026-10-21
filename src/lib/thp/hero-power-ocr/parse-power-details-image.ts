@@ -185,9 +185,11 @@ function pickBestHeaderCandidate(
 
 export async function parsePowerDetailsImage(
   imageBuffer: Buffer,
+  layoutOverride?: InGameScreenshotLayout,
 ): Promise<ParsePowerDetailsImageResult> {
   const t0 = Date.now();
-  const layout = await readInGameScreenshotLayout(imageBuffer);
+  const layout =
+    layoutOverride ?? (await readInGameScreenshotLayout(imageBuffer));
   const rowScan = componentRowScan(layout);
 
   const [labelPre, valuePre, valueInvPre, headerPre] = await Promise.all([
@@ -462,7 +464,7 @@ export async function parsePowerDetailsImage(
   });
   logOcrDiagnostics(diagnostics);
 
-  return {
+  const result: ParsePowerDetailsImageResult = {
     heroPowerTotal: assembled.heroPowerTotal,
     breakdown: assembled.breakdown,
     complete: assembled.complete,
@@ -474,6 +476,19 @@ export async function parsePowerDetailsImage(
       layout,
     },
   };
+
+  // A wide frame with no resource bar uses menu geometry. If that crop
+  // finds no header, the file is a full screenshot whose HUD OCR missed,
+  // so retry the phone window instead of failing the upload.
+  if (
+    layoutOverride == null &&
+    layout === "menu" &&
+    result.heroPowerTotal == null
+  ) {
+    return parsePowerDetailsImage(imageBuffer, "phone");
+  }
+
+  return result;
 }
 
 export { toThpBreakdown };
