@@ -57,4 +57,16 @@ describe("base44ListMemberRecords", () => {
       base44ListMemberRecords(connection, "alliance-1"),
     ).resolves.toEqual([]);
   });
+
+  it("returns empty when every row explicitly belongs to another alliance", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { id: "x", current_name: "X", alliance_id: "alliance-2" },
+        { id: "y", current_name: "Y", alliance_id: "alliance-3" },
+      ]),
+    );
+
+    const rows = await base44ListMemberRecords(connection, "alliance-1");
+    expect(rows).toEqual([]);
+  });
 });
