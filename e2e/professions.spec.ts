@@ -339,6 +339,55 @@ test.describe("Professions — War Leader Support", () => {
     expect(applyJson.assigned).toBe(1);
     expect(applyJson.failed).toBe(0);
 
+    const rosterRes = await request.get(
+      `${e2eBaseUrl()}/api/professions/officer/team-builder`,
+      { headers: { Cookie: authCookieHeader(officerSession) } },
+    );
+    expect(rosterRes.ok(), await rosterRes.text()).toBeTruthy();
+    const rosterJson = (await rosterRes.json()) as {
+      members: { commanderId: string; name: string; profession: string | null }[];
+    };
+    const importEng = rosterJson.members.find((member) => member.name === "Import Eng");
+    const importWl = rosterJson.members.find((member) => member.name === "Import WL");
+    expect(importEng?.profession).toBe("Engineer");
+    expect(importWl?.profession).toBe("War Leader");
+    const unplaceRes = await request.post(
+      `${e2eBaseUrl()}/api/professions/officer/team-builder`,
+      {
+        headers: {
+          Cookie: authCookieHeader(officerSession),
+          "Content-Type": "application/json",
+        },
+        data: {
+          professionFills: [],
+          assignments: [{ engCommanderId: importEng?.commanderId, wlCommanderId: null }],
+        },
+      },
+    );
+    expect(unplaceRes.ok(), await unplaceRes.text()).toBeTruthy();
+    const unplaceJson = (await unplaceRes.json()) as { assigned: number; moved: number };
+    expect(unplaceJson.moved).toBe(1);
+    expect(unplaceJson.assigned).toBe(0);
+    const placeRes = await request.post(
+      `${e2eBaseUrl()}/api/professions/officer/team-builder`,
+      {
+        headers: {
+          Cookie: authCookieHeader(officerSession),
+          "Content-Type": "application/json",
+        },
+        data: {
+          professionFills: [],
+          assignments: [
+            { engCommanderId: importEng?.commanderId, wlCommanderId: importWl?.commanderId },
+          ],
+        },
+      },
+    );
+    expect(placeRes.ok(), await placeRes.text()).toBeTruthy();
+    const placeJson = (await placeRes.json()) as { assigned: number; moved: number };
+    expect(placeJson.assigned).toBe(1);
+    expect(placeJson.moved).toBe(1);
+
     const { ashedMemberId } = await createHqMemberLink(sql, {
       allianceId: alliance.allianceId,
       hqUserId: officerSession.hqUserId,
@@ -394,6 +443,17 @@ test.describe("Professions — War Leader Support", () => {
       },
     );
     expect(denied.status()).toBe(403);
+    const builderDenied = await request.post(
+      `${e2eBaseUrl()}/api/professions/officer/team-builder`,
+      {
+        headers: {
+          Cookie: authCookieHeader(memberSession),
+          "Content-Type": "application/json",
+        },
+        data: { professionFills: [], assignments: [] },
+      },
+    );
+    expect(builderDenied.status()).toBe(403);
   });
 
   test("member sets profession via switch API (onboarding path)", async ({
