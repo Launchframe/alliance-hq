@@ -77,7 +77,8 @@ describe("syncCommanderLevelFromAllianceMember", () => {
     );
   });
 
-  it("on over-cap ashed_sync apply: clamps via adapter and clears ashedSyncedAt", async () => {
+  it("on over-cap ashed_sync apply: clamps via adapter and clears ashedSyncedAt in the locked transaction", async () => {
+    const tx = { update: vi.fn(() => ({ set: updateSet })) };
     decideAndMaybeApplyInboundStat.mockImplementation(
       async (input: {
         adapter: {
@@ -88,6 +89,7 @@ describe("syncCommanderLevelFromAllianceMember", () => {
             memberName: string;
             total: number;
             source: "ashed_sync";
+            tx?: unknown;
           }) => Promise<boolean>;
         };
         ashedTotal: number;
@@ -95,6 +97,7 @@ describe("syncCommanderLevelFromAllianceMember", () => {
         allianceId: string;
         ashedMemberId: string;
         memberName: string;
+        afterApply?: (tx: unknown) => Promise<void>;
       }) => {
         await input.adapter.applyAshedOnHq({
           commanderId: input.commanderId,
@@ -103,7 +106,9 @@ describe("syncCommanderLevelFromAllianceMember", () => {
           memberName: input.memberName,
           total: input.ashedTotal,
           source: "ashed_sync",
+          tx,
         });
+        await input.afterApply?.(tx);
         return "apply";
       },
     );
@@ -129,21 +134,20 @@ describe("syncCommanderLevelFromAllianceMember", () => {
       expect.objectContaining({ ashedTotal: 90 }),
     );
     expect(upsertCommanderLevel).toHaveBeenCalledWith(
-      expect.objectContaining({ total: 35, source: "ashed_sync" }),
+      expect.objectContaining({ total: 35, source: "ashed_sync", tx }),
     );
+    expect(loadLatestNonDiscardedEventMeta).toHaveBeenCalledWith(
+      "level",
+      "cmd1",
+      tx,
+    );
+    expect(tx.update).toHaveBeenCalled();
     expect(updateSet).toHaveBeenCalledWith({ ashedSyncedAt: null });
     expect(updateWhere).toHaveBeenCalled();
   });
 
   it("does not clear ashedSyncedAt when applied Ashed level is within cap", async () => {
     decideAndMaybeApplyInboundStat.mockImplementation(async () => "apply");
-    loadLatestNonDiscardedEventMeta.mockResolvedValue({
-      source: "ashed_sync",
-      eventId: "evt-level-2",
-      ashedSyncedAt: new Date(),
-      total: 30,
-      createdAt: new Date(),
-    });
 
     await syncCommanderLevelFromAllianceMember({
       commanderId: "cmd1",
@@ -154,6 +158,9 @@ describe("syncCommanderLevelFromAllianceMember", () => {
       source: "ashed_sync",
     });
 
+    expect(decideAndMaybeApplyInboundStat).toHaveBeenCalledWith(
+      expect.objectContaining({ afterApply: undefined }),
+    );
     expect(updateSet).not.toHaveBeenCalled();
   });
 

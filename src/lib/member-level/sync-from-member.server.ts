@@ -141,22 +141,25 @@ export async function syncCommanderLevelFromAllianceMember(input: {
       // applyAshedOnHq clamps before writing HQ.
       ashedTotal: rawTotal,
       hqUserId: input.hqUserId,
+      afterApply:
+        rawTotal > MAX_MEMBER_HQ_LEVEL
+          ? async (tx) => {
+              // HQ is now capped; leave the event unsynced so /stat-sync can
+              // push the corrected level back to Ashed.
+              const meta = await loadLatestNonDiscardedEventMeta(
+                "level",
+                input.commanderId,
+                tx,
+              );
+              if (meta.eventId) {
+                await tx
+                  .update(schema.commanderLevelEvents)
+                  .set({ ashedSyncedAt: null })
+                  .where(eq(schema.commanderLevelEvents.id, meta.eventId));
+              }
+            }
+          : undefined,
     });
-    if (decision === "apply" && rawTotal > MAX_MEMBER_HQ_LEVEL) {
-      // HQ is now capped; leave the event unsynced so /stat-sync can push the
-      // corrected level back to Ashed.
-      const meta = await loadLatestNonDiscardedEventMeta(
-        "level",
-        input.commanderId,
-      );
-      if (meta.eventId) {
-        const db = getDb();
-        await db
-          .update(schema.commanderLevelEvents)
-          .set({ ashedSyncedAt: null })
-          .where(eq(schema.commanderLevelEvents.id, meta.eventId));
-      }
-    }
     return decision === "apply";
   }
 

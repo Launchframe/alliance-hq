@@ -4,6 +4,7 @@ import {
   buildEqualChanceOddsBoard,
   buildUniformEconomyDrawSet,
   classifyPriceIsFreightEmptyReason,
+  pickPairedVipCandidate,
   pickUniformRollCandidate,
   pickWeightedRollCandidate,
 } from "@/lib/trains/price-is-freight-roll.shared";
@@ -30,6 +31,33 @@ describe("pickUniformRollCandidate", () => {
     expect(pickUniformRollCandidate(candidates)?.memberId).toBe("a");
     expect(pickUniformRollCandidate(candidates)?.memberId).toBe("a");
     vi.restoreAllMocks();
+  });
+});
+
+describe("pickPairedVipCandidate", () => {
+  it("draws the VIP from the conductor pool after removing the conductor", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const candidates = [
+      { memberId: "a", memberName: "A" },
+      { memberId: "b", memberName: "B" },
+      { memberId: "c", memberName: "C" },
+    ];
+    const paired = pickPairedVipCandidate(candidates, "a", false);
+    expect(paired?.vip.memberId).toBe("b");
+    expect(paired?.wheelCandidates.map((row) => row.memberId)).toEqual([
+      "b",
+      "c",
+    ]);
+    vi.restoreAllMocks();
+  });
+
+  it("returns null when the conductor is the only eligible member", () => {
+    const paired = pickPairedVipCandidate(
+      [{ memberId: "a", memberName: "A" }],
+      "a",
+      false,
+    );
+    expect(paired).toBeNull();
   });
 });
 

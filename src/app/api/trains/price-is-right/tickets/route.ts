@@ -4,6 +4,8 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import { getConductorRecord } from "@/lib/trains/repository";
+import { parseConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   conductorRuleUsesPriceIsFreightRoll,
   isHeavyHitterBoardRule,
@@ -43,7 +45,9 @@ export async function GET(request: Request) {
   const ctx = await resolveTrainRequestContext();
   if (ctx instanceof NextResponse) return ctx;
 
-  const trainDate = new URL(request.url).searchParams.get("date")?.trim();
+  const requestUrl = new URL(request.url);
+  const trainDate = requestUrl.searchParams.get("date")?.trim();
+  const forRecordedRule = requestUrl.searchParams.get("source") === "record";
   if (!trainDate || !/^\d{4}-\d{2}-\d{2}$/.test(trainDate)) {
     return NextResponse.json(
       { error: "date query parameter (YYYY-MM-DD) is required." },
@@ -57,7 +61,13 @@ export async function GET(request: Request) {
     trainDate,
     seasonKey,
   );
-  const rule = dayConfig.conductorRule;
+  const recordedRule = forRecordedRule
+    ? parseConductorRule(
+        (await getConductorRecord(ctx.allianceId, trainDate, seasonKey))
+          ?.conductorRule,
+      )
+    : null;
+  const rule = forRecordedRule ? recordedRule : dayConfig.conductorRule;
   if (!conductorRuleUsesPriceIsFreightRoll(rule)) {
     return NextResponse.json(
       { error: "Selected day is not a Price Is Freight train day." },

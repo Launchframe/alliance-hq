@@ -22,9 +22,9 @@ export const levelStatSyncAdapter: StatSyncAdapter = {
   stat: "level",
   ashedField: "level",
 
-  async getHqCurrent(commanderId) {
-    const state = await getCommanderLevelState(commanderId);
-    const meta = await loadLatestNonDiscardedEventMeta("level", commanderId);
+  async getHqCurrent(commanderId, tx) {
+    const state = await getCommanderLevelState(commanderId, tx);
+    const meta = await loadLatestNonDiscardedEventMeta("level", commanderId, tx);
     return {
       total: state?.memberLevel ?? null,
       updatedAt: state?.levelUpdatedAt ?? meta.createdAt,
@@ -43,6 +43,7 @@ export const levelStatSyncAdapter: StatSyncAdapter = {
       memberName: input.memberName,
       source: input.source,
       hqUserId: input.hqUserId,
+      tx: input.tx,
     });
   },
 

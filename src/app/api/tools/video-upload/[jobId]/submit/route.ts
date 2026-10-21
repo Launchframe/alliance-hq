@@ -110,6 +110,7 @@ import { isDesertStormVideoTarget } from "@/lib/video/score-targets";
 import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-match-header.shared";
 import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
 import { submitVsReview, vsEvidenceErrorResponse } from "@/lib/vs-scores/submit.server";
+import { rosterMismatchMemberNames } from "@/lib/vs-scores/invalid-member.shared";
 import {
   commitScoreRowsToEventLedger,
   eventEvidenceSubmitErrorResponse,
@@ -1104,7 +1105,15 @@ export async function POST(request: Request, { params }: Props) {
         const localRoster = await listAllianceMembers(allianceId);
         allowedMemberIds = new Set(localRoster.map((member) => member.ashedMemberId).filter((id): id is string => !!id));
       }
-      if (activeRows.some((row) => !allowedMemberIds.has(row.memberId))) return vsEvidenceErrorResponse(new VsEvidenceError("invalid_member"));
+      if (activeRows.some((row) => !allowedMemberIds.has(row.memberId))) {
+        return vsEvidenceErrorResponse(
+          new VsEvidenceError(
+            "invalid_member",
+            400,
+            rosterMismatchMemberNames(activeRows, allowedMemberIds),
+          ),
+        );
+      }
       try {
         for (const row of activeRows) row.score = String(parseVsScore(row.score));
         ocrFeedbackReceiptId = await prepareReviewFeedback({

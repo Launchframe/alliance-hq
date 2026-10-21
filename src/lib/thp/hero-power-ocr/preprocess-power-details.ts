@@ -8,7 +8,7 @@
  *
  * | Region        | Assumption |
  * |---------------|------------|
- * | Modal         | left 6%, top 11%, width 88%, height 55% (clears status/resource strip) |
+ * | Modal         | Phone: left 6%, top 11%, width 88%, height 55% (clears the resource HUD). Menu crop: the file is the card. |
  * | Label column  | left 0–60% of the modal (row names) |
  * | Value column  | right 55–100% of the modal (right-aligned numbers; slight overlap with labels is OK) |
  * | Header value  | top ~18% of modal × right 45–100%, inverted (fallback — prefer top value-column line) |
@@ -25,6 +25,7 @@
  */
 
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
+import type { InGameScreenshotLayout } from "@/lib/ocr/in-game-crop.shared";
 
 export type PowerDetailsPreprocessResult = {
   buffer: Buffer;
@@ -131,11 +132,47 @@ export const POWER_DETAILS_HEADER_VALUE_BAND = {
   width: 0.55,
 } as const;
 
-function modalCropBox(srcWidth: number, srcHeight: number) {
-  const cropLeft = Math.round(srcWidth * POWER_DETAILS_MODAL_CROP.left);
-  const cropTop = Math.round(srcHeight * POWER_DETAILS_MODAL_CROP.top);
-  const cropWidth = Math.round(srcWidth * POWER_DETAILS_MODAL_CROP.width);
-  const cropHeight = Math.round(srcHeight * POWER_DETAILS_MODAL_CROP.height);
+/**
+ * Menu-only upload: the card fills the file, so the phone window would
+ * start in the title and end before the lower rows.
+ */
+export const POWER_DETAILS_MENU_CROP = {
+  left: 0,
+  top: 0,
+  width: 1,
+  height: 1,
+} as const;
+
+/** Hero Power sits under the title bar on a menu-only crop. */
+export const POWER_DETAILS_MENU_HEADER_VALUE_BAND = {
+  top: 0.15,
+  height: 0.16,
+  left: 0.42,
+  width: 0.58,
+} as const;
+
+export function powerDetailsModalCrop(layout: InGameScreenshotLayout = "phone") {
+  return layout === "menu" ? POWER_DETAILS_MENU_CROP : POWER_DETAILS_MODAL_CROP;
+}
+
+export function powerDetailsHeaderValueBand(
+  layout: InGameScreenshotLayout = "phone",
+) {
+  return layout === "menu"
+    ? POWER_DETAILS_MENU_HEADER_VALUE_BAND
+    : POWER_DETAILS_HEADER_VALUE_BAND;
+}
+
+function modalCropBox(
+  srcWidth: number,
+  srcHeight: number,
+  layout: InGameScreenshotLayout = "phone",
+) {
+  const frame = powerDetailsModalCrop(layout);
+  const cropLeft = Math.round(srcWidth * frame.left);
+  const cropTop = Math.round(srcHeight * frame.top);
+  const cropWidth = Math.round(srcWidth * frame.width);
+  const cropHeight = Math.round(srcHeight * frame.height);
   return {
     left: Math.max(0, cropLeft),
     top: Math.max(0, cropTop),
@@ -228,12 +265,13 @@ async function extractScaledGreyscale(input: {
 export async function preprocessPowerDetailsImage(
   input: Buffer,
   scale = POWER_DETAILS_BODY_OCR_CONFIG.preprocessScale ?? 2.75,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const crop = modalCropBox(srcWidth, srcHeight);
+  const crop = modalCropBox(srcWidth, srcHeight, layout);
   return extractScaledGreyscale({
     buffer: input,
     crop,
@@ -249,12 +287,13 @@ export async function preprocessPowerDetailsImage(
 export async function preprocessPowerDetailsHeaderBand(
   input: Buffer,
   scale = POWER_DETAILS_HEADER_OCR_CONFIG.preprocessScale ?? 3,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
+  const modal = modalCropBox(srcWidth, srcHeight, layout);
   const headerHeight = Math.max(48, Math.round(modal.height * 0.22));
   const crop = {
     left: modal.left,
@@ -275,12 +314,13 @@ export async function preprocessPowerDetailsHeaderBand(
 export async function preprocessPowerDetailsLabelBand(
   input: Buffer,
   scale = POWER_DETAILS_LABEL_OCR_CONFIG.preprocessScale ?? 2.75,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
+  const modal = modalCropBox(srcWidth, srcHeight, layout);
   const crop = bandWithinModal(modal, POWER_DETAILS_LABEL_BAND);
   return extractScaledGreyscale({
     buffer: input,
@@ -298,12 +338,13 @@ export async function preprocessPowerDetailsLabelBand(
 export async function preprocessPowerDetailsValueBand(
   input: Buffer,
   scale = POWER_DETAILS_VALUE_OCR_CONFIG.preprocessScale ?? 3,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
+  const modal = modalCropBox(srcWidth, srcHeight, layout);
   const crop = bandWithinModal(modal, POWER_DETAILS_VALUE_BAND);
   return extractScaledGreyscale({
     buffer: input,
@@ -324,12 +365,13 @@ export async function preprocessPowerDetailsValueBand(
 export async function preprocessPowerDetailsValueBandInverted(
   input: Buffer,
   scale = POWER_DETAILS_VALUE_OCR_CONFIG.preprocessScale ?? 3,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
+  const modal = modalCropBox(srcWidth, srcHeight, layout);
   const crop = bandWithinModal(modal, POWER_DETAILS_VALUE_BAND);
   return extractScaledGreyscale({
     buffer: input,
@@ -352,13 +394,14 @@ export async function preprocessPowerDetailsValueBandInverted(
 export async function preprocessPowerDetailsHeaderValue(
   input: Buffer,
   scale = POWER_DETAILS_HEADER_VALUE_OCR_CONFIG.preprocessScale ?? 3.25,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
-  const crop = bandWithinModal(modal, POWER_DETAILS_HEADER_VALUE_BAND);
+  const modal = modalCropBox(srcWidth, srcHeight, layout);
+  const crop = bandWithinModal(modal, powerDetailsHeaderValueBand(layout));
   return extractScaledGreyscale({
     buffer: input,
     crop,
@@ -374,12 +417,13 @@ export async function preprocessPowerDetailsComponentValueRow(
   yNorm: number,
   yOffset = 0,
   heightFraction = 0.04,
+  layout: InGameScreenshotLayout = "phone",
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const meta = await sharp(input).metadata();
   const srcWidth = meta.width ?? 1080;
   const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
+  const modal = modalCropBox(srcWidth, srcHeight, layout);
   const height = Math.min(
     modal.height,
     Math.max(12, Math.round(modal.height * heightFraction)),
@@ -417,19 +461,25 @@ export async function preprocessPowerDetailsComponentValueRow(
 export async function cropPowerDetailsValueRow(
   input: PowerDetailsPreprocessResult,
   yNorm: number,
+  heightFraction = 0.07,
+  widthFraction = 1,
 ): Promise<PowerDetailsPreprocessResult> {
   const sharp = (await import("sharp")).default;
   const height = Math.min(
     input.height,
-    Math.max(12, Math.round(input.height * 0.07)),
+    Math.max(12, Math.round(input.height * heightFraction)),
   );
   const top = Math.max(
     0,
     Math.min(input.height - height, Math.round(input.height * yNorm - height / 2)),
   );
+  const width = Math.min(
+    input.width,
+    Math.max(12, Math.round(input.width * widthFraction)),
+  );
   const buffer = await sharp(input.buffer)
-    .extract({ left: 0, top, width: input.width, height })
+    .extract({ left: 0, top, width, height })
     .png()
     .toBuffer();
-  return { buffer, width: input.width, height };
+  return { buffer, width, height };
 }
