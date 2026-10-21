@@ -54,7 +54,7 @@ export async function loadViralResistanceLeaderboard(
   const commanderThpByMemberId = new Map(
     [...commanderStats.entries()].map(([id, stats]) => [
       id,
-      { currentTotalHeroPower: stats.totalHeroPower },
+      { currentTotalHeroPower: stats.totalHeroPower, currentKills: stats.kills },
     ]),
   );
   return {
