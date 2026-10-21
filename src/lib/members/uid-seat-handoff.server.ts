@@ -1,11 +1,9 @@
 import "server-only";
 
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup.server";
 import { denormalizeGameUidOnMember } from "@/lib/members/member-tenure.server";
-import { normalizeName } from "@/lib/vr/link-helpers";
 
 type DiscordMemberLinkRow = typeof schema.discordMemberLinks.$inferSelect;
 type HqMemberLinkRow = typeof schema.hqMemberLinks.$inferSelect;
@@ -62,60 +60,6 @@ async function findActiveMemberByGameUid(
     .limit(2);
   if (rows.length !== 1) return null;
   return rows[0] ?? null;
-}
-
-async function loadActiveRosterForNameMatch(allianceId: string) {
-  const db = getDb();
-  return db
-    .select({
-      ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: schema.allianceMembers.currentName,
-      previousNamesJson: schema.allianceMembers.previousNamesJson,
-      status: schema.allianceMembers.status,
-      gameUid: schema.allianceMembers.gameUid,
-    })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, allianceId),
-        ne(schema.allianceMembers.status, "former"),
-      ),
-    )
-    .limit(5000);
-}
-
-function findUniqueLiveSeatByExactName(
-  members: {
-    ashedMemberId: string;
-    currentName: string;
-    previousNamesJson: string[] | null;
-    status: string;
-    gameUid: string | null;
-  }[],
-  gameUserName: string,
-): { ashedMemberId: string; currentName: string; gameUid: string | null } | null {
-  const needle = normalizeName(gameUserName);
-  if (!needle) return null;
-  const matches: {
-    ashedMemberId: string;
-    currentName: string;
-    gameUid: string | null;
-  }[] = [];
-  const seen = new Set<string>();
-  for (const member of members) {
-    if (member.status === "former") continue;
-    const names = [member.currentName, ...(member.previousNamesJson ?? [])];
-    if (!names.some((name) => normalizeName(name) === needle)) continue;
-    if (seen.has(member.ashedMemberId)) continue;
-    seen.add(member.ashedMemberId);
-    matches.push({
-      ashedMemberId: member.ashedMemberId,
-      currentName: member.currentName,
-      gameUid: member.gameUid,
-    });
-    if (matches.length > 1) return null;
-  }
-  return matches[0] ?? null;
 }
 
 async function discordSeatOccupiedByOther(input: {
@@ -292,42 +236,24 @@ export async function resolveLiveSeatForFormerClaim(input: {
   const gameUid = input.gameUid.trim();
   if (!gameUid) return null;
 
-  const occupancy = {
-    allianceId: input.allianceId,
-    discordUserId: input.discordUserId,
-    gameUid,
-  };
-
+  // UID-only follow. Name-only rematerialize (Last War lookup → unique roster
+  // name, live seat game_uid null) let a former Discord linker rename in-game
+  // onto an unlinked R4+/owner seat and inherit officer/owner bot gates.
   const byUid = await findActiveMemberByGameUid(input.allianceId, gameUid);
-  if (byUid && byUid.ashedMemberId !== input.ashedMemberId) {
-    if (
-      await liveSeatOccupiedByOther({
-        ...occupancy,
-        ashedMemberId: byUid.ashedMemberId,
-      })
-    ) {
-      return null;
-    }
-    return { ashedMemberId: byUid.ashedMemberId, currentName: byUid.currentName };
+  if (!byUid || byUid.ashedMemberId === input.ashedMemberId) {
+    return null;
   }
-
-  const lookup = await lookupPlayerByUid(gameUid);
-  if (!lookup.ok) return null;
-
-  const members = await loadActiveRosterForNameMatch(input.allianceId);
-  const match = findUniqueLiveSeatByExactName(members, lookup.gameUserName);
-  if (!match || match.ashedMemberId === input.ashedMemberId) return null;
-  const liveUid = match.gameUid?.trim() ?? "";
-  if (liveUid && liveUid !== gameUid) return null;
   if (
     await liveSeatOccupiedByOther({
-      ...occupancy,
-      ashedMemberId: match.ashedMemberId,
+      allianceId: input.allianceId,
+      discordUserId: input.discordUserId,
+      gameUid,
+      ashedMemberId: byUid.ashedMemberId,
     })
   ) {
     return null;
   }
-  return { ashedMemberId: match.ashedMemberId, currentName: match.currentName };
+  return { ashedMemberId: byUid.ashedMemberId, currentName: byUid.currentName };
 }
 
 /**

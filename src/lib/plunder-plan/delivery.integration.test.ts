@@ -107,6 +107,21 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Plunder Plan delivery
     expect(sent.status).toBe("sent");
     expect(transport.send.mock.calls.filter(([input]) => input.target.discordUserId === f.discordUserId)).toHaveLength(1);
   });
+  it("keeps a delivery that exhausted its retry cap cancelled on rematerialize", async () => {
+    const f = await fixture();
+    await materializePlunderDeliveries(f.allianceId);
+    await f.sql`UPDATE plunder_plan_deliveries SET attempts = 4 WHERE alliance_id = ${f.allianceId}`;
+    await deliverPlunderPlans(20, f.allianceId);
+    const [exhausted] = await f.sql`SELECT id, status, attempts FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(exhausted.status).toBe("cancelled");
+    await materializePlunderDeliveries(f.allianceId);
+    await deliverPlunderPlans(20, f.allianceId);
+    const [after] = await f.sql`SELECT id, status, attempts FROM plunder_plan_deliveries WHERE alliance_id = ${f.allianceId}`;
+    expect(after.id).toBe(exhausted.id);
+    expect(after.status).toBe("cancelled");
+    expect(after.attempts).toBe(4);
+    expect(transport.send).not.toHaveBeenCalled();
+  });
   it("does not revive sent or uncertain delivery blockers on rematerialize", async () => {
     const f = await fixture();
     await materializePlunderDeliveries(f.allianceId);

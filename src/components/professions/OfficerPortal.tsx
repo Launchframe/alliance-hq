@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { EngCountBadge } from "@/components/professions/EngCountBadge";
 import { PairingImportPanel } from "@/components/professions/PairingImportPanel";
+import { TeamBuilderPanel } from "@/components/professions/TeamBuilderPanel";
 import { Button } from "@/components/ui/button";
 import type {
   OfficerActivityEvent,
@@ -247,6 +248,8 @@ export function OfficerPortal({ data, onRefresh }: Props) {
   return (
     <div className="max-w-4xl space-y-8">
       <p className="text-sm text-hq-fg-muted">{t("officerDesc")}</p>
+
+      <TeamBuilderPanel onSaved={onRefresh} />
 
       <PairingImportPanel onApplied={onRefresh} />
 

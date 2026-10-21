@@ -70,6 +70,8 @@ export type TrainsGuidedConductorFlowProps = {
   canManualPickVip: boolean;
   /** Precomputed via `canSpinConductor(...)` in the dashboard — not re-derived here. */
   canSpinConductorWheel: boolean;
+  /** Eligible VS scores with a free-choice VIP: one click draws both. */
+  drawsPairedVip?: boolean;
   /** Precomputed via `canSpinVip(...)` in the dashboard — not re-derived here. */
   canSpinVipWheel: boolean;
   /** Used only to choose the "pick top scorer" label vs. the wheel/manual CTAs. */
@@ -273,6 +275,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     canManualPick,
     canManualPickVip,
     canSpinConductorWheel,
+    drawsPairedVip = false,
     canSpinVipWheel,
     busy,
     onChangeTemplate,
@@ -373,7 +376,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
         : null);
 
   const conductorAction: PrimaryAction = canSpinConductorWheel
-    ? { label: t("steps.conductor.spin"), onClick: onRollConductor }
+    ? {
+        label: drawsPairedVip
+          ? tTrains("spinConductorAndVip")
+          : t("steps.conductor.spin"),
+        onClick: onRollConductor,
+      }
     : canRoll &&
         (conductorRule?.kind === "vs_top_n" ||
           conductorRule?.kind === "donations_top") &&
@@ -665,7 +673,11 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 ) : null}
                 {!locked && canSpinConductorWheel ? (
                   <ChangeLink
-                    label={tWheel("spinAgain")}
+                    label={
+                      drawsPairedVip
+                        ? tTrains("spinConductorAndVip")
+                        : tWheel("spinAgain")
+                    }
                     onClick={onRollConductor}
                     testId="trains-guided-spin-again"
                   />

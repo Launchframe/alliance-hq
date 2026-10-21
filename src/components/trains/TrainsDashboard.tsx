@@ -32,6 +32,7 @@ import {
   type TrainDayScoreStats,
 } from "@/lib/trains/day-score-stats.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 import { fetchConductorShareScoreProof } from "@/lib/client/conductor-share-score-proof.client";
 import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
 import {
@@ -113,7 +114,10 @@ import { FAMILY_LABEL_KEY } from "@/components/events/EventSourcePicker";
 import type { EventTarget } from "@/lib/hq-events/event-types.shared";
 import type { EventEligibilityPreview } from "@/lib/trains/event-eligibility.shared";
 import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
-import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
+import {
+  conductorRuleDrawsPairedVip,
+  conductorRulePoolType,
+} from "@/lib/trains/rules/derive.shared";
 import {
   conductorRuleIdentity,
   conductorRuleLabelKey,
@@ -281,7 +285,14 @@ export function TrainsDashboard({
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
-  const [wheelRole, setWheelRole] = useState<"conductor" | "vip">("conductor");
+  const [wheelRule, setWheelRule] = useState<ConductorRule | VipRule | null>(
+    null,
+  );
+  const [wheelRoleLabel, setWheelRoleLabel] = useState<string | null>(null);
+  const pairedVipFollowUpRef = useRef<{
+    vip: NonNullable<RollResult["pairedVip"]>;
+    boardRule: ConductorRule | VipRule | null;
+  } | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(
@@ -546,11 +557,19 @@ export function TrainsDashboard({
   }, [setPoolRefreshedHint]);
 
   const handleWheelClose = useCallback(() => {
-    setWheelOpen(false);
-    setWheelQualification(null);
-    setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
+    const followUp =
+      pending?.role === "conductor" && pending.result.draftPersisted !== false
+        ? pairedVipFollowUpRef.current
+        : null;
+    pairedVipFollowUpRef.current = null;
     pendingWheelRollRef.current = null;
+    setWheelQualification(null);
+    if (!followUp) {
+      setWheelOpen(false);
+      setWheelDayLabel(null);
+      setWheelRoleLabel(null);
+    }
     if (!pending) return;
     if (pending.result.draftPersisted === false) return;
 
@@ -565,8 +584,31 @@ export function TrainsDashboard({
     if (pending.result.poolRefreshed) {
       presentPoolRefreshedHints([pending.result.poolRefreshed]);
     }
+    if (followUp) {
+      pendingWheelRollRef.current = {
+        date: pending.date,
+        role: "vip",
+        result: {
+          memberId: followUp.vip.memberId,
+          memberName: followUp.vip.memberName,
+          mechanism: "r3_lottery",
+          isAutomatic: false,
+          wheelCandidates: followUp.vip.wheelCandidates,
+          draftPersisted: true,
+        },
+      };
+      setWheelCandidates(followUp.vip.wheelCandidates ?? []);
+      setWheelWinner({
+        memberId: followUp.vip.memberId,
+        memberName: followUp.vip.memberName,
+      });
+      setWheelRule(followUp.boardRule);
+      setWheelRoleLabel(t("spinSource.vipRole"));
+      setWheelOpen(true);
+      return;
+    }
     void refreshRef.current();
-  }, [applySnapshot, presentPoolRefreshedHints]);
+  }, [applySnapshot, presentPoolRefreshedHints, t]);
 
   const handleWeekChange = useCallback((page: WeekSchedulePagePayload) => {
     viewedWeekStartRef.current = page.weekStart;
@@ -1210,6 +1252,7 @@ export function TrainsDashboard({
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     // Don't let page hotkeys / spin run "behind" open schedule dialogs.
     setTemplatePickerOpen(false);
+    pairedVipFollowUpRef.current = null;
     setError(null);
     setWheelBlocked(null);
     setPollFallbackConfirm(null);
@@ -1339,6 +1382,18 @@ export function TrainsDashboard({
         return;
       }
 
+      pairedVipFollowUpRef.current = body.result.pairedVip
+        ? {
+            vip: body.result.pairedVip,
+            boardRule:
+              body.result.rule !== undefined
+                ? body.result.rule
+                : selectedConductorRule,
+          }
+        : null;
+      setWheelRoleLabel(
+        body.result.pairedVip ? t("spinSource.conductorRole") : null,
+      );
       pendingWheelRollRef.current = {
         date: selectedDate,
         role,
@@ -1357,10 +1412,16 @@ export function TrainsDashboard({
               ],
       );
       setWheelWinner(body.result);
+      setWheelRule(
+        body.result.rule !== undefined
+          ? body.result.rule
+          : role === "vip"
+            ? selectedVipRule
+            : selectedConductorRule,
+      );
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
       setWheelDayLabel(spinWeekDayLabel(selectedDate));
-      setWheelRole(role);
       setWheelOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rollFailed"));
@@ -1376,6 +1437,7 @@ export function TrainsDashboard({
   });
 
   const handleWheelSpinAgain = useCallback(() => {
+    pairedVipFollowUpRef.current = null;
     pendingWheelRollRef.current = null;
     setWheelOpen(false);
     setWheelQualification(null);
@@ -2372,10 +2434,12 @@ export function TrainsDashboard({
         memberId: selectedRecord.conductorMemberId,
         memberName: selectedRecord.conductorMemberName,
       };
+      const shareRule =
+        selectedRecord.conductorRule ?? selectedConductorRule;
       const scoreProof = await fetchConductorShareScoreProof({
         trainDate: selectedDate,
         memberId: winner.memberId,
-        rule: selectedConductorRule,
+        rule: shareRule,
       });
       const winnerWithScore = {
         ...winner,
@@ -2409,7 +2473,7 @@ export function TrainsDashboard({
           : null;
       const eligibilityLine = formatWheelShareEligibilityLine(
         resolveWheelShareEligibility({
-          rule: selectedConductorRule,
+          rule: shareRule,
           winner: winnerWithScore,
           leaderboardRank: scoreProof.leaderboardRank,
           winProbability: scoreProof.winProbability,
@@ -2443,19 +2507,31 @@ export function TrainsDashboard({
         winnerScoreLabel:
           scoreProof.priorDayVsScore != null &&
           scoreProof.priorDayVsScore > 0 &&
-          (selectedConductorRule?.kind === "vs_top_n" ||
-            selectedConductorRule?.kind === "vr_top_n")
+          (shareRule?.kind === "vs_top_n" || shareRule?.kind === "vr_top_n")
             ? `${formatWheelShareScore(scoreProof.priorDayVsScore, locale)} ${
-                selectedConductorRule.kind === "vr_top_n" ? "VR" : "VS"
+                shareRule.kind === "vr_top_n" ? "VR" : "VS"
               }`
             : null,
         leaderboard:
           scoreProof.leaderboard.length > 0 &&
-          (selectedConductorRule?.kind === "vs_top_n" ||
-            selectedConductorRule?.kind === "vr_top_n")
+          shareRule?.kind === "price_is_freight" &&
+          shareRule.board === "weekday"
+            ? {
+                title: t("wheel.vsValidation.closestAboveCliffTitle", {
+                  count: scoreProof.leaderboard.length,
+                  cliff: formatWheelShareScore(
+                    PRICE_IS_RIGHT_MIN_VS_SCORE,
+                    locale,
+                  ),
+                }),
+                winnerMemberId: winner.memberId,
+                rows: scoreProof.leaderboard,
+              }
+            : scoreProof.leaderboard.length > 0 &&
+          (shareRule?.kind === "vs_top_n" || shareRule?.kind === "vr_top_n")
             ? {
                 title:
-                  selectedConductorRule.kind === "vr_top_n"
+                  shareRule.kind === "vr_top_n"
                     ? t("wheel.vsValidation.topNVrTitle", {
                         count: scoreProof.leaderboard.length,
                       })
@@ -3500,6 +3576,10 @@ export function TrainsDashboard({
                 canManualPick={canPickConductor}
                 canManualPickVip={canManualPickVip}
                 canSpinConductorWheel={canSpinConductorWheel}
+                drawsPairedVip={conductorRuleDrawsPairedVip({
+                  conductorRule: selectedConductorRule,
+                  vipRule: selectedVipRule,
+                })}
                 canSpinVipWheel={canSpinVipWheel}
                 busy={trainQuickActionBusy}
                 onChangeTemplate={() => setDayMechanismPickerOpen(true)}
@@ -3723,9 +3803,14 @@ export function TrainsDashboard({
                         ? t("assignNextInSequence", {
                             name: nextInSequence.memberName,
                           })
-                        : hasValidConductor
-                          ? t("wheel.spinAgain")
-                          : t("spinWheel")}
+                        : conductorRuleDrawsPairedVip({
+                              conductorRule: selectedConductorRule,
+                              vipRule: selectedVipRule,
+                            })
+                          ? t("spinConductorAndVip")
+                          : hasValidConductor
+                            ? t("wheel.spinAgain")
+                            : t("spinWheel")}
                   </button>
                 ) : null}
                 {canRoll && conductorRuleIsAutomatic(selectedConductorRule) ? (
@@ -3986,7 +4071,8 @@ export function TrainsDashboard({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        rule={wheelRole === "vip" ? selectedVipRule : selectedConductorRule}
+        rule={wheelRule}
+        roleLabel={wheelRoleLabel}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}

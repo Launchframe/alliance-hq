@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db";
 import type {
   MonotonicStatId,
   StatSyncReviewRow,
+  StatSyncTransaction,
 } from "@/lib/hq-ashed-stat-sync/types";
 
 export async function upsertInboundStatConflict(input: {
@@ -19,8 +20,9 @@ export async function upsertInboundStatConflict(input: {
   ashedTotal: number;
   hqSource: string | null;
   hqEventId: string | null;
+  tx?: StatSyncTransaction;
 }): Promise<void> {
-  const db = getDb();
+  const db = input.tx ?? getDb();
   const now = new Date();
   await db
     .insert(schema.hqAshedStatSyncConflicts)
@@ -60,8 +62,9 @@ export async function clearInboundStatConflict(input: {
   allianceId: string;
   stat: MonotonicStatId;
   commanderId: string;
+  tx?: StatSyncTransaction;
 }): Promise<void> {
-  const db = getDb();
+  const db = input.tx ?? getDb();
   await db
     .delete(schema.hqAshedStatSyncConflicts)
     .where(

@@ -9,6 +9,7 @@ import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentati
 import { computeQualityScore } from "@/lib/video/quality-score";
 import { recordConfirmedReview } from "@/lib/ocr/learning/feedback.server";
 import { evaluateVsWeek, parseVsScore, validateVsPeriod, vsWeekEndingDate, VsEvidenceError, type VsPeriod } from "./evidence.shared";
+import { rosterMismatchMemberNames } from "./invalid-member.shared";
 import {
   replaceSourceJobIdsForVsCommit,
   shouldClearVsHeadOnGroupReplace,
@@ -162,7 +163,14 @@ export async function commitReviewedVsScoresTx(tx: VsTransaction, input: VsScore
     if (input.rows.some((row) => !parsedIds.has(row.id))) throw new VsEvidenceError("invalid_rows");
     const roster = await tx.select({ id: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, status: schema.allianceMembers.status }).from(schema.allianceMembers).where(eq(schema.allianceMembers.allianceId, input.allianceId));
     const names = new Map(roster.filter((row) => row.status !== "former").map((row) => [row.id, row.name]));
-    if (active.some((row) => !names.has(row.memberId!))) throw new VsEvidenceError("invalid_member");
+    const activeMemberIds = new Set(names.keys());
+    if (active.some((row) => !activeMemberIds.has(row.memberId!))) {
+      throw new VsEvidenceError(
+        "invalid_member",
+        400,
+        rosterMismatchMemberNames(active, activeMemberIds),
+      );
+    }
     const siblingJobs = job.groupId
       ? await tx
           .select({ id: schema.videoJobs.id })

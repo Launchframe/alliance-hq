@@ -1,4 +1,7 @@
+import type { ActivityTransaction } from "@/lib/activity/writer.server";
 import type { ParsedConnection } from "@/lib/connectionString";
+
+export type StatSyncTransaction = ActivityTransaction;
 
 export type MonotonicStatId = "thp" | "kills" | "level";
 
@@ -18,7 +21,10 @@ export type StatSyncReviewRow = {
 export type StatSyncAdapter = {
   stat: MonotonicStatId;
   ashedField: "current_total_hero_power" | "current_kills" | "level";
-  getHqCurrent: (commanderId: string) => Promise<{
+  getHqCurrent: (
+    commanderId: string,
+    tx?: StatSyncTransaction,
+  ) => Promise<{
     total: number | null;
     updatedAt: Date | null;
     latestSource: string | null;
@@ -33,6 +39,8 @@ export type StatSyncAdapter = {
     total: number;
     source: "ashed_sync" | "officer_override";
     hqUserId?: string | null;
+    /** Caller-held transaction that already owns the commander row lock. */
+    tx?: StatSyncTransaction;
   }) => Promise<boolean>;
   putToAshed: (
     connection: ParsedConnection,

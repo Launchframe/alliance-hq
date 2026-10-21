@@ -3,6 +3,10 @@ import "server-only";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import {
+  withActivityTransaction,
+  type ActivityTransaction,
+} from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 import type { LevelEventSource } from "@/lib/member-level/constants";
 import { clampMemberHqLevel } from "@/lib/members/member-level.shared";
@@ -33,8 +37,11 @@ function ashedSyncedAtForSource(
   return null;
 }
 
-export async function getCommanderLevelState(commanderId: string) {
-  const db = getDb();
+export async function getCommanderLevelState(
+  commanderId: string,
+  tx?: ActivityTransaction,
+) {
+  const db = tx ?? getDb();
   const [row] = await db
     .select({
       memberLevel: schema.commanders.memberLevel,
@@ -81,41 +88,53 @@ export async function upsertCommanderLevel(input: {
   source: LevelEventSource;
   hqUserId?: string | null;
   discordUserId?: string | null;
+  /** Caller-held transaction; the commander row lock is taken inside it. */
+  tx?: ActivityTransaction;
 }): Promise<boolean> {
-  const db = getDb();
-  const now = new Date();
-  const total = clampMemberHqLevel(input.total);
-  const current = await getCommanderLevelState(input.commanderId);
-  const previousTotal = current?.memberLevel ?? null;
+  const write = async (db: ActivityTransaction): Promise<boolean> => {
+    const now = new Date();
+    const total = clampMemberHqLevel(input.total);
+    const [current] = await db
+      .select({ memberLevel: schema.commanders.memberLevel })
+      .from(schema.commanders)
+      .where(eq(schema.commanders.id, input.commanderId))
+      .limit(1)
+      .for("update");
+    if (!current) {
+      throw new Error("commander_not_found");
+    }
+    const previousTotal = current.memberLevel ?? null;
 
-  if (previousTotal === total) {
-    return false;
-  }
+    if (previousTotal === total) {
+      return false;
+    }
 
-  await db.insert(schema.commanderLevelEvents).values({
-    id: nanoid(),
-    commanderId: input.commanderId,
-    total,
-    previousTotal,
-    source: input.source,
-    allianceId: input.allianceId ?? null,
-    reportedByHqUserId: input.hqUserId ?? null,
-    reportedByDiscordUserId: input.discordUserId ?? null,
-    ashedSyncedAt: ashedSyncedAtForSource(input.source, now),
-    discardedAt: null,
-    createdAt: now,
-  });
+    await db.insert(schema.commanderLevelEvents).values({
+      id: nanoid(),
+      commanderId: input.commanderId,
+      total,
+      previousTotal,
+      source: input.source,
+      allianceId: input.allianceId ?? null,
+      reportedByHqUserId: input.hqUserId ?? null,
+      reportedByDiscordUserId: input.discordUserId ?? null,
+      ashedSyncedAt: ashedSyncedAtForSource(input.source, now),
+      discardedAt: null,
+      createdAt: now,
+    });
 
-  await db
-    .update(schema.commanders)
-    .set({
-      memberLevel: total,
-      levelUpdatedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(schema.commanders.id, input.commanderId));
+    await db
+      .update(schema.commanders)
+      .set({
+        memberLevel: total,
+        levelUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.commanders.id, input.commanderId));
 
-  return true;
+    return true;
+  };
+  return input.tx ? write(input.tx) : withActivityTransaction(write);
 }
 
 export async function listAllianceCommanderLevelEvents(allianceId: string) {

@@ -15,7 +15,10 @@ import {
   parseTrainRollError,
   type TrainRollErrorDetails,
 } from "@/lib/trains/roll-errors.shared";
-import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
 import type { PoolRefreshedInfo, RollResult } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import {
@@ -98,6 +101,7 @@ export const SpinWeekConductorFlow = forwardRef<
   ref,
 ) {
   const t = useTranslations("trains.spinWeek");
+  const tTrains = useTranslations("trains");
   const [phase, setPhase] = useState<FlowPhase>("idle");
   const [confirmResults, setConfirmResults] = useState<SpinWeekResultRow[]>([]);
   const [wheelOpen, setWheelOpen] = useState(false);
@@ -109,20 +113,28 @@ export const SpinWeekConductorFlow = forwardRef<
     memberName: string;
     priorDayVsScore?: number;
   } | null>(null);
-  const [wheelRule, setWheelRule] = useState<ConductorRule | null>(null);
+  const [wheelRule, setWheelRule] = useState<ConductorRule | VipRule | null>(
+    null,
+  );
   const [wheelStats, setWheelStats] = useState<RollResponse["stats"] | null>(
     null,
   );
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
+  const [wheelRoleLabel, setWheelRoleLabel] = useState<string | null>(null);
   const [pendingEconomyConfirmDates, setPendingEconomyConfirmDates] = useState<
     string[] | null
   >(null);
 
   const pendingRollRef = useRef<{
     date: string;
+    role: "conductor" | "vip";
     result: RollResult;
+  } | null>(null);
+  const pairedVipFollowUpRef = useRef<{
+    vip: NonNullable<RollResult["pairedVip"]>;
+    boardRule: ConductorRule | VipRule | null;
   } | null>(null);
   const wheelDoneRef = useRef<(() => void) | null>(null);
   const abortRef = useRef(false);
@@ -193,12 +205,19 @@ export const SpinWeekConductorFlow = forwardRef<
 
   const handleAutomatedRevealComplete = useCallback(() => {
     const pending = pendingRollRef.current;
+    const followUp =
+      pending?.role === "conductor" &&
+      pending.result.draftPersisted !== false
+        ? pairedVipFollowUpRef.current
+        : null;
+    pairedVipFollowUpRef.current = null;
+
     if (pending && pending.result.draftPersisted !== false) {
       applySnapshot(
         applyOptimisticConductorRoll(
           snapshotRef.current,
           pending.date,
-          "conductor",
+          pending.role,
           pending.result,
         ),
       );
@@ -206,12 +225,40 @@ export const SpinWeekConductorFlow = forwardRef<
         presentPoolRefreshedHints([pending.result.poolRefreshed]);
       }
     }
-    setWheelOpen(false);
-    setWheelQualification(null);
+
     pendingRollRef.current = null;
+    setWheelQualification(null);
+
+    if (followUp && pending) {
+      pendingRollRef.current = {
+        date: pending.date,
+        role: "vip",
+        result: {
+          memberId: followUp.vip.memberId,
+          memberName: followUp.vip.memberName,
+          mechanism: "r3_lottery",
+          isAutomatic: false,
+          wheelCandidates: followUp.vip.wheelCandidates,
+          draftPersisted: true,
+        },
+      };
+      setWheelCandidates(followUp.vip.wheelCandidates ?? []);
+      setWheelWinner({
+        memberId: followUp.vip.memberId,
+        memberName: followUp.vip.memberName,
+      });
+      setWheelRule(followUp.boardRule);
+      setWheelRoleLabel(tTrains("spinSource.vipRole"));
+      setWheelOpen(true);
+      return;
+    }
+
+    setWheelOpen(false);
+    setWheelDayLabel(null);
+    setWheelRoleLabel(null);
     wheelDoneRef.current?.();
     wheelDoneRef.current = null;
-  }, [applySnapshot, presentPoolRefreshedHints, snapshotRef]);
+  }, [applySnapshot, presentPoolRefreshedHints, snapshotRef, tTrains]);
 
   const runSpinDates = useCallback(
     async (dates: string[]) => {
@@ -229,7 +276,20 @@ export const SpinWeekConductorFlow = forwardRef<
           const result = body.result;
           if (!result) continue;
 
-          pendingRollRef.current = { date, result };
+          pairedVipFollowUpRef.current = result.pairedVip
+            ? {
+                vip: result.pairedVip,
+                boardRule:
+                  result.rule !== undefined
+                    ? result.rule
+                    : (dayConfigs.find((row) => row.date === date)
+                        ?.conductorRule ?? null),
+              }
+            : null;
+          setWheelRoleLabel(
+            result.pairedVip ? tTrains("spinSource.conductorRole") : null,
+          );
+          pendingRollRef.current = { date, role: "conductor", result };
           setWheelCandidates(
             result.wheelCandidates?.length
               ? result.wheelCandidates
@@ -237,7 +297,10 @@ export const SpinWeekConductorFlow = forwardRef<
           );
           setWheelWinner(result);
           setWheelRule(
-            dayConfigs.find((row) => row.date === date)?.conductorRule ?? null,
+            result.rule !== undefined
+              ? result.rule
+              : (dayConfigs.find((row) => row.date === date)?.conductorRule ??
+                  null),
           );
           setWheelStats(body.stats ?? null);
           setWheelQualification(result.qualification ?? null);
@@ -362,6 +425,7 @@ export const SpinWeekConductorFlow = forwardRef<
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
         rule={wheelRule}
+        roleLabel={wheelRoleLabel}
         speedMultiplier={wheelSpeedMultiplier}
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}
