@@ -50,6 +50,9 @@ describe("in-game crop detection", () => {
   it("keeps a portrait phone frame on the phone layout when the HUD read is incomplete", () => {
     expect(isPortraitPhoneFrame(399, 1024)).toBe(true);
     expect(isPortraitPhoneFrame(473, 1024)).toBe(true);
+    expect(isPortraitPhoneFrame(1000, 1600)).toBe(true);
+    expect(isPortraitPhoneFrame(1000, 1599)).toBe(false);
+    expect(isPortraitPhoneFrame(0, 1024)).toBe(false);
     expect(isPortraitPhoneFrame(1024, 704)).toBe(false);
     expect(
       inGameScreenshotLayoutFromTopRow("", { width: 399, height: 1024 }),
