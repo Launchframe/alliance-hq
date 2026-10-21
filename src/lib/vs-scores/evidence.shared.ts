@@ -24,7 +24,16 @@ export function mergeVsDailySources(local: ReadonlyArray<{ memberId: string; sco
 }
 
 export class VsEvidenceError extends Error {
-  constructor(public readonly code: "invalid_score" | "invalid_period" | "invalid_member" | "invalid_rows" | "stale" | "forbidden", public readonly status = 400) { super(code); }
+  readonly memberNames: readonly string[];
+
+  constructor(
+    public readonly code: "invalid_score" | "invalid_period" | "invalid_member" | "invalid_rows" | "stale" | "forbidden",
+    public readonly status = 400,
+    memberNames: readonly string[] = [],
+  ) {
+    super(code);
+    this.memberNames = memberNames;
+  }
 }
 
 export function parseVsScore(value: unknown): number {

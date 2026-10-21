@@ -491,6 +491,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [scoreboardMemberBusy, setScoreboardMemberBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
+  const [invalidMemberNames, setInvalidMemberNames] = useState<string[] | null>(
+    null,
+  );
+  const [rosterRefreshBusy, setRosterRefreshBusy] = useState(false);
+  const [rosterRefreshNotice, setRosterRefreshNotice] = useState<string | null>(
+    null,
+  );
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [overlappingLockedConfirmOpen, setOverlappingLockedConfirmOpen] =
@@ -505,6 +512,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [addingRowBusy, setAddingRowBusy] = useState<ManualRowPosition | null>(
     null,
   );
+  const pendingAddedRowIdRef = useRef<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
   const [dedupeReport, setDedupeReport] = useState<DedupeReport | null>(null);
@@ -878,6 +886,47 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   function setActionError(message: string, connectUrl?: string) {
     setError(message);
     setErrorConnectUrl(connectUrl ?? null);
+  }
+
+  function openInvalidMemberPrompt(names: string[]) {
+    setInvalidMemberNames(names);
+    setRosterRefreshNotice(null);
+  }
+
+  async function refreshRosterFromAshed() {
+    if (rosterRefreshBusy) return;
+    setRosterRefreshBusy(true);
+    setRosterRefreshNotice(null);
+    try {
+      const res = await fetch("/api/members?refresh=1");
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        members?: MemberOption[];
+      };
+      if (!res.ok) {
+        setRosterRefreshNotice(data.error ?? t("invalidMemberRefreshFailed"));
+        return;
+      }
+      if (Array.isArray(data.members)) {
+        setMembers((current) => {
+          const byId = new Map(current.map((member) => [member.id, member]));
+          for (const member of data.members ?? []) {
+            if (!member?.id || !member.current_name) continue;
+            byId.set(member.id, {
+              id: member.id,
+              current_name: member.current_name,
+              previous_names: member.previous_names,
+            });
+          }
+          return [...byId.values()];
+        });
+      }
+      setRosterRefreshNotice(t("invalidMemberRefreshed"));
+    } catch {
+      setRosterRefreshNotice(t("invalidMemberRefreshFailed"));
+    } finally {
+      setRosterRefreshBusy(false);
+    }
   }
 
   const rematchMembers = useCallback(async () => {
@@ -1926,20 +1975,38 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [issueNavScrollOffsetPx],
   );
 
+  // Keep load order and explicit Sort leaderboard order. Re-sorting on each
+  // score keystroke moves the row under the caret; the # column still updates.
   const filteredRows = useMemo(() => {
-    const filtered = filterQuery.trim()
-      ? activeRows.filter(
-          (r) =>
-            r.ocrName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-            (r.memberName?.toLowerCase().includes(filterQuery.toLowerCase()) ??
-              false),
-        )
-      : activeRows;
-    if (scoreTargetMeta?.showReviewRowNumber) {
-      return sortReviewRowsByScoreDesc(filtered);
-    }
-    return filtered;
-  }, [activeRows, filterQuery, scoreTargetMeta?.showReviewRowNumber]);
+    if (!filterQuery.trim()) return activeRows;
+    const query = filterQuery.toLowerCase();
+    return activeRows.filter(
+      (r) =>
+        r.ocrName.toLowerCase().includes(query) ||
+        (r.memberName?.toLowerCase().includes(query) ?? false),
+    );
+  }, [activeRows, filterQuery]);
+
+  useEffect(() => {
+    const rowId = pendingAddedRowIdRef.current;
+    if (!rowId) return;
+    const frame = requestAnimationFrame(() => {
+      if (pendingAddedRowIdRef.current !== rowId) return;
+      pendingAddedRowIdRef.current = null;
+      scrollToReviewRow(rowId, issueNavScrollOffsetPx);
+      const escaped =
+        typeof CSS !== "undefined" && "escape" in CSS
+          ? CSS.escape(rowId)
+          : rowId.replace(/"/g, '\\"');
+      const rowEl = document.querySelector(
+        `[data-review-row-id="${escaped}"]`,
+      );
+      rowEl
+        ?.querySelector<HTMLInputElement>("[data-review-score-input]")
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [rows, issueNavScrollOffsetPx]);
 
   const reviewFilterCount = useMemo(() => {
     if (scoreTargetMeta?.showDepositSlipColumns) {
@@ -2874,6 +2941,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         error?: string;
         code?: string;
         connectUrl?: string;
+        memberNames?: string[];
         submitted?: number;
         storage?: string;
         syncStatus?: string;
@@ -2897,6 +2965,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setActionError(
             data.error ?? tc("uploadFailed"),
             data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return;
+        }
+        if (data.code === "invalid_member") {
+          const names = Array.isArray(data.memberNames)
+            ? data.memberNames.filter(
+                (name): name is string =>
+                  typeof name === "string" && name.trim().length > 0,
+              )
+            : [];
+          openInvalidMemberPrompt(names);
+          setActionError(
+            data.error ??
+              (names.length > 0
+                ? t("invalidMemberBody", { names: names.join(", ") })
+                : t("invalidMemberBodyUnnamed")),
           );
           return;
         }
@@ -3161,6 +3245,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       const data = (await res.json()) as { row: ParsedRow };
       markDraftDirty();
+      pendingAddedRowIdRef.current = data.row.id;
       if (scoreTargetMeta?.showReviewRowNumber) {
         setRows((prev) =>
           position === "start" ? [data.row, ...prev] : [...prev, data.row],
@@ -4693,6 +4778,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                           type="text"
                           inputMode="numeric"
                           aria-label={t("colScore")}
+                          data-review-score-input=""
                           value={row.score ?? ""}
                           onChange={(e) =>
                             updateRow(row.id, { score: e.target.value })
@@ -5021,6 +5107,48 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               {submitting
                 ? t("submitting")
                 : t("depositSlipOverlappingLockedConfirmSave")}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+      <Dialog
+        open={invalidMemberNames != null}
+        onOpenChange={(open) => {
+          if (!open) setInvalidMemberNames(null);
+        }}
+        title={t("invalidMemberTitle")}
+        data-testid="invalid-member-roster-dialog"
+      >
+        <div className="flex max-w-lg flex-col gap-4">
+          <h2 className="text-lg font-semibold text-hq-fg">
+            {t("invalidMemberTitle")}
+          </h2>
+          <p className="text-sm text-hq-fg-muted">
+            {invalidMemberNames && invalidMemberNames.length > 0
+              ? t("invalidMemberBody", {
+                  names: invalidMemberNames.join(", "),
+                })
+              : t("invalidMemberBodyUnnamed")}
+          </p>
+          {rosterRefreshNotice ? (
+            <p className="text-sm text-hq-fg" role="status">
+              {rosterRefreshNotice}
+            </p>
+          ) : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Link
+              href="/members"
+              className="rounded-lg border border-hq-border px-4 py-2 text-center text-sm hover:bg-hq-surface-muted"
+            >
+              {t("invalidMemberOpenMembers")}
+            </Link>
+            <button
+              type="button"
+              disabled={rosterRefreshBusy}
+              onClick={() => void refreshRosterFromAshed()}
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {rosterRefreshBusy ? tMembers("refreshing") : tMembers("refresh")}
             </button>
           </div>
         </div>
