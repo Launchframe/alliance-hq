@@ -69,12 +69,12 @@ export function TeamBuilderPanel({ onSaved }: { onSaved: () => void }) {
         };
         if (cancelled) return;
         if (!res.ok) {
-          setLoadError(json.error ?? t("saveFailed"));
+          setLoadError(json.error ?? t("loadFailed"));
           return;
         }
         setMembers(json.members ?? []);
       } catch {
-        if (!cancelled) setLoadError(t("saveFailed"));
+        if (!cancelled) setLoadError(t("loadFailed"));
       } finally {
         if (!cancelled) setBusy(null);
       }
@@ -342,7 +342,7 @@ export function TeamBuilderPanel({ onSaved }: { onSaved: () => void }) {
                       destination={team.wl.commanderId}
                       teams={draft.teams}
                       unknownRank={t("unknownRank")}
-                      moveLabel={t("moveTo", { name: engineer.name })}
+                      moveLabel={t("reassignSelect", { name: engineer.name })}
                       unplacedLabel={t("unplaced")}
                       onMove={moveEngineer}
                     />
@@ -363,7 +363,7 @@ export function TeamBuilderPanel({ onSaved }: { onSaved: () => void }) {
                     destination="unplaced"
                     teams={draft.teams}
                     unknownRank={t("unknownRank")}
-                    moveLabel={t("moveTo", { name: engineer.name })}
+                    moveLabel={t("reassignSelect", { name: engineer.name })}
                     unplacedLabel={t("unplaced")}
                     onMove={moveEngineer}
                   />

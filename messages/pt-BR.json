@@ -7077,6 +7077,8 @@
       "unknownRank": "Patente desconhecida",
       "unplaced": "Ainda sem time",
       "moveTo": "Mover para {name}",
+      "reassignSelect": "Reatribuir {name}",
+      "loadFailed": "Não foi possível carregar a lista.",
       "export": "Copiar lista de pares",
       "download": "Baixar lista de pares",
       "copied": "Copiado",

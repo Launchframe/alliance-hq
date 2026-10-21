@@ -5554,6 +5554,8 @@
       "unknownRank": "Pangkat tidak diketahui",
       "unplaced": "Belum punya tim",
       "moveTo": "Pindahkan ke {name}",
+      "reassignSelect": "Tetapkan ulang {name}",
+      "loadFailed": "Daftar anggota tidak dapat dimuat.",
       "export": "Salin daftar pasangan",
       "download": "Unduh daftar pasangan",
       "copied": "Tersalin",

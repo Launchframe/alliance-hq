@@ -349,6 +349,8 @@ test.describe("Professions — War Leader Support", () => {
     };
     const importEng = rosterJson.members.find((member) => member.name === "Import Eng");
     const importWl = rosterJson.members.find((member) => member.name === "Import WL");
+    expect(importEng).toBeDefined();
+    expect(importWl).toBeDefined();
     expect(importEng?.profession).toBe("Engineer");
     expect(importWl?.profession).toBe("War Leader");
     const unplaceRes = await request.post(

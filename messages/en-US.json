@@ -7076,6 +7076,8 @@
       "unknownRank": "Rank unknown",
       "unplaced": "Not on a team yet",
       "moveTo": "Move to {name}",
+      "reassignSelect": "Reassign {name}",
+      "loadFailed": "Could not load the roster.",
       "export": "Copy pairing list",
       "download": "Download pairing list",
       "copied": "Copied",
