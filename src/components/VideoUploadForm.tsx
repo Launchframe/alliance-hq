@@ -31,7 +31,16 @@ import {
   isVideoOcrAccuracy,
   type VideoOcrAccuracy,
 } from "@/lib/video/ocr-accuracy";
-import type { SurveyPayload } from "@/lib/video/survey";
+import {
+  hasSurveyAnswers,
+  type SurveyPayload,
+} from "@/lib/video/survey";
+import {
+  attachSurveyJob,
+  emptyPendingSurveySave,
+  queueSurveyPayload,
+  type PendingSurveySave,
+} from "@/lib/video/survey-during-upload.shared";
 import {
   isLegacyDirectPostOverLimit,
   isVideoUploadOverLimit,
@@ -122,7 +131,7 @@ const GROUP_ORDER = ["events", "recurring", "hq-native"] as const;
 const OCR_ACCURACY_CAPTION_ID = "video-ocr-accuracy-caption";
 
 type ActiveSurvey = {
-  jobId: string;
+  jobId: string | null;
   file: File | null;
   initialSurvey: SurveyPayload | null;
   navigateOnClose: boolean;
@@ -151,6 +160,12 @@ type Props = {
   allianceName?: string | null;
   /** When true, show inline process prompt after upload instead of a dead-end waiting message. */
   canProcess?: boolean;
+  /**
+   * Trains score gate: file + optional screenshot only. Survey still opens on
+   * upload click. Skips the video-upload query string so this can mount on
+   * /trains without reading search params.
+   */
+  embedded?: boolean;
   ashedConnected?: boolean;
   connectUrl?: string;
 };
@@ -176,7 +191,7 @@ function statusLabel(
   return status;
 }
 
-export function VideoUploadForm({
+function VideoUploadFormFields({
   initialJobs,
   memberName = null,
   contextScoreTarget = null,
@@ -190,7 +205,15 @@ export function VideoUploadForm({
   canProcess = false,
   ashedConnected = false,
   connectUrl = "/connect?next=%2Ftools%2Fvideo-upload",
-}: Props) {
+  embedded = false,
+  processJobFromQuery = null,
+  awaitingJobFromQuery = null,
+  searchParamsString = "",
+}: Props & {
+  processJobFromQuery?: string | null;
+  awaitingJobFromQuery?: string | null;
+  searchParamsString?: string;
+}) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
@@ -248,15 +271,16 @@ export function VideoUploadForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [activeSurvey, setActiveSurvey] = useState<ActiveSurvey | null>(null);
   const [pendingSurveyFile, setPendingSurveyFile] = useState<File | null>(null);
-  const searchParams = useSearchParams();
+  const pendingSurveySaveRef = useRef<PendingSurveySave>(emptyPendingSurveySave());
+  const surveySettledRef = useRef(false);
   const processJobQueryId = useMemo(() => {
-    if (!canProcess) return null;
-    return searchParams.get("processJob")?.trim() || null;
-  }, [canProcess, searchParams]);
+    if (!canProcess || embedded) return null;
+    return processJobFromQuery?.trim() || null;
+  }, [canProcess, embedded, processJobFromQuery]);
   const awaitingJobQueryId = useMemo(() => {
-    if (canProcess) return null;
-    return searchParams.get("awaitingJob")?.trim() || null;
-  }, [canProcess, searchParams]);
+    if (canProcess || embedded) return null;
+    return awaitingJobFromQuery?.trim() || null;
+  }, [canProcess, embedded, awaitingJobFromQuery]);
   const [processPromptJobId, setProcessPromptJobId] = useState<string | null>(
     null,
   );
@@ -442,7 +466,8 @@ export function VideoUploadForm({
     file !== null && fileExceedsUploadLimit(file.size, uploadConfig);
 
   function persistProcessJobQuery(jobId: string) {
-    const params = new URLSearchParams(searchParams.toString());
+    if (embedded) return;
+    const params = new URLSearchParams(searchParamsString);
     params.delete("awaitingJob");
     params.set("processJob", jobId);
     const qs = params.toString();
@@ -450,7 +475,8 @@ export function VideoUploadForm({
   }
 
   function persistAwaitingJobQuery(jobId: string) {
-    const params = new URLSearchParams(searchParams.toString());
+    if (embedded) return;
+    const params = new URLSearchParams(searchParamsString);
     params.delete("processJob");
     params.set("awaitingJob", jobId);
     const qs = params.toString();
@@ -595,13 +621,21 @@ export function VideoUploadForm({
     setError(null);
     setSuccess(null);
     screenshotTaskRef.current = null;
+    pendingSurveySaveRef.current = emptyPendingSurveySave();
+    surveySettledRef.current = false;
 
     const uploadFile = file;
     const screenshotFile = isVsTarget ? screenshot : null;
-    // Processors keep the file for the post-approve survey. Other officers
-    // stop at upload until a processor picks the job up on Video queue.
+    // Processors fill the survey while the file is still sending. Other
+    // officers stop at upload until a processor picks the job up.
     if (canProcess) {
       setPendingSurveyFile(uploadFile);
+      setActiveSurvey({
+        jobId: null,
+        file: uploadFile,
+        initialSurvey: null,
+        navigateOnClose: false,
+      });
     }
     setFile(null);
     setScreenshotError(null);
@@ -620,6 +654,14 @@ export function VideoUploadForm({
           setUploadProgress({ loaded, total });
         },
         onJobCreated: (jobId) => {
+          const attached = attachSurveyJob(pendingSurveySaveRef.current, jobId);
+          pendingSurveySaveRef.current = attached.pending;
+          if (attached.flush) {
+            void saveSurvey(jobId, attached.flush);
+          }
+          setActiveSurvey((current) =>
+            current ? { ...current, jobId } : current,
+          );
           if (!screenshotFile) return;
           screenshotTaskRef.current = (async () => {
             const evidence = await getVsVideoEvidence(jobId).catch(() => null);
@@ -671,16 +713,45 @@ export function VideoUploadForm({
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
       setActiveSurvey(null);
       setPendingSurveyFile(null);
+      pendingSurveySaveRef.current = emptyPendingSurveySave();
+      surveySettledRef.current = false;
     } finally {
       setUploading(false);
       setUploadProgress(null);
     }
   }
 
+  function saveSurvey(jobId: string, payload: SurveyPayload) {
+    if (!hasSurveyAnswers(payload)) return;
+    void fetch(`/api/tools/video-upload/${jobId}/survey`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rowCountEstimate: payload.rowCountEstimate,
+        scrollStyle: payload.scrollStyle,
+        schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
+        aboveAverageScroll: payload.aboveAverageScroll,
+      }),
+    })
+      .then(async (res) => {
+        if (res.ok) return;
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        if (data?.error) setError(data.error);
+      })
+      .catch(() => undefined);
+  }
+
   function openSurveyAfterApprove(jobId: string) {
     setProcessPromptJobId(null);
     if (processJobQueryId) {
       setDismissedProcessJobId(processJobQueryId);
+    }
+    if (surveySettledRef.current) {
+      setPendingSurveyFile(null);
+      push(reviewHref(jobId));
+      return;
     }
     setActiveSurvey({
       jobId,
@@ -691,8 +762,21 @@ export function VideoUploadForm({
     setPendingSurveyFile(null);
   }
 
-  function handleSurveyClose() {
+  function handleSurveyClose(result: {
+    complete: boolean;
+    payload: SurveyPayload | null;
+  }) {
     const session = activeSurvey;
+    const queued = queueSurveyPayload(
+      pendingSurveySaveRef.current,
+      result.payload,
+    );
+    pendingSurveySaveRef.current = queued.pending;
+    if (queued.flush) {
+      const jobId = queued.pending.jobId ?? session?.jobId;
+      if (jobId) void saveSurvey(jobId, queued.flush);
+    }
+    surveySettledRef.current = true;
     setActiveSurvey(null);
     if (session?.navigateOnClose && session.jobId) {
       push(reviewHref(session.jobId));
@@ -775,7 +859,15 @@ export function VideoUploadForm({
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
+    <div
+      className={
+        embedded
+          ? "min-w-0 space-y-3"
+          : "mx-auto w-full min-w-0 max-w-2xl space-y-6"
+      }
+      data-testid={embedded ? "trains-inline-score-upload" : undefined}
+    >
+      {embedded ? null : (
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
@@ -783,8 +875,9 @@ export function VideoUploadForm({
           <p className="mt-2 text-xs text-hq-fg-muted">{t("pendingApprovalHint")}</p>
         ) : null}
       </div>
+      )}
 
-      {awaitingJobs.length > 0 ? (
+      {!embedded && awaitingJobs.length > 0 ? (
         <section
           className="min-w-0 rounded-xl border border-hq-warning/40 bg-hq-warning/10 p-4 sm:p-5"
           data-testid="video-awaiting-approval-uploads"
@@ -820,7 +913,11 @@ export function VideoUploadForm({
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="min-w-0 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5"
+        className={
+          embedded
+            ? "min-w-0"
+            : "min-w-0 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5"
+        }
         aria-busy={uploadConfigLoading}
       >
         {uploadConfigLoading ? (
@@ -832,11 +929,12 @@ export function VideoUploadForm({
           disabled={uploadConfigLoading}
           className="min-w-0 border-0 p-0"
         >
-        {isMemberRosterVideoTarget(scoreTarget) && allianceTag ? (
+        {!embedded && isMemberRosterVideoTarget(scoreTarget) && allianceTag ? (
           <div className="mb-4">
             <RosterAllianceBanner tag={allianceTag} name={allianceName} />
           </div>
         ) : null}
+        {!embedded ? (
         <label className="block">
           <span className="mb-2 block text-sm text-hq-fg-muted">
             {t("scoreTargetLabel")}
@@ -878,6 +976,7 @@ export function VideoUploadForm({
               : t("ocrAccuracy.label")}
           </p>
         </label>
+        ) : null}
 
         {isEventTarget ? (
           <div className="mt-4 space-y-3">
@@ -915,7 +1014,9 @@ export function VideoUploadForm({
           </div>
         ) : null}
 
-        <VideoHygieneCoachBanner scoreTarget={scoreTarget || null} />
+        {embedded ? null : (
+          <VideoHygieneCoachBanner scoreTarget={scoreTarget || null} />
+        )}
 
         {needsBoardPicker ? (
           <label className="mt-4 block">
@@ -1024,7 +1125,7 @@ export function VideoUploadForm({
         </label>
         ) : null}
 
-        {showFileStep && isVsTarget ? (
+        {showFileStep && isVsTarget && !embedded ? (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm text-hq-fg-muted">
@@ -1195,7 +1296,7 @@ export function VideoUploadForm({
         />
       ) : null}
 
-      {otherRecentJobs.length > 0 && (
+      {!embedded && otherRecentJobs.length > 0 ? (
         <section className="min-w-0 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-medium">
@@ -1216,7 +1317,7 @@ export function VideoUploadForm({
             {otherRecentJobs.map((job) => renderRecentJobRow(job, false))}
           </ul>
         </section>
-      )}
+      ) : null}
 
       {activeSurvey ? (
         <VideoSurveyDialog
@@ -1230,4 +1331,23 @@ export function VideoUploadForm({
       ) : null}
     </div>
   );
+}
+
+function VideoUploadFormWithSearchParams(props: Props) {
+  const searchParams = useSearchParams();
+  return (
+    <VideoUploadFormFields
+      {...props}
+      processJobFromQuery={searchParams.get("processJob")}
+      awaitingJobFromQuery={searchParams.get("awaitingJob")}
+      searchParamsString={searchParams.toString()}
+    />
+  );
+}
+
+export function VideoUploadForm(props: Props) {
+  if (props.embedded) {
+    return <VideoUploadFormFields {...props} />;
+  }
+  return <VideoUploadFormWithSearchParams {...props} />;
 }
