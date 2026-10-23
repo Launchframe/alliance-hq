@@ -28,15 +28,14 @@ type StepDraft = {
 };
 
 type Props = {
-  jobId: string;
+  /** Null while the upload job row does not exist yet. */
+  jobId: string | null;
   file?: File | null;
   memberName?: string | null;
   open: boolean;
-  onClose: (result: { complete: boolean }) => void;
+  onClose: (result: { complete: boolean; payload: SurveyPayload | null }) => void;
   /** When set, restores wizard step and answers from a prior partial survey. */
   initialSurvey?: SurveyPayload | null;
-  /** Fresh upload flow navigates to review on close; resume from list does not. */
-  navigateOnClose?: boolean;
 };
 
 function isValidRowCountInput(value: string): boolean {
@@ -89,10 +88,9 @@ export function VideoSurveyDialog({
     schoolingTuitionAnswer: "",
   });
   const [accumulated, setAccumulated] = useState<SurveyAccumulated>(emptyAccumulated);
-  const [submitting, setSubmitting] = useState(false);
-  const pendingSubmitRef = useRef<SurveyAccumulated | null>(null);
-
-  const storedVideoSrc = `/api/tools/video-upload/${jobId}/video`;
+  const storedVideoSrc = jobId
+    ? `/api/tools/video-upload/${jobId}/video`
+    : null;
 
   useEffect(() => {
     if (!open || !file) return;
@@ -132,10 +130,9 @@ export function VideoSurveyDialog({
         schoolingTuitionAnswer: "",
       });
       setAccumulated(emptyAccumulated());
-      pendingSubmitRef.current = null;
     });
     return () => cancelAnimationFrame(raf);
-  }, [open, jobId, initialSurvey]);
+  }, [open, initialSurvey]);
 
   useEffect(() => {
     if (open) return;
@@ -206,47 +203,13 @@ export function VideoSurveyDialog({
     setDraft(draftFromAccumulated(nextAccumulated));
   }
 
-  async function postPayload(nextAccumulated: SurveyAccumulated) {
+  function postAndClose(nextAccumulated: SurveyAccumulated) {
     const payload = buildPayload(nextAccumulated);
     const complete = isSurveyComplete(payload);
-
-    if (!hasSurveyAnswers(payload)) {
-      onClose({ complete: false });
-      return;
-    }
-
-    if (!jobId) {
-      pendingSubmitRef.current = nextAccumulated;
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await fetch(`/api/tools/video-upload/${jobId}/survey`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rowCountEstimate: payload.rowCountEstimate,
-          scrollStyle: payload.scrollStyle,
-          schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
-          aboveAverageScroll: payload.aboveAverageScroll,
-        }),
-      });
-    } finally {
-      setSubmitting(false);
-      onClose({ complete });
-    }
-  }
-
-  useEffect(() => {
-    if (!jobId || !pendingSubmitRef.current) return;
-    const nextAccumulated = pendingSubmitRef.current;
-    pendingSubmitRef.current = null;
-    void postPayload(nextAccumulated);
-  }, [jobId]);
-
-  async function postAndClose(nextAccumulated: SurveyAccumulated) {
-    await postPayload(nextAccumulated);
+    onClose({
+      complete,
+      payload: hasSurveyAnswers(payload) ? payload : null,
+    });
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -278,7 +241,7 @@ export function VideoSurveyDialog({
   }
 
   function handleBack() {
-    if (step <= 1 || submitting) return;
+    if (step <= 1) return;
     setStep((s) => s - 1);
     setDraft(draftFromAccumulated(accumulated));
   }
@@ -289,13 +252,11 @@ export function VideoSurveyDialog({
   }
 
   function handleScrollStyleSelect(style: SurveyScrollStyle) {
-    if (submitting) return;
     setDraft((prev) => ({ ...prev, scrollStyle: style }));
     commitStepAndAdvance(2, mergeStepIntoAccumulated(2, { scrollStyle: style }));
   }
 
   function handleSchoolingAnswerSelect(answer: SurveySchoolingAnswer) {
-    if (submitting) return;
     setDraft((prev) => ({ ...prev, schoolingTuitionAnswer: answer }));
     commitStepAndAdvance(
       3,
@@ -306,7 +267,7 @@ export function VideoSurveyDialog({
   const q3Label =
     memberName != null ? t("q3Label", { memberName }) : t("q3LabelGeneric");
 
-  const nextEnabled = stepHasValidAnswer(step) && !submitting;
+  const nextEnabled = stepHasValidAnswer(step);
   const videoSrc = objectUrl ?? (file ? null : storedVideoSrc);
   // Side-by-side only once we know it's portrait — avoids a layout flash for landscape.
   const dualPane = Boolean(videoSrc) && isPortrait;
@@ -447,8 +408,7 @@ export function VideoSurveyDialog({
             <button
               type="button"
               onClick={handleBack}
-              disabled={submitting}
-              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
             >
               {t("back")}
             </button>
@@ -456,8 +416,7 @@ export function VideoSurveyDialog({
           <button
             type="button"
             onClick={handleSkip}
-            disabled={submitting}
-            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
           >
             {t("skip")}
           </button>
@@ -467,7 +426,7 @@ export function VideoSurveyDialog({
           disabled={!nextEnabled}
           className="shrink-0 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
         >
-          {submitting ? t("submitting") : t("next")}
+          {t("next")}
         </button>
       </div>
     </>
@@ -478,6 +437,7 @@ export function VideoSurveyDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title={t("title")}
+      data-testid="video-survey-dialog"
       className={cn(
         // Dialog omits its default max-w/max-h when these are present.
         "min-h-[50vh] max-h-[90vh]",
