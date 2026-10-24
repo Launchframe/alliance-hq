@@ -380,6 +380,7 @@ export function BankManagementClient({ initial }: Props) {
             onImportFromScreenshot={() => setCityListModalOpen(true)}
           />
           <DepositSlipList
+            key={selectedBank?.id ?? "no-bank"}
             bank={selectedBank}
             canWrite={canWrite}
             onAdd={() => selectedBank && openCreateSlipModal(selectedBank.id)}
