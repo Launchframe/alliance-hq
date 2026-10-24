@@ -390,6 +390,42 @@ describe("previewVsWeekPlan", () => {
     }
   });
 
+  it("leaves a hand-edited day alone when clearing the plan", async () => {
+    const savedDays = defaultDays().map((d) => ({
+      ...d,
+      strategy: "push" as const,
+      pushTopN: 10 as const,
+    }));
+    mocks.loadVsWeekPlan.mockResolvedValue(
+      planRow(savedDays, 2, "all_out_domination"),
+    );
+    for (const trainDate of trainDates) dayConfig.set(trainDate!, PUSH);
+    dayConfig.set(trainDates[3]!, R3);
+    const next = draft(
+      defaultDays().map((d, i) => (i < 2 ? savedDays[i]! : d)),
+      "strategic_victory",
+    );
+    const preview = await previewVsWeekPlan(actor, next, 2, scope());
+    const patches = mocks.prepareTrainPaints.mock.calls[0]?.[1] ?? [];
+    expect(patches.map((p: { date: string }) => p.date).sort()).toEqual(
+      [trainDates[2], trainDates[4], trainDates[5]].sort(),
+    );
+    expect(preview.changes.map((c) => c.trainDate)).not.toContain(trainDates[3]);
+  });
+
+  it("clears a hand-edited day when reapplyDates asks", async () => {
+    const savedDays = defaultDays().map((d, i) =>
+      i === 3 ? { ...d, strategy: "push" as const, pushTopN: 10 as const } : d,
+    );
+    mocks.loadVsWeekPlan.mockResolvedValue(planRow(savedDays));
+    dayConfig.set(trainDates[3]!, R3);
+    await previewVsWeekPlan(actor, draft(defaultDays()), 2, scope(), [
+      "2026-09-24",
+    ]);
+    const patches = mocks.prepareTrainPaints.mock.calls[0]?.[1] ?? [];
+    expect(patches).toEqual([{ date: trainDates[3], conductorRule: null }]);
+  });
+
   it("does not paint null clears on a first-save all-undecided draft", async () => {
     mocks.loadVsWeekPlan.mockResolvedValue(null);
     await previewVsWeekPlan(actor, draft(defaultDays()), 0, scope());
