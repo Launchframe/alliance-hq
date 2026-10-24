@@ -78,6 +78,7 @@ import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
+import { maybeAttachBusterDaySnapshotFromVideoSubmit } from "@/lib/vs-performance/buster-day-auto-attach.server";
 import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
@@ -610,6 +611,14 @@ export async function POST(request: Request, { params }: Props) {
       });
 
       void notifyEurVideoEvidence(allianceId).catch(() => {});
+
+      void maybeAttachBusterDaySnapshotFromVideoSubmit({
+        allianceId,
+        jobId,
+        scoreTargetId,
+      }).catch((error) => {
+        console.error("[buster-day] post-roster auto-attach failed", error);
+      });
 
       return NextResponse.json({
         ok: true,
@@ -1538,6 +1547,18 @@ export async function POST(request: Request, { params }: Props) {
         console.warn("[ocr-learning] feedback_confirmation_deferred", { jobId, receiptId: ocrFeedbackReceiptId });
       }
     }
+
+    if (allianceId) {
+      void maybeAttachBusterDaySnapshotFromVideoSubmit({
+        allianceId,
+        jobId,
+        scoreTargetId,
+        recordedDate: submitContext.recordedDate,
+      }).catch((error) => {
+        console.error("[buster-day] post-submit auto-attach failed", error);
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       submitted: activeRows.length,
