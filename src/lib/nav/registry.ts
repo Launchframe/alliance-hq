@@ -744,6 +744,17 @@ export const ADMIN_NAV_DESTINATIONS: NavDestination[] = [
     sectionId: "admin-orgs",
   },
   {
+    id: "admin-roster-duplicates",
+    labelKey: "rosterDuplicates",
+    href: "/admin/roster-duplicates",
+    surface: "native",
+    context: "admin",
+    iconKey: "mergeManager",
+    favoriteable: true,
+    familyId: "admin-orgs",
+    sectionId: "admin-orgs",
+  },
+  {
     id: "admin-commendations",
     labelKey: "commendations",
     href: "/admin/commendations",

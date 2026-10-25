@@ -242,4 +242,25 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(body.allowedScopes).toContain("global");
     expect(Array.isArray(body.items)).toBe(true);
   });
+
+  test("bootstrap session cannot scan or merge roster duplicates", async ({
+    request,
+  }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+    const headers = { Cookie: hqSessionOnlyCookie(sessionId) };
+    const scan = await request.get(
+      "/api/admin/alliances/missing-alliance/roster-duplicates",
+      { headers },
+    );
+    expect(scan.status(), await scan.text()).toBe(403);
+
+    const merge = await request.post(
+      "/api/admin/alliances/missing-alliance/roster-duplicates",
+      {
+        headers,
+        data: { action: "merge", ashedMemberIds: ["missing-member"] },
+      },
+    );
+    expect(merge.status(), await merge.text()).toBe(403);
+  });
 });

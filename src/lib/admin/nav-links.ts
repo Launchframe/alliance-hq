@@ -21,6 +21,7 @@ export const ADMIN_LINKS = [
   { href: "/admin/uid-inspector", labelKey: "uidInspector" as const },
   { href: "/admin/activity", labelKey: "activity" as const },
   { href: "/admin/commanders", labelKey: "commanders" as const },
+  { href: "/admin/roster-duplicates", labelKey: "rosterDuplicates" as const },
 ] as const;
 
 export type AdminNavLabelKey = (typeof ADMIN_LINKS)[number]["labelKey"];
