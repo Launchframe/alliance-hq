@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import ffmpegStatic from "ffmpeg-static";
 
+import { openingMenuProbeTimestamps } from "@/lib/video/opening-menu-probe.shared";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
@@ -14,8 +15,12 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-/** Skip encoder/recording startup artifacts; capture opening/closing bookend frames near the ends. */
-export const FORCED_FIRST_FRAME_OFFSET_SECONDS = 0.05;
+/**
+ * Opening bookend is the first decoded frame (t=0). A 50ms seek already skips
+ * the top of a fast leaderboard scroll. Scene detection still skips n=0, so
+ * this bookend is what puts that frame in the set.
+ */
+export const FORCED_FIRST_FRAME_OFFSET_SECONDS = 0;
 
 /** Capture the tail of the scroll so the last on-screen rows are not missed. */
 export const FORCED_LAST_FRAME_OFFSET_SECONDS = 0.05;
@@ -61,13 +66,9 @@ export function parseFfprobeFrameRate(value: string | undefined): number | null 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-/** Input frame index for the forced opening capture (~50ms; one frame only). */
-export function forcedFirstFrameIndexForFps(fps: number | null): number {
-  if (fps != null && fps > 0) {
-    return Math.max(1, Math.round(FORCED_FIRST_FRAME_OFFSET_SECONDS * fps));
-  }
-  // ~50ms at 30fps when frame rate cannot be read from the container.
-  return 2;
+/** Input frame index for the forced opening capture: the first decoded frame. */
+export function forcedFirstFrameIndexForFps(_fps: number | null): number {
+  return 0;
 }
 
 /** Parse `Duration: HH:MM:SS.xx` from ffmpeg `-i` stderr. */
@@ -146,8 +147,10 @@ export function appendShowinfoFilter(vf: string): string {
  *
  * ffmpeg's `scene` metric compares each frame to its predecessor, so the first
  * frame (n=0) has no score and is never selected by `gt(scene,…)` alone.
- * Opening/closing bookends (~50ms from each end) are extracted separately via
- * accurate time seeks so fps mis-probes cannot push the first capture to ~1s.
+ * The opening bookend is the first decoded frame (or the first later probe
+ * that shows the leaderboard menu). The closing bookend is a short seek
+ * before the end. Both are extracted separately so fps mis-probes cannot
+ * push the first capture to ~1s.
  *
  * No `scale=` filter here on purpose: these frames are what OCR reads, so they
  * must stay at source resolution. Downsampling happens later, only for the
@@ -232,16 +235,19 @@ function compareFramesByTimestamp(a: ExtractedFrame, b: ExtractedFrame): number 
   return a.index - b.index;
 }
 
-function isNearDuplicateTimestamp(
+function bookendDuplicatesEarlierFrame(
   timestamp: number,
   frames: readonly ExtractedFrame[],
 ): boolean {
-  return frames.some(
-    (existing) =>
-      existing.videoTimestampSeconds != null &&
+  return frames.some((existing) => {
+    if (existing.videoTimestampSeconds == null) return false;
+    // A later scene frame is a different moment on a fast scroll.
+    if (existing.videoTimestampSeconds > timestamp + 0.001) return false;
+    return (
       Math.abs(existing.videoTimestampSeconds - timestamp) <
-        BOOKEND_FRAME_DEDUPE_SECONDS,
-  );
+      BOOKEND_FRAME_DEDUPE_SECONDS
+    );
+  });
 }
 
 export function mergeSceneFramesWithBookends(
@@ -252,7 +258,7 @@ export function mergeSceneFramesWithBookends(
 
   for (const bookend of [...bookends].sort(compareFramesByTimestamp)) {
     const t = bookend.videoTimestampSeconds;
-    if (t != null && isNearDuplicateTimestamp(t, kept)) {
+    if (t != null && bookendDuplicatesEarlierFrame(t, kept)) {
       continue;
     }
     kept.push(bookend);
@@ -308,11 +314,11 @@ async function runFfmpegExtract(
   }
 }
 
-async function extractBookendFrame(
+async function extractFrameAt(
   ffmpeg: string,
   videoPath: string,
   outputPath: string,
-  position: "opening" | "closing",
+  timestampSeconds: number,
 ): Promise<FfmpegRunResult> {
   const args = [
     "-hide_banner",
@@ -320,13 +326,11 @@ async function extractBookendFrame(
     "info",
     "-nostdin",
     "-y",
+    "-i",
+    videoPath,
   ];
-  if (position === "closing") {
-    args.push("-sseof", `-${FORCED_LAST_FRAME_OFFSET_SECONDS}`);
-  }
-  args.push("-i", videoPath);
-  if (position === "opening") {
-    args.push("-ss", String(FORCED_FIRST_FRAME_OFFSET_SECONDS));
+  if (timestampSeconds > 0) {
+    args.push("-ss", String(timestampSeconds));
   }
   args.push("-an", "-frames:v", "1", "-vf", "showinfo", outputPath);
 
@@ -342,6 +346,68 @@ async function extractBookendFrame(
   }
 }
 
+async function extractBookendFrame(
+  ffmpeg: string,
+  videoPath: string,
+  outputPath: string,
+): Promise<FfmpegRunResult> {
+  const args = [
+    "-hide_banner",
+    "-loglevel",
+    "info",
+    "-nostdin",
+    "-y",
+    "-sseof",
+    `-${FORCED_LAST_FRAME_OFFSET_SECONDS}`,
+    "-i",
+    videoPath,
+    "-an",
+    "-frames:v",
+    "1",
+    "-vf",
+    "showinfo",
+    outputPath,
+  ];
+
+  try {
+    const { stderr } = await execFileAsync(ffmpeg, args, {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return { stderr: stderr?.trim() ?? "" };
+  } catch (error) {
+    const execError = error as { stderr?: string; message?: string };
+    const detail = execError.stderr?.trim() || execError.message || "ffmpeg failed";
+    throw new Error(detail);
+  }
+}
+
+async function readSeekedFrame(
+  ffmpeg: string,
+  videoPath: string,
+  outputPath: string,
+  timestampSeconds: number,
+  sampleFps: number,
+): Promise<ExtractedFrame | null> {
+  const result = await extractFrameAt(
+    ffmpeg,
+    videoPath,
+    outputPath,
+    timestampSeconds,
+  );
+  const buffer = await fs.readFile(outputPath);
+  const [frame] = assignVideoTimestampsToFrames(
+    [{ index: 0, filePath: outputPath, buffer }],
+    result.stderr,
+    "scene",
+    sampleFps,
+  );
+  if (!frame) return null;
+  return {
+    ...frame,
+    videoTimestampSeconds: frame.videoTimestampSeconds ?? timestampSeconds,
+  };
+}
+
 async function extractSceneBookendFrames(
   ffmpeg: string,
   videoPath: string,
@@ -349,36 +415,64 @@ async function extractSceneBookendFrames(
   videoDurationSeconds: number | null,
   sampleFps: number,
   imageFormat: "jpg" | "png" = "jpg",
+  frameRateFps: number | null = null,
+  openingFrameShowsMenu?: (buffer: Buffer) => Promise<boolean>,
 ): Promise<ExtractedFrame[]> {
   const bookends: ExtractedFrame[] = [];
-  const openingPath = path.join(tmpDir, `bookend_opening.${imageFormat}`);
   const closingPath = path.join(tmpDir, `bookend_closing.${imageFormat}`);
+  const probeTimestamps = openingFrameShowsMenu
+    ? openingMenuProbeTimestamps(frameRateFps)
+    : [FORCED_FIRST_FRAME_OFFSET_SECONDS];
 
-  try {
-    const openingResult = await extractBookendFrame(
-      ffmpeg,
-      videoPath,
-      openingPath,
-      "opening",
+  let openingFallback: ExtractedFrame | null = null;
+  for (let probeIndex = 0; probeIndex < probeTimestamps.length; probeIndex += 1) {
+    const timestamp = probeTimestamps[probeIndex]!;
+    const openingPath = path.join(
+      tmpDir,
+      `bookend_opening_${probeIndex}.${imageFormat}`,
     );
-    const openingBuffer = await fs.readFile(openingPath);
-    const [openingFrame] = assignVideoTimestampsToFrames(
-      [{ index: 0, filePath: openingPath, buffer: openingBuffer }],
-      openingResult.stderr,
-      "scene",
-      sampleFps,
-    );
-    if (openingFrame) {
-      bookends.push(openingFrame);
+    try {
+      const frame = await readSeekedFrame(
+        ffmpeg,
+        videoPath,
+        openingPath,
+        timestamp,
+        sampleFps,
+      );
+      if (!frame) continue;
+      if (!openingFrameShowsMenu) {
+        bookends.push(frame);
+        openingFallback = null;
+        break;
+      }
+      if (!openingFallback) openingFallback = frame;
+      const showsMenu = await openingFrameShowsMenu(frame.buffer).catch(
+        () => false,
+      );
+      if (showsMenu) {
+        bookends.push(frame);
+        openingFallback = null;
+        logPipelineStep("ffmpeg.opening_menu_probe", 0, {
+          timestampSeconds: frame.videoTimestampSeconds,
+          probeIndex,
+          matched: true,
+        });
+        break;
+      }
+    } catch {
+      // This probe is best-effort; try the next backoff step.
     }
-  } catch {
-    // Opening bookend is best-effort; scene+fallback paths still run.
+  }
+  if (openingFallback) {
+    bookends.push(openingFallback);
+    logPipelineStep("ffmpeg.opening_menu_probe", 0, {
+      timestampSeconds: openingFallback.videoTimestampSeconds,
+      matched: false,
+    });
   }
 
   const minDurationForClosing =
-    FORCED_FIRST_FRAME_OFFSET_SECONDS +
-    FORCED_LAST_FRAME_OFFSET_SECONDS +
-    0.05;
+    FORCED_LAST_FRAME_OFFSET_SECONDS + 0.05;
   if (
     videoDurationSeconds == null ||
     videoDurationSeconds >= minDurationForClosing
@@ -388,7 +482,6 @@ async function extractSceneBookendFrames(
         ffmpeg,
         videoPath,
         closingPath,
-        "closing",
       );
       const closingBuffer = await fs.readFile(closingPath);
       const [closingFrame] = assignVideoTimestampsToFrames(
@@ -431,7 +524,15 @@ async function probeVideo(ffmpeg: string, videoPath: string): Promise<string> {
 export async function extractLeaderboardFrames(
   videoPath: string,
   extractionConfig?: ExtractionConfig,
-  options?: { imageFormat?: "jpg" | "png"; maxOutputFps?: number },
+  options?: {
+    imageFormat?: "jpg" | "png";
+    maxOutputFps?: number;
+    /**
+     * When set, VS uploads probe the start of the video until this returns
+     * true. The first decoded frame is kept when no probe matches.
+     */
+    openingFrameShowsMenu?: (buffer: Buffer) => Promise<boolean>;
+  },
 ): Promise<ExtractLeaderboardFramesResult> {
   const imageFormat = options?.imageFormat === "png" ? "png" : "jpg";
   const maxOutputFps = options?.maxOutputFps;
@@ -607,6 +708,8 @@ export async function extractLeaderboardFrames(
       videoDurationSeconds,
       sampleFps,
       imageFormat,
+      videoProbe.frameRateFps,
+      options?.openingFrameShowsMenu,
     );
     frames = mergeSceneFramesWithBookends(frames, bookends);
     logPipelineStep("ffmpeg.scene_bookends", Date.now() - bookendStarted, {
