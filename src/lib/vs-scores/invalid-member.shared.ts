@@ -4,6 +4,30 @@ export type RosterMemberNameRow = {
   deleted?: boolean;
 };
 
+export type ScoreSaveRosterRow = {
+  id: string;
+  name: string;
+  status?: string | null;
+};
+
+/**
+ * Ids allowed on a score save for this alliance.
+ * Former members stay on the roster. Ashed can mark someone former while they
+ * still appear on an in-game leaderboard, and a score save should keep that
+ * match. Ids that are not on this alliance's roster stay rejected.
+ */
+export function rosterNamesForScoreSave(
+  roster: readonly ScoreSaveRosterRow[],
+): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const row of roster) {
+    const id = row.id.trim();
+    if (!id) continue;
+    names.set(id, row.name);
+  }
+  return names;
+}
+
 /** Display names for active rows whose member id is missing from the roster set. */
 export function rosterMismatchMemberNames(
   rows: readonly RosterMemberNameRow[],
