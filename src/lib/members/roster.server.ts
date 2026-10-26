@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, max, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, max, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { base44ListMemberRecords } from "@/lib/base44/fetch";
@@ -16,6 +16,8 @@ import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identit
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
+import { rosterMemberIdsAbsentFromAshed } from "@/lib/members/roster-absence.shared";
+import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
 
 export {
   allianceMemberRowToAshedMember,
@@ -207,6 +209,14 @@ export async function syncAllianceMembersFromAshed(input: {
     synced += 1;
   }
 
+  await markConfirmedMembersAbsentFromAshed({
+    hqAllianceId: input.hqAllianceId,
+    returnedAshedMemberIds: members.flatMap((member) =>
+      member.id ? [member.id] : [],
+    ),
+    now,
+  });
+
   try {
     const { rematerializeFormerSeatLinksForAlliance } = await import(
       "@/lib/members/uid-seat-handoff.server"
@@ -221,6 +231,61 @@ export async function syncAllianceMembersFromAshed(input: {
   await syncCurrentRankPoolGenerations(input.hqAllianceId);
 
   return { synced, commanderConflicts };
+}
+
+async function markConfirmedMembersAbsentFromAshed(input: {
+  hqAllianceId: string;
+  returnedAshedMemberIds: string[];
+  now: Date;
+}): Promise<void> {
+  const db = getDb();
+  const [localRows, guards] = await Promise.all([
+    db
+      .select({
+        ashedMemberId: schema.allianceMembers.ashedMemberId,
+        status: schema.allianceMembers.status,
+        ashedUpdatedAt: schema.allianceMembers.ashedUpdatedAt,
+        ashedAllianceId: schema.allianceMembers.ashedAllianceId,
+      })
+      .from(schema.allianceMembers)
+      .where(eq(schema.allianceMembers.allianceId, input.hqAllianceId)),
+    db
+      .select({ memberId: schema.vsComplianceRosterGuards.memberId })
+      .from(schema.vsComplianceRosterGuards)
+      .where(eq(schema.vsComplianceRosterGuards.allianceId, input.hqAllianceId)),
+  ]);
+  const absent = rosterMemberIdsAbsentFromAshed({
+    local: localRows.map((row) => ({
+      ashedMemberId: row.ashedMemberId,
+      status: row.status,
+      ashedConfirmed:
+        row.ashedUpdatedAt != null &&
+        !isSyntheticNativeAshedAllianceId(row.ashedAllianceId),
+      ashedAllianceId: row.ashedAllianceId,
+    })),
+    returnedAshedMemberIds: input.returnedAshedMemberIds,
+    guardedMemberIds: guards.map((row) => row.memberId),
+  });
+  if (absent.length === 0) return;
+
+  await db
+    .update(schema.allianceMembers)
+    .set({ status: "former", updatedAt: input.now })
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.hqAllianceId),
+        inArray(schema.allianceMembers.ashedMemberId, absent),
+      ),
+    );
+  for (const ashedMemberId of absent) {
+    await syncCommanderFromAllianceMember({
+      allianceId: input.hqAllianceId,
+      ashedMemberId,
+      leftAt: input.now,
+    });
+  }
+  const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
+  await pruneFormerMembersFromOpenPools(input.hqAllianceId);
 }
 
 async function syncCurrentRankPoolGenerations(hqAllianceId: string): Promise<void> {

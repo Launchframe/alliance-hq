@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  memberIdsAllowedForScoreSave,
   rosterMismatchMemberNames,
   rosterNamesForScoreSave,
 } from "./invalid-member.shared";
@@ -42,5 +43,21 @@ describe("rosterNamesForScoreSave", () => {
         new Set(names.keys()),
       ),
     ).toEqual(["Not Here"]);
+  });
+});
+
+describe("memberIdsAllowedForScoreSave", () => {
+  it("keeps a former local member when the live Ashed list omits them", () => {
+    const ids = memberIdsAllowedForScoreSave({
+      local: [
+        { id: "active-1", name: "Nolde", status: "active" },
+        { id: "former-1", name: "Hawkeye", status: "former" },
+      ],
+      liveIds: ["active-1", "live-only"],
+    });
+
+    expect(ids.has("former-1")).toBe(true);
+    expect(ids.has("live-only")).toBe(true);
+    expect(ids.has("missing")).toBe(false);
   });
 });
