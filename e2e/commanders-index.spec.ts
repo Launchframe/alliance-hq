@@ -104,10 +104,14 @@ test.describe("Commanders index", () => {
     });
 
     const secretUid = "9988776655443322";
+    // Unique ashed ids — hardcoded `ci-member-0` collides with prefetch/router
+    // cache from other tests that reuse the same path.
+    const memberIds = Array.from({ length: 10 }, () => `ci-${nanoid(10)}`);
+    const warLeaderMemberId = memberIds[0]!;
     for (let i = 0; i < 10; i++) {
       await insertAllianceMember(sql, {
         allianceId: alliance.allianceId,
-        ashedMemberId: `ci-member-${i}`,
+        ashedMemberId: memberIds[i]!,
         currentName: `CI Fighter ${i}`,
         currentTotalHeroPower: 5_000_000 - i * 100_000,
         mainSquad: i % 3 === 0 ? "aircraft" : i % 3 === 1 ? "tank" : "missile",
@@ -138,6 +142,14 @@ test.describe("Commanders index", () => {
     `;
 
     await page.context().addCookies(playwrightAuthCookies(session));
+    // Profession headers are desktop-only (`hidden md:table-cell`). Force a
+    // desktop viewport and clear saved column prefs so a prior worker visit
+    // cannot hide them.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.addInitScript(() => {
+      window.localStorage.removeItem("alliance-hq-roster-columns-v2");
+      window.localStorage.removeItem("alliance-hq-roster-columns-v1");
+    });
 
     const apiRes = await request.get(`${e2eBaseUrl()}/api/commanders/index`, {
       headers: { Cookie: authCookieHeader(session) },
@@ -156,14 +168,15 @@ test.describe("Commanders index", () => {
     await expect(page.getByRole("link", { name: "CI Fighter 0" })).toBeVisible();
     await expect(page.getByText(secretUid)).toHaveCount(0);
 
+    // Prefer thead text over getByRole("columnheader"): Chromium can omit
+    // these sortable <th> nodes from the columnheader role tree even when
+    // they are display:table-cell. Assert the rendered header copy instead.
+    await expect(page.locator("thead th", { hasText: /^Profession$/ })).toBeVisible();
     await expect(
-      page.getByRole("columnheader", { name: /^profession$/i }),
+      page.locator("thead th", { hasText: /^Profession level$/ }),
     ).toBeVisible();
     await expect(
-      page.getByRole("columnheader", { name: /^profession level$/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("columnheader", { name: /^previous names$/i }),
+      page.locator("thead th", { hasText: /^Previous names$/ }),
     ).toHaveCount(0);
     const warLeaderRow = page
       .getByRole("row")
@@ -175,9 +188,32 @@ test.describe("Commanders index", () => {
       warLeaderRow.getByRole("cell", { name: "37", exact: true }),
     ).toBeVisible();
 
-    await page.goto("/members/ci-member-0");
-    await expect(page.getByText("War Leader", { exact: true })).toBeVisible();
-    await expect(page.getByText("37", { exact: true })).toBeVisible();
+    const profileApi = await request.get(
+      `${e2eBaseUrl()}/api/members/${warLeaderMemberId}`,
+      { headers: { Cookie: authCookieHeader(session) } },
+    );
+    expect(profileApi.ok(), await profileApi.text()).toBeTruthy();
+    const profilePayload = (await profileApi.json()) as {
+      member: { profession: string | null; professionLevel: number | null };
+    };
+    expect(profilePayload.member.profession).toBe("War Leader");
+    expect(profilePayload.member.professionLevel).toBe(37);
+
+    // Prefer the roster link over a bare goto so we don't pick up a stale
+    // soft-nav cache for a reused member id path.
+    await page.getByRole("link", { name: "CI Fighter 0" }).click();
+    await expect(page).toHaveURL(new RegExp(`/members/${warLeaderMemberId}`));
+    await expect(page.locator("p", { hasText: "CI Fighter 0" }).first()).toBeVisible();
+    const professionValue = page
+      .locator("dt", { hasText: /^Profession$/ })
+      .locator("xpath=following-sibling::dd[1]")
+      .filter({ visible: true });
+    const professionLevelValue = page
+      .locator("dt", { hasText: /^Profession level$/ })
+      .locator("xpath=following-sibling::dd[1]")
+      .filter({ visible: true });
+    await expect(professionValue).toHaveText("War Leader");
+    await expect(professionLevelValue).toHaveText("37");
 
     await page.goto("/members");
     await expect(
