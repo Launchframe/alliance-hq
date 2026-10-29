@@ -101,6 +101,33 @@ describe("groupRosterDuplicates", () => {
     });
   });
 
+  it("preserves Unicode letters so distinct CJK names do not collapse", () => {
+    const { groups } = groupRosterDuplicates([
+      member({ ashedMemberId: "a", name: "玩家One", createdAt: 1 }),
+      member({ ashedMemberId: "b", name: "队长One", createdAt: 2 }),
+    ]);
+    expect(groups).toHaveLength(0);
+  });
+
+  it("groups identical non-ASCII names as exact duplicates", () => {
+    const { groups } = groupRosterDuplicates([
+      member({
+        ashedMemberId: "lr",
+        name: "玩家",
+        synthetic: true,
+        createdAt: 1,
+      }),
+      member({ ashedMemberId: "ashed", name: "玩家", createdAt: 2 }),
+    ]);
+    expect(groups).toEqual([
+      expect.objectContaining({
+        kind: "exact",
+        keeperAshedMemberId: "ashed",
+        memberIds: ["ashed", "lr"],
+      }),
+    ]);
+  });
+
   it("flags one-character and contained names for review, and clusters of three as ambiguous", () => {
     const { groups, unmatchedSyntheticIds } = groupRosterDuplicates([
       member({ ashedMemberId: "short", name: "Aleeaaaa", synthetic: true, createdAt: 1 }),

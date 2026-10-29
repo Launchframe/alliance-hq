@@ -980,7 +980,10 @@
       "removeBody": "Mereka keluar dari roster aktif. Riwayat komandan tetap ada. Akun HQ yang tertaut tetap mengarah ke anggota itu sampai digabung ke baris yang dipertahankan.",
       "removeConfirm": "Hapus anggota",
       "keeperSkipped": "{name} adalah baris yang disarankan untuk disimpan, jadi tidak digabung.",
-      "ashedConnection": "Anggota ini masih ada di Ashed. Hubungkan kredensial bot aliansi sebelum menghapus salinan itu."
+      "ashedConnection": "Anggota ini masih ada di Ashed. Hubungkan kredensial bot aliansi sebelum menghapus salinan itu.",
+      "ashedRetireFailed": "HQ diperbarui, tetapi Ashed masih memiliki salinan aktif. Perbaiki kredensial bot sebelum menyegarkan daftar anggota.",
+      "memberNotFound": "Anggota itu tidak lagi ada di daftar anggota aktif.",
+      "mergeFailed": "{name}: {reason}"
     },
     "subtitle": "Cross-alliance observability for platform maintainers.",
     "systemDesc": "Database status, resource counts, env config, and RBAC role catalog.",

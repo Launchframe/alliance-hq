@@ -38,6 +38,13 @@ type MergeInput = {
   allianceId: string;
   keptAshedMemberId: string;
   duplicateAshedMemberId: string;
+  /**
+   * Which side's current name wins after merge.
+   * Default `duplicate` preserves the profile merge dialog (adopt the duplicate's
+   * name). Batch roster cleanup passes `kept` so the recommended Ashed row keeps
+   * its name when folding a LastRank import.
+   */
+  keepName?: "kept" | "duplicate";
 };
 
 type LoadedSide = MergeSide & {
@@ -892,7 +899,11 @@ async function runMerge(
   const dupSide = { ...dup, commanderId: dup.commanderId };
 
   const now = new Date();
-  const newName = dup.currentName.trim() || kept.currentName;
+  const preferred =
+    input.keepName === "kept" ? kept.currentName : dup.currentName;
+  const fallback =
+    input.keepName === "kept" ? dup.currentName : kept.currentName;
+  const newName = preferred.trim() || fallback;
   const previousNames = mergedPreviousNames({
     keptCurrentName: kept.currentName,
     keptPreviousNames: kept.previousNames,

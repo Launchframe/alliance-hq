@@ -783,7 +783,10 @@
       "removeBody": "Eles saem do elenco ativo. O histórico do comandante permanece. Uma conta HQ vinculada continua apontando para esse membro até você mesclá-lo na linha que está mantendo.",
       "removeConfirm": "Remover membros",
       "keeperSkipped": "{name} é a linha recomendada para manter, então não foi mesclada.",
-      "ashedConnection": "Este membro ainda existe no Ashed. Conecte a credencial do bot da aliança antes de remover essa cópia."
+      "ashedConnection": "Este membro ainda existe no Ashed. Conecte a credencial do bot da aliança antes de remover essa cópia.",
+      "ashedRetireFailed": "O HQ foi atualizado, mas o Ashed ainda tem uma cópia ativa. Corrija a credencial do bot antes de atualizar o elenco.",
+      "memberNotFound": "Esse membro não está mais no elenco ativo.",
+      "mergeFailed": "{name}: {reason}"
     },
     "opsInbox": {
       "title": "Caixa de ops",

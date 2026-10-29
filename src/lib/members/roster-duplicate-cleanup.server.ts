@@ -6,6 +6,7 @@ import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
+import { markAshedMemberFormer } from "@/lib/members/ashed-member-write.server";
 import { mergeDuplicateCommander } from "@/lib/members/merge-duplicate-commander.server";
 import {
   groupRosterDuplicates,
@@ -116,6 +117,8 @@ export async function mergeRosterDuplicates(input: {
       allianceId: input.allianceId,
       keptAshedMemberId: group.keeperAshedMemberId,
       duplicateAshedMemberId: ashedMemberId,
+      // Keep the recommended Ashed name; do not adopt the LastRank import name.
+      keepName: "kept",
       actorHqUserId: input.actorHqUserId,
       sessionId: input.sessionId,
     });
@@ -217,6 +220,20 @@ async function retireRosterMember(input: {
     const connection = await resolveAllianceAshedBotConnection(input.allianceId);
     if (!connection) {
       return { ok: false, name: row.name, code: "ashed_connection_required" };
+    }
+    // Retire on Ashed before HQ so the next roster sync cannot revive the row.
+    try {
+      await markAshedMemberFormer({
+        connection,
+        ashedMemberId: input.ashedMemberId,
+      });
+    } catch (error) {
+      console.error(
+        `[roster-duplicate-cleanup] Ashed retire failed for alliance ${input.allianceId}: ${
+          error instanceof Error ? error.message : "unknown"
+        }`,
+      );
+      return { ok: false, name: row.name, code: "ashed_retire_failed" };
     }
   }
 

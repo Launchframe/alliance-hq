@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
+import {
+  isMergeDuplicateErrorCode,
+  mergeDuplicateErrorKey,
+} from "@/lib/members/merge-duplicate-commander.shared";
 import type {
   RosterDuplicateInexactPair,
   RosterDuplicateMemberView,
@@ -24,6 +28,7 @@ type BatchPayload = {
 export function AdminRosterDuplicatesConsole() {
   const t = useTranslations("admin.rosterDuplicates");
   const tAdmin = useTranslations("admin");
+  const tMergeErrors = useTranslations("members.mergeCommander.errors");
   const locale = useLocale();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<AllianceHit[]>([]);
@@ -41,6 +46,8 @@ export function AdminRosterDuplicatesConsole() {
   );
   const [inexactAck, setInexactAck] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const scanRequestIdRef = useRef(0);
+  const actionRequestIdRef = useRef(0);
 
   const nextScanKey = scan
     ? `${allianceId ?? ""}:${scan.groups.map((group) => group.id).join(",")}:${scan.unmatchedLastRank.map((member) => member.ashedMemberId).join(",")}`
@@ -86,18 +93,43 @@ export function AdminRosterDuplicatesConsole() {
     setHits(body.alliances);
   }
 
+  function failureReason(code: string | undefined): string {
+    if (code === "ashed_connection_required") return t("ashedConnection");
+    if (code === "ashed_retire_failed") return t("ashedRetireFailed");
+    if (code === "no_recommended_keeper") return t("ambiguousGroup");
+    if (code === "not_found") return t("memberNotFound");
+    if (isMergeDuplicateErrorCode(code)) {
+      return tMergeErrors(mergeDuplicateErrorKey(code));
+    }
+    return tMergeErrors("generic");
+  }
+
   async function loadScan(nextAllianceId: string) {
+    const requestId = ++scanRequestIdRef.current;
     setBusy(true);
     setError(null);
-    const response = await fetch(
-      `/api/admin/alliances/${encodeURIComponent(nextAllianceId)}/roster-duplicates`,
-    );
-    setBusy(false);
-    if (!response.ok) {
-      setError(tAdmin("loadFailed"));
-      return;
+    setScan(null);
+    setNotices([]);
+    try {
+      const response = await fetch(
+        `/api/admin/alliances/${encodeURIComponent(nextAllianceId)}/roster-duplicates`,
+      );
+      let body: RosterDuplicateScan | null = null;
+      try {
+        body = (await response.json()) as RosterDuplicateScan;
+      } catch {
+        body = null;
+      }
+      if (requestId !== scanRequestIdRef.current) return;
+      if (!response.ok || !body) {
+        setError(tAdmin("loadFailed"));
+        setScan(null);
+        return;
+      }
+      setScan(body);
+    } finally {
+      if (requestId === scanRequestIdRef.current) setBusy(false);
     }
-    setScan((await response.json()) as RosterDuplicateScan);
   }
 
   function toggle(member: RosterDuplicateMemberView) {
@@ -121,56 +153,70 @@ export function AdminRosterDuplicatesConsole() {
       if (item.code === "keeper") lines.push(t("keeperSkipped", { name: item.name }));
     }
     for (const item of body.failed) {
-      if (
-        item.code === "ashed_connection_required" ||
-        item.code === "ashed_retire_failed"
-      ) {
-        lines.push(t("ashedConnection"));
-      } else if (item.code === "no_recommended_keeper") {
-        lines.push(t("ambiguousGroup"));
-      }
+      lines.push(
+        t("mergeFailed", { name: item.name, reason: failureReason(item.code) }),
+      );
     }
     setNotices(lines);
   }
 
   async function postAction(action: "merge" | "remove", confirmInexact = false) {
     if (!allianceId || selectedIds.length === 0) return;
+    const requestAllianceId = allianceId;
+    const requestId = ++actionRequestIdRef.current;
     setBusy(true);
     setError(null);
-    const response = await fetch(
-      `/api/admin/alliances/${encodeURIComponent(allianceId)}/roster-duplicates`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          ashedMemberIds: selectedIds,
-          confirmInexact,
-        }),
-      },
-    );
-    const body = (await response.json()) as BatchPayload & {
-      code?: string;
-      pairs?: RosterDuplicateInexactPair[];
-    };
-    setBusy(false);
-    if (response.status === 409 && body.code === "inexact_confirmation_required") {
-      setInexactPairs(body.pairs ?? []);
-      setInexactAck(false);
-      return;
-    }
-    if (!response.ok) {
-      if (body.code === "ambiguous_selection") {
-        setNotices([t("ambiguousGroup")]);
+    try {
+      const response = await fetch(
+        `/api/admin/alliances/${encodeURIComponent(requestAllianceId)}/roster-duplicates`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            ashedMemberIds: selectedIds,
+            confirmInexact,
+          }),
+        },
+      );
+      let body: (BatchPayload & {
+        code?: string;
+        pairs?: RosterDuplicateInexactPair[];
+      }) | null = null;
+      try {
+        body = (await response.json()) as BatchPayload & {
+          code?: string;
+          pairs?: RosterDuplicateInexactPair[];
+        };
+      } catch {
+        body = null;
+      }
+      if (requestId !== actionRequestIdRef.current) return;
+      if (allianceId !== requestAllianceId) return;
+      if (!body) {
+        setError(tAdmin("loadFailed"));
         return;
       }
-      setError(tAdmin("loadFailed"));
-      return;
+      if (response.status === 409 && body.code === "inexact_confirmation_required") {
+        setInexactPairs(body.pairs ?? []);
+        setInexactAck(false);
+        return;
+      }
+      if (!response.ok) {
+        if (body.code === "ambiguous_selection") {
+          setNotices([t("ambiguousGroup")]);
+          return;
+        }
+        setError(tAdmin("loadFailed"));
+        return;
+      }
+      setInexactPairs(null);
+      setRemoveOpen(false);
+      applyBatch(body);
+      await loadScan(requestAllianceId);
+    } finally {
+      if (requestId === actionRequestIdRef.current) setBusy(false);
     }
-    setInexactPairs(null);
-    setRemoveOpen(false);
-    applyBatch(body);
-    await loadScan(allianceId);
   }
 
   const empty =
@@ -208,7 +254,9 @@ export function AdminRosterDuplicatesConsole() {
                 onClick={() => {
                   setAllianceId(hit.id);
                   setAllianceLabel(hit.tag ? `${hit.tag} · ${hit.name}` : hit.name);
+                  setScan(null);
                   setNotices([]);
+                  setError(null);
                   void loadScan(hit.id);
                 }}
               >

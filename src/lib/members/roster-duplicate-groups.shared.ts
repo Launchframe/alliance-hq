@@ -60,8 +60,15 @@ export type RosterDuplicateScan = {
 
 const MIN_FUZZY_LENGTH = 6;
 
+/**
+ * Dedup key: NFC + lowercase/trim, keep Unicode letters/numbers/marks, drop
+ * punctuation. ASCII-only stripping collapsed distinct CJK names that shared a
+ * Latin suffix (e.g. 玩家One / 队长One → "one").
+ */
 export function strippedCommanderName(name: string): string {
-  return normalizeCommanderName(name).replace(/[^a-z0-9]/g, "");
+  return normalizeCommanderName(name)
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, "");
 }
 
 /** Real Ashed row, then an HQ or Discord link, then a game UID, then the older row. */

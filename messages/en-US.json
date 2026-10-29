@@ -783,7 +783,10 @@
       "removeBody": "They leave the active roster. Commander history stays. A linked HQ account stays pointed at that member until you merge it into the row you are keeping.",
       "removeConfirm": "Remove members",
       "keeperSkipped": "{name} is the recommended row to keep, so it was not merged.",
-      "ashedConnection": "This member still exists on Ashed. Connect the alliance bot credential before removing that copy."
+      "ashedConnection": "This member still exists on Ashed. Connect the alliance bot credential before removing that copy.",
+      "ashedRetireFailed": "HQ updated, but Ashed still has an active copy. Fix the bot credential before refreshing the roster.",
+      "memberNotFound": "That member is no longer on the active roster.",
+      "mergeFailed": "{name}: {reason}"
     },
     "opsInbox": {
       "title": "Ops inbox",
