@@ -28,6 +28,19 @@ export function rosterNamesForScoreSave(
   return names;
 }
 
+/** Local roster ids, plus any live Ashed ids when that list was fetched. */
+export function memberIdsAllowedForScoreSave(input: {
+  local: readonly ScoreSaveRosterRow[];
+  liveIds?: readonly string[] | null;
+}): Set<string> {
+  const ids = new Set(rosterNamesForScoreSave(input.local).keys());
+  for (const id of input.liveIds ?? []) {
+    const trimmed = id.trim();
+    if (trimmed) ids.add(trimmed);
+  }
+  return ids;
+}
+
 /** Display names for active rows whose member id is missing from the roster set. */
 export function rosterMismatchMemberNames(
   rows: readonly RosterMemberNameRow[],
