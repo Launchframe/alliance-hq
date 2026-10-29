@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, max, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, lte, max, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { base44ListMemberRecords } from "@/lib/base44/fetch";
@@ -16,6 +16,7 @@ import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identit
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
+import { withAllianceRosterAshedSyncLock } from "@/lib/members/roster-ashed-sync-lock.server";
 import { rosterMemberIdsAbsentFromAshed } from "@/lib/members/roster-absence.shared";
 import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
 
@@ -55,8 +56,20 @@ export async function syncAllianceMembersFromAshed(input: {
   ashedAllianceId: string;
   connection: ParsedConnection;
 }): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
-  const members = await base44ListMemberRecords(input.connection, input.ashedAllianceId);
+  return withAllianceRosterAshedSyncLock(input.hqAllianceId, () =>
+    syncAllianceMembersFromAshedLocked(input),
+  );
+}
+
+async function syncAllianceMembersFromAshedLocked(input: {
+  hqAllianceId: string;
+  ashedAllianceId: string;
+  connection: ParsedConnection;
+}): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
+  // Capture before the Ashed fetch so the absence freshness fence
+  // (syncedAt <= now) rejects rows rewritten by a later sync.
   const now = new Date();
+  const members = await base44ListMemberRecords(input.connection, input.ashedAllianceId);
   const db = getDb();
   let synced = 0;
   const commanderConflicts: CommanderIdentityConflict[] = [];
@@ -268,22 +281,29 @@ async function markConfirmedMembersAbsentFromAshed(input: {
   });
   if (absent.length === 0) return;
 
-  await db
+  // Freshness fence: refuse to demote rows a newer sync already rewrote
+  // (syncedAt > this sync's now). Per-alliance advisory lock is the primary
+  // guard; this keeps a stray unlocked caller from applying a stale omission.
+  const demoted = await db
     .update(schema.allianceMembers)
     .set({ status: "former", updatedAt: input.now })
     .where(
       and(
         eq(schema.allianceMembers.allianceId, input.hqAllianceId),
         inArray(schema.allianceMembers.ashedMemberId, absent),
+        lte(schema.allianceMembers.syncedAt, input.now),
+        ne(schema.allianceMembers.status, "former"),
       ),
-    );
-  for (const ashedMemberId of absent) {
+    )
+    .returning({ ashedMemberId: schema.allianceMembers.ashedMemberId });
+  for (const row of demoted) {
     await syncCommanderFromAllianceMember({
       allianceId: input.hqAllianceId,
-      ashedMemberId,
+      ashedMemberId: row.ashedMemberId,
       leftAt: input.now,
     });
   }
+  if (demoted.length === 0) return;
   const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
   await pruneFormerMembersFromOpenPools(input.hqAllianceId);
 }
