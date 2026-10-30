@@ -17,7 +17,10 @@ import type { CommanderIdentityConflict } from "@/lib/members/commander-identity
 import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
 import { withAllianceRosterAshedSyncLock } from "@/lib/members/roster-ashed-sync-lock.server";
-import { rosterMemberIdsAbsentFromAshed } from "@/lib/members/roster-absence.shared";
+import {
+  rosterAbsenceMassFormerPreview,
+  rosterMemberIdsAbsentFromAshed,
+} from "@/lib/members/roster-absence.shared";
 import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
 
 export {
@@ -51,11 +54,30 @@ export async function resolveHqAllianceId(
   return row.id;
 }
 
+export type SyncAllianceMembersFromAshedResult = {
+  synced: number;
+  commanderConflicts: CommanderIdentityConflict[];
+  /**
+   * When massFormerMode is `require_confirm` and the absence pass would demote a
+   * large fraction of the roster, former marks are skipped until confirm.
+   */
+  massFormerPending?: {
+    wouldFormerCount: number;
+    confirmedActiveCount: number;
+  };
+};
+
 export async function syncAllianceMembersFromAshed(input: {
   hqAllianceId: string;
   ashedAllianceId: string;
   connection: ParsedConnection;
-}): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
+  /**
+   * `apply` (default): mark absent former as today.
+   * `require_confirm`: skip mass-former when threshold hit; return massFormerPending.
+   * `confirm`: apply even when the threshold would fire.
+   */
+  massFormerMode?: "apply" | "require_confirm" | "confirm";
+}): Promise<SyncAllianceMembersFromAshedResult> {
   return withAllianceRosterAshedSyncLock(input.hqAllianceId, () =>
     syncAllianceMembersFromAshedLocked(input),
   );
@@ -65,7 +87,8 @@ async function syncAllianceMembersFromAshedLocked(input: {
   hqAllianceId: string;
   ashedAllianceId: string;
   connection: ParsedConnection;
-}): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
+  massFormerMode?: "apply" | "require_confirm" | "confirm";
+}): Promise<SyncAllianceMembersFromAshedResult> {
   // Capture before the Ashed fetch so the absence freshness fence
   // (syncedAt <= now) rejects rows rewritten by a later sync.
   const now = new Date();
@@ -222,12 +245,13 @@ async function syncAllianceMembersFromAshedLocked(input: {
     synced += 1;
   }
 
-  await markConfirmedMembersAbsentFromAshed({
+  const massFormer = await markConfirmedMembersAbsentFromAshed({
     hqAllianceId: input.hqAllianceId,
     returnedAshedMemberIds: members.flatMap((member) =>
       member.id ? [member.id] : [],
     ),
     now,
+    massFormerMode: input.massFormerMode ?? "apply",
   });
 
   try {
@@ -243,14 +267,33 @@ async function syncAllianceMembersFromAshedLocked(input: {
 
   await syncCurrentRankPoolGenerations(input.hqAllianceId);
 
-  return { synced, commanderConflicts };
+  return {
+    synced,
+    commanderConflicts,
+    ...(massFormer.pending
+      ? {
+          massFormerPending: {
+            wouldFormerCount: massFormer.wouldFormerCount,
+            confirmedActiveCount: massFormer.confirmedActiveCount,
+          },
+        }
+      : {}),
+  };
 }
 
 async function markConfirmedMembersAbsentFromAshed(input: {
   hqAllianceId: string;
   returnedAshedMemberIds: string[];
   now: Date;
-}): Promise<void> {
+  massFormerMode: "apply" | "require_confirm" | "confirm";
+}): Promise<
+  | { pending: false }
+  | {
+      pending: true;
+      wouldFormerCount: number;
+      confirmedActiveCount: number;
+    }
+> {
   const db = getDb();
   const [localRows, guards] = await Promise.all([
     db
@@ -267,19 +310,31 @@ async function markConfirmedMembersAbsentFromAshed(input: {
       .from(schema.vsComplianceRosterGuards)
       .where(eq(schema.vsComplianceRosterGuards.allianceId, input.hqAllianceId)),
   ]);
-  const absent = rosterMemberIdsAbsentFromAshed({
-    local: localRows.map((row) => ({
-      ashedMemberId: row.ashedMemberId,
-      status: row.status,
-      ashedConfirmed:
-        row.ashedUpdatedAt != null &&
-        !isSyntheticNativeAshedAllianceId(row.ashedAllianceId),
-      ashedAllianceId: row.ashedAllianceId,
-    })),
+  const local = localRows.map((row) => ({
+    ashedMemberId: row.ashedMemberId,
+    status: row.status,
+    ashedConfirmed:
+      row.ashedUpdatedAt != null &&
+      !isSyntheticNativeAshedAllianceId(row.ashedAllianceId),
+    ashedAllianceId: row.ashedAllianceId,
+  }));
+  const preview = rosterAbsenceMassFormerPreview({
+    local,
     returnedAshedMemberIds: input.returnedAshedMemberIds,
     guardedMemberIds: guards.map((row) => row.memberId),
   });
-  if (absent.length === 0) return;
+  if (
+    input.massFormerMode === "require_confirm" &&
+    preview.needsConfirm
+  ) {
+    return {
+      pending: true,
+      wouldFormerCount: preview.absentIds.length,
+      confirmedActiveCount: preview.confirmedActiveCount,
+    };
+  }
+  const absent = preview.absentIds;
+  if (absent.length === 0) return { pending: false };
 
   // Freshness fence: refuse to demote rows a newer sync already rewrote
   // (syncedAt > this sync's now). Per-alliance advisory lock is the primary
@@ -303,9 +358,10 @@ async function markConfirmedMembersAbsentFromAshed(input: {
       leftAt: input.now,
     });
   }
-  if (demoted.length === 0) return;
+  if (demoted.length === 0) return { pending: false };
   const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
   await pruneFormerMembersFromOpenPools(input.hqAllianceId);
+  return { pending: false };
 }
 
 async function syncCurrentRankPoolGenerations(hqAllianceId: string): Promise<void> {

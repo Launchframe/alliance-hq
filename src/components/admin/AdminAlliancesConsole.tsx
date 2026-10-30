@@ -33,6 +33,7 @@ type Alliance = {
   name: string;
   tag: string | null;
   ashedAllianceId: string | null;
+  lastrankAllianceId: string | null;
   operatingMode: string;
   gameServerNumber: number | null;
   ownerEmail: string | null;
@@ -40,6 +41,8 @@ type Alliance = {
   rolesSyncedAt: string | null;
   memberCount: number;
 };
+
+type IdentityDraft = { tag: string; name: string; lastrankAllianceId: string };
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PAGE_SIZE = 25;
@@ -87,6 +90,18 @@ export function AdminAlliancesConsole() {
   const [serverDrafts, setServerDrafts] = useState<Record<string, string>>({});
   const [savingServerId, setSavingServerId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [identityDrafts, setIdentityDrafts] = useState<
+    Record<string, IdentityDraft>
+  >({});
+  const [savingIdentityId, setSavingIdentityId] = useState<string | null>(null);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [identityMessage, setIdentityMessage] = useState<string | null>(null);
+  const [catchUpBusyId, setCatchUpBusyId] = useState<string | null>(null);
+  const [pendingMassFormer, setPendingMassFormer] = useState<{
+    allianceId: string;
+    wouldFormerCount: number;
+    confirmedActiveCount: number;
+  } | null>(null);
 
   const queryParams = useMemo(
     (): AdminAlliancesQueryParams => ({
@@ -261,6 +276,146 @@ export function AdminAlliancesConsole() {
     }
   }
 
+  function identityDraftFor(alliance: Alliance): IdentityDraft {
+    return (
+      identityDrafts[alliance.id] ?? {
+        tag: alliance.tag ?? "",
+        name: alliance.name,
+        lastrankAllianceId: alliance.lastrankAllianceId ?? "",
+      }
+    );
+  }
+
+  function identityDirty(alliance: Alliance): boolean {
+    const draft = identityDraftFor(alliance);
+    return (
+      draft.tag.trim() !== (alliance.tag ?? "").trim() ||
+      draft.name.trim() !== alliance.name.trim() ||
+      draft.lastrankAllianceId.trim().toLowerCase() !==
+        (alliance.lastrankAllianceId ?? "").trim().toLowerCase()
+    );
+  }
+
+  async function saveIdentity(alliance: Alliance) {
+    const draft = identityDraftFor(alliance);
+    if (!draft.tag.trim() || !draft.name.trim()) {
+      setIdentityError(t("rename.fieldsRequired"));
+      return;
+    }
+    setSavingIdentityId(alliance.id);
+    setIdentityError(null);
+    setIdentityMessage(null);
+    setPendingMassFormer(null);
+    try {
+      const body: {
+        tag: string;
+        name: string;
+        lastrankAllianceId?: string | null;
+      } = {
+        tag: draft.tag.trim(),
+        name: draft.name.trim(),
+      };
+      const pin = draft.lastrankAllianceId.trim();
+      if (pin) body.lastrankAllianceId = pin;
+
+      const res = await fetch(
+        `/api/admin/alliances/${encodeURIComponent(alliance.id)}/identity`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        rosterCatchUp?: {
+          ashedAvailable?: boolean;
+          lastRankPinned?: boolean;
+          lastRankRegistryTag?: string | null;
+        };
+      } | null;
+      if (!res.ok) {
+        throw new Error(data?.error ?? t("rename.saveFailed"));
+      }
+      setIdentityDrafts((current) => {
+        const next = { ...current };
+        delete next[alliance.id];
+        return next;
+      });
+      const catchUp = data?.rosterCatchUp;
+      if (catchUp?.ashedAvailable) {
+        setIdentityMessage(t("rename.savedWithAshedCatchUp"));
+      } else if (catchUp?.lastRankPinned) {
+        setIdentityMessage(
+          t("rename.savedWithLastRankPin", {
+            tag: catchUp.lastRankRegistryTag ?? draft.tag.trim(),
+          }),
+        );
+      } else {
+        setIdentityMessage(t("rename.saved"));
+      }
+      refreshAfterMutation();
+    } catch (err) {
+      setIdentityError(
+        err instanceof Error ? err.message : t("rename.saveFailed"),
+      );
+    } finally {
+      setSavingIdentityId(null);
+    }
+  }
+
+  async function runRosterCatchUp(
+    alliance: Alliance,
+    confirmMassFormer: boolean,
+  ) {
+    setCatchUpBusyId(alliance.id);
+    setIdentityError(null);
+    setIdentityMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/alliances/${encodeURIComponent(alliance.id)}/roster-catch-up`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmMassFormer }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        code?: string;
+        synced?: number;
+        massFormerPending?: {
+          wouldFormerCount: number;
+          confirmedActiveCount: number;
+        };
+      } | null;
+      if (res.status === 409 && data?.code === "MASS_FORMER_CONFIRM_REQUIRED") {
+        setPendingMassFormer({
+          allianceId: alliance.id,
+          wouldFormerCount: data.massFormerPending?.wouldFormerCount ?? 0,
+          confirmedActiveCount:
+            data.massFormerPending?.confirmedActiveCount ?? 0,
+        });
+        setIdentityMessage(null);
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data?.error ?? t("rename.catchUpFailed"));
+      }
+      setPendingMassFormer(null);
+      setIdentityMessage(
+        t("rename.catchUpDone", { count: data?.synced ?? 0 }),
+      );
+      refreshAfterMutation();
+    } catch (err) {
+      setIdentityError(
+        err instanceof Error ? err.message : t("rename.catchUpFailed"),
+      );
+    } finally {
+      setCatchUpBusyId(null);
+    }
+  }
+
   function inviteRowClassName(alliance: Alliance): string {
     const base = "border-t border-hq-border align-top";
     const selected = alliance.id === effectiveInviteTargetAllianceId;
@@ -369,6 +524,164 @@ export function AdminAlliancesConsole() {
           </div>
         </div>
       ) : null}
+
+      {(() => {
+        const selected = alliances.find(
+          (row) => row.id === effectiveInviteTargetAllianceId,
+        );
+        if (!selected) return null;
+        const draft = identityDraftFor(selected);
+        const dirty = identityDirty(selected);
+        return (
+          <div className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4">
+            <div>
+              <h3 className="text-sm font-medium text-hq-fg">
+                {t("rename.title")}
+              </h3>
+              <p className="mt-1 text-sm text-hq-fg-muted">{t("rename.hint")}</p>
+            </div>
+            {identityError ? (
+              <p
+                role="alert"
+                className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger"
+              >
+                {identityError}
+              </p>
+            ) : null}
+            {identityMessage ? (
+              <p
+                role="status"
+                className="rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2 text-sm text-hq-green"
+              >
+                {identityMessage}
+              </p>
+            ) : null}
+            {pendingMassFormer?.allianceId === selected.id ? (
+              <div
+                role="alert"
+                className="space-y-2 rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning"
+              >
+                <p>
+                  {t("rename.massFormerConfirm", {
+                    former: pendingMassFormer.wouldFormerCount,
+                    active: pendingMassFormer.confirmedActiveCount,
+                  })}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={catchUpBusyId === selected.id}
+                    onClick={() => void runRosterCatchUp(selected, true)}
+                    className="rounded-lg border border-hq-warning bg-hq-warning/20 px-3 py-1.5 text-xs font-medium"
+                  >
+                    {t("rename.confirmMassFormer")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={catchUpBusyId === selected.id}
+                    onClick={() => setPendingMassFormer(null)}
+                    className="rounded-lg border border-hq-border px-3 py-1.5 text-xs"
+                  >
+                    {t("rename.cancelMassFormer")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <form
+              className="flex flex-wrap items-end gap-3"
+              onSubmit={(event) => {
+                preventDefaultFormSubmit(event);
+                if (dirty && savingIdentityId !== selected.id) {
+                  void saveIdentity(selected);
+                }
+              }}
+            >
+              <label className="min-w-0 space-y-1 text-sm sm:min-w-[8rem]">
+                <span className="text-hq-fg-muted">{t("rename.tagLabel")}</span>
+                <input
+                  type="text"
+                  value={draft.tag}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  aria-label={t("rename.tagLabel")}
+                  onChange={(event) =>
+                    setIdentityDrafts((current) => ({
+                      ...current,
+                      [selected.id]: {
+                        ...identityDraftFor(selected),
+                        tag: event.target.value,
+                      },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                />
+              </label>
+              <label className="min-w-0 flex-1 space-y-1 text-sm sm:min-w-[12rem]">
+                <span className="text-hq-fg-muted">{t("rename.nameLabel")}</span>
+                <input
+                  type="text"
+                  value={draft.name}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  aria-label={t("rename.nameLabel")}
+                  onChange={(event) =>
+                    setIdentityDrafts((current) => ({
+                      ...current,
+                      [selected.id]: {
+                        ...identityDraftFor(selected),
+                        name: event.target.value,
+                      },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                />
+              </label>
+              <label className="min-w-0 space-y-1 text-sm sm:min-w-[16rem]">
+                <span className="text-hq-fg-muted">
+                  {t("rename.lastrankIdLabel")}
+                </span>
+                <input
+                  type="text"
+                  value={draft.lastrankAllianceId}
+                  spellCheck={false}
+                  aria-label={t("rename.lastrankIdLabel")}
+                  placeholder={t("rename.lastrankIdPlaceholder")}
+                  onChange={(event) =>
+                    setIdentityDrafts((current) => ({
+                      ...current,
+                      [selected.id]: {
+                        ...identityDraftFor(selected),
+                        lastrankAllianceId: event.target.value.replace(
+                          /[^a-fA-F0-9]/g,
+                          "",
+                        ),
+                      },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-xs"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={!dirty || savingIdentityId === selected.id}
+                className="rounded-lg border border-hq-success bg-hq-success/10 px-3 py-2 text-sm text-hq-green disabled:opacity-40"
+              >
+                {savingIdentityId === selected.id
+                  ? t("rename.saving")
+                  : t("rename.save")}
+              </button>
+              <button
+                type="button"
+                disabled={catchUpBusyId === selected.id}
+                onClick={() => void runRosterCatchUp(selected, false)}
+                className="rounded-lg border border-hq-border px-3 py-2 text-sm disabled:opacity-40"
+              >
+                {catchUpBusyId === selected.id
+                  ? t("rename.catchingUp")
+                  : t("rename.catchUpAshed")}
+              </button>
+            </form>
+          </div>
+        );
+      })()}
 
       <div className="space-y-4">
         {serverError ? (

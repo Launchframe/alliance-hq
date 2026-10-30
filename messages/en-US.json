@@ -1178,6 +1178,28 @@
       "sessionContext": {
         "title": "Session alliance context",
         "hint": "Uploads, members, and tools use whichever alliance your session is set to."
+      },
+      "rename": {
+        "title": "Rename alliance in place",
+        "hint": "Same HQ alliance row — update the in-game tag and display name after a rebrand. Pin the LastRank alliance id when known so sync still finds this tenant after the tag changes.",
+        "tagLabel": "In-game tag",
+        "nameLabel": "Display name",
+        "lastrankIdLabel": "LastRank alliance id",
+        "lastrankIdPlaceholder": "32-character hex from lastrank.fun/a/…",
+        "save": "Save identity",
+        "saving": "Saving…",
+        "fieldsRequired": "Tag and display name are required.",
+        "saveFailed": "Could not rename alliance.",
+        "saved": "Alliance identity updated.",
+        "savedWithAshedCatchUp": "Alliance identity updated. Use Ashed roster catch-up if the in-game roster changed.",
+        "savedWithLastRankPin": "Alliance identity updated and pinned to LastRank ({tag}). Run LastRank sync when ready.",
+        "catchUpAshed": "Ashed roster catch-up",
+        "catchingUp": "Syncing…",
+        "catchUpFailed": "Roster catch-up failed.",
+        "catchUpDone": "Roster catch-up synced {count} members.",
+        "massFormerConfirm": "This refresh would mark {former} of {active} confirmed members as former. Confirm only if the in-game roster really changed that much.",
+        "confirmMassFormer": "Confirm mass former",
+        "cancelMassFormer": "Cancel"
       }
     },
     "nativeAlliance": {

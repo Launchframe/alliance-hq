@@ -24,6 +24,36 @@ export type LastRankAllianceResolvePrompt = (ctx: {
 
 const LASTRANK_TAG_FUZZY_MIN = 0.72;
 
+export async function findHqAllianceIdByLastRankAllianceId(
+  lastrankAllianceId: string,
+): Promise<string | null> {
+  const needle = lastrankAllianceId.trim().toLowerCase();
+  if (!needle) return null;
+  const db = getDb();
+  const [row] = await db
+    .select({ id: schema.alliances.id })
+    .from(schema.alliances)
+    .where(sql`lower(${schema.alliances.lastrankAllianceId}) = ${needle}`)
+    .limit(1);
+  return row?.id ?? null;
+}
+
+export async function stampAllianceLastRankAllianceId(
+  allianceId: string,
+  lastrankAllianceId: string,
+): Promise<void> {
+  const pin = lastrankAllianceId.trim().toLowerCase();
+  if (!pin) return;
+  const db = getDb();
+  await db
+    .update(schema.alliances)
+    .set({
+      lastrankAllianceId: pin,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.alliances.id, allianceId));
+}
+
 export async function listHqAllianceCandidates(
   gameServerNumber: number,
   tag: string,
@@ -80,12 +110,23 @@ export async function resolveHqAllianceForLastRankSync(input: {
   allowCreate: boolean;
   alliancePrompt?: LastRankAllianceResolvePrompt;
 }): Promise<{ allianceId: string; created: boolean }> {
+  const pinnedId = await findHqAllianceIdByLastRankAllianceId(
+    input.target.lastrankAllianceId,
+  );
+  if (pinnedId) {
+    return { allianceId: pinnedId, created: false };
+  }
+
   const { exact, fuzzy } = await listHqAllianceCandidates(
     input.target.gameServerNumber,
     input.target.tag,
   );
 
   if (exact.length === 1) {
+    await stampAllianceLastRankAllianceId(
+      exact[0].id,
+      input.target.lastrankAllianceId,
+    );
     return { allianceId: exact[0].id, created: false };
   }
   if (exact.length > 1) {
@@ -105,6 +146,10 @@ export async function resolveHqAllianceForLastRankSync(input: {
       fuzzyMatches: fuzzyUnique,
     });
     if (choice !== "create") {
+      await stampAllianceLastRankAllianceId(
+        choice,
+        input.target.lastrankAllianceId,
+      );
       return { allianceId: choice, created: false };
     }
   } else if (fuzzyUnique.length > 0 && !input.alliancePrompt) {
@@ -127,6 +172,10 @@ export async function resolveHqAllianceForLastRankSync(input: {
     tag: input.target.tag,
     gameServerNumber: input.target.gameServerNumber,
   });
+  await stampAllianceLastRankAllianceId(
+    created.allianceId,
+    input.target.lastrankAllianceId,
+  );
   return { allianceId: created.allianceId, created: true };
 }
 

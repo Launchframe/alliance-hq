@@ -7,14 +7,30 @@ const mocks = vi.hoisted(() => ({
     name: string;
     gameServerNumber: number;
   }>,
+  pinSelectResult: [] as Array<{ id: string }>,
   createNativeAlliance: vi.fn(),
+  updateCalls: [] as unknown[],
 }));
 
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
     select: () => ({
       from: () => ({
-        where: () => Promise.resolve(mocks.selectResult),
+        where: () => ({
+          // Pin lookup uses limit(1); candidate list awaits where() directly.
+          limit: () => Promise.resolve(mocks.pinSelectResult),
+          then: (
+            resolve: (value: typeof mocks.selectResult) => unknown,
+          ) => resolve(mocks.selectResult),
+        }),
+      }),
+    }),
+    update: () => ({
+      set: (values: unknown) => ({
+        where: () => {
+          mocks.updateCalls.push(values);
+          return Promise.resolve();
+        },
       }),
     }),
   }),
@@ -24,6 +40,8 @@ vi.mock("@/lib/db", () => ({
       tag: "tag",
       name: "name",
       gameServerNumber: "game_server_number",
+      lastrankAllianceId: "lastrank_alliance_id",
+      updatedAt: "updated_at",
     },
   },
 }));
@@ -38,7 +56,33 @@ describe("resolveHqAllianceForLastRankSync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.selectResult = [];
+    mocks.pinSelectResult = [];
+    mocks.updateCalls = [];
     mocks.createNativeAlliance.mockResolvedValue({ allianceId: "new-alliance" });
+  });
+
+  it("prefers an HQ alliance pinned by lastrankAllianceId over tag matching", async () => {
+    mocks.pinSelectResult = [{ id: "hq-pinned" }];
+    mocks.selectResult = [
+      {
+        id: "hq-other",
+        tag: "FUze",
+        name: "Short Fuse",
+        gameServerNumber: 1211,
+      },
+    ];
+
+    const result = await resolveHqAllianceForLastRankSync({
+      target: {
+        gameServerNumber: 1211,
+        tag: "FUze",
+        lastrankAllianceId: "b1cf340c642947579ccbb753e7410c37",
+      },
+      allowCreate: false,
+    });
+
+    expect(result).toEqual({ allianceId: "hq-pinned", created: false });
+    expect(mocks.createNativeAlliance).not.toHaveBeenCalled();
   });
 
   it("refuses non-interactive sole fuzzy tag bind (cron must not hit the wrong alliance)", async () => {
@@ -64,7 +108,7 @@ describe("resolveHqAllianceForLastRankSync", () => {
     expect(mocks.createNativeAlliance).not.toHaveBeenCalled();
   });
 
-  it("lets interactive prompt accept a fuzzy candidate", async () => {
+  it("lets interactive prompt accept a fuzzy candidate and stamps the LastRank pin", async () => {
     mocks.selectResult = [
       {
         id: "hq-existing",
@@ -86,6 +130,11 @@ describe("resolveHqAllianceForLastRankSync", () => {
 
     expect(result).toEqual({ allianceId: "hq-existing", created: false });
     expect(mocks.createNativeAlliance).not.toHaveBeenCalled();
+    expect(mocks.updateCalls).toContainEqual(
+      expect.objectContaining({
+        lastrankAllianceId: "e7d1eaefdcfc42c8ac6c84247d2dad9b",
+      }),
+    );
   });
 
   it("creates a native alliance when no exact or fuzzy match exists and apply is set", async () => {

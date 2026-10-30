@@ -18,7 +18,7 @@ export type LastRankSyncRegistryEntry = {
 export const LASTRANK_SYNC_REGISTRY: readonly LastRankSyncRegistryEntry[] = [
   { gameServerNumber: 1203, tag: "LFgo", lastrankAllianceId: "e7d1eaefdcfc42c8ac6c84247d2dad9b", selfServiceImport: true, autoSync: true },
   { gameServerNumber: 1203, tag: "BigD", lastrankAllianceId: "605b91e26dcc4e33b82d114b1846900c", selfServiceImport: true, autoSync: false },
-  { gameServerNumber: 1211, tag: "Roar", lastrankAllianceId: "b1cf340c642947579ccbb753e7410c37", selfServiceImport: true, autoSync: false },
+  { gameServerNumber: 1211, tag: "FUze", lastrankAllianceId: "b1cf340c642947579ccbb753e7410c37", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1203, tag: "B1GG", lastrankAllianceId: "3eb55e69381b459db332262f187a7d9a", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1203, tag: "MOT0", lastrankAllianceId: "4dfb6edfc33e4b2a935d0dbb70a42fe5", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1203, tag: "OMFG", lastrankAllianceId: "56467f87fc80423ba5faefd2c99f2976", selfServiceImport: true, autoSync: false },
@@ -30,7 +30,7 @@ export const LASTRANK_SYNC_REGISTRY: readonly LastRankSyncRegistryEntry[] = [
   { gameServerNumber: 1211, tag: "bOoM", lastrankAllianceId: "9b495998c41d42a4a2fc38971e9c4b35", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1211, tag: "bOND", lastrankAllianceId: "806be0616a5544888e42e7a95b3fc16b", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1211, tag: "TFw", lastrankAllianceId: "81883dfc87b0490384cd0a24decd96cc", selfServiceImport: true, autoSync: false },
-  { gameServerNumber: 1211, tag: "CuT3", lastrankAllianceId: "dc5ce8fef23c408f9de64c6ea0eb96e3", selfServiceImport: true, autoSync: false },
+  { gameServerNumber: 1211, tag: "RIs3", lastrankAllianceId: "dc5ce8fef23c408f9de64c6ea0eb96e3", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1211, tag: "KiLR", lastrankAllianceId: "703295dbb69d490887627fcf2d6c2918", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1211, tag: "RIsE", lastrankAllianceId: "c8e8098e9d0b49f49a6f57cb11b49315", selfServiceImport: true, autoSync: false },
   { gameServerNumber: 1211, tag: "99BR", lastrankAllianceId: "3d74df8221cc464ea912d28fe6ddf358", selfServiceImport: true, autoSync: false },
