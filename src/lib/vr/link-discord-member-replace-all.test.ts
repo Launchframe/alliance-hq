@@ -21,6 +21,15 @@ vi.mock("@/lib/members/commander-identity.server", () => ({
     syncCommanderIdentityFromMemberLink(...args),
 }));
 
+vi.mock("@/lib/member-link/game-uid-global-claim.server", () => ({
+  isGameUidClaimedByOtherPrincipal: vi.fn().mockResolvedValue(false),
+  withGameUidClaimLock: async <T>(_uid: string, run: () => Promise<T>) => run(),
+}));
+
+vi.mock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
+  isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
+}));
+
 /**
  * Drizzle-style chain: every method returns the chain; awaiting resolves to
  * `result`. `limit()` also resolves to `result` for `.limit(1)` call sites.
@@ -85,19 +94,15 @@ describe("linkDiscordMember replaceAll safety", () => {
     const update = vi.fn();
 
     // isGameUidClaimedByOtherDiscordUser → 3 parallel selects (hq link, hq
-    // claims, discord claims), then reservation allowlist hq-link lookup,
-    // then occupancy select, then user-links select.
+    // claims, discord claims), then getDiscordHqLink for pending-claim
+    // allowedHqUserId, then occupancy.
     const selectQueue = [
-      [], // getDiscordHqLink (uid conflict)
+      [], // getDiscordHqLink (alliance claim check)
       [], // hqClaims
       [], // discordClaims
-      [], // getDiscordHqLink (pending-claim reservation allowlist)
+      [], // getDiscordHqLink (pending claim allowed HQ)
       [{ discordUserId: "other-discord", ashedMemberId: "c-new" }], // occupancy
     ];
-
-    vi.doMock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
-      isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
-    }));
 
     vi.doMock("@/lib/db", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/db")>();
@@ -167,10 +172,10 @@ describe("linkDiscordMember replaceAll safety", () => {
     });
 
     const selectQueue = [
-      [], // getDiscordHqLink (uid conflict)
+      [], // getDiscordHqLink (alliance claim check)
       [], // hqClaims
       [], // discordClaims
-      [], // getDiscordHqLink (pending-claim reservation allowlist)
+      [], // getDiscordHqLink (pending claim allowed HQ)
       [], // occupancy (free)
       [
         {
@@ -187,10 +192,6 @@ describe("linkDiscordMember replaceAll safety", () => {
         },
       ], // user links
     ];
-
-    vi.doMock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
-      isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
-    }));
 
     vi.doMock("@/lib/db", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/db")>();
@@ -264,10 +265,10 @@ describe("linkDiscordMember replaceAll safety", () => {
     });
 
     const selectQueue = [
-      [], // uid conflict getDiscordHqLink
+      [], // getDiscordHqLink (alliance claim check)
       [], // hqClaims
       [], // discordClaims
-      [], // reservation allowlist getDiscordHqLink
+      [], // getDiscordHqLink (pending claim allowed HQ)
       [], // occupancy free
       [
         {
@@ -276,12 +277,8 @@ describe("linkDiscordMember replaceAll safety", () => {
           discordUserId: "discord-alice",
           ashedMemberId: "c1",
         },
-      ],
+      ], // user links
     ];
-
-    vi.doMock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
-      isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
-    }));
 
     vi.doMock("@/lib/db", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/db")>();

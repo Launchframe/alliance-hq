@@ -40,6 +40,10 @@ import {
   syncCommanderIdentityFromMemberLink,
 } from "@/lib/members/commander-identity.server";
 import { hydrateDiscordMemberLink, hydrateDiscordMemberLinks } from "@/lib/vr/discord-link-live-identity.server";
+import {
+  isGameUidClaimedByOtherPrincipal,
+  withGameUidClaimLock,
+} from "@/lib/member-link/game-uid-global-claim.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
@@ -543,44 +547,55 @@ export async function linkDiscordMember(input: {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 
-  const discordHqLink = await getDiscordHqLink(input.discordUserId);
-  if (
-    await isCommanderReservedByPendingClaim({
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      allowedHqUserId: discordHqLink?.hqUserId ?? null,
-    })
-  ) {
-    return { ok: false, reason: "member_linked_to_other_discord" };
-  }
+  return withGameUidClaimLock(input.gameUid, async () => {
+    // Alliance-scoped unique indexes do not cover cross-alliance hijacks.
+    if (
+      await isGameUidClaimedByOtherPrincipal({
+        gameUid: input.gameUid,
+        discordUserId: input.discordUserId,
+      })
+    ) {
+      return { ok: false, reason: "member_linked_to_other_discord" };
+    }
 
-  // Occupancy must be checked before any replaceAll wipe. Deleting the caller's
-  // seats first then failing on an occupied target permanently orphans Discord
-  // commanders (and frees them for sniping).
-  const existingMemberLink = await getDiscordLinkByAllianceAndMember(
-    input.allianceId,
-    input.ashedMemberId,
-  );
-  if (
-    existingMemberLink &&
-    existingMemberLink.discordUserId !== input.discordUserId
-  ) {
-    return { ok: false, reason: "member_linked_to_other_discord" };
-  }
+    const discordHqLink = await getDiscordHqLink(input.discordUserId);
+    if (
+      await isCommanderReservedByPendingClaim({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        allowedHqUserId: discordHqLink?.hqUserId ?? null,
+      })
+    ) {
+      return { ok: false, reason: "member_linked_to_other_discord" };
+    }
 
-  const userLinks = await listDiscordLinksForUser(
-    input.allianceId,
-    input.discordUserId,
-    { followLiveRoster: false },
-  );
-  const existingPair = userLinks.find(
-    (row) => row.ashedMemberId === input.ashedMemberId,
-  );
-  const homeServerBeforeLink =
-    (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
+    // Occupancy must be checked before any replaceAll wipe. Deleting the caller's
+    // seats first then failing on an occupied target permanently orphans Discord
+    // commanders (and frees them for sniping).
+    const existingMemberLink = await getDiscordLinkByAllianceAndMember(
+      input.allianceId,
+      input.ashedMemberId,
+    );
+    if (
+      existingMemberLink &&
+      existingMemberLink.discordUserId !== input.discordUserId
+    ) {
+      return { ok: false, reason: "member_linked_to_other_discord" };
+    }
 
-  try {
-    if (existingPair) {
+    const userLinks = await listDiscordLinksForUser(
+      input.allianceId,
+      input.discordUserId,
+      { followLiveRoster: false },
+    );
+    const existingPair = userLinks.find(
+      (row) => row.ashedMemberId === input.ashedMemberId,
+    );
+    const homeServerBeforeLink =
+      (await resolveCommanderByUid(input.gameUid))?.gameServerNumber ?? null;
+
+    try {
+      if (existingPair) {
       const row = await db.transaction(async (tx) => {
         const [updated] = await tx
           .update(schema.discordMemberLinks)
@@ -686,14 +701,15 @@ export async function linkDiscordMember(input: {
       link: row!,
       mode: input.replaceAll ? "replaced" : "created",
     };
-  } catch (error) {
-    // Concurrent Discord/web links can both pass the claim check; the unique
-    // index on (alliance_id, game_uid) is the authoritative gate.
-    if (isMemberLinkGameUidUniqueViolation(error)) {
-      return { ok: false, reason: "member_linked_to_other_discord" };
+    } catch (error) {
+      // Concurrent Discord/web links can both pass the claim check; the unique
+      // index on (alliance_id, game_uid) is the authoritative gate.
+      if (isMemberLinkGameUidUniqueViolation(error)) {
+        return { ok: false, reason: "member_linked_to_other_discord" };
+      }
+      throw error;
     }
-    throw error;
-  }
+  });
 }
 
 /** @deprecated Use linkDiscordMember — kept for admin paths that expect upsert semantics. */
