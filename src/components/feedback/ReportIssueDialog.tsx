@@ -34,6 +34,7 @@ import {
   installBugReportConsoleCapture,
   uninstallBugReportConsoleCapture,
 } from "@/lib/feedback/bug-report-console-capture";
+import { formatAshedNetworkLogForBugReport } from "@/lib/connect/ashed-network-log.shared";
 import { ScreenshotModeOverlay } from "@/components/feedback/ScreenshotModeOverlay";
 
 const DISCORD_ICON_SRC =
@@ -155,6 +156,7 @@ export function ReportIssueDialog({
         browserVersion: ctx.browserVersion,
         osVersion: ctx.osVersion,
         consoleLogs: formatBugReportConsoleLogs(),
+        ashedNetworkLogs: formatAshedNetworkLogForBugReport(),
         captureSessionId: session?.sessionId,
         captureSessionToken: session?.token,
         captureSessionExpiresAt: session?.expiresAt,
@@ -270,6 +272,10 @@ export function ReportIssueDialog({
             placeholder={t("detailsPlaceholder")}
           />
         </label>
+
+        {formatAshedNetworkLogForBugReport() ? (
+          <p className="text-xs text-hq-fg-muted">{t("ashedLogAttached")}</p>
+        ) : null}
 
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">

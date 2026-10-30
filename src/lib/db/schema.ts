@@ -3085,6 +3085,8 @@ export const userFeedbackReport = pgTable("user_feedback_report", {
   browserVersion: text("browser_version"),
   osVersion: text("os_version"),
   consoleLogs: text("console_logs"),
+  /** Browser-local Ashed network transaction log attached by the reporter. */
+  ashedNetworkLogs: text("ashed_network_logs"),
   captureSessionId: text("capture_session_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

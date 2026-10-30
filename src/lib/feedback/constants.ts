@@ -69,6 +69,12 @@ export function truncateBugReportConsoleLogs(
   return `${sanitized.slice(sanitized.length - MAX_BUG_REPORT_CONSOLE_LOG_CHARS)}\n…(truncated)`;
 }
 
+export function truncateBugReportAshedNetworkLogs(
+  text: string | undefined,
+): string | undefined {
+  return truncateBugReportConsoleLogs(text);
+}
+
 export const APP_VERSION =
   process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0";
 
