@@ -85,10 +85,16 @@ export function AdminMetadataBlock({
   );
 }
 
-export function AdminConsoleLogsBlock({ logs }: { logs: string | null }) {
+export function AdminConsoleLogsBlock({
+  logs,
+  label = "Console logs",
+}: {
+  logs: string | null;
+  label?: string;
+}) {
   if (!logs?.trim()) return null;
   return (
-    <AdminDetailField label="Console logs">
+    <AdminDetailField label={label}>
       <pre className="max-h-48 overflow-auto rounded-lg border border-hq-border bg-hq-canvas p-3 font-mono text-xs text-hq-fg whitespace-pre-wrap break-words">
         {logs}
       </pre>

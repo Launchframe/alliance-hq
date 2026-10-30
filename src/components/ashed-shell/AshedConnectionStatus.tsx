@@ -4,9 +4,16 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 
+import { useFeedback } from "@/components/feedback";
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { shellChromeMenuRectFromTrigger } from "@/components/ashed-shell/shellChromeMenuPosition";
 import { Link } from "@/i18n/navigation";
+import {
+  clearAshedNetworkLog,
+  loadAshedNetworkLog,
+  summarizeAshedNetworkLog,
+  subscribeAshedNetworkLog,
+} from "@/lib/connect/ashed-network-log.shared";
 import {
   clearAshedConnectionSessionStats,
   ensureAshedConnectionSession,
@@ -50,7 +57,9 @@ export function AshedConnectionStatus({
   const tc = useTranslations("common");
   const locale = useLocale();
   const { refresh } = useShellNavigation();
+  const { showReportIssue } = useFeedback();
   const [open, setOpen] = React.useState(false);
+  const [networkLogTick, setNetworkLogTick] = React.useState(0);
   const [jwtInput, setJwtInput] = React.useState("");
   const [connecting, setConnecting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -280,12 +289,19 @@ export function AshedConnectionStatus({
         throw new Error(data.error ?? tc("disconnectFailed"));
       }
       clearAshedConnectionSessionStats();
+      clearAshedNetworkLog();
       setOpen(false);
       refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("disconnectFailed"));
     }
   }, [refresh, tc]);
+
+  React.useEffect(() => {
+    return subscribeAshedNetworkLog(() => {
+      setNetworkLogTick((n) => n + 1);
+    });
+  }, []);
 
   const showChrome =
     isAshedConnectAllowed && (isConnected || hasConnectedBefore);
@@ -296,7 +312,11 @@ export function AshedConnectionStatus({
 
   // Re-read when the panel opens or when statsPoll ticks while open.
   void statsPoll;
+  void networkLogTick;
   const liveStats = open ? loadAshedConnectionSessionStats() : null;
+  const networkEntries = open && isConnected ? loadAshedNetworkLog() : [];
+  const networkSummary =
+    open && isConnected ? summarizeAshedNetworkLog(networkEntries) : null;
 
   const panel =
     open && menuRect && typeof document !== "undefined"
@@ -340,7 +360,84 @@ export function AshedConnectionStatus({
                       {liveStats?.requestCount ?? 0}
                     </dd>
                   </div>
+                  {networkSummary ? (
+                    <div>
+                      <dt className="text-[0.65rem] uppercase tracking-wide text-hq-fg-muted">
+                        {t("networkStats")}
+                      </dt>
+                      <dd className="text-hq-fg">
+                        {networkSummary.total}
+                        {networkSummary.errorCount > 0
+                          ? ` · ${t("errorCount", { count: networkSummary.errorCount })}`
+                          : null}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
+
+                <div className="mt-4 space-y-2">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-hq-fg-muted">
+                    {t("recentActivity")}
+                  </p>
+                  {networkEntries.length === 0 ? (
+                    <p className="text-xs text-hq-fg-muted">{t("noActivity")}</p>
+                  ) : (
+                    <ul className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas p-2 text-xs">
+                      {networkEntries.slice(0, 40).map((entry) => (
+                        <li
+                          key={entry.id}
+                          className={
+                            entry.outcome === "error"
+                              ? "text-hq-danger"
+                              : "text-hq-fg"
+                          }
+                        >
+                          <span className="text-hq-fg-muted">
+                            {formatConnectedSince(entry.at, locale)}
+                          </span>
+                          {" · "}
+                          <span className="font-mono">
+                            {entry.method ? `${entry.method} ` : ""}
+                            {entry.path}
+                          </span>
+                          {" · "}
+                          {entry.outcome}
+                          {entry.durationMs != null
+                            ? ` · ${entry.durationMs}ms`
+                            : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {networkSummary && networkSummary.errorCount > 0 ? (
+                    <p className="text-xs text-hq-warning" role="status">
+                      {t("unexpectedErrorHint")}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearAshedNetworkLog();
+                        setNetworkLogTick((n) => n + 1);
+                      }}
+                      className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg transition-colors hover:bg-hq-surface-muted sm:w-auto"
+                    >
+                      {t("clearLog")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        showReportIssue();
+                      }}
+                      className="w-full rounded-lg border border-hq-accent bg-hq-accent/10 px-3 py-2 text-sm text-hq-accent transition-colors hover:bg-hq-accent/20 sm:w-auto"
+                    >
+                      {t("reportProblem")}
+                    </button>
+                  </div>
+                </div>
+
                 <Link
                   href="/settings/link-device"
                   onClick={() => setOpen(false)}
