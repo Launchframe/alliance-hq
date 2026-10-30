@@ -155,6 +155,7 @@ import {
 } from "@/lib/trains/spin-source.shared";
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
+import { recordTrainsRosterSyncTransaction } from "@/lib/connect/ashed-network-log.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 
 import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
@@ -1084,6 +1085,7 @@ export function TrainsDashboard({
   const handleRosterSync = useCallback(async () => {
     setRosterSyncBusy(true);
     setRosterSyncNotice(null);
+    recordTrainsRosterSyncTransaction({ status: "running" });
     try {
       const res = await fetch("/api/trains/roster-sync", { method: "POST" });
       const body = (await res.json()) as {
@@ -1093,12 +1095,17 @@ export function TrainsDashboard({
         rosterDataStatus?: TrainsDashboardPayload["rosterDataStatus"];
       };
       if (!res.ok) {
+        recordTrainsRosterSyncTransaction({
+          status: "failed",
+          lastErrorCode: "trains_roster_sync_failed",
+        });
         const message = body.error ?? t("guidedFlow.steps.roster.syncFailed");
         setRosterSyncNoticeTone("error");
         setRosterSyncNotice(message);
         setError(message);
         return;
       }
+      recordTrainsRosterSyncTransaction({ status: "idle" });
 
       const syncSnapshot =
         body.rosterDataStatus != null && body.activeMemberCount != null
@@ -1171,6 +1178,10 @@ export function TrainsDashboard({
         setError(null);
       }
     } catch (error) {
+      recordTrainsRosterSyncTransaction({
+        status: "failed",
+        lastErrorCode: "trains_roster_sync_failed",
+      });
       const message =
         error instanceof Error
           ? error.message
