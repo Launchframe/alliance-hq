@@ -110,7 +110,7 @@ import { isDesertStormVideoTarget } from "@/lib/video/score-targets";
 import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-match-header.shared";
 import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
 import { submitVsReview, vsEvidenceErrorResponse } from "@/lib/vs-scores/submit.server";
-import { rosterMismatchMemberNames } from "@/lib/vs-scores/invalid-member.shared";
+import { rosterMismatchMemberNames, memberIdsAllowedForScoreSave } from "@/lib/vs-scores/invalid-member.shared";
 import {
   commitScoreRowsToEventLedger,
   eventEvidenceSubmitErrorResponse,
@@ -1096,15 +1096,24 @@ export async function POST(request: Request, { params }: Props) {
       if (!job.parseSessionId || body.rows.length > 2000 || new Set(body.rows.map((row) => row.id)).size !== body.rows.length || body.rows.some((row) => !originalRowById.has(row.id))) {
         return vsEvidenceErrorResponse(new VsEvidenceError("invalid_rows"));
       }
-      let allowedMemberIds: Set<string>;
+      let liveMemberIds: string[] | null = null;
       try {
         const roster = await base44ListMembers(connection, ashedAllianceId);
-        allowedMemberIds = new Set(roster.filter((member) => !member.alliance_id || member.alliance_id === ashedAllianceId).map((member) => member.id));
+        liveMemberIds = roster
+          .filter((member) => !member.alliance_id || member.alliance_id === ashedAllianceId)
+          .map((member) => member.id);
       } catch (rosterError) {
-        console.error("[kills-submit] base44ListMembers failed; falling back to local roster", rosterError);
-        const localRoster = await listAllianceMembers(allianceId);
-        allowedMemberIds = new Set(localRoster.map((member) => member.ashedMemberId).filter((id): id is string => !!id));
+        console.error("[kills-submit] base44ListMembers failed; using the local roster", rosterError);
       }
+      const localRoster = await listAllianceMembers(allianceId);
+      const allowedMemberIds = memberIdsAllowedForScoreSave({
+        local: localRoster.map((member) => ({
+          id: member.ashedMemberId,
+          name: member.currentName,
+          status: member.status,
+        })),
+        liveIds: liveMemberIds,
+      });
       if (activeRows.some((row) => !allowedMemberIds.has(row.memberId))) {
         return vsEvidenceErrorResponse(
           new VsEvidenceError(

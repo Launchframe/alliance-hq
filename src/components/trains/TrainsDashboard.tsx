@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useCoverageFetch } from "@/components/time-off/CoverageConfirmation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
@@ -222,6 +223,12 @@ import {
   resolveWeekTemplateDisplay,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 
+const TrainsInlineVsUpload = dynamic(() =>
+  import("@/components/trains/TrainsInlineVsUpload").then(
+    (mod) => mod.TrainsInlineVsUpload,
+  ),
+);
+
 type Props = {
   initial: TrainsDashboardPayload;
   /** From `?date=` when returning from VS score upload. */
@@ -229,6 +236,12 @@ type Props = {
   initialEventId?: string | null;
   /** From `?scoresReady=1` after VS scores were saved. */
   initialScoresReady?: boolean;
+  /** Video processor + Ashed state for the inline VS score upload. */
+  videoUpload?: {
+    canProcess: boolean;
+    ashedConnected: boolean;
+    memberName?: string | null;
+  };
 };
 
 type RollResponse = TrainRollErrorResponse & {
@@ -258,6 +271,7 @@ export function TrainsDashboard({
   initialSelectedDate = null,
   initialEventId = null,
   initialScoresReady = false,
+  videoUpload,
 }: Props) {
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
@@ -3121,6 +3135,23 @@ export function TrainsDashboard({
     data.trainConductorLeadTimeDays,
   ]);
 
+  // VS video upload only — VR prerequisites must not get this uploader.
+  const inlineScoreUpload =
+    selectedDate === data.today &&
+    data.vsDataStatus?.required &&
+    data.vsDataStatus.kind === "prior_day_vs" &&
+    !data.vsDataStatus.ready ? (
+      <TrainsInlineVsUpload
+        trainDate={selectedDate}
+        recordedDate={
+          selectedDayScoreStats?.scoreDate ?? data.vsDataStatus.scoreDate ?? null
+        }
+        canProcess={videoUpload?.canProcess ?? false}
+        ashedConnected={videoUpload?.ashedConnected ?? false}
+        memberName={videoUpload?.memberName ?? null}
+      />
+    ) : null;
+
   return (
     <TrainsWalkthroughProvider
       active={walkthroughOpen}
@@ -3678,6 +3709,7 @@ export function TrainsDashboard({
                   </>
                 }
                 videoUploadHref={guidedVideoUploadHref}
+                scoreUpload={inlineScoreUpload}
               />
               </>
             ) : (
@@ -3727,6 +3759,7 @@ export function TrainsDashboard({
               canSpinConductorWheel &&
               !canPickConductor &&
               data.vsDataStatus?.required &&
+              data.vsDataStatus.kind === "prior_day_vs" &&
               !data.vsDataStatus.ready &&
               !locked ? (
                 <div
@@ -3739,12 +3772,14 @@ export function TrainsDashboard({
                   {selectedDayScoreStats ? (
                     <TrainDayScoreStatsSummary stats={selectedDayScoreStats} />
                   ) : null}
-                  <Link
-                    href={guidedVideoUploadHref}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
-                  >
-                    {t("uploadScoresBanner.link")}
-                  </Link>
+                  {inlineScoreUpload ?? (
+                    <Link
+                      href={guidedVideoUploadHref}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                    >
+                      {t("uploadScoresBanner.link")}
+                    </Link>
+                  )}
                 </div>
               ) : null}
               {(canRoll || canPickConductor || canManualPickVip) &&

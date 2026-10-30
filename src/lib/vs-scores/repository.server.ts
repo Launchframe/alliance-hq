@@ -9,7 +9,7 @@ import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentati
 import { computeQualityScore } from "@/lib/video/quality-score";
 import { recordConfirmedReview } from "@/lib/ocr/learning/feedback.server";
 import { evaluateVsWeek, parseVsScore, validateVsPeriod, vsWeekEndingDate, VsEvidenceError, type VsPeriod } from "./evidence.shared";
-import { rosterMismatchMemberNames } from "./invalid-member.shared";
+import { rosterMismatchMemberNames, rosterNamesForScoreSave } from "./invalid-member.shared";
 import {
   replaceSourceJobIdsForVsCommit,
   shouldClearVsHeadOnGroupReplace,
@@ -162,13 +162,13 @@ export async function commitReviewedVsScoresTx(tx: VsTransaction, input: VsScore
     const parsedIds = new Set(parsed.map((row) => row.id));
     if (input.rows.some((row) => !parsedIds.has(row.id))) throw new VsEvidenceError("invalid_rows");
     const roster = await tx.select({ id: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, status: schema.allianceMembers.status }).from(schema.allianceMembers).where(eq(schema.allianceMembers.allianceId, input.allianceId));
-    const names = new Map(roster.filter((row) => row.status !== "former").map((row) => [row.id, row.name]));
-    const activeMemberIds = new Set(names.keys());
-    if (active.some((row) => !activeMemberIds.has(row.memberId!))) {
+    const names = rosterNamesForScoreSave(roster);
+    const rosterMemberIds = new Set(names.keys());
+    if (active.some((row) => !rosterMemberIds.has(row.memberId!))) {
       throw new VsEvidenceError(
         "invalid_member",
         400,
-        rosterMismatchMemberNames(active, activeMemberIds),
+        rosterMismatchMemberNames(active, rosterMemberIds),
       );
     }
     const siblingJobs = job.groupId

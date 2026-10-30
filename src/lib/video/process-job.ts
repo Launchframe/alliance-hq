@@ -35,6 +35,7 @@ import {
   cleanupFrameTempDir,
   extractLeaderboardFrames,
 } from "@/lib/video/frame-extractor";
+import { bufferShowsLeaderboardMenu } from "@/lib/video/opening-menu-title.server";
 import {
   buildMemberIndex,
   matchMemberName,
@@ -448,7 +449,12 @@ export async function processVideoJob(
           }
         }
         const extractResult = await timer.measureStep("ffmpeg.extract", () =>
-          extractLeaderboardFrames(tmpVideo, extractionConfig),
+          extractLeaderboardFrames(tmpVideo, extractionConfig, {
+            openingFrameShowsMenu:
+              scoreTargetId === "vs-performance"
+                ? bufferShowsLeaderboardMenu
+                : undefined,
+          }),
           (result) => ({ frameCount: result.frames.length }),
         );
         frames = extractResult.frames;
