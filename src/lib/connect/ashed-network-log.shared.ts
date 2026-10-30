@@ -263,3 +263,17 @@ export function recordVsMatchupImportTransaction(input: {
     lastErrorCode: input.lastErrorCode,
   });
 }
+
+/** Record VS Compliance external evidence refresh outcomes (no fetch patch). */
+export function recordVsComplianceRefreshTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/vs-compliance",
+    method: "GET",
+    labelKey: "vs_compliance_refresh",
+    lastErrorCode: input.lastErrorCode,
+  });
+}

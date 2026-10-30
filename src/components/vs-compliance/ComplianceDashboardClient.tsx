@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { useFeedback } from "@/components/feedback";
+import { recordVsComplianceRefreshTransaction } from "@/lib/connect/ashed-network-log.shared";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
 import { policyForVsWeek } from "@/lib/vs-compliance/policy.shared";
@@ -16,12 +18,15 @@ const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm disabled:
 export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianceTag, highlightEventId = null }: { initialWeek: string; lastClosedWeek: string; allianceTag: string; highlightEventId?: string | null }) {
   const t = useTranslations("vsCompliance");
   const all = useTranslations();
+  const tAshed = useTranslations("shell.ashedStatus");
   const locale = useLocale();
+  const { showReportIssue } = useFeedback();
   const [week, setWeek] = useState(initialWeek);
   const [data, setData] = useState<ComplianceDashboard | null>(null);
   const [settings, setSettings] = useState<MembershipSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [evidenceRefreshing, setEvidenceRefreshing] = useState(false);
   const [selection, setSelection] = useState<{ row: ComplianceRow; operation: "complete" | "waive" } | null>(null);
   const requests = useRef(new RequestVersion());
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -35,21 +40,72 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
     });
     return () => window.cancelAnimationFrame(frame);
   }, [loading, highlightEventId, week, data?.weekEnding]);
+
+  const refreshExternalEvidence = useCallback(async (selectedWeek: string, version: number) => {
+    setEvidenceRefreshing(true);
+    recordVsComplianceRefreshTransaction({ status: "running" });
+    try {
+      const payload = await fetch(
+        `/api/vs-compliance?weekEnding=${encodeURIComponent(selectedWeek)}&refresh=1`,
+        { cache: "no-store" },
+      ).then((response) => readComplianceResponse(response, all("statSync.actionFailed")));
+      if (!isDashboard(payload) || payload.weekEnding !== selectedWeek) {
+        throw new Error(all("statSync.actionFailed"));
+      }
+      if (!requests.current.current(version)) return;
+      if (payload.evidenceRefresh === "failed") {
+        recordVsComplianceRefreshTransaction({
+          status: "failed",
+          lastErrorCode: "vs_compliance_refresh_failed",
+        });
+      } else {
+        recordVsComplianceRefreshTransaction({ status: "idle" });
+      }
+      setData(payload);
+    } catch (failure) {
+      if (requests.current.current(version)) {
+        recordVsComplianceRefreshTransaction({
+          status: "failed",
+          lastErrorCode: "vs_compliance_refresh_failed",
+        });
+        setError(
+          failure instanceof ComplianceClientError
+            ? failure.message
+            : all("statSync.actionFailed"),
+        );
+      }
+    } finally {
+      if (requests.current.current(version)) setEvidenceRefreshing(false);
+    }
+  }, [all]);
+
   const load = useCallback(async (selectedWeek: string) => {
     const version = requests.current.next();
     setLoading(true);
     setError(null);
+    setEvidenceRefreshing(false);
     try {
       const [payload, policy] = await Promise.all([
         fetch(`/api/vs-compliance?weekEnding=${encodeURIComponent(selectedWeek)}`, { cache: "no-store" }).then((response) => readComplianceResponse(response, all("statSync.actionFailed"))),
         fetch(`/api/alliance/${encodeURIComponent(allianceTag)}/vs-membership-minimums`, { cache: "no-store" }).then((response) => readComplianceResponse(response, all("statSync.actionFailed"))),
       ]);
       if (!isDashboard(payload) || payload.weekEnding !== selectedWeek || !isMembershipSettings(policy)) throw new Error(all("statSync.actionFailed"));
-      if (requests.current.current(version)) { setData(payload); setSettings(policy); }
+      if (requests.current.current(version)) {
+        setData(payload);
+        setSettings(policy);
+        setLoading(false);
+        if (payload.evidenceRefresh === "pending") {
+          void refreshExternalEvidence(selectedWeek, version);
+        }
+      }
     } catch (failure) {
-      if (requests.current.current(version)) { setError(failure instanceof ComplianceClientError ? failure.message : all("statSync.actionFailed")); setData(null); }
-    } finally { if (requests.current.current(version)) setLoading(false); }
-  }, [all, allianceTag]);
+      if (requests.current.current(version)) {
+        setError(failure instanceof ComplianceClientError ? failure.message : all("statSync.actionFailed"));
+        setData(null);
+        setLoading(false);
+      }
+    }
+  }, [all, allianceTag, refreshExternalEvidence]);
   useEffect(() => {
     const version = requests.current;
     const timer = window.setTimeout(() => { void load(week); }, 0);
@@ -59,6 +115,8 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
   const visible = data?.weekEnding === week ? data : null;
   const policy = settings ? policyForVsWeek(settings.history, week) ?? settings.defaults : null;
   const number = (value: number | null) => value === null ? all("commandersIndex.unreportedShort") : new Intl.NumberFormat(locale).format(value);
+  const actionsPaused =
+    loading || evidenceRefreshing || visible?.evidenceRefresh === "pending";
   return <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
     <header className="space-y-2">
       <h1 className="text-2xl font-semibold">{t("title")}</h1>
@@ -72,7 +130,7 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
         <button type="button" className={buttonClass} disabled={loading || !!selection} onClick={() => setWeek(addCalendarDays(week, -7))}>{all("timeOff.workflow.previous")}</button>
         <label className="space-y-1 text-sm"><span className="block">{all("timeOff.workflow.history")}</span><input aria-label={all("timeOff.workflow.history")} type="date" value={week} max={lastClosedWeek} step={7} disabled={loading || !!selection} onChange={(event) => { if (validateVsPeriod(event.target.value, "weekly") && event.target.value <= lastClosedWeek) setWeek(event.target.value); }} className="rounded border border-hq-border bg-hq-surface p-2" /></label>
         <button type="button" className={buttonClass} disabled={loading || !!selection || week >= lastClosedWeek} onClick={() => setWeek(addCalendarDays(week, 7))}>{all("timeOff.workflow.next")}</button>
-        <button type="button" className={buttonClass} disabled={loading || !!selection} onClick={() => void load(week)}>{all("timeOff.unexpectedReport.refresh")}</button>
+        <button type="button" className={buttonClass} disabled={loading || !!selection || evidenceRefreshing} onClick={() => void load(week)}>{all("timeOff.unexpectedReport.refresh")}</button>
       </div>
       <p className="text-sm">{all("videoReview.vsWeeklyDateOption", { date: date(week) })}</p>
       {visible && policy ? <div className="grid gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 sm:grid-cols-2">
@@ -83,7 +141,25 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
         <label className="flex items-center gap-2"><input type="checkbox" checked={policy.enabled} disabled readOnly />{t("enabled")}</label>
       </div> : null}
       {error ? <p ref={errorRef} role="alert" className="text-hq-danger">{error}</p> : null}
+      {visible?.evidenceRefresh === "failed" ? (
+        <div className="flex flex-wrap items-center gap-3" role="alert">
+          <p className="text-sm text-hq-danger">{all("statSync.actionFailed")}</p>
+          <p className="text-xs text-hq-warning">{tAshed("unexpectedErrorHint")}</p>
+          <button
+            type="button"
+            onClick={() => showReportIssue()}
+            className="rounded-lg border border-hq-accent bg-hq-accent/10 px-3 py-1.5 text-xs font-medium text-hq-accent hover:bg-hq-accent/20"
+          >
+            {tAshed("reportProblem")}
+          </button>
+        </div>
+      ) : null}
       {loading ? <p role="status">{all("common.loading")}</p> : null}
+      {!loading && evidenceRefreshing ? (
+        <p role="status" className="text-sm text-hq-fg-muted">
+          {all("common.loading")}
+        </p>
+      ) : null}
       {!loading && visible?.rows.length === 0 ? <p>{t("empty")}</p> : null}
       <div className="grid gap-4 md:grid-cols-2">{visible?.rows.map((row) => {
         const highlighted = highlightEventId === row.id;
@@ -100,7 +176,7 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
         <ComplianceHistory key={`${row.id}:${row.confirmationBasis}`} row={row} />
         <p className="text-sm" role="status">{all(`timeOff.sync.${syncLabel(row.syncStatus)}`)}</p>
         {["credentials_required", "failed"].includes(row.syncStatus) ? <Link href="/connect?next=/vs-compliance" className="text-sm text-hq-accent underline">{all("common.connect")}</Link> : null}
-        {visible.canManage && !loading ? <div className="flex flex-wrap gap-2">
+        {visible.canManage && !actionsPaused ? <div className="flex flex-wrap gap-2">
           {!row.settled && ["demote", "remove"].includes(row.recommendation.kind) ? <button type="button" className={buttonClass} onClick={() => setSelection({ row: structuredClone(row), operation: "complete" })}>{t("confirm")}</button> : null}
           {row.outcome !== "waived" && (["missed", "pending_data"].includes(row.outcome) || row.settled) ? <button type="button" className={buttonClass} onClick={() => setSelection({ row: structuredClone(row), operation: "waive" })}>{t("waive")}</button> : null}
         </div> : null}

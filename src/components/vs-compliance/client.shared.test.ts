@@ -49,13 +49,14 @@ describe("compliance client request safety", () => {
     await expect(readComplianceResponse(Response.json({ code: "forbidden" }, { status: 403 }), "fallback")).rejects.toMatchObject({ message: "fallback", uncertain: false });
   });
   it("accepts empty and unknown-score dashboards but rejects malformed evidence", () => {
-    expect(isDashboard({ weekEnding: row.weekEnding, canManage: true, rows: [] })).toBe(true);
-    const dashboard = { weekEnding: row.weekEnding, canManage: true, rows: [row] };
+    expect(isDashboard({ weekEnding: row.weekEnding, canManage: true, evidenceRefresh: "ready", rows: [] })).toBe(true);
+    const dashboard = { weekEnding: row.weekEnding, canManage: true, evidenceRefresh: "ready" as const, rows: [row] };
     expect(isDashboard(dashboard)).toBe(true);
-    expect(isDashboard({ ...dashboard, rows: [{ ...row, score: null, evidenceState: "missing", outcome: "pending_data" }] })).toBe(true);
+    expect(isDashboard({ ...dashboard, evidenceRefresh: "pending", rows: [{ ...row, score: null, evidenceState: "missing", outcome: "pending_data" }] })).toBe(true);
     expect(isDashboard({ ...dashboard, rows: [{ ...row, score: undefined }] })).toBe(false);
     expect(isDashboard({ ...dashboard, rows: [{ ...row, evidenceState: "guessed" }] })).toBe(false);
     expect(isDashboard({ ...dashboard, rows: [{ ...row, weekEnding: "2026-08-30" }] })).toBe(false);
+    expect(isDashboard({ weekEnding: row.weekEnding, canManage: true, rows: [] })).toBe(false);
   });
   it.each(["en-US", "pt-BR"])("renders daily values and immutable history in %s without weekly-pass or recommendation copy", (locale) => {
     const messages = locale === "pt-BR" ? pt : en;

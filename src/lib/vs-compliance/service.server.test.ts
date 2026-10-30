@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ access: vi.fn(), daily: vi.fn(), version: vi.fn(), lock: vi.fn(), external: vi.fn(), rebuild: vi.fn(), authorize: vi.fn(), retry: vi.fn(), results: [] as unknown[][], updates: [] as Record<string, unknown>[], inTransaction: false }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), daily: vi.fn(), version: vi.fn(), lock: vi.fn(), external: vi.fn(), externalShell: vi.fn(), rebuild: vi.fn(), authorize: vi.fn(), retry: vi.fn(), results: [] as unknown[][], updates: [] as Record<string, unknown>[], inTransaction: false }));
 vi.mock("server-only", () => ({}));
-vi.mock("./evidence.server", () => ({ loadComplianceStateVersion: mocks.version, lockCompliance: mocks.lock, prepareExternalEvidence: mocks.external, resolveComplianceEvidence: mocks.daily }));
+vi.mock("./evidence.server", () => ({
+  loadComplianceStateVersion: mocks.version,
+  lockCompliance: mocks.lock,
+  prepareExternalEvidence: mocks.external,
+  emptyExternalEvidenceShell: mocks.externalShell,
+  resolveComplianceEvidence: mocks.daily,
+}));
 vi.mock("./access.server", () => ({ requireVsComplianceAccess: mocks.access }));
 vi.mock("./repository.server", () => ({ rebuildComplianceTx: mocks.rebuild, authorizeComplianceTx: mocks.authorize }));
 vi.mock("./sync.server", () => ({ retryComplianceSync: mocks.retry }));
@@ -18,6 +24,7 @@ beforeEach(() => {
   mocks.updates = []; mocks.results = []; mocks.inTransaction = false;
   mocks.version.mockResolvedValue(7); mocks.lock.mockResolvedValue({ inputVersion: 7, requestedFrom: "2026-08-16" });
   mocks.external.mockImplementation(async () => { expect(mocks.inTransaction).toBe(false); return { native: true, verifiedAt: null, weeks: new Map(), excuses: [] }; });
+  mocks.externalShell.mockImplementation(async () => { expect(mocks.inTransaction).toBe(false); return { native: true, verifiedAt: null, weeks: new Map(), excuses: [] }; });
   mocks.rebuild.mockImplementation(async () => { expect(mocks.inTransaction).toBe(true); return { rows: [] }; });
   mocks.authorize.mockResolvedValue(undefined); mocks.retry.mockResolvedValue(0);
 });
@@ -32,10 +39,33 @@ describe("bounded catch-up and snapshot revalidation", () => {
     mocks.rebuild.mockResolvedValue({ rows: [persisted], jobs: [], facts });
     mocks.daily.mockReturnValue({ daily: [{ date: "2026-09-07", score: null, state: "missing" }] });
     const result = await loadComplianceDashboard("session", "tenant", "2026-09-13");
+    expect(result.evidenceRefresh).toBe("ready");
     expect(result.rows[0]).toMatchObject({ dailyTarget: 7_200_000, daily: [{ score: null }], settled: { actionId: "action", kind: "demote", targetRank: 2 } });
+    expect(mocks.externalShell).toHaveBeenCalled();
+    expect(mocks.external).not.toHaveBeenCalled();
     expect(mocks.daily).toHaveBeenCalledWith(facts, "member", "2026-09-13", expect.objectContaining({ native: true }), persisted.remoteEvidence, persisted.remoteVerifiedAt);
     expect(JSON.stringify(result)).not.toContain("private");
     expect(persisted).toEqual(original);
+  });
+  it("defers Ashed pulls on local-first dashboard reads and marks evidence refresh pending", async () => {
+    mocks.access.mockResolvedValue({ sessionId: "session", allianceId: "tenant", hqUserId: "viewer", boundHqUserId: "viewer" });
+    mocks.externalShell.mockResolvedValue({ native: false, verifiedAt: null, weeks: new Map(), excuses: [] });
+    mocks.rebuild.mockResolvedValue({ rows: [], jobs: [], facts: { policies: [] } });
+    const local = await loadComplianceDashboard("session", "tenant", "2026-09-13");
+    expect(local.evidenceRefresh).toBe("pending");
+    expect(mocks.external).not.toHaveBeenCalled();
+
+    mocks.external.mockResolvedValue({
+      native: false,
+      verifiedAt: new Date("2026-09-14T12:00:00Z"),
+      weeks: new Map([["2026-09-13", new Map()]]),
+      excuses: [],
+    });
+    const refreshed = await loadComplianceDashboard("session", "tenant", "2026-09-13", {
+      refreshExternal: true,
+    });
+    expect(refreshed.evidenceRefresh).toBe("ready");
+    expect(mocks.external).toHaveBeenCalled();
   });
   it("prepares external evidence outside the transaction and rechecks authority inside it", async () => {
     const actor = { sessionId: "session", allianceId: "tenant", hqUserId: "officer", boundHqUserId: "officer" };
@@ -51,6 +81,7 @@ describe("bounded catch-up and snapshot revalidation", () => {
   it("rejects invalid or unfinished week identities without external I/O", async () => {
     for (const week of ["2026-09-14", "2026-09-20", "bad"]) await expect(evaluateComplianceAlliance("tenant", [week])).rejects.toMatchObject({ code: "invalid_week" });
     expect(mocks.external).not.toHaveBeenCalled();
+    expect(mocks.externalShell).not.toHaveBeenCalled();
   });
   it("advances only a four-week contiguous batch and keeps the next week queued", async () => {
     mocks.results = [[{ allianceId: "tenant", inputVersion: 7, requestedFrom: "2026-08-16" }]];

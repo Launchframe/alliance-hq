@@ -14,6 +14,14 @@ export async function GET(request: Request) {
     const eventId = params.get("eventId");
     if (eventId !== null) return NextResponse.json(await loadComplianceHistory(context.sessionId, context.allianceId, eventId));
     const ending = params.get("weekEnding") ?? undefined;
-    return NextResponse.json(await loadComplianceDashboard(context.sessionId, context.allianceId, ending));
+    const refreshExternal = params.get("refresh") === "1";
+    return NextResponse.json(
+      await loadComplianceDashboard(
+        context.sessionId,
+        context.allianceId,
+        ending,
+        { refreshExternal },
+      ),
+    );
   } catch (error) { return complianceErrorResponse(error); }
 }
