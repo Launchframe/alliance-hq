@@ -100,6 +100,8 @@ export type TrainsGuidedConductorFlowProps = {
   /** Rendered inside the "Show advanced actions" disclosure (swap / reseed / unlock, etc). */
   advancedActions?: ReactNode;
   videoUploadHref?: string;
+  /** Inline VS score upload. Replaces the prerequisites link when today's scores are missing. */
+  scoreUpload?: ReactNode;
   rosterSyncBusy?: boolean;
   rosterSyncNotice?: string | null;
   rosterSyncNoticeTone?: "success" | "warning" | "error";
@@ -295,6 +297,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     poolPanel,
     advancedActions,
     videoUploadHref,
+    scoreUpload,
     rosterSyncBusy = false,
     rosterSyncNotice = null,
     rosterSyncNoticeTone = "success",
@@ -629,6 +632,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 {scoreStats ? (
                   <TrainDayScoreStatsSummary stats={scoreStats} />
                 ) : null}
+                {scoreUpload ?? (
                 <Link
                   href={videoUploadHref ?? DEFAULT_VIDEO_UPLOAD_HREF}
                   data-testid="trains-guided-upload-link"
@@ -636,6 +640,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 >
                   {t("steps.prerequisites.uploadLink")}
                 </Link>
+                )}
               </div>
             ) : prerequisitesStatus === "completed" && eventEvidenceRequired ? (
               <p className="text-xs text-hq-fg-muted">

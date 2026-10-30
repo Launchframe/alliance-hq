@@ -7,7 +7,8 @@ import {
   parseTrainsScoresReadyParam,
 } from "@/lib/trains/guided-video-upload.shared";
 import { loadTrainsDashboard } from "@/lib/trains/load-dashboard";
-import { requirePageSession } from "@/lib/session";
+import { getAshedConnection, requirePageSession } from "@/lib/session";
+import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,11 @@ type Props = {
 
 export default async function TrainsPage({ searchParams }: Props) {
   const session = await requirePageSession("/trains");
-  const [initial, sp] = await Promise.all([
+  const [initial, sp, canProcessVideo, ashedConnection] = await Promise.all([
     loadTrainsDashboard(session.id),
     searchParams,
+    sessionCanProcessVideo(session.id),
+    getAshedConnection(session.id),
   ]);
   return (
     <TrainsDashboard
@@ -36,6 +39,10 @@ export default async function TrainsPage({ searchParams }: Props) {
       initialSelectedDate={parseTrainsHubDateParam(sp.date)}
       initialEventId={sp.eventId?.trim() || null}
       initialScoresReady={parseTrainsScoresReadyParam(sp.scoresReady)}
+      videoUpload={{
+        canProcess: canProcessVideo,
+        ashedConnected: Boolean(ashedConnection),
+      }}
     />
   );
 }
