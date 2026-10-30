@@ -2,6 +2,8 @@ import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
 
+import { lockActivityIdentity } from "@/lib/activity/ownership.server";
+import { withActivityTransaction } from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 import {
   inheritHqMemberLinksToDiscord,
@@ -74,25 +76,35 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
   // Discord rebind to a different HQ user: drop the prior HQ's inherited
   // commander links so stale owner/officer Discord gates cannot survive.
   //
-  // Upsert the HQ bridge *before* revoking prior mirrors. Lazy
-  // `ensureDiscordMemberLinksFromHq` (officer/owner gates, /vr, help) reads
-  // `discord_hq_links` and would otherwise re-inherit the prior HQ's
-  // commanders into the gap after revoke and before upsert — restoring
-  // owner/officer Discord gates the rebind intended to clear.
-  const existingForDiscord = await getDiscordHqLink(discordUserId);
-  const priorHqUserId =
-    existingForDiscord && existingForDiscord.hqUserId !== hqUserId
-      ? existingForDiscord.hqUserId
-      : null;
-
-  await upsertDiscordHqLink({ discordUserId, hqUserId });
-
-  if (priorHqUserId) {
-    await revokeHqMirroredDiscordMemberLinks({
+  // Upsert the HQ bridge *before* revoking prior mirrors, in one transaction,
+  // so concurrent lazy `ensureDiscordMemberLinksFromHq` (officer/owner gates,
+  // /vr, help) never observes the new bridge while the prior HQ's mirrors
+  // still exist — and never re-inherits the prior HQ after a revoke-before-
+  // upsert window.
+  await withActivityTransaction(async (tx) => {
+    await lockActivityIdentity(tx, {
       discordUserId,
-      hqUserId: priorHqUserId,
+      hqUserIds: [hqUserId],
     });
-  }
+    const existingForDiscord = await getDiscordHqLink(discordUserId, tx);
+    const priorHqUserId =
+      existingForDiscord && existingForDiscord.hqUserId !== hqUserId
+        ? existingForDiscord.hqUserId
+        : null;
+    if (priorHqUserId) {
+      await lockActivityIdentity(tx, { hqUserIds: [priorHqUserId] });
+    }
+
+    await upsertDiscordHqLink({ discordUserId, hqUserId, tx });
+
+    if (priorHqUserId) {
+      await revokeHqMirroredDiscordMemberLinks({
+        discordUserId,
+        hqUserId: priorHqUserId,
+        tx,
+      });
+    }
+  });
 
   // Web commanders should work on Discord without a second name+UID pass.
   await inheritHqMemberLinksToDiscord({ discordUserId, hqUserId });

@@ -6,6 +6,11 @@ import {
   unlinkDiscordHqLinkForUser,
 } from "@/lib/auth/discord-hq-link.server";
 import { unlinkOAuthProviderForUser } from "@/lib/auth/account-linking.server";
+import { lockActivityIdentity } from "@/lib/activity/ownership.server";
+import {
+  withActivityTransaction,
+  type ActivityTransaction,
+} from "@/lib/activity/writer.server";
 import { getDb } from "@/lib/db";
 import {
   consumeDiscordAuthNonce,
@@ -18,6 +23,8 @@ import {
   getDiscordHqLinkByHqUserId,
   upsertDiscordHqLink,
 } from "@/lib/vr/repository";
+
+const rebindTx = { kind: "rebind-tx" } as unknown as ActivityTransaction;
 
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
@@ -47,6 +54,17 @@ vi.mock("@/lib/vr/auth-nonce", () => ({
   consumeDiscordAuthNonce: vi.fn(),
 }));
 
+vi.mock("@/lib/activity/ownership.server", () => ({
+  lockActivityIdentity: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/activity/writer.server", () => ({
+  withActivityTransaction: vi.fn(
+    async (work: (tx: ActivityTransaction) => Promise<unknown>) =>
+      work(rebindTx),
+  ),
+}));
+
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
   schema: {
@@ -66,6 +84,10 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getDiscordHqLink).mockResolvedValue(null as never);
+    vi.mocked(withActivityTransaction).mockImplementation(
+      async (work) => work(rebindTx),
+    );
+    vi.mocked(lockActivityIdentity).mockResolvedValue(undefined);
   });
 
   it("no-ops when discord or hq user id is blank", async () => {
@@ -79,6 +101,7 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
     });
 
     expect(getDb).not.toHaveBeenCalled();
+    expect(withActivityTransaction).not.toHaveBeenCalled();
     expect(upsertDiscordHqLink).not.toHaveBeenCalled();
   });
 
@@ -104,9 +127,11 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
     });
     expect(deleteFn).toHaveBeenCalled();
     expect(deleteWhere).toHaveBeenCalled();
+    expect(withActivityTransaction).toHaveBeenCalledTimes(1);
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
+      tx: rebindTx,
     });
     expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",
@@ -132,13 +157,23 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
       hqUserId: "hq-new",
     });
 
+    expect(getDiscordHqLink).toHaveBeenCalledWith("discord-1", rebindTx);
+    expect(lockActivityIdentity).toHaveBeenCalledWith(rebindTx, {
+      discordUserId: "discord-1",
+      hqUserIds: ["hq-new"],
+    });
+    expect(lockActivityIdentity).toHaveBeenCalledWith(rebindTx, {
+      hqUserIds: ["hq-prior"],
+    });
     expect(revokeHqMirroredDiscordMemberLinks).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-prior",
+      tx: rebindTx,
     });
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-new",
+      tx: rebindTx,
     });
     expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",
@@ -175,6 +210,7 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
+      tx: rebindTx,
     });
   });
 });
@@ -268,6 +304,7 @@ describe("completeDiscordBotHqLink", () => {
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
+      tx: rebindTx,
     });
     expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",

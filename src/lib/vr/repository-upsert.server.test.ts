@@ -93,4 +93,21 @@ describe("upsertDiscordHqLink activity ownership wiring", () => {
     expect(alertMock).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
   });
+
+  it("reuses a caller-provided activity transaction", async () => {
+    const outer = fakeTx([{ hqUserId: "hq-1" }]);
+    const state = { rolledBack: false };
+    const nested = installDb(outer, state);
+
+    await upsertDiscordHqLink({
+      discordUserId: "d-1",
+      hqUserId: "hq-1",
+      tx: outer as never,
+    });
+
+    expect(nested).not.toHaveBeenCalled();
+    expect(outer.insert).toHaveBeenCalledTimes(1);
+    expect(outer.update).toHaveBeenCalledTimes(1);
+    expect(alertMock).not.toHaveBeenCalled();
+  });
 });

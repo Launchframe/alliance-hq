@@ -452,8 +452,9 @@ export async function getLinkedMemberIds(allianceId: string): Promise<Set<string
 export async function getDiscordLinkByAllianceAndMember(
   allianceId: string,
   ashedMemberId: string,
+  tx?: ActivityTransaction,
 ) {
-  const db = getDb();
+  const db = tx ?? getDb();
   const [row] = await db
     .select()
     .from(schema.discordMemberLinks)
@@ -1866,8 +1867,11 @@ export async function listDiscordMemberLinks(allianceId: string) {
   return listDiscordLinksByAlliance(allianceId);
 }
 
-export async function deleteDiscordMemberLink(linkId: string): Promise<void> {
-  const db = getDb();
+export async function deleteDiscordMemberLink(
+  linkId: string,
+  tx?: ActivityTransaction,
+): Promise<void> {
+  const db = tx ?? getDb();
   await db
     .delete(schema.discordMemberLinks)
     .where(eq(schema.discordMemberLinks.id, linkId));
@@ -1926,8 +1930,11 @@ export async function resolveOwnerSetupAllianceId(
   return cred?.allianceId ?? null;
 }
 
-export async function getDiscordHqLink(discordUserId: string) {
-  const db = getDb();
+export async function getDiscordHqLink(
+  discordUserId: string,
+  tx?: ActivityTransaction,
+) {
+  const db = tx ?? getDb();
   const [row] = await db
     .select()
     .from(schema.discordHqLinks)
@@ -1968,8 +1975,9 @@ export async function deleteDiscordHqLinkForHqUser(hqUserId: string): Promise<bo
 export async function upsertDiscordHqLink(input: {
   discordUserId: string;
   hqUserId: string;
+  tx?: ActivityTransaction;
 }): Promise<void> {
-  await withActivityTransaction(async (tx) => {
+  const write = async (tx: ActivityTransaction) => {
     await lockActivityIdentity(tx, {
       discordUserId: input.discordUserId,
       hqUserIds: [input.hqUserId],
@@ -1987,11 +1995,19 @@ export async function upsertDiscordHqLink(input: {
         set: { hqUserId: input.hqUserId, linkedAt: now },
       });
     try {
-      await claimDiscordActivityOwnership(tx, input);
+      await claimDiscordActivityOwnership(tx, {
+        discordUserId: input.discordUserId,
+        hqUserId: input.hqUserId,
+      });
     } catch (error) {
       throw toActivityWriteError(error, "unknown");
     }
-  });
+  };
+  if (input.tx) {
+    await write(input.tx);
+    return;
+  }
+  await withActivityTransaction(write);
 }
 
 export async function getHqUserById(hqUserId: string) {
