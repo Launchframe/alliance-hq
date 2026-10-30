@@ -277,3 +277,59 @@ export function recordVsComplianceRefreshTransaction(input: {
     lastErrorCode: input.lastErrorCode,
   });
 }
+
+/** Record Data Management date-list enrichment (Ashed scores → dates). */
+export function recordDataManagementDatesTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/data-management/dates",
+    method: "GET",
+    labelKey: "dm_dates",
+    lastErrorCode: input.lastErrorCode,
+  });
+}
+
+/** Record Data Management per-date Ashed scores pane fetch. */
+export function recordDataManagementScoresTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/data-management/dates/scores",
+    method: "GET",
+    labelKey: "dm_scores",
+    lastErrorCode: input.lastErrorCode,
+  });
+}
+
+/** Record trains in-page roster sync POST. */
+export function recordTrainsRosterSyncTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/trains/roster-sync",
+    method: "POST",
+    labelKey: "trains_roster_sync",
+    lastErrorCode: input.lastErrorCode,
+  });
+}
+
+/** Record Settings → Team “Refresh from Ashed” POST. */
+export function recordSettingsTeamRosterSyncTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/settings/team",
+    method: "POST",
+    labelKey: "settings_team_roster_sync",
+    lastErrorCode: input.lastErrorCode,
+  });
+}

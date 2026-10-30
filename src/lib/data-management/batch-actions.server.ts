@@ -22,23 +22,12 @@ import {
   buildBulkMovePayload,
 } from "./bulk-function-payload.shared";
 
-export async function buildDataDateSummaries(input: {
-  connection: ParsedConnection | null;
-  ashedAllianceId: string | null;
-  submitEntity: string;
-  ledgerBatches: DataBatchRow[];
+/** Merge HQ ledger batches with optional Ashed-by-date rows into date cards. */
+export function mergeDataDateSummaries(input: {
+  ashedByDate: ReadonlyMap<string, readonly AshedDateScoreRow[]>;
+  ledgerBatches: readonly DataBatchRow[];
   rbac: RbacContext;
-}): Promise<DataDateSummary[]> {
-  let ashedByDate = new Map<string, AshedDateScoreRow[]>();
-  if (input.connection && input.ashedAllianceId) {
-    const rows = await fetchAshedScoresForAlliance(
-      input.connection,
-      input.submitEntity,
-      input.ashedAllianceId,
-    );
-    ashedByDate = groupAshedScoresByDate(rows);
-  }
-
+}): DataDateSummary[] {
   const ledgerByDate = new Map<string, DataBatchRow[]>();
   for (const batch of input.ledgerBatches) {
     const bucket = ledgerByDate.get(batch.recordedDate);
@@ -50,13 +39,13 @@ export async function buildDataDateSummaries(input: {
   }
 
   const allDates = new Set([
-    ...ashedByDate.keys(),
+    ...input.ashedByDate.keys(),
     ...ledgerByDate.keys(),
   ]);
   const summaries: DataDateSummary[] = [];
 
   for (const recordedDate of allDates) {
-    const ashedRows = ashedByDate.get(recordedDate) ?? [];
+    const ashedRows = input.ashedByDate.get(recordedDate) ?? [];
     const batches = ledgerByDate.get(recordedDate) ?? [];
     const hasScoresWithoutLedger =
       ashedRows.length > 0 && batches.length === 0;
@@ -88,6 +77,40 @@ export async function buildDataDateSummaries(input: {
 
   summaries.sort((a, b) => b.recordedDate.localeCompare(a.recordedDate));
   return summaries;
+}
+
+/**
+ * Date list for Data Management.
+ * `includeAshed: false` — HQ ledger only (SSR / local-first shell).
+ * Default — also pulls Ashed entity scores (client enrichment).
+ */
+export async function buildDataDateSummaries(input: {
+  connection: ParsedConnection | null;
+  ashedAllianceId: string | null;
+  submitEntity: string;
+  ledgerBatches: DataBatchRow[];
+  rbac: RbacContext;
+  includeAshed?: boolean;
+}): Promise<DataDateSummary[]> {
+  let ashedByDate = new Map<string, AshedDateScoreRow[]>();
+  if (
+    input.includeAshed !== false &&
+    input.connection &&
+    input.ashedAllianceId
+  ) {
+    const rows = await fetchAshedScoresForAlliance(
+      input.connection,
+      input.submitEntity,
+      input.ashedAllianceId,
+    );
+    ashedByDate = groupAshedScoresByDate(rows);
+  }
+
+  return mergeDataDateSummaries({
+    ashedByDate,
+    ledgerBatches: input.ledgerBatches,
+    rbac: input.rbac,
+  });
 }
 
 export async function forwardBulkDeleteDate(
