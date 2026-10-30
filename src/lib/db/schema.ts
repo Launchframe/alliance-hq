@@ -684,6 +684,18 @@ export const alliances = pgTable("alliances", {
   bankCityListImportedAt: timestamp("bank_city_list_imported_at", {
     withTimezone: true,
   }),
+  /** idle | running | failed — web roster Ashed pull progress for background sync. */
+  rosterAshedSyncStatus: text("roster_ashed_sync_status")
+    .notNull()
+    .default("idle"),
+  rosterAshedSyncStartedAt: timestamp("roster_ashed_sync_started_at", {
+    withTimezone: true,
+  }),
+  rosterAshedSyncFinishedAt: timestamp("roster_ashed_sync_finished_at", {
+    withTimezone: true,
+  }),
+  /** Stable machine code when status is failed (never raw driver/Ashed bodies). */
+  rosterAshedSyncLastErrorCode: text("roster_ashed_sync_last_error_code"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

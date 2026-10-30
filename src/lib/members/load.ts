@@ -10,6 +10,13 @@ import {
   getAllianceRosterLastSyncedAt,
   resolveHqAllianceId,
 } from "@/lib/members/roster.server";
+import {
+  getAllianceRosterAshedSyncState,
+} from "@/lib/members/roster-ashed-sync-status.server";
+import {
+  IDLE_ASHED_ROSTER_SYNC_STATE,
+  type AshedRosterSyncStatePayload,
+} from "@/lib/members/roster-ashed-sync-status.shared";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import type { AshedMember } from "@/lib/video/member-matcher";
@@ -30,6 +37,8 @@ export type AllianceMembersPayload = {
   operatingMode: "ashed" | "native";
   commanderConflicts: CommanderIdentityConflict[];
   gameServerNumber?: number | null;
+  /** Web roster Ashed pull progress (edit locks + status banner). */
+  ashedRosterSync: AshedRosterSyncStatePayload;
 };
 
 function sortMembers(members: AshedMember[]): AshedMember[] {
@@ -52,7 +61,7 @@ function countMembers(members: AshedMember[]): AllianceMembersPayload["counts"] 
 async function enrichMembersPayload(
   payload: Omit<
     AllianceMembersPayload,
-    "commanderConflicts" | "gameServerNumber"
+    "commanderConflicts" | "gameServerNumber" | "ashedRosterSync"
   >,
   allianceId: string,
 ): Promise<AllianceMembersPayload> {
@@ -63,11 +72,17 @@ async function enrichMembersPayload(
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
+  const ashedRosterSync =
+    payload.operatingMode === "ashed"
+      ? await getAllianceRosterAshedSyncState(allianceId)
+      : IDLE_ASHED_ROSTER_SYNC_STATE;
+
   return {
     ...payload,
     gameServerNumber: allianceRow?.gameServerNumber ?? null,
     commanderConflicts:
       await listCommanderIdentityConflictsForAlliance(allianceId),
+    ashedRosterSync,
   };
 }
 

@@ -4,6 +4,10 @@ import { validateBulkMemberRankInput } from "@/lib/members/bulk-rank-update.shar
 import { applyBulkMemberRanks } from "@/lib/members/bulk-rank-update.server";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { resolveMembersApiContext } from "@/lib/members/members-api-context";
+import {
+  assertAllianceRosterAshedSyncIdle,
+  RosterAshedSyncInProgressError,
+} from "@/lib/members/roster-ashed-sync-status.server";
 import { getRbacContext, requireSessionPermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
@@ -20,6 +24,18 @@ export async function POST(request: Request) {
 
   const ctx = await resolveMembersApiContext();
   if (ctx instanceof NextResponse) return ctx;
+
+  try {
+    await assertAllianceRosterAshedSyncIdle(ctx.hqAllianceId);
+  } catch (error) {
+    if (error instanceof RosterAshedSyncInProgressError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
 
   const body = (await request.json()) as {
     memberIds?: unknown;

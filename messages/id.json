@@ -4225,6 +4225,10 @@
     "refreshNative": "Refresh roster",
     "refreshing": "Menyegarkan…",
     "refreshingNative": "Menyegarkan…",
+    "ashedSyncRunning": "Memperbarui roster dari Ashed…",
+    "ashedSyncFailed": "Pembaruan roster gagal. Menampilkan roster tersimpan terakhir.",
+    "ashedSyncEditsPaused": "Roster sedang diperbarui. Editan dijeda sampai selesai.",
+    "ashedSyncRetry": "Coba lagi",
     "removeRank": "Remove rank",
     "rosterColumns": {
       "col": {

@@ -1408,6 +1408,13 @@
       "when": 1791900000217,
       "tag": "0217_vr_daily_report_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1791900000218,
+      "tag": "0218_alliance_roster_ashed_sync_status",
+      "breakpoints": true
     }
   ]
 }
