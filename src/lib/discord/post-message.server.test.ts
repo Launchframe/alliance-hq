@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   postDiscordChannelMessage,
+  postDiscordChannelMessageResult,
   truncateDiscordContent,
 } from "@/lib/discord/post-message.server";
 
@@ -107,5 +108,19 @@ describe("postDiscordChannelMessage", () => {
         retryMayDuplicate: false,
       }),
     );
+  });
+
+  it("exposes retryMayDuplicate on the structured result", async () => {
+    process.env.DISCORD_BOT_TOKEN = "test-token";
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      }),
+    );
+    await expect(
+      postDiscordChannelMessageResult("chan-1", "hi"),
+    ).resolves.toEqual({ ok: false, retryMayDuplicate: true });
   });
 });

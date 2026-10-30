@@ -4,22 +4,28 @@ const {
   listRegisteredGuildsWithReportChannel,
   resolveAllianceForGuild,
   loadAllianceLeaderboard,
-  postDiscordChannelMessage,
+  postDiscordChannelMessageResult,
   getServerCalendarDate,
   insertValues,
   onConflictDoNothing,
   returning,
   deleteWhere,
+  updateSet,
+  updateWhere,
+  updateReturning,
 } = vi.hoisted(() => ({
   listRegisteredGuildsWithReportChannel: vi.fn(),
   resolveAllianceForGuild: vi.fn(),
   loadAllianceLeaderboard: vi.fn(),
-  postDiscordChannelMessage: vi.fn(),
+  postDiscordChannelMessageResult: vi.fn(),
   getServerCalendarDate: vi.fn(() => "2026-10-11"),
   insertValues: vi.fn(),
   onConflictDoNothing: vi.fn(),
   returning: vi.fn(),
   deleteWhere: vi.fn(),
+  updateSet: vi.fn(),
+  updateWhere: vi.fn(),
+  updateReturning: vi.fn(),
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
@@ -36,7 +42,7 @@ vi.mock("@/lib/vr/leaderboard", () => ({
 }));
 
 vi.mock("@/lib/discord/post-message.server", () => ({
-  postDiscordChannelMessage,
+  postDiscordChannelMessageResult,
 }));
 
 vi.mock("@/lib/trains/game-time", () => ({
@@ -55,6 +61,17 @@ vi.mock("@/lib/db", async (importOriginal) => {
             onConflictDoNothing: (...conflictArgs: unknown[]) => {
               onConflictDoNothing(...conflictArgs);
               return { returning };
+            },
+          };
+        },
+      }),
+      update: () => ({
+        set: (...args: unknown[]) => {
+          updateSet(...args);
+          return {
+            where: (...whereArgs: unknown[]) => {
+              updateWhere(...whereArgs);
+              return { returning: updateReturning };
             },
           };
         },
@@ -83,8 +100,9 @@ describe("processVrDailyReports", () => {
       allianceTag: "TAG",
       rows: [],
     });
-    postDiscordChannelMessage.mockResolvedValue(true);
+    postDiscordChannelMessageResult.mockResolvedValue({ ok: true });
     returning.mockResolvedValue([{ id: "claim-1" }]);
+    updateReturning.mockResolvedValue([]);
   });
 
   it("claims once per guild+date then posts", async () => {
@@ -98,17 +116,23 @@ describe("processVrDailyReports", () => {
         guildId: "g1",
         allianceId: "a1",
         reportDate: "2026-10-11",
+        status: "in_flight",
       }),
     );
-    expect(postDiscordChannelMessage).toHaveBeenCalledWith(
+    expect(postDiscordChannelMessageResult).toHaveBeenCalledWith(
       "c1",
       "leaderboard message",
+      { source: "vr.daily_report" },
+    );
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "posted" }),
     );
     expect(deleteWhere).not.toHaveBeenCalled();
   });
 
-  it("skips when the idempotency claim is already taken", async () => {
+  it("skips when the idempotency claim is already posted", async () => {
     returning.mockResolvedValueOnce([]);
+    updateReturning.mockResolvedValueOnce([]);
 
     await expect(processVrDailyReports()).resolves.toEqual({
       posted: 0,
@@ -116,11 +140,26 @@ describe("processVrDailyReports", () => {
       configured: 1,
     });
     expect(loadAllianceLeaderboard).not.toHaveBeenCalled();
-    expect(postDiscordChannelMessage).not.toHaveBeenCalled();
+    expect(postDiscordChannelMessageResult).not.toHaveBeenCalled();
   });
 
-  it("clears the claim when Discord delivery returns false", async () => {
-    postDiscordChannelMessage.mockResolvedValueOnce(false);
+  it("reclaims an expired in_flight claim", async () => {
+    returning.mockResolvedValueOnce([]);
+    updateReturning.mockResolvedValueOnce([{ id: "reclaimed-1" }]);
+
+    await expect(processVrDailyReports()).resolves.toEqual({
+      posted: 1,
+      skipped: 0,
+      configured: 1,
+    });
+    expect(postDiscordChannelMessageResult).toHaveBeenCalled();
+  });
+
+  it("clears the claim when Discord delivery is a definite failure", async () => {
+    postDiscordChannelMessageResult.mockResolvedValueOnce({
+      ok: false,
+      retryMayDuplicate: false,
+    });
 
     await expect(processVrDailyReports()).resolves.toEqual({
       posted: 0,
@@ -128,6 +167,23 @@ describe("processVrDailyReports", () => {
       configured: 1,
     });
     expect(deleteWhere).toHaveBeenCalled();
+  });
+
+  it("keeps the claim when Discord delivery may have succeeded", async () => {
+    postDiscordChannelMessageResult.mockResolvedValueOnce({
+      ok: false,
+      retryMayDuplicate: true,
+    });
+
+    await expect(processVrDailyReports()).resolves.toEqual({
+      posted: 1,
+      skipped: 0,
+      configured: 1,
+    });
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "posted" }),
+    );
+    expect(deleteWhere).not.toHaveBeenCalled();
   });
 
   it("clears the claim when leaderboard load throws", async () => {
@@ -139,6 +195,40 @@ describe("processVrDailyReports", () => {
       configured: 1,
     });
     expect(deleteWhere).toHaveBeenCalled();
-    expect(postDiscordChannelMessage).not.toHaveBeenCalled();
+    expect(postDiscordChannelMessageResult).not.toHaveBeenCalled();
+  });
+
+  it("claims for the legacy env guild without a guild-registry FK", async () => {
+    listRegisteredGuildsWithReportChannel.mockResolvedValueOnce([]);
+    resolveAllianceForGuild.mockResolvedValueOnce("legacy-alliance");
+    const previousChannel = process.env.DISCORD_VR_REPORT_CHANNEL_ID;
+    const previousGuild = process.env.DISCORD_GUILD_ID;
+    process.env.DISCORD_VR_REPORT_CHANNEL_ID = "legacy-channel";
+    process.env.DISCORD_GUILD_ID = "legacy-guild";
+
+    try {
+      await expect(processVrDailyReports()).resolves.toEqual({
+        posted: 1,
+        skipped: 0,
+        configured: 1,
+      });
+      expect(insertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          guildId: "legacy-guild",
+          allianceId: "legacy-alliance",
+        }),
+      );
+    } finally {
+      if (previousChannel === undefined) {
+        delete process.env.DISCORD_VR_REPORT_CHANNEL_ID;
+      } else {
+        process.env.DISCORD_VR_REPORT_CHANNEL_ID = previousChannel;
+      }
+      if (previousGuild === undefined) {
+        delete process.env.DISCORD_GUILD_ID;
+      } else {
+        process.env.DISCORD_GUILD_ID = previousGuild;
+      }
+    }
   });
 });

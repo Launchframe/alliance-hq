@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
+import { postDiscordChannelMessageResult } from "@/lib/discord/post-message.server";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { formatVrLeaderboard } from "@/lib/vr/leaderboard";
 import { loadAllianceLeaderboard } from "@/lib/vr/leaderboard.server";
@@ -12,6 +12,9 @@ import {
   listRegisteredGuildsWithReportChannel,
   resolveAllianceForGuild,
 } from "@/lib/vr/repository";
+
+/** Stale `in_flight` claims older than this can be reclaimed after a crash. */
+export const VR_DAILY_REPORT_CLAIM_LEASE_MS = 15 * 60 * 1000;
 
 export type VrDailyReportTarget = {
   guildId: string;
@@ -42,16 +45,21 @@ async function claimVrDailyReportPost(input: {
   guildId: string;
   allianceId: string;
   reportDate: string;
+  now?: Date;
 }): Promise<string | null> {
   const db = getDb();
+  const now = input.now ?? new Date();
   const claimId = nanoid();
-  const [claimed] = await db
+  const [inserted] = await db
     .insert(schema.vrDailyReportPosts)
     .values({
       id: claimId,
       guildId: input.guildId,
       allianceId: input.allianceId,
       reportDate: input.reportDate,
+      status: "in_flight",
+      claimedAt: now,
+      postedAt: null,
     })
     .onConflictDoNothing({
       target: [
@@ -60,7 +68,47 @@ async function claimVrDailyReportPost(input: {
       ],
     })
     .returning({ id: schema.vrDailyReportPosts.id });
-  return claimed?.id ?? null;
+  if (inserted) {
+    return inserted.id;
+  }
+
+  const leaseCutoff = new Date(now.getTime() - VR_DAILY_REPORT_CLAIM_LEASE_MS);
+  const [reclaimed] = await db
+    .update(schema.vrDailyReportPosts)
+    .set({
+      allianceId: input.allianceId,
+      claimedAt: now,
+      status: "in_flight",
+      postedAt: null,
+    })
+    .where(
+      and(
+        eq(schema.vrDailyReportPosts.guildId, input.guildId),
+        eq(schema.vrDailyReportPosts.reportDate, input.reportDate),
+        eq(schema.vrDailyReportPosts.status, "in_flight"),
+        lt(schema.vrDailyReportPosts.claimedAt, leaseCutoff),
+      ),
+    )
+    .returning({ id: schema.vrDailyReportPosts.id });
+  return reclaimed?.id ?? null;
+}
+
+async function markVrDailyReportPosted(input: {
+  guildId: string;
+  reportDate: string;
+  now?: Date;
+}): Promise<void> {
+  const db = getDb();
+  const now = input.now ?? new Date();
+  await db
+    .update(schema.vrDailyReportPosts)
+    .set({ status: "posted", postedAt: now })
+    .where(
+      and(
+        eq(schema.vrDailyReportPosts.guildId, input.guildId),
+        eq(schema.vrDailyReportPosts.reportDate, input.reportDate),
+      ),
+    );
 }
 
 async function clearVrDailyReportPostClaim(input: {
@@ -81,8 +129,10 @@ async function clearVrDailyReportPostClaim(input: {
 /**
  * Post top-25 VR standings to each guild report channel, once per
  * guild+server-calendar-day. Claim-before-post so cron retries / double
- * deliveries cannot spam; clear the claim when Discord delivery fails so
- * the next tick can retry.
+ * deliveries cannot spam. Expired `in_flight` leases are reclaimable after
+ * crashes. Ambiguous Discord outcomes keep the claim (treated as posted) so
+ * a lost response cannot cause a duplicate message; definite pre-send /
+ * HTTP failures clear the claim for the next tick.
  */
 export async function processVrDailyReports(options?: {
   now?: Date;
@@ -92,7 +142,8 @@ export async function processVrDailyReports(options?: {
     return { posted: 0, skipped: 0, configured: 0 };
   }
 
-  const reportDate = getServerCalendarDate(options?.now);
+  const now = options?.now ?? new Date();
+  const reportDate = getServerCalendarDate(now);
   let posted = 0;
   let skipped = 0;
 
@@ -101,13 +152,13 @@ export async function processVrDailyReports(options?: {
       guildId: target.guildId,
       allianceId: target.allianceId,
       reportDate,
+      now,
     });
     if (!claimId) {
       skipped += 1;
       continue;
     }
 
-    let delivered = false;
     try {
       const { seasonKey, allianceTag, rows } = await loadAllianceLeaderboard(
         target.allianceId,
@@ -116,19 +167,32 @@ export async function processVrDailyReports(options?: {
         limit: 25,
         allianceTag,
       });
-      delivered = await postDiscordChannelMessage(target.channelId, message);
+      const result = await postDiscordChannelMessageResult(
+        target.channelId,
+        message,
+        { source: "vr.daily_report" },
+      );
+
+      if (result.ok || result.retryMayDuplicate) {
+        await markVrDailyReportPosted({
+          guildId: target.guildId,
+          reportDate,
+          now,
+        });
+        posted += 1;
+      } else {
+        await clearVrDailyReportPostClaim({
+          guildId: target.guildId,
+          reportDate,
+        });
+        skipped += 1;
+      }
     } catch (error) {
       console.error(
         "[vr-daily-report] failed for guild",
         target.guildId,
         error,
       );
-      delivered = false;
-    }
-
-    if (delivered) {
-      posted += 1;
-    } else {
       await clearVrDailyReportPostClaim({
         guildId: target.guildId,
         reportDate,
