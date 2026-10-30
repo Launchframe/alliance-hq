@@ -1,8 +1,13 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getTranslations } from "next-intl/server";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  nextEurOccurrenceStart,
+  pickEurSatisfyingJobId,
+  type EurSatisfactionOccurrenceCandidate,
+} from "@/lib/eur/satisfaction-match.shared";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
 import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
 import { canReadTeamWorkInbox } from "@/lib/support-teams/work-inbox.server";
@@ -11,41 +16,128 @@ import { resolveRosterLinkInboxHref } from "@/lib/member-link/roster-link-inbox.
 
 const SATISFIED_JOB_STATUSES = ["review", "submitting", "complete"] as const;
 
+function eurSatisfactionCacheKey(
+  allianceId: string,
+  scoreTarget: string,
+): string {
+  return `${allianceId}\0${scoreTarget}`;
+}
+
 export async function runEurSatisfactionPass(now = new Date()): Promise<number> {
   const db = getDb();
+  // Chronological order so earlier slots claim jobs before later siblings.
   const openOccurrences = await db
     .select()
     .from(schema.eurOccurrences)
-    .where(eq(schema.eurOccurrences.status, "open"));
+    .where(eq(schema.eurOccurrences.status, "open"))
+    .orderBy(asc(schema.eurOccurrences.scheduledStartAt));
+
+  const openForMatch: EurSatisfactionOccurrenceCandidate[] = openOccurrences
+    .filter(
+      (row): row is typeof row & { scoreTarget: string } =>
+        row.scoreTarget != null && row.scoreTarget.length > 0,
+    )
+    .map((row) => ({
+      id: row.id,
+      allianceId: row.allianceId,
+      scoreTarget: row.scoreTarget,
+      scheduledStartAt: row.scheduledStartAt,
+    }));
 
   let satisfied = 0;
+  // Seed with jobs already bound on prior ticks so a later pass cannot
+  // re-satisfy a different open occurrence with the same video job.
+  const usedJobIds = new Set<string>();
+  const previouslyBound = await db
+    .select({ jobId: schema.eurOccurrences.satisfiedByJobId })
+    .from(schema.eurOccurrences)
+    .where(isNotNull(schema.eurOccurrences.satisfiedByJobId));
+  for (const row of previouslyBound) {
+    if (row.jobId) usedJobIds.add(row.jobId);
+  }
 
-  for (const occurrence of openOccurrences) {
-    if (!occurrence.scoreTarget) continue;
+  const earliestStartByKey = new Map<string, Date>();
+  for (const occurrence of openForMatch) {
+    const key = eurSatisfactionCacheKey(
+      occurrence.allianceId,
+      occurrence.scoreTarget,
+    );
+    const existing = earliestStartByKey.get(key);
+    if (
+      !existing ||
+      occurrence.scheduledStartAt.getTime() < existing.getTime()
+    ) {
+      earliestStartByKey.set(key, occurrence.scheduledStartAt);
+    }
+  }
 
-    const [job] = await db
-      .select({ id: schema.videoJobs.id })
-      .from(schema.videoJobs)
-      .where(
-        and(
-          eq(schema.videoJobs.allianceId, occurrence.allianceId),
-          eq(schema.videoJobs.scoreTarget, occurrence.scoreTarget),
-          inArray(schema.videoJobs.status, [...SATISFIED_JOB_STATUSES]),
-          sql`coalesce(${schema.videoJobs.updatedAt}, ${schema.videoJobs.createdAt}) >= ${occurrence.scheduledStartAt}`,
-        ),
-      )
-      .limit(1);
+  const jobsByKey = new Map<
+    string,
+    Array<{ id: string; at: Date }>
+  >();
 
-    if (!job) continue;
+  for (const occurrence of openForMatch) {
+    const key = eurSatisfactionCacheKey(
+      occurrence.allianceId,
+      occurrence.scoreTarget,
+    );
+    let candidates = jobsByKey.get(key);
+    if (!candidates) {
+      const earliestStart = earliestStartByKey.get(key) ?? occurrence.scheduledStartAt;
+      const rows = await db
+        .select({
+          id: schema.videoJobs.id,
+          updatedAt: schema.videoJobs.updatedAt,
+          createdAt: schema.videoJobs.createdAt,
+        })
+        .from(schema.videoJobs)
+        .where(
+          and(
+            eq(schema.videoJobs.allianceId, occurrence.allianceId),
+            eq(schema.videoJobs.scoreTarget, occurrence.scoreTarget),
+            inArray(schema.videoJobs.status, [...SATISFIED_JOB_STATUSES]),
+            // Bound to the earliest open occurrence for this key so ticks
+            // do not materialize the entire historical job list.
+            sql`coalesce(${schema.videoJobs.updatedAt}, ${schema.videoJobs.createdAt}) >= ${earliestStart}`,
+          ),
+        );
+      candidates = rows.map((row) => ({
+        id: row.id,
+        at: row.updatedAt ?? row.createdAt,
+      }));
+      jobsByKey.set(key, candidates);
+    }
 
-    await db
+    const jobId = pickEurSatisfyingJobId({
+      occurrenceScheduledStartAt: occurrence.scheduledStartAt,
+      nextOccurrenceScheduledStartAt: nextEurOccurrenceStart(
+        occurrence,
+        openForMatch,
+      ),
+      candidateJobs: candidates,
+      usedJobIds,
+    });
+    if (!jobId) continue;
+
+    // CAS: concurrent ticks must not double-satisfy the same open row.
+    const updated = await db
       .update(schema.eurOccurrences)
       .set({
         status: "satisfied",
         satisfiedAt: now,
-        satisfiedByJobId: job.id,
+        satisfiedByJobId: jobId,
       })
-      .where(eq(schema.eurOccurrences.id, occurrence.id));
+      .where(
+        and(
+          eq(schema.eurOccurrences.id, occurrence.id),
+          eq(schema.eurOccurrences.status, "open"),
+        ),
+      )
+      .returning({ id: schema.eurOccurrences.id });
+
+    if (updated.length === 0) continue;
+
+    usedJobIds.add(jobId);
 
     await db
       .update(schema.inboxReminderItems)
