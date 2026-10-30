@@ -724,6 +724,10 @@ async function moveHistory(
   // Modern event evidence ledger (observations → results → sync items). Legacy
   // hq_event_members remap above is not enough: train readiness and Ashed sync
   // read hq_event_member_results keyed by member_id.
+  //
+  // Append-only exception: ordinary corrections/retractions append new observation
+  // rows. Commander merge is identity remapping (duplicate ceases to exist), so we
+  // rewrite member_id/member_name in place rather than inventing superseding rows.
   const remappedObservations = await tx.execute(sql`
     UPDATE hq_event_observations AS o
     SET member_id = ${kept.ashedMemberId},
