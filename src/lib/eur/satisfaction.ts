@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getTranslations } from "next-intl/server";
 
@@ -15,6 +15,13 @@ import { resolveOnboardingReviewInboxHref } from "@/lib/member-link/onboarding-r
 import { resolveRosterLinkInboxHref } from "@/lib/member-link/roster-link-inbox.shared";
 
 const SATISFIED_JOB_STATUSES = ["review", "submitting", "complete"] as const;
+
+function eurSatisfactionCacheKey(
+  allianceId: string,
+  scoreTarget: string,
+): string {
+  return `${allianceId}\0${scoreTarget}`;
+}
 
 export async function runEurSatisfactionPass(now = new Date()): Promise<number> {
   const db = getDb();
@@ -38,16 +45,45 @@ export async function runEurSatisfactionPass(now = new Date()): Promise<number> 
     }));
 
   let satisfied = 0;
+  // Seed with jobs already bound on prior ticks so a later pass cannot
+  // re-satisfy a different open occurrence with the same video job.
   const usedJobIds = new Set<string>();
+  const previouslyBound = await db
+    .select({ jobId: schema.eurOccurrences.satisfiedByJobId })
+    .from(schema.eurOccurrences)
+    .where(isNotNull(schema.eurOccurrences.satisfiedByJobId));
+  for (const row of previouslyBound) {
+    if (row.jobId) usedJobIds.add(row.jobId);
+  }
+
+  const earliestStartByKey = new Map<string, Date>();
+  for (const occurrence of openForMatch) {
+    const key = eurSatisfactionCacheKey(
+      occurrence.allianceId,
+      occurrence.scoreTarget,
+    );
+    const existing = earliestStartByKey.get(key);
+    if (
+      !existing ||
+      occurrence.scheduledStartAt.getTime() < existing.getTime()
+    ) {
+      earliestStartByKey.set(key, occurrence.scheduledStartAt);
+    }
+  }
+
   const jobsByKey = new Map<
     string,
     Array<{ id: string; at: Date }>
   >();
 
   for (const occurrence of openForMatch) {
-    const key = `${occurrence.allianceId}\0${occurrence.scoreTarget}`;
+    const key = eurSatisfactionCacheKey(
+      occurrence.allianceId,
+      occurrence.scoreTarget,
+    );
     let candidates = jobsByKey.get(key);
     if (!candidates) {
+      const earliestStart = earliestStartByKey.get(key) ?? occurrence.scheduledStartAt;
       const rows = await db
         .select({
           id: schema.videoJobs.id,
@@ -60,6 +96,9 @@ export async function runEurSatisfactionPass(now = new Date()): Promise<number> 
             eq(schema.videoJobs.allianceId, occurrence.allianceId),
             eq(schema.videoJobs.scoreTarget, occurrence.scoreTarget),
             inArray(schema.videoJobs.status, [...SATISFIED_JOB_STATUSES]),
+            // Bound to the earliest open occurrence for this key so ticks
+            // do not materialize the entire historical job list.
+            sql`coalesce(${schema.videoJobs.updatedAt}, ${schema.videoJobs.createdAt}) >= ${earliestStart}`,
           ),
         );
       candidates = rows.map((row) => ({
