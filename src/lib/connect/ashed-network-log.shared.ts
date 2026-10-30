@@ -199,37 +199,67 @@ export function formatAshedNetworkLogForBugReport(
   return `${sanitized.slice(sanitized.length - ASHED_NETWORK_LOG_MAX_CHARS)}\n…(truncated)`;
 }
 
-/** Record roster sync status transitions from the members UI (no fetch patch). */
-export function recordRosterAshedSyncTransaction(input: {
+function recordLabeledAshedSyncTransaction(input: {
   status: "running" | "idle" | "failed";
+  path: string;
+  method: string;
+  labelKey: string;
   lastErrorCode?: string | null;
 }): void {
   if (input.status === "idle") {
     recordAshedClientTransaction({
       kind: "ashed_sync",
-      path: "/api/members",
-      method: "GET",
+      path: input.path,
+      method: input.method,
       outcome: "ok",
-      labelKey: "roster_sync",
+      labelKey: input.labelKey,
     });
     return;
   }
   if (input.status === "running") {
     recordAshedClientTransaction({
       kind: "ashed_sync",
-      path: "/api/members",
-      method: "GET",
+      path: input.path,
+      method: input.method,
       outcome: "running",
-      labelKey: "roster_sync",
+      labelKey: input.labelKey,
     });
     return;
   }
   recordAshedClientTransaction({
     kind: "ashed_sync",
-    path: "/api/members",
-    method: "GET",
+    path: input.path,
+    method: input.method,
     outcome: "error",
     code: input.lastErrorCode ?? "ashed_sync_failed",
+    labelKey: input.labelKey,
+  });
+}
+
+/** Record roster sync status transitions from the members UI (no fetch patch). */
+export function recordRosterAshedSyncTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/members",
+    method: "GET",
     labelKey: "roster_sync",
+    lastErrorCode: input.lastErrorCode,
+  });
+}
+
+/** Record VS Performance matchup import/sync outcomes (no fetch patch). */
+export function recordVsMatchupImportTransaction(input: {
+  status: "running" | "idle" | "failed";
+  lastErrorCode?: string | null;
+}): void {
+  recordLabeledAshedSyncTransaction({
+    status: input.status,
+    path: "/api/vs-performance/matchup/import",
+    method: "POST",
+    labelKey: "vs_import",
+    lastErrorCode: input.lastErrorCode,
   });
 }

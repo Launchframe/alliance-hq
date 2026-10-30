@@ -13,8 +13,11 @@ import { VsScreenshotCapture } from "@/components/vs-performance/VsScreenshotCap
 import { VsSpreadsheetImportDialog } from "@/components/vs-performance/VsSpreadsheetImportDialog";
 import { WeeklyPriceIsFreightPodium } from "@/components/vs-performance/WeeklyPriceIsFreightPodium";
 import { WeeklyVsPlan } from "@/components/vs-performance/WeeklyVsPlan";
+import { useFeedback } from "@/components/feedback";
+import { recordVsMatchupImportTransaction } from "@/lib/connect/ashed-network-log.shared";
 import { addCalendarDays, getWeekStartMonday } from "@/lib/trains/game-time";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
+import { resolveVsPerformanceBusyState } from "@/lib/vs-performance/nav-busy.shared";
 import { isVsCalendarDate } from "@/lib/vs-performance/weekly-plan.shared";
 import type { VsWeekPayload } from "@/lib/vs-performance/weekly-view.shared";
 
@@ -35,10 +38,12 @@ export function VsPerformanceClient({
   const tEmbed = useTranslations("ashedEmbed");
   const tNav = useTranslations("nav");
   const tHybrid = useTranslations("hybridAshed");
+  const tAshed = useTranslations("shell.ashedStatus");
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { showReportIssue } = useFeedback();
 
   const [payload, setPayload] = useState<VsWeekPayload>(initial);
   const [weekStart, setWeekStart] = useState(initial.weekStart);
@@ -63,8 +68,17 @@ export function VsPerformanceClient({
     );
   }, []);
   const hasDraft = editing || Object.values(flags).some(Boolean);
-  const needsAutoPull = tab === "native" && payload.canImportAshed && payload.canEdit && autoPull.attemptedScope !== payload.scope;
-  const navLocked = hasDraft || loading || needsAutoPull || autoPull.pullingScope === payload.scope;
+  const needsAutoPull =
+    tab === "native" &&
+    payload.canImportAshed &&
+    payload.canEdit &&
+    autoPull.attemptedScope !== payload.scope;
+  const { navLocked, matchupImportBusy } = resolveVsPerformanceBusyState({
+    hasDraft,
+    loading,
+    needsAutoPull,
+    autoPulling: autoPull.pullingScope === payload.scope,
+  });
   const hasDraftRef = useRef(hasDraft);
   useEffect(() => {
     hasDraftRef.current = hasDraft;
@@ -203,6 +217,7 @@ export function VsPerformanceClient({
     const scope = payload.scope;
     const active = () => seq === autoPullSeq.current && ctx === contextRef.current;
     setAutoPull({ attemptedScope: scope, pullingScope: scope, errorScope: null });
+    recordVsMatchupImportTransaction({ status: "running" });
     void (async () => {
       try {
         const res = await fetch("/api/vs-performance/matchup/import", {
@@ -213,14 +228,31 @@ export function VsPerformanceClient({
         const body = (await res.json()) as VsWeekPayload;
         if (!active() || revision !== payloadRevision.current || hasDraftRef.current) return;
         if (!res.ok || body.contextScope !== ctx || body.scope !== scope) {
-          setAutoPull(previous => ({ ...previous, errorScope: scope }));
+          recordVsMatchupImportTransaction({
+            status: "failed",
+            lastErrorCode: "vs_import_failed",
+          });
+          setAutoPull((previous) => ({ ...previous, errorScope: scope }));
           return;
         }
+        recordVsMatchupImportTransaction({ status: "idle" });
         handleSaved(body);
       } catch {
-        if (active() && revision === payloadRevision.current) setAutoPull(previous => ({ ...previous, errorScope: scope }));
+        if (active() && revision === payloadRevision.current) {
+          recordVsMatchupImportTransaction({
+            status: "failed",
+            lastErrorCode: "vs_import_failed",
+          });
+          setAutoPull((previous) => ({ ...previous, errorScope: scope }));
+        }
       } finally {
-        if (active()) setAutoPull(previous => previous.pullingScope === scope ? { ...previous, pullingScope: null } : previous);
+        if (active()) {
+          setAutoPull((previous) =>
+            previous.pullingScope === scope
+              ? { ...previous, pullingScope: null }
+              : previous,
+          );
+        }
       }
     })();
   }, [needsAutoPull, loading, payload, handleSaved]);
@@ -393,14 +425,30 @@ export function VsPerformanceClient({
           {canViewMembers ? (
             <VsMemberPerformance weekStart={weekStart} searchParams={searchParams} />
           ) : null}
-          {autoPull.errorScope === payload.scope ? <p role="alert" className="text-sm text-hq-danger">{t("matchup.importFailed")}</p> : null}
-          {autoPull.pullingScope === payload.scope ? <p role="status" className="text-sm text-hq-fg-muted">{t("actions.loading")}</p> : null}
+          {autoPull.errorScope === payload.scope ? (
+            <div className="flex flex-wrap items-center gap-3" role="alert">
+              <p className="text-sm text-hq-danger">{t("matchup.importFailed")}</p>
+              <p className="text-xs text-hq-warning">{tAshed("unexpectedErrorHint")}</p>
+              <button
+                type="button"
+                onClick={() => showReportIssue()}
+                className="rounded-lg border border-hq-accent bg-hq-accent/10 px-3 py-1.5 text-xs font-medium text-hq-accent hover:bg-hq-accent/20"
+              >
+                {tAshed("reportProblem")}
+              </button>
+            </div>
+          ) : null}
+          {matchupImportBusy ? (
+            <p role="status" className="text-sm text-hq-fg-muted">
+              {t("actions.loading")}
+            </p>
+          ) : null}
           <VsMatchupResults
             key={`${payload.scope}:results`}
             payload={payload}
             onSaved={handleSaved}
             setDraftFlag={setDraftFlag}
-            navBusy={navLocked}
+            navBusy={navLocked || matchupImportBusy}
           />
           <WeeklyVsPlan
             key={`${payload.scope}:plan`}
