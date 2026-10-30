@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Syringe } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import { VrOfficerEventsPanel } from "@/components/vr/vr-officer-events-panel";
@@ -14,6 +14,7 @@ import type {
 } from "@/lib/vr/load-leaderboard";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/validation";
+import { formatKillsDisplay } from "@/lib/kills/format.shared";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -31,6 +32,7 @@ export function ViralResistanceView({
   showMyVrCta = false,
 }: Props) {
   const t = useTranslations("viralResistance");
+  const locale = useLocale();
   const [data, setData] = useState(initial);
   const [officer, setOfficer] = useState(initialOfficer);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,6 +192,7 @@ export function ViralResistanceView({
                 <th className="px-4 py-3">{t("colLevel")}</th>
                 <th className="px-4 py-3">{t("colVr")}</th>
                 <th className="px-4 py-3">{t("colThp")}</th>
+                <th className="px-4 py-3">{t("colKills")}</th>
                 {officer ? (
                   <th className="px-4 py-3">
                     <span className="sr-only">{t("officer.eventsColAction")}</span>
@@ -221,6 +224,9 @@ export function ViralResistanceView({
                   <td className="px-4 py-3 font-mono text-hq-fg-muted">
                     {row.totalHeroPower.toLocaleString()}
                   </td>
+                  <td className="px-4 py-3 font-mono text-hq-fg-muted">
+                    {formatKillsDisplay(row.kills, locale)}
+                  </td>
                   {officer ? (
                     <td className="px-4 py-3">
                       <button
@@ -246,7 +252,7 @@ export function ViralResistanceView({
               {data.rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={officer ? 6 : 5}
+                    colSpan={officer ? 7 : 6}
                     className="px-4 py-8 text-center text-hq-fg-muted"
                   >
                     {t("empty")}
