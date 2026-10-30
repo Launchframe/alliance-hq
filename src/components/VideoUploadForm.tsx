@@ -273,6 +273,8 @@ function VideoUploadFormFields({
   const [pendingSurveyFile, setPendingSurveyFile] = useState<File | null>(null);
   const pendingSurveySaveRef = useRef<PendingSurveySave>(emptyPendingSurveySave());
   const surveySettledRef = useRef(false);
+  /** Latest survey POST — process must wait so OCR can read rowCountEstimate. */
+  const surveySavePromiseRef = useRef<Promise<void>>(Promise.resolve());
   const processJobQueryId = useMemo(() => {
     if (!canProcess || embedded) return null;
     return processJobFromQuery?.trim() || null;
@@ -623,6 +625,7 @@ function VideoUploadFormFields({
     screenshotTaskRef.current = null;
     pendingSurveySaveRef.current = emptyPendingSurveySave();
     surveySettledRef.current = false;
+    surveySavePromiseRef.current = Promise.resolve();
 
     const uploadFile = file;
     const screenshotFile = isVsTarget ? screenshot : null;
@@ -657,7 +660,7 @@ function VideoUploadFormFields({
           const attached = attachSurveyJob(pendingSurveySaveRef.current, jobId);
           pendingSurveySaveRef.current = attached.pending;
           if (attached.flush) {
-            void saveSurvey(jobId, attached.flush);
+            trackSurveySave(saveSurvey(jobId, attached.flush));
           }
           setActiveSurvey((current) =>
             current ? { ...current, jobId } : current,
@@ -699,6 +702,10 @@ function VideoUploadFormFields({
         screenshotTaskRef.current = null;
       }
 
+      // Survey answers can race ahead of the upload; OCR reads rowCountEstimate
+      // at approve time, so wait for any in-flight save before Process now.
+      await surveySavePromiseRef.current;
+
       if (canProcess) {
         setSuccess(null);
         setProcessPromptJobId(data.jobId);
@@ -721,9 +728,15 @@ function VideoUploadFormFields({
     }
   }
 
-  function saveSurvey(jobId: string, payload: SurveyPayload) {
+  function trackSurveySave(promise: Promise<void>) {
+    const tracked = promise.catch(() => undefined);
+    surveySavePromiseRef.current = tracked;
+    return tracked;
+  }
+
+  async function saveSurvey(jobId: string, payload: SurveyPayload): Promise<void> {
     if (!hasSurveyAnswers(payload)) return;
-    void fetch(`/api/tools/video-upload/${jobId}/survey`, {
+    const res = await fetch(`/api/tools/video-upload/${jobId}/survey`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -732,15 +745,12 @@ function VideoUploadFormFields({
         schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
         aboveAverageScroll: payload.aboveAverageScroll,
       }),
-    })
-      .then(async (res) => {
-        if (res.ok) return;
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        if (data?.error) setError(data.error);
-      })
-      .catch(() => undefined);
+    });
+    if (res.ok) return;
+    const data = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    if (data?.error) setError(data.error);
   }
 
   function openSurveyAfterApprove(jobId: string) {
@@ -762,7 +772,7 @@ function VideoUploadFormFields({
     setPendingSurveyFile(null);
   }
 
-  function handleSurveyClose(result: {
+  async function handleSurveyClose(result: {
     complete: boolean;
     payload: SurveyPayload | null;
   }) {
@@ -774,7 +784,9 @@ function VideoUploadFormFields({
     pendingSurveySaveRef.current = queued.pending;
     if (queued.flush) {
       const jobId = queued.pending.jobId ?? session?.jobId;
-      if (jobId) void saveSurvey(jobId, queued.flush);
+      if (jobId) {
+        await trackSurveySave(saveSurvey(jobId, queued.flush));
+      }
     }
     surveySettledRef.current = true;
     setActiveSurvey(null);

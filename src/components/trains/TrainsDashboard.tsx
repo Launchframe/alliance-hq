@@ -3135,9 +3135,11 @@ export function TrainsDashboard({
     data.trainConductorLeadTimeDays,
   ]);
 
+  // VS video upload only — VR prerequisites must not get this uploader.
   const inlineScoreUpload =
     selectedDate === data.today &&
     data.vsDataStatus?.required &&
+    data.vsDataStatus.kind === "prior_day_vs" &&
     !data.vsDataStatus.ready ? (
       <TrainsInlineVsUpload
         trainDate={selectedDate}
@@ -3757,6 +3759,7 @@ export function TrainsDashboard({
               canSpinConductorWheel &&
               !canPickConductor &&
               data.vsDataStatus?.required &&
+              data.vsDataStatus.kind === "prior_day_vs" &&
               !data.vsDataStatus.ready &&
               !locked ? (
                 <div
@@ -3769,7 +3772,14 @@ export function TrainsDashboard({
                   {selectedDayScoreStats ? (
                     <TrainDayScoreStatsSummary stats={selectedDayScoreStats} />
                   ) : null}
-                  {inlineScoreUpload}
+                  {inlineScoreUpload ?? (
+                    <Link
+                      href={guidedVideoUploadHref}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                    >
+                      {t("uploadScoresBanner.link")}
+                    </Link>
+                  )}
                 </div>
               ) : null}
               {(canRoll || canPickConductor || canManualPickVip) &&
