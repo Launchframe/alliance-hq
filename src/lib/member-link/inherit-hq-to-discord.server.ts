@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 
+import type { ActivityTransaction } from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 
 export type InheritHqMemberLinksResult = {
@@ -17,6 +18,7 @@ export type InheritHqMemberLinksResult = {
 export async function revokeHqMirroredDiscordMemberLinks(input: {
   discordUserId: string;
   hqUserId: string;
+  tx?: ActivityTransaction;
 }): Promise<void> {
   const discordUserId = input.discordUserId.trim();
   const hqUserId = input.hqUserId.trim();
@@ -29,7 +31,7 @@ export async function revokeHqMirroredDiscordMemberLinks(input: {
     getDiscordLinkByAllianceAndMember,
   } = await import("@/lib/vr/repository");
 
-  const db = getDb();
+  const db = input.tx ?? getDb();
   const hqLinks = await db
     .select({
       allianceId: schema.hqMemberLinks.allianceId,
@@ -42,9 +44,10 @@ export async function revokeHqMirroredDiscordMemberLinks(input: {
     const discordLink = await getDiscordLinkByAllianceAndMember(
       hqLink.allianceId,
       hqLink.ashedMemberId,
+      input.tx,
     );
     if (discordLink?.discordUserId === discordUserId) {
-      await deleteDiscordMemberLink(discordLink.id);
+      await deleteDiscordMemberLink(discordLink.id, input.tx);
     }
   }
 }

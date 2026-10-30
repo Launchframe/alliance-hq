@@ -2,6 +2,8 @@ import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
 
+import { lockActivityIdentity } from "@/lib/activity/ownership.server";
+import { withActivityTransaction } from "@/lib/activity/writer.server";
 import { getDb, schema } from "@/lib/db";
 import {
   inheritHqMemberLinksToDiscord,
@@ -73,18 +75,37 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
 
   // Discord rebind to a different HQ user: drop the prior HQ's inherited
   // commander links so stale owner/officer Discord gates cannot survive.
-  const existingForDiscord = await getDiscordHqLink(discordUserId);
-  if (
-    existingForDiscord &&
-    existingForDiscord.hqUserId !== hqUserId
-  ) {
-    await revokeHqMirroredDiscordMemberLinks({
+  //
+  // Upsert the HQ bridge *before* revoking prior mirrors, in one transaction,
+  // so concurrent lazy `ensureDiscordMemberLinksFromHq` (officer/owner gates,
+  // /vr, help) never observes the new bridge while the prior HQ's mirrors
+  // still exist — and never re-inherits the prior HQ after a revoke-before-
+  // upsert window.
+  await withActivityTransaction(async (tx) => {
+    await lockActivityIdentity(tx, {
       discordUserId,
-      hqUserId: existingForDiscord.hqUserId,
+      hqUserIds: [hqUserId],
     });
-  }
+    const existingForDiscord = await getDiscordHqLink(discordUserId, tx);
+    const priorHqUserId =
+      existingForDiscord && existingForDiscord.hqUserId !== hqUserId
+        ? existingForDiscord.hqUserId
+        : null;
+    if (priorHqUserId) {
+      await lockActivityIdentity(tx, { hqUserIds: [priorHqUserId] });
+    }
 
-  await upsertDiscordHqLink({ discordUserId, hqUserId });
+    await upsertDiscordHqLink({ discordUserId, hqUserId, tx });
+
+    if (priorHqUserId) {
+      await revokeHqMirroredDiscordMemberLinks({
+        discordUserId,
+        hqUserId: priorHqUserId,
+        tx,
+      });
+    }
+  });
+
   // Web commanders should work on Discord without a second name+UID pass.
   await inheritHqMemberLinksToDiscord({ discordUserId, hqUserId });
   await claimDiscordKnowledgeResourcesForHqUser(hqUserId);
