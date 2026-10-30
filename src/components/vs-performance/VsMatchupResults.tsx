@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 
+import { recordVsMatchupImportTransaction } from "@/lib/connect/ashed-network-log.shared";
 import {
   formatVsTotal,
   normalizeVsResult,
@@ -248,6 +249,7 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
     if (importBusy || syncBusy || navBusy) return;
     setImportBusy(true);
     setImportError(null);
+    recordVsMatchupImportTransaction({ status: "running" });
     try {
       const res = await fetch("/api/vs-performance/matchup/import", {
         method: "POST",
@@ -259,6 +261,10 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
       });
       const body = (await res.json()) as VsWeekPayload & ApiError;
       if (!res.ok) {
+        recordVsMatchupImportTransaction({
+          status: "failed",
+          lastErrorCode: body.code ?? "vs_import_failed",
+        });
         setImportError(
           body.code === "forbidden"
             ? t("errors.forbidden")
@@ -269,11 +275,20 @@ export function VsMatchupResults({ payload, onSaved, setDraftFlag, navBusy }: Pr
         return;
       }
       if (!weekPayloadMatchesView(body, payload)) {
+        recordVsMatchupImportTransaction({
+          status: "failed",
+          lastErrorCode: "stale",
+        });
         setImportError(t("errors.stale"));
         return;
       }
+      recordVsMatchupImportTransaction({ status: "idle" });
       onSaved(body);
     } catch {
+      recordVsMatchupImportTransaction({
+        status: "failed",
+        lastErrorCode: "vs_import_failed",
+      });
       setImportError(t("matchup.importFailed"));
     } finally {
       setImportBusy(false);
