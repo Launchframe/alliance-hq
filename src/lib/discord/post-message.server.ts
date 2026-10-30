@@ -21,6 +21,10 @@ export type PostDiscordChannelMessageOptions = {
   source?: string;
 };
 
+export type PostDiscordChannelMessageResult =
+  | { ok: true }
+  | { ok: false; retryMayDuplicate: boolean };
+
 function errorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object") return undefined;
   const direct = (error as { code?: unknown }).code;
@@ -34,24 +38,22 @@ function errorCode(error: unknown): string | undefined {
 }
 
 /**
- * Post a channel message. Always resolves to a boolean — network/API failures
- * return `false` rather than throwing so claim-before-post crons can clear
- * their idempotency stamps and retry on the next tick.
+ * Post a channel message with an explicit duplicate-risk signal.
  *
  * A thrown error after the request was sent (timeout, reset) may still have
- * delivered the message, so a retry can duplicate it. Those failures are
- * logged with `retryMayDuplicate: true` so duplicate posts can be traced.
+ * delivered the message (`retryMayDuplicate: true`). Pre-send / HTTP failures
+ * are safe to clear claim-before-post stamps and retry.
  */
-export async function postDiscordChannelMessage(
+export async function postDiscordChannelMessageResult(
   channelId: string,
   content: string,
   options: PostDiscordChannelMessageOptions = {},
-): Promise<boolean> {
+): Promise<PostDiscordChannelMessageResult> {
   const source = options.source ?? "unspecified";
   const token = process.env.DISCORD_BOT_TOKEN?.trim();
   if (!token || !channelId) {
     console.warn("[discord] channel message skipped — not configured.", { source });
-    return false;
+    return { ok: false, retryMayDuplicate: false };
   }
 
   const startedAt = Date.now();
@@ -80,12 +82,13 @@ export async function postDiscordChannelMessage(
         retryMayDuplicate: false,
         body: body.slice(0, DISCORD_ERROR_BODY_LOG_CHARS),
       });
-      return false;
+      return { ok: false, retryMayDuplicate: false };
     }
 
-    return true;
+    return { ok: true };
   } catch (error) {
     const code = errorCode(error);
+    const retryMayDuplicate = !(code && PRE_SEND_ERROR_CODES.has(code));
     console.error("[discord] channel post threw", {
       source,
       channelId,
@@ -94,8 +97,29 @@ export async function postDiscordChannelMessage(
       errorMessage: error instanceof Error ? error.message : String(error),
       errorCode: code,
       elapsedMs: Date.now() - startedAt,
-      retryMayDuplicate: !(code && PRE_SEND_ERROR_CODES.has(code)),
+      retryMayDuplicate,
     });
-    return false;
+    return { ok: false, retryMayDuplicate };
   }
+}
+
+/**
+ * Post a channel message. Always resolves to a boolean — network/API failures
+ * return `false` rather than throwing so claim-before-post crons can clear
+ * their idempotency stamps and retry on the next tick.
+ *
+ * Prefer {@link postDiscordChannelMessageResult} when ambiguous post-send
+ * failures must keep the claim (to avoid duplicate Discord messages).
+ */
+export async function postDiscordChannelMessage(
+  channelId: string,
+  content: string,
+  options: PostDiscordChannelMessageOptions = {},
+): Promise<boolean> {
+  const result = await postDiscordChannelMessageResult(
+    channelId,
+    content,
+    options,
+  );
+  return result.ok;
 }

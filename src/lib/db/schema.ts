@@ -759,6 +759,45 @@ export const vsAnnouncementPosts = pgTable(
 
 export type VsAnnouncementPost = typeof vsAnnouncementPosts.$inferSelect;
 
+/**
+ * Idempotent Discord VR daily-report claims per guild + report date.
+ * `guild_id` is an opaque Discord snowflake (no FK) so the legacy
+ * env-only guild path can claim without a `discord_guild_alliances` row.
+ * Rows start `in_flight` and become `posted` only after a definite or
+ * ambiguous delivery; expired `in_flight` leases can be reclaimed.
+ */
+export const vrDailyReportPosts = pgTable(
+  "vr_daily_report_posts",
+  {
+    id: text("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** Game-server calendar date (YYYY-MM-DD) for the report tick. */
+    reportDate: text("report_date").notNull(),
+    /** `in_flight` while delivery is underway; `posted` after success or ambiguous send. */
+    status: text("status").notNull().default("in_flight"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("vr_daily_report_posts_guild_report_date_unique").on(
+      table.guildId,
+      table.reportDate,
+    ),
+    index("vr_daily_report_posts_alliance_idx").on(table.allianceId),
+    index("vr_daily_report_posts_status_claimed_idx").on(
+      table.status,
+      table.claimedAt,
+    ),
+  ],
+);
+
+export type VrDailyReportPost = typeof vrDailyReportPosts.$inferSelect;
+
 export const vsInventoryItemDefs = pgTable(
   "vs_inventory_item_defs",
   {
