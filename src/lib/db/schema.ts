@@ -534,6 +534,11 @@ export const alliances = pgTable("alliances", {
   tag: text("tag"),
   name: text("name").notNull(),
   ashedAllianceId: text("ashed_alliance_id").unique(),
+  /**
+   * LastRank public alliance id (32-char hex). Stable across in-game tag renames.
+   * LastRank sync prefers this pin over server+tag matching.
+   */
+  lastrankAllianceId: text("lastrank_alliance_id").unique(),
   ownerAshedUserId: text("owner_ashed_user_id"),
   ownerEmail: text("owner_email"),
   collaboratorsJson: jsonb("collaborators_json").$type<string[]>(),

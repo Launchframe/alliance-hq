@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { rosterMemberIdsAbsentFromAshed } from "./roster-absence.shared";
+import {
+  rosterAbsenceMassFormerPreview,
+  rosterMemberIdsAbsentFromAshed,
+} from "./roster-absence.shared";
 
 const confirmed = (
   ashedMemberId: string,
@@ -101,5 +104,41 @@ describe("rosterMemberIdsAbsentFromAshed", () => {
         returnedAshedMemberIds: ["still-here"],
       }),
     ).toEqual([]);
+  });
+});
+
+describe("rosterAbsenceMassFormerPreview", () => {
+  it("flags confirm when a large share of confirmed actives would go former", () => {
+    const local = [
+      confirmed("keep"),
+      confirmed("a"),
+      confirmed("b"),
+      confirmed("c"),
+      confirmed("d"),
+      confirmed("e"),
+      confirmed("f"),
+      confirmed("g"),
+      confirmed("h"),
+      confirmed("i"),
+    ];
+    const preview = rosterAbsenceMassFormerPreview({
+      local,
+      returnedAshedMemberIds: ["keep", "a", "b", "c", "d", "e", "f"],
+    });
+    expect(preview.absentIds).toEqual(["g", "h", "i"]);
+    expect(preview.confirmedActiveCount).toBe(10);
+    expect(preview.needsConfirm).toBe(true);
+  });
+
+  it("does not flag confirm for a small absence", () => {
+    const local = Array.from({ length: 10 }, (_, i) =>
+      confirmed(`m${i}`),
+    );
+    const preview = rosterAbsenceMassFormerPreview({
+      local,
+      returnedAshedMemberIds: local.slice(0, 9).map((row) => row.ashedMemberId),
+    });
+    expect(preview.absentIds).toEqual(["m9"]);
+    expect(preview.needsConfirm).toBe(false);
   });
 });
