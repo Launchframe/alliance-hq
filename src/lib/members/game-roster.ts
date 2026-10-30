@@ -18,6 +18,11 @@ export type LoadAllianceGameRosterInput = {
   /** @deprecated Use `forceRefreshFromAshed` instead. */
   syncFromAshed?: boolean;
   forceRefreshFromAshed?: boolean;
+  /**
+   * When false, non-empty due syncs await Ashed (member-link / admin).
+   * Default true for web list first paint.
+   */
+  backgroundWhenNonEmpty?: boolean;
 };
 
 export async function loadAllianceGameRoster(
@@ -41,6 +46,7 @@ export async function loadAllianceGameRoster(
           ashedAllianceId: input.ashedAllianceId,
           connection: input.connection,
           forceRefresh: forceRefreshFromAshed,
+          backgroundWhenNonEmpty: input.backgroundWhenNonEmpty,
         })
       : await listAllianceMembers(input.allianceId);
 

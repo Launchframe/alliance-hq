@@ -1,5 +1,6 @@
 import "server-only";
 
+import { after } from "next/server";
 import { and, eq, inArray, lte, max, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -17,6 +18,11 @@ import type { CommanderIdentityConflict } from "@/lib/members/commander-identity
 import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
 import { withAllianceRosterAshedSyncLock } from "@/lib/members/roster-ashed-sync-lock.server";
+import {
+  markAllianceRosterAshedSyncFailed,
+  markAllianceRosterAshedSyncIdle,
+  tryBeginAllianceRosterAshedSync,
+} from "@/lib/members/roster-ashed-sync-status.server";
 import { rosterMemberIdsAbsentFromAshed } from "@/lib/members/roster-absence.shared";
 import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
 
@@ -55,10 +61,59 @@ export async function syncAllianceMembersFromAshed(input: {
   hqAllianceId: string;
   ashedAllianceId: string;
   connection: ParsedConnection;
+  /**
+   * When false, caller already claimed the running slot (background enqueue).
+   * Default true so blocking callers still mark status for edit locks.
+   */
+  claimSyncStatus?: boolean;
 }): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
-  return withAllianceRosterAshedSyncLock(input.hqAllianceId, () =>
-    syncAllianceMembersFromAshedLocked(input),
-  );
+  const claimSyncStatus = input.claimSyncStatus !== false;
+  if (claimSyncStatus) {
+    await tryBeginAllianceRosterAshedSync(input.hqAllianceId);
+  }
+
+  try {
+    const result = await withAllianceRosterAshedSyncLock(input.hqAllianceId, () =>
+      syncAllianceMembersFromAshedLocked(input),
+    );
+    await markAllianceRosterAshedSyncIdle(input.hqAllianceId);
+    return result;
+  } catch (error) {
+    await markAllianceRosterAshedSyncFailed(
+      input.hqAllianceId,
+      "ashed_sync_failed",
+    );
+    throw error;
+  }
+}
+
+/**
+ * Claim the alliance sync slot (if free) and run `syncAllianceMembersFromAshed`
+ * after the current request via Next `after()`. Non-empty roster JIT uses this.
+ */
+export async function enqueueAllianceRosterAshedSync(input: {
+  hqAllianceId: string;
+  ashedAllianceId: string;
+  connection: ParsedConnection;
+}): Promise<boolean> {
+  const claimed = await tryBeginAllianceRosterAshedSync(input.hqAllianceId);
+  if (!claimed) {
+    return false;
+  }
+
+  after(() => {
+    void syncAllianceMembersFromAshed({
+      ...input,
+      claimSyncStatus: false,
+    }).catch((error) => {
+      console.error("[roster-ashed-sync] background sync failed", {
+        allianceId: input.hqAllianceId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
+  });
+
+  return true;
 }
 
 async function syncAllianceMembersFromAshedLocked(input: {
@@ -360,11 +415,18 @@ export async function listAllianceMembersWithAshedSyncIfNeeded(input: {
   ashedAllianceId: string;
   connection: ParsedConnection;
   forceRefresh?: boolean;
+  /**
+   * When false, non-empty due syncs still await (member-link / admin).
+   * Default true for web list reads.
+   */
+  backgroundWhenNonEmpty?: boolean;
 }): Promise<AllianceMember[]> {
   const [lastSyncedAt, localRows] = await Promise.all([
     getAllianceRosterLastSyncedAt(input.hqAllianceId),
     listAllianceMembers(input.hqAllianceId),
   ]);
+
+  const backgroundWhenNonEmpty = input.backgroundWhenNonEmpty !== false;
 
   return allianceMembersAfterOptionalAshedSync({
     forceRefresh: input.forceRefresh === true,
@@ -374,6 +436,11 @@ export async function listAllianceMembersWithAshedSyncIfNeeded(input: {
       await syncAllianceMembersFromAshed(input);
     },
     reloadMembers: () => listAllianceMembers(input.hqAllianceId),
+    enqueueBackgroundSync: backgroundWhenNonEmpty
+      ? async () => {
+          await enqueueAllianceRosterAshedSync(input);
+        }
+      : undefined,
   });
 }
 

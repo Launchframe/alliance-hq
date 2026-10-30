@@ -13,6 +13,10 @@ import {
   previewDuplicateMerge,
   type MergeDuplicateResult,
 } from "@/lib/members/merge-duplicate-commander.server";
+import {
+  assertAllianceRosterAshedSyncIdle,
+  RosterAshedSyncInProgressError,
+} from "@/lib/members/roster-ashed-sync-status.server";
 import { getRbacContext } from "@/lib/rbac/context";
 import { requireApiSession } from "@/lib/session";
 
@@ -103,6 +107,18 @@ export async function POST(request: Request, { params }: Props) {
   try {
     const auth = await authorize(params);
     if (auth instanceof NextResponse) return auth;
+
+    try {
+      await assertAllianceRosterAshedSyncIdle(auth.allianceId);
+    } catch (error) {
+      if (error instanceof RosterAshedSyncInProgressError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
     let body: z.infer<typeof bodySchema>;
     try {
