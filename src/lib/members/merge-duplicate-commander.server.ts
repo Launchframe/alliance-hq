@@ -38,6 +38,13 @@ type MergeInput = {
   allianceId: string;
   keptAshedMemberId: string;
   duplicateAshedMemberId: string;
+  /**
+   * Which side's current name wins after merge.
+   * Default `duplicate` preserves the profile merge dialog (adopt the duplicate's
+   * name). Batch roster cleanup passes `kept` so the recommended Ashed row keeps
+   * its name when folding a LastRank import.
+   */
+  keepName?: "kept" | "duplicate";
 };
 
 type LoadedSide = MergeSide & {
@@ -892,7 +899,11 @@ async function runMerge(
   const dupSide = { ...dup, commanderId: dup.commanderId };
 
   const now = new Date();
-  const newName = dup.currentName.trim() || kept.currentName;
+  const preferred =
+    input.keepName === "kept" ? kept.currentName : dup.currentName;
+  const fallback =
+    input.keepName === "kept" ? dup.currentName : kept.currentName;
+  const newName = preferred.trim() || fallback;
   const previousNames = mergedPreviousNames({
     keptCurrentName: kept.currentName,
     keptPreviousNames: kept.previousNames,
@@ -1009,7 +1020,7 @@ export async function previewDuplicateMerge(
   throw new Error("merge preview did not roll back");
 }
 
-/** @returns false when an Ashed-linked retire/name sync failed. */
+/** @returns false when a real Ashed duplicate could not be retired remotely. */
 async function syncMergeToAshed(input: {
   allianceId: string;
   keptAshedMemberId: string;
@@ -1019,8 +1030,6 @@ async function syncMergeToAshed(input: {
   if (!ashedAllianceId || isSyntheticNativeAshedAllianceId(ashedAllianceId)) {
     return true;
   }
-  const connection = await resolveAllianceAshedBotConnection(input.allianceId);
-  if (!connection) return false;
 
   const rows = await getDb()
     .select({
@@ -1039,9 +1048,19 @@ async function syncMergeToAshed(input: {
         ]),
       ),
     );
+  const remoteRows = rows.filter((row) => row.ashedAllianceId === ashedAllianceId);
+  if (remoteRows.length === 0) return true;
+
+  const connection = await resolveAllianceAshedBotConnection(input.allianceId);
+  if (!connection) {
+    const duplicateNeedsRetire = remoteRows.some(
+      (row) => row.ashedMemberId === input.duplicateAshedMemberId,
+    );
+    return !duplicateNeedsRetire;
+  }
+
   let ok = true;
-  for (const row of rows) {
-    if (row.ashedAllianceId !== ashedAllianceId) continue;
+  for (const row of remoteRows) {
     try {
       if (row.ashedMemberId === input.keptAshedMemberId) {
         await syncMemberNameToAshed(
@@ -1068,13 +1087,25 @@ async function syncMergeToAshed(input: {
 export async function mergeDuplicateCommander(
   input: MergeInput & { actorHqUserId: string | null; sessionId: string | null },
 ): Promise<MergeDuplicateResult> {
-  // Ashed-linked alliances must be able to retire the duplicate remotely;
-  // otherwise the next roster sync re-activates it and undoes the merge.
+  // A real Ashed duplicate comes back on the next roster sync unless the bot
+  // credential can retire it. hq-native LastRank copies are HQ-local only.
   const ashedAllianceId = await getAshedAllianceIdIfLinked(input.allianceId);
   if (ashedAllianceId && !isSyntheticNativeAshedAllianceId(ashedAllianceId)) {
-    const connection = await resolveAllianceAshedBotConnection(input.allianceId);
-    if (!connection) {
-      return { ok: false, code: "ashed_connection_required" };
+    const [duplicateRoster] = await getDb()
+      .select({ ashedAllianceId: schema.allianceMembers.ashedAllianceId })
+      .from(schema.allianceMembers)
+      .where(
+        and(
+          eq(schema.allianceMembers.allianceId, input.allianceId),
+          eq(schema.allianceMembers.ashedMemberId, input.duplicateAshedMemberId),
+        ),
+      )
+      .limit(1);
+    if (duplicateRoster?.ashedAllianceId === ashedAllianceId) {
+      const connection = await resolveAllianceAshedBotConnection(input.allianceId);
+      if (!connection) {
+        return { ok: false, code: "ashed_connection_required" };
+      }
     }
   }
 
