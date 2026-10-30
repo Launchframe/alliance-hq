@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import type { RbacContext } from "@/lib/rbac/context";
+
 import { mergeDataDateSummaries } from "./batch-actions.server";
 import type { DataBatchRow } from "./batch-authorization.shared";
 import type { AshedDateScoreRow } from "./ashed-date-scores.server";
 
 const rbac = {
   hqUserId: "user-1",
-  roleName: "owner" as const,
+  roleName: "owner",
   permissions: new Set(["alliance:admin", "data:read"]),
-};
+} as RbacContext;
 
 function ledgerBatch(
   overrides: Partial<DataBatchRow> & Pick<DataBatchRow, "recordedDate">,

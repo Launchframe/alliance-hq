@@ -134,7 +134,10 @@ export function DataManagementClient({
 
   // Enrich SSR ledger-only dates with Ashed without blanking the list.
   useEffect(() => {
-    void refreshDates(scoreTarget, selectedDate, { blankList: false });
+    const timer = window.setTimeout(() => {
+      void refreshDates(scoreTarget, selectedDate, { blankList: false });
+    }, 0);
+    return () => window.clearTimeout(timer);
     // Intentionally once on mount for the initial score target.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount enrich only
   }, []);
