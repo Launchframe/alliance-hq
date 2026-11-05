@@ -44,7 +44,7 @@ Ashed limits shared seats to three; Alliance HQ adds **many HQ users per allianc
 |------|-------------|----------|
 | **owner** | Full HQ access including token and RBAC admin | — |
 | **maintainer** | Same as owner for HQ-native permissions | — |
-| **officer** | All data operations + video enqueue | `data:bulk_delete`, `data:bulk_move`, `alliance:admin`, `hq:video:read` (unless granted a processor slot) |
+| **officer** | All data operations + video enqueue (may open alliance jobs for review / handoff; OCR approve still needs a processor slot or owner/maintainer) | `data:bulk_delete`, `data:bulk_move`, `alliance:admin`, `hq:video:read` (queue list still available via enqueue or processor slot) |
 | **data_entry** | Member updates, score upload, events | Destructive ops, admin |
 | **viewer** | Read-only across alliance data | All writes |
 
@@ -127,7 +127,8 @@ Quick reference for UI gating (full mapping in catalog `navGroups`):
 | Data Management | `data:read` (view); move/delete — creator-scoped rules (see **Native Data Management** below) |
 | Settings (HQ) | `alliance:admin` |
 | Video upload (HQ) | `hq:video:enqueue` |
-| Video queue (HQ) | `hq:video:read` or explicit processor slot; approve/reject requires process capability |
+| Video queue (HQ) | `hq:video:read`, `hq:video:enqueue`, or explicit processor slot; approve/reject (OCR) requires process capability |
+| Video job review (HQ) | Same as queue access — any officer with enqueue may open a parsed job and review/submit results; processor slot is not required for review |
 
 ## Native Data Management (`/data-management`)
 
