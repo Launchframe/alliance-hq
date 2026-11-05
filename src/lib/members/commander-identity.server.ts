@@ -518,6 +518,12 @@ async function upsertCommanderRow(input: {
   existingCommanderId?: string | null;
   ashedStats?: CommanderAshedStats | null;
   /**
+   * When set, only this HQ user (or an unowned commander) may rewrite
+   * `gameServerNumber` on an existing UID-bound commander. Prevents a
+   * cross-alliance member-link from silently moving another account's home.
+   */
+  authorizeHqUserId?: string | null;
+  /**
    * This roster row is already linked to a different commander than the orphan
    * that owns the display name. Do not rewrite that commander's name or UID —
    * `commanders_orphan_name_server_unique` rejects the collision and the
@@ -544,12 +550,30 @@ async function upsertCommanderRow(input: {
   if (normalizedUid) {
     const existing = await resolveCommanderByUid(normalizedUid);
     if (existing) {
+      let nextGameServerNumber =
+        input.gameServerNumber ?? existing.gameServerNumber ?? null;
+      if (
+        input.gameServerNumber != null &&
+        input.gameServerNumber !== existing.gameServerNumber
+      ) {
+        const owners = await db
+          .select({ hqUserId: schema.hqUserCommanders.hqUserId })
+          .from(schema.hqUserCommanders)
+          .where(eq(schema.hqUserCommanders.commanderId, existing.id));
+        const authorizeHqUserId = input.authorizeHqUserId?.trim() || null;
+        const mayRewriteHome =
+          owners.length === 0 ||
+          (authorizeHqUserId != null &&
+            owners.some((row) => row.hqUserId === authorizeHqUserId));
+        if (!mayRewriteHome) {
+          nextGameServerNumber = existing.gameServerNumber ?? null;
+        }
+      }
       await db
         .update(schema.commanders)
         .set({
           ...statsWithoutLevel,
-          gameServerNumber:
-            input.gameServerNumber ?? existing.gameServerNumber ?? null,
+          gameServerNumber: nextGameServerNumber,
           updatedAt: now,
         })
         .where(eq(schema.commanders.id, existing.id));
@@ -624,6 +648,8 @@ export async function upsertCommanderFromLink(input: {
   ashedMemberId: string;
   memberDisplayName?: string | null;
   ashedStats?: CommanderAshedStats | null;
+  /** HQ user performing the link — gates home-server rewrite on owned UIDs. */
+  authorizeHqUserId?: string | null;
 }): Promise<{ commanderId: string; gameServerNumber: number | null }> {
   const normalized = normalizeGameUid(input.gameUid);
   if (!normalized) {
@@ -661,6 +687,7 @@ export async function upsertCommanderFromLink(input: {
     memberDisplayName: input.memberDisplayName,
     existingCommanderId,
     ashedStats: input.ashedStats,
+    authorizeHqUserId: input.authorizeHqUserId,
   });
   return { ...upserted, gameServerNumber };
 }
@@ -1122,18 +1149,27 @@ export async function syncCommanderIdentityFromMemberLink(input: {
    */
   homeServerBeforeLink?: number | null;
 }): Promise<void> {
-  const { commanderId, gameServerNumber } = await upsertCommanderFromLink({
+  const { commanderId } = await upsertCommanderFromLink({
     gameUid: input.gameUid,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: input.memberDisplayName,
+    authorizeHqUserId: input.hqUserId,
   });
 
   const previousGameServerNumber = input.homeServerBeforeLink ?? null;
+  // Audit only when the home server actually moved (foreign owners keep the
+  // prior home — upsertCommanderRow refuses the rewrite).
+  const [commanderAfter] = await getDb()
+    .select({ gameServerNumber: schema.commanders.gameServerNumber })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1);
+  const appliedHome = commanderAfter?.gameServerNumber ?? null;
   if (
     previousGameServerNumber != null &&
-    gameServerNumber != null &&
-    previousGameServerNumber !== gameServerNumber
+    appliedHome != null &&
+    previousGameServerNumber !== appliedHome
   ) {
     await writeAuditLog({
       sessionId: null,
@@ -1145,7 +1181,7 @@ export async function syncCommanderIdentityFromMemberLink(input: {
       resourceId: commanderId,
       metadata: {
         fromServer: previousGameServerNumber,
-        toServer: gameServerNumber,
+        toServer: appliedHome,
       },
       severity: "update",
     });

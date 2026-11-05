@@ -1406,7 +1406,14 @@
       "idx": 200,
       "version": "7",
       "when": 1791900000217,
-      "tag": "0217_alliance_lastrank_alliance_id",
+      "tag": "0217_vr_daily_report_posts",
+      "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1791900000218,
+      "tag": "0218_alliance_lastrank_alliance_id",
       "breakpoints": true
     }
   ]

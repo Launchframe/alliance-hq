@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
-import { formatVrLeaderboard } from "@/lib/vr/leaderboard";
-import { loadAllianceLeaderboard } from "@/lib/vr/leaderboard.server";
-import {
-  listRegisteredGuildsWithReportChannel,
-  resolveAllianceForGuild,
-} from "@/lib/vr/repository";
+import { processVrDailyReports } from "@/lib/vr/daily-report.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,20 +18,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const targets = await listRegisteredGuildsWithReportChannel();
+  const result = await processVrDailyReports();
 
-  if (targets.length === 0) {
-    const channelId = process.env.DISCORD_VR_REPORT_CHANNEL_ID?.trim();
-    const guildId = process.env.DISCORD_GUILD_ID?.trim();
-    if (channelId && guildId) {
-      const allianceId = await resolveAllianceForGuild(guildId);
-      if (allianceId) {
-        targets.push({ guildId, allianceId, channelId });
-      }
-    }
-  }
-
-  if (targets.length === 0) {
+  if (result.configured === 0) {
     return NextResponse.json(
       {
         error:
@@ -47,27 +30,9 @@ export async function GET(request: Request) {
     );
   }
 
-  let posted = 0;
-  let skipped = 0;
-
-  for (const target of targets) {
-    try {
-      const { seasonKey, allianceTag, rows } = await loadAllianceLeaderboard(target.allianceId);
-      const message = formatVrLeaderboard(rows, seasonKey, {
-        limit: 25,
-        allianceTag,
-      });
-      const ok = await postDiscordChannelMessage(target.channelId, message);
-      if (ok) {
-        posted += 1;
-      } else {
-        skipped += 1;
-      }
-    } catch (error) {
-      console.error("[vr-daily-report] failed for guild", target.guildId, error);
-      skipped += 1;
-    }
-  }
-
-  return NextResponse.json({ ok: true, posted, skipped });
+  return NextResponse.json({
+    ok: true,
+    posted: result.posted,
+    skipped: result.skipped,
+  });
 }
