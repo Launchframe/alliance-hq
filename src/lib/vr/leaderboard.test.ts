@@ -23,6 +23,7 @@ function sampleRow(
     highestBaseVr: vr,
     instituteLevel: 1,
     totalHeroPower: thp,
+    kills: null,
     weeklyPassActive,
     flagged: false,
     flagReason: null,
@@ -146,6 +147,34 @@ describe("leaderboard", () => {
       new Map([["m1", { currentTotalHeroPower: 9_999_999 }]]),
     );
     expect(rows[0]?.totalHeroPower).toBe(9_999_999);
+    expect(rows[0]?.kills).toBeNull();
+  });
+
+  it("carries commander kills from the stats map", () => {
+    const rows = buildLeaderboardRows(
+      [
+        {
+          id: "1",
+          allianceId: "a",
+          ashedMemberId: "m1",
+          seasonKey: "1",
+          highestBaseVr: 1000,
+          instituteLevel: 10,
+          flaggedAt: null,
+          flagReason: null,
+          updatedByDiscordUserId: null,
+          updatedByHqUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [{ id: "m1", current_name: "Alpha", total_hero_power: 100 } as never],
+      [],
+      "1",
+      undefined,
+      new Map([["m1", { currentTotalHeroPower: 100, currentKills: 1_234_567.4 }]]),
+    );
+    expect(rows[0]?.kills).toBe(1_234_567);
   });
 
   it("formats daily report via formatVrLeaderboard", () => {

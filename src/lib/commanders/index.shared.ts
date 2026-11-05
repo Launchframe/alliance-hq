@@ -8,6 +8,8 @@ export type CommanderIndexRow = {
   allianceRankTitle: string | null;
   powerLevel: string | null;
   totalHeroPower: number;
+  /** Reported lifetime kills; null when unreported. */
+  kills: number | null;
   mainSquad: MainSquadType | null;
   mainSquadSource: MainSquadSource | null;
   highestBaseVr: number | null;

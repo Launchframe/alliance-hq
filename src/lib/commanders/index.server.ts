@@ -15,6 +15,7 @@ import {
 import { loadOAuthIdentitySplitsForAlliance } from "@/lib/auth/oauth-identity-split.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
+import { commanderKillsTotal } from "@/lib/kills/format.shared";
 import {
   listAllianceSeasonVrForLeaderboard,
   resolveSeasonKey,
@@ -63,6 +64,7 @@ export async function loadCommanderIndex(
         ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
         powerLevel: schema.commanders.powerLevel,
         currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+        currentKills: schema.commanders.currentKills,
         mainSquad: schema.commanders.mainSquad,
         mainSquadSource: schema.commanders.mainSquadSource,
         profession: schema.commanders.profession,
@@ -117,6 +119,7 @@ export async function loadCommanderIndex(
       allianceRankTitle: null as string | null,
       powerLevel: stats?.powerLevel ?? null,
       totalHeroPower: row.totalHeroPower,
+      kills: commanderKillsTotal({ currentKills: stats?.currentKills ?? null }),
       mainSquad: row.mainSquad,
       mainSquadSource: row.mainSquadSource,
       highestBaseVr: row.highestBaseVr,
