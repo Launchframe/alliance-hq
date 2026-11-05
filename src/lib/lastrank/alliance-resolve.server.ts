@@ -45,6 +45,20 @@ export async function stampAllianceLastRankAllianceId(
   const pin = lastrankAllianceId.trim().toLowerCase();
   if (!pin) return;
   const db = getDb();
+  const [existing] = await db
+    .select({
+      lastrankAllianceId: schema.alliances.lastrankAllianceId,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  const current = existing?.lastrankAllianceId?.trim().toLowerCase() ?? null;
+  if (current && current !== pin) {
+    throw new Error(
+      `HQ alliance ${allianceId} is already pinned to a different LastRank id; refusing fallback re-pin.`,
+    );
+  }
+  if (current === pin) return;
   await db
     .update(schema.alliances)
     .set({

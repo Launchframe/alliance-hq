@@ -5,13 +5,9 @@ import {
   requireActiveShareCapability,
   resolveAshedConnectionForAlliance,
 } from "@/lib/ashed/credential-share.server";
-import {
-  resolveHqAllianceId,
-  syncAllianceMembersFromAshed,
-} from "@/lib/members/roster.server";
+import { syncAllianceMembersFromAshed } from "@/lib/members/roster.server";
 import {
   assertOfficerAshedSessionForSync,
-  resolveOfficerAshedAllianceId,
   resolveRosterSyncCapability,
 } from "@/lib/members/roster-sync-capability.server";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
@@ -106,20 +102,27 @@ export async function POST(
           delegatedAction: "roster.sync",
         });
       }
+      // Admin catch-up must use the *target* alliance's Ashed link only —
+      // never resolve Ashed id from the maintainer's session tag (that can
+      // import another alliance's roster into this HQ row).
+      const alliance = await getAllianceById(allianceId);
+      const ashedAllianceId = alliance?.ashedAllianceId?.trim();
+      if (!ashedAllianceId) {
+        return NextResponse.json(
+          {
+            error:
+              "This alliance is not linked to Ashed. Link Ashed on the target alliance before catch-up, or pin a LastRank id and run LastRank sync.",
+            code: "UNAVAILABLE",
+          },
+          { status: 400 },
+        );
+      }
       const connection = await assertOfficerAshedSessionForSync(
         sessionId,
         allianceId,
       );
-      const alliance = await getAllianceById(allianceId);
-      const ashedAllianceId =
-        alliance?.ashedAllianceId?.trim() ||
-        (await resolveOfficerAshedAllianceId(sessionId)).ashedAllianceId;
-      const hqAllianceId = await resolveHqAllianceId(
-        allianceId,
-        ashedAllianceId,
-      );
       const result = await syncAllianceMembersFromAshed({
-        hqAllianceId,
+        hqAllianceId: allianceId,
         ashedAllianceId,
         connection,
         massFormerMode,

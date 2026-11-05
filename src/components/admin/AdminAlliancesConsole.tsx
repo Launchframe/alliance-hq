@@ -307,16 +307,17 @@ export function AdminAlliancesConsole() {
     setIdentityMessage(null);
     setPendingMassFormer(null);
     try {
+      const pin = draft.lastrankAllianceId.trim();
       const body: {
         tag: string;
         name: string;
-        lastrankAllianceId?: string | null;
+        /** Always send so a cleared field unpins instead of silently retaining. */
+        lastrankAllianceId: string | null;
       } = {
         tag: draft.tag.trim(),
         name: draft.name.trim(),
+        lastrankAllianceId: pin.length > 0 ? pin : null,
       };
-      const pin = draft.lastrankAllianceId.trim();
-      if (pin) body.lastrankAllianceId = pin;
 
       const res = await fetch(
         `/api/admin/alliances/${encodeURIComponent(alliance.id)}/identity`,

@@ -141,4 +141,25 @@ describe("rosterAbsenceMassFormerPreview", () => {
     expect(preview.absentIds).toEqual(["m9"]);
     expect(preview.needsConfirm).toBe(false);
   });
+
+  it("excludes guarded members from the confirm denominator", () => {
+    // 3 unguarded confirmed-actives; Ashed still returns the guarded rows so the
+    // truncation gate passes. Would former 1 of 3 unguarded (33%) → confirm.
+    // If guarded rows inflated the denominator to 10, confirm would be skipped.
+    const guardedIds = Array.from({ length: 7 }, (_, i) => `guarded-${i}`);
+    const local = [
+      confirmed("keep-a"),
+      confirmed("keep-b"),
+      confirmed("gone"),
+      ...guardedIds.map((id) => confirmed(id)),
+    ];
+    const preview = rosterAbsenceMassFormerPreview({
+      local,
+      returnedAshedMemberIds: ["keep-a", "keep-b", ...guardedIds],
+      guardedMemberIds: guardedIds,
+    });
+    expect(preview.absentIds).toEqual(["gone"]);
+    expect(preview.confirmedActiveCount).toBe(3);
+    expect(preview.needsConfirm).toBe(true);
+  });
 });

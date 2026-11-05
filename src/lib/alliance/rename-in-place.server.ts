@@ -73,13 +73,22 @@ async function ensureUniqueSlug(
   );
 }
 
-function resolveLastRankPin(input: {
+/**
+ * Resolve the LastRank pin for a rename.
+ * - `explicitPin === null` → explicit unpin
+ * - non-empty string → validated pin
+ * - `undefined` → keep existing pin, else registry (prefer previous tag)
+ */
+export function resolveLastRankPin(input: {
   gameServerNumber: number;
   previousTag: string | null;
   nextTag: string;
   existingPin: string | null;
   explicitPin: string | null | undefined;
 }): string | null {
+  if (input.explicitPin === null) {
+    return null;
+  }
   const explicit = input.explicitPin?.trim().toLowerCase() || null;
   if (explicit) {
     if (!/^[a-f0-9]{32}$/.test(explicit)) {
@@ -93,11 +102,8 @@ function resolveLastRankPin(input: {
   if (input.existingPin?.trim()) {
     return input.existingPin.trim().toLowerCase();
   }
-  const byNewTag = lookupLastRankSyncByServerAndTag(
-    input.gameServerNumber,
-    input.nextTag,
-  );
-  if (byNewTag) return byNewTag.lastrankAllianceId.toLowerCase();
+  // Prefer the previous tag so a rename onto another registered tag does not
+  // re-pin this HQ row to a different LastRank alliance.
   if (input.previousTag?.trim()) {
     const byOldTag = lookupLastRankSyncByServerAndTag(
       input.gameServerNumber,
@@ -105,6 +111,11 @@ function resolveLastRankPin(input: {
     );
     if (byOldTag) return byOldTag.lastrankAllianceId.toLowerCase();
   }
+  const byNewTag = lookupLastRankSyncByServerAndTag(
+    input.gameServerNumber,
+    input.nextTag,
+  );
+  if (byNewTag) return byNewTag.lastrankAllianceId.toLowerCase();
   return null;
 }
 
@@ -207,52 +218,57 @@ export async function renameAllianceInPlace(
   }
 
   const now = new Date();
-  await db
-    .update(schema.alliances)
-    .set({
-      tag,
-      name,
-      slug,
-      lastrankAllianceId,
-      updatedAt: now,
-    })
-    .where(eq(schema.alliances.id, existing.id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.alliances)
+      .set({
+        tag,
+        name,
+        slug,
+        lastrankAllianceId,
+        updatedAt: now,
+      })
+      .where(eq(schema.alliances.id, existing.id));
 
-  // Keep live sessions that were on this alliance from showing the old tag.
-  await db
-    .update(schema.sessions)
-    .set({
-      allianceTag: tag,
-      updatedAt: now,
-    })
-    .where(eq(schema.sessions.currentAllianceId, existing.id));
+    // Keep live sessions that were on this alliance from showing the old tag.
+    await tx
+      .update(schema.sessions)
+      .set({
+        allianceTag: tag,
+        updatedAt: now,
+      })
+      .where(eq(schema.sessions.currentAllianceId, existing.id));
 
-  if (input.sessionId) {
-    await writeAuditLog({
-      sessionId: input.sessionId,
-      allianceId: existing.id,
-      hqUserId: input.hqUserId ?? undefined,
-      action: "alliance.rename_in_place",
-      resourceType: "alliance",
-      resourceId: existing.id,
-      resourceName: name,
-      metadata: {
-        before: {
-          tag: previousTag,
-          name: previousName,
-          slug: existing.slug,
-          lastrankAllianceId: existing.lastrankAllianceId,
+    if (input.sessionId) {
+      await writeAuditLog(
+        {
+          sessionId: input.sessionId,
+          allianceId: existing.id,
+          hqUserId: input.hqUserId ?? undefined,
+          action: "alliance.rename_in_place",
+          resourceType: "alliance",
+          resourceId: existing.id,
+          resourceName: name,
+          metadata: {
+            before: {
+              tag: previousTag,
+              name: previousName,
+              slug: existing.slug,
+              lastrankAllianceId: existing.lastrankAllianceId,
+            },
+            after: {
+              tag,
+              name,
+              slug,
+              lastrankAllianceId,
+            },
+            via: "admin_console",
+          },
         },
-        after: {
-          tag,
-          name,
-          slug,
-          lastrankAllianceId,
-        },
-        via: "admin_console",
-      },
-    });
-  }
+        tx,
+      );
+    }
+  });
 
   const registry = lastrankAllianceId
     ? lookupLastRankSyncByAllianceId(lastrankAllianceId)

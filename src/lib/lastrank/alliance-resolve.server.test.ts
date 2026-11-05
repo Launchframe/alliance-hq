@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
     name: string;
     gameServerNumber: number;
   }>,
-  pinSelectResult: [] as Array<{ id: string }>,
+  /** FIFO results for `.limit(1)` selects (pin lookup, then stamp existing-pin). */
+  pinSelectQueue: [] as Array<
+    Array<{ id?: string; lastrankAllianceId?: string | null }>
+  >,
   createNativeAlliance: vi.fn(),
   updateCalls: [] as unknown[],
 }));
@@ -17,8 +20,9 @@ vi.mock("@/lib/db", () => ({
     select: () => ({
       from: () => ({
         where: () => ({
-          // Pin lookup uses limit(1); candidate list awaits where() directly.
-          limit: () => Promise.resolve(mocks.pinSelectResult),
+          // Pin lookup / stamp existing-pin use limit(1); candidate list awaits where().
+          limit: () =>
+            Promise.resolve(mocks.pinSelectQueue.shift() ?? []),
           then: (
             resolve: (value: typeof mocks.selectResult) => unknown,
           ) => resolve(mocks.selectResult),
@@ -56,13 +60,13 @@ describe("resolveHqAllianceForLastRankSync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.selectResult = [];
-    mocks.pinSelectResult = [];
+    mocks.pinSelectQueue = [];
     mocks.updateCalls = [];
     mocks.createNativeAlliance.mockResolvedValue({ allianceId: "new-alliance" });
   });
 
   it("prefers an HQ alliance pinned by lastrankAllianceId over tag matching", async () => {
-    mocks.pinSelectResult = [{ id: "hq-pinned" }];
+    mocks.pinSelectQueue = [[{ id: "hq-pinned" }]];
     mocks.selectResult = [
       {
         id: "hq-other",
@@ -117,6 +121,8 @@ describe("resolveHqAllianceForLastRankSync", () => {
         gameServerNumber: 1203,
       },
     ];
+    // find-by-pin → empty; stamp existing-pin → null (ok to stamp)
+    mocks.pinSelectQueue = [[], [{ lastrankAllianceId: null }]];
 
     const result = await resolveHqAllianceForLastRankSync({
       target: {
@@ -137,8 +143,37 @@ describe("resolveHqAllianceForLastRankSync", () => {
     );
   });
 
+  it("refuses fallback stamp when the candidate already has a different pin", async () => {
+    mocks.selectResult = [
+      {
+        id: "hq-existing",
+        tag: "FUze",
+        name: "Short Fuse",
+        gameServerNumber: 1211,
+      },
+    ];
+    mocks.pinSelectQueue = [
+      [],
+      [{ lastrankAllianceId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }],
+    ];
+
+    await expect(
+      resolveHqAllianceForLastRankSync({
+        target: {
+          gameServerNumber: 1211,
+          tag: "FUze",
+          lastrankAllianceId: "b1cf340c642947579ccbb753e7410c37",
+        },
+        allowCreate: false,
+      }),
+    ).rejects.toThrow(/already pinned to a different LastRank id/);
+    expect(mocks.updateCalls).toHaveLength(0);
+  });
+
   it("creates a native alliance when no exact or fuzzy match exists and apply is set", async () => {
     mocks.selectResult = [];
+    // find-by-pin empty; stamp on created alliance (null pin)
+    mocks.pinSelectQueue = [[], [{ lastrankAllianceId: null }]];
 
     const result = await resolveHqAllianceForLastRankSync({
       target: {
