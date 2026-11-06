@@ -6246,7 +6246,13 @@
       "networkStats": "Jaringan",
       "recentActivity": "Aktivitas Ashed terbaru",
       "noActivity": "Belum ada aktivitas Ashed di sesi ini.",
-      "errorCount": "{count} kesalahan",
+      "errorCount": "{count, plural, one {# kesalahan} other {# kesalahan}}",
+      "outcome": {
+        "ok": "OK",
+        "error": "Kesalahan",
+        "running": "Berjalan",
+        "cancelled": "Dibatalkan"
+      },
       "clearLog": "Hapus log",
       "reportProblem": "Laporkan masalah",
       "unexpectedErrorHint": "Terjadi kesalahan tak terduga dengan Ashed. Kirim laporan untuk membantu kami men-debug.",

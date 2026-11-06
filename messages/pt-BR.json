@@ -2089,7 +2089,13 @@
       "networkStats": "Rede",
       "recentActivity": "Atividade recente do Ashed",
       "noActivity": "Ainda não há atividade Ashed nesta sessão.",
-      "errorCount": "{count} erros",
+      "errorCount": "{count, plural, one {# erro} other {# erros}}",
+      "outcome": {
+        "ok": "OK",
+        "error": "Erro",
+        "running": "Em andamento",
+        "cancelled": "Cancelado"
+      },
       "clearLog": "Limpar log",
       "reportProblem": "Reportar problema",
       "unexpectedErrorHint": "Algo inesperado aconteceu com o Ashed. Envie um relatório para nos ajudar a depurar.",

@@ -2089,7 +2089,13 @@
       "networkStats": "Network",
       "recentActivity": "Recent Ashed activity",
       "noActivity": "No Ashed activity in this session yet.",
-      "errorCount": "{count} errors",
+      "errorCount": "{count, plural, one {# error} other {# errors}}",
+      "outcome": {
+        "ok": "OK",
+        "error": "Error",
+        "running": "Running",
+        "cancelled": "Cancelled"
+      },
       "clearLog": "Clear log",
       "reportProblem": "Report problem",
       "unexpectedErrorHint": "Something unexpected happened with Ashed. Submit a report to help us debug.",

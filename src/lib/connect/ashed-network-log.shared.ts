@@ -62,7 +62,12 @@ function writeRaw(entries: AshedClientTransaction[], notify: boolean): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(LOG_KEY, JSON.stringify(entries));
+  try {
+    window.localStorage.setItem(LOG_KEY, JSON.stringify(entries));
+  } catch {
+    // Quota or private-mode storage failures must not break the request path.
+    return;
+  }
   if (notify) {
     emit();
   }
@@ -108,7 +113,11 @@ export function clearAshedNetworkLog(): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.removeItem(LOG_KEY);
+  try {
+    window.localStorage.removeItem(LOG_KEY);
+  } catch {
+    return;
+  }
   emit();
 }
 
@@ -169,11 +178,27 @@ function percentile(sorted: number[], p: number): number | null {
 
 export function formatAshedNetworkLogForBugReport(
   entries: AshedClientTransaction[] = loadAshedNetworkLog(),
+  maxChars: number = ASHED_NETWORK_LOG_MAX_CHARS,
 ): string | undefined {
   if (entries.length === 0) {
     return undefined;
   }
 
+  // Newest entries are first. Drop the oldest until the attachment fits so a
+  // long log keeps recent activity instead of the tail.
+  let kept = entries;
+  let sanitized = sanitizeBugReportConsoleText(formatLines(kept));
+  while (sanitized.length > maxChars && kept.length > 1) {
+    kept = kept.slice(0, -1);
+    sanitized = sanitizeBugReportConsoleText(formatLines(kept));
+  }
+  if (sanitized.length <= maxChars) {
+    return kept.length < entries.length ? `${sanitized}\n…(truncated)` : sanitized;
+  }
+  return `${sanitized.slice(0, maxChars)}\n…(truncated)`;
+}
+
+function formatLines(entries: AshedClientTransaction[]): string {
   const lines = entries.map((entry) => {
     const parts = [
       entry.at,
@@ -188,15 +213,44 @@ export function formatAshedNetworkLogForBugReport(
     ];
     return parts.join(" | ");
   });
-
   const header =
     "at | kind | method | path | outcome | status | duration | code | label";
-  const body = [header, ...lines].join("\n");
-  const sanitized = sanitizeBugReportConsoleText(body);
-  if (sanitized.length <= ASHED_NETWORK_LOG_MAX_CHARS) {
-    return sanitized;
-  }
-  return `${sanitized.slice(sanitized.length - ASHED_NETWORK_LOG_MAX_CHARS)}\n…(truncated)`;
+  return [header, ...lines].join("\n");
+}
+
+/**
+ * Record a completed browser resource observation (PerformanceObserver).
+ * Does not notify subscribers — the panel polls — so the shell does not
+ * re-render on every `/api/*` call.
+ */
+export function recordAshedObservedRequest(input: {
+  url: string;
+  durationMs: number;
+  responseStatus?: number;
+}): AshedClientTransaction {
+  const path = sanitizeAshedNetworkPath(input.url);
+  const status =
+    typeof input.responseStatus === "number" && input.responseStatus > 0
+      ? input.responseStatus
+      : undefined;
+  const outcome: AshedClientTransactionOutcome =
+    status != null && status >= 400 ? "error" : "ok";
+  const kind: AshedClientTransactionKind = path.includes("/ashed")
+    ? "ashed_op"
+    : "hq_api";
+  return recordAshedClientTransaction(
+    {
+      kind,
+      path,
+      status,
+      durationMs: Number.isFinite(input.durationMs)
+        ? Math.max(0, Math.round(input.durationMs))
+        : undefined,
+      outcome,
+      code: outcome === "error" && status != null ? String(status) : undefined,
+    },
+    { notify: false },
+  );
 }
 
 /** Record roster sync status transitions from the members UI (no fetch patch). */

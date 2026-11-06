@@ -11,8 +11,10 @@ import { Link } from "@/i18n/navigation";
 import {
   clearAshedNetworkLog,
   loadAshedNetworkLog,
+  recordAshedObservedRequest,
   summarizeAshedNetworkLog,
   subscribeAshedNetworkLog,
+  type AshedClientTransactionOutcome,
 } from "@/lib/connect/ashed-network-log.shared";
 import {
   clearAshedConnectionSessionStats,
@@ -33,6 +35,25 @@ import {
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
 } from "@/lib/connectionString";
+
+function outcomeMessageKey(
+  outcome: AshedClientTransactionOutcome,
+): "outcome.ok" | "outcome.error" | "outcome.running" | "outcome.cancelled" {
+  switch (outcome) {
+    case "ok":
+      return "outcome.ok";
+    case "error":
+      return "outcome.error";
+    case "running":
+      return "outcome.running";
+    case "cancelled":
+      return "outcome.cancelled";
+    default: {
+      const unreachable: never = outcome;
+      return unreachable;
+    }
+  }
+}
 
 type Props = {
   isConnected: boolean;
@@ -111,6 +132,12 @@ export function AshedConnectionStatus({
             shouldCountAsAshedSessionRequest(entry.name)
           ) {
             incrementAshedRequestCountSilent();
+            const timing = entry as PerformanceEntry & { responseStatus?: number };
+            recordAshedObservedRequest({
+              url: entry.name,
+              durationMs: entry.duration,
+              responseStatus: timing.responseStatus,
+            });
           }
         }
       });
@@ -401,7 +428,7 @@ export function AshedConnectionStatus({
                             {entry.path}
                           </span>
                           {" · "}
-                          {entry.outcome}
+                          {t(outcomeMessageKey(entry.outcome))}
                           {entry.durationMs != null
                             ? ` · ${entry.durationMs}ms`
                             : null}
