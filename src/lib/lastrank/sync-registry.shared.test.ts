@@ -50,7 +50,7 @@ describe("resolveLastRankSyncCliTarget", () => {
     expect(
       resolveLastRankSyncCliTarget({
         gameServerNumber: 1211,
-        tag: "Roar",
+        tag: "FUze",
       }),
     ).toMatchObject({
       lastrankAllianceId: "b1cf340c642947579ccbb753e7410c37",
@@ -172,6 +172,6 @@ describe("lookupLastRankSyncByAllianceId", () => {
       lookupLastRankSyncByAllianceId(
         "B1CF340C642947579CCBB753E7410C37",
       )?.tag,
-    ).toBe("Roar");
+    ).toBe("FUze");
   });
 });

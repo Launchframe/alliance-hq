@@ -14,10 +14,7 @@ import {
   CommanderIdentityConflictError,
   commanderConflictResponseBody,
 } from "@/lib/members/commander-identity-conflicts.shared";
-import {
-  assertAllianceRosterAshedSyncIdle,
-  RosterAshedSyncInProgressError,
-} from "@/lib/members/roster-ashed-sync-status.server";
+import { RosterAshedSyncInProgressError } from "@/lib/members/roster-ashed-sync-status.server";
 import { getRbacContext } from "@/lib/rbac/context";
 import { requireApiSession } from "@/lib/session";
 
@@ -75,18 +72,6 @@ export async function PATCH(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    try {
-      await assertAllianceRosterAshedSyncIdle(allianceId);
-    } catch (error) {
-      if (error instanceof RosterAshedSyncInProgressError) {
-        return NextResponse.json(
-          { error: error.message, code: error.code },
-          { status: error.status },
-        );
-      }
-      throw error;
-    }
-
     const { ashedMemberId } = await params;
     const trimmedId = ashedMemberId.trim();
     if (!trimmedId) {
@@ -121,6 +106,12 @@ export async function PATCH(request: Request, { params }: Props) {
 
     return NextResponse.json({ ok: true, commanderId: result.commanderId });
   } catch (error) {
+    if (error instanceof RosterAshedSyncInProgressError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
     if (error instanceof CommanderIdentityConflictError) {
       return NextResponse.json(
         commanderConflictResponseBody(error.conflicts),

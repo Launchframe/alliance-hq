@@ -131,6 +131,11 @@ export async function loadAllianceMembers(
     includeFormer?: boolean;
     /** Pull a fresh roster from Ashed instead of using cached rows only. */
     refresh?: boolean;
+    /**
+     * Read the local roster only. Rank edits use this so the load cannot
+     * claim a background sync before the write.
+     */
+    skipAshedSync?: boolean;
   },
 ): Promise<AllianceMembersPayload> {
   const session = await loadSession(sessionId);
@@ -219,7 +224,10 @@ export async function loadAllianceMembers(
       allianceId: resolvedHqAllianceId,
       connection,
       ashedAllianceId: alliance.id,
-      forceRefreshFromAshed: options?.refresh === true,
+      forceRefreshFromAshed: options?.skipAshedSync
+        ? false
+        : options?.refresh === true,
+      syncFromAshed: options?.skipAshedSync ? false : undefined,
     }),
   );
 
