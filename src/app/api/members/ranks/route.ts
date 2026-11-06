@@ -4,6 +4,7 @@ import { validateBulkMemberRankInput } from "@/lib/members/bulk-rank-update.shar
 import { applyBulkMemberRanks } from "@/lib/members/bulk-rank-update.server";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { resolveMembersApiContext } from "@/lib/members/members-api-context";
+import { RosterAshedSyncInProgressError } from "@/lib/members/roster-ashed-sync-status.server";
 import { getRbacContext, requireSessionPermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
 
   let roster;
   try {
-    roster = await loadAllianceMembers(session.id);
+    roster = await loadAllianceMembers(session.id, { skipAshedSync: true });
   } catch (error) {
     return NextResponse.json(
       {
@@ -48,14 +49,25 @@ export async function POST(request: Request) {
   const membersById = new Map(roster.members.map((m) => [m.id, m]));
   const rbac = await getRbacContext(session.id);
 
-  const output = await applyBulkMemberRanks({
-    memberIds: parsed.memberIds,
-    action: parsed.action,
-    allianceRank: parsed.allianceRank,
-    membersById,
-    ctx,
-    recordedByHqUserId: rbac?.hqUserId ?? null,
-  });
+  let output: Awaited<ReturnType<typeof applyBulkMemberRanks>>;
+  try {
+    output = await applyBulkMemberRanks({
+      memberIds: parsed.memberIds,
+      action: parsed.action,
+      allianceRank: parsed.allianceRank,
+      membersById,
+      ctx,
+      recordedByHqUserId: rbac?.hqUserId ?? null,
+    });
+  } catch (error) {
+    if (error instanceof RosterAshedSyncInProgressError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
 
   const status = output.updated > 0 ? 200 : 502;
   return NextResponse.json(output, { status });

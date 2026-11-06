@@ -13,6 +13,7 @@ import {
   previewDuplicateMerge,
   type MergeDuplicateResult,
 } from "@/lib/members/merge-duplicate-commander.server";
+import { RosterAshedSyncInProgressError } from "@/lib/members/roster-ashed-sync-status.server";
 import { getRbacContext } from "@/lib/rbac/context";
 import { requireApiSession } from "@/lib/session";
 
@@ -59,6 +60,12 @@ function resultResponse(result: MergeDuplicateResult) {
 }
 
 function errorResponse(error: unknown) {
+  if (error instanceof RosterAshedSyncInProgressError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code },
+      { status: error.status },
+    );
+  }
   if (error instanceof CommanderAccessError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }

@@ -32,6 +32,7 @@ import {
   commanderStatsFromAshedSnapshot,
 } from "@/lib/commanders/commander-ashed-stats.shared";
 import { resolveThpTotalFromSnapshot } from "@/lib/commanders/power-stats.shared";
+import { withAllianceRosterMutationLock } from "@/lib/members/roster-ashed-sync-lock.server";
 import type { ThpEventSource } from "@/lib/thp/constants";
 import {
   seedCommanderPowerLevelHistoryFromAshed,
@@ -1087,6 +1088,16 @@ export async function syncCommanderFromAllianceMember(input: {
 
 /** Update roster display name and retry Commander sync (officer conflict resolution). */
 export async function resolveMemberCommanderNameConflict(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  currentName: string;
+}): Promise<CommanderSyncResult> {
+  return withAllianceRosterMutationLock(input.allianceId, () =>
+    resolveMemberCommanderNameConflictWithinLock(input),
+  );
+}
+
+async function resolveMemberCommanderNameConflictWithinLock(input: {
   allianceId: string;
   ashedMemberId: string;
   currentName: string;
