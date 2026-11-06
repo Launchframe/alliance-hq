@@ -523,34 +523,37 @@ describe("sessionCanAccessAllianceVideoJob", () => {
     ).resolves.toBe(true);
   });
 
-  it("allows the enqueuing officer with hq:video:enqueue in the job alliance", async () => {
+  it("allows any officer with hq:video:enqueue in the job alliance to review", async () => {
     getRbacContext.mockResolvedValue({
       isPlatformMaintainer: false,
       roleName: "officer",
       currentAllianceId: "alliance-other",
-      hqUserId: "officer-hq",
+      hqUserId: "fellow-officer-hq",
       permissions: new Set<string>(),
     });
     sessionHasPermissionForAlliance.mockImplementation(
-      async (_sessionId, _allianceId, permission) =>
-        permission === "hq:video:enqueue",
+      async (_sessionId, allianceId, permission) =>
+        allianceId === "alliance-1" && permission === "hq:video:enqueue",
     );
     await expect(
       sessionCanAccessAllianceVideoJob("s", "alliance-1", {
-        enqueuedByHqUserId: "officer-hq",
+        enqueuedByHqUserId: "uploader-hq",
       }),
     ).resolves.toBe(true);
   });
 
-  it("denies a different user even when they enqueued another alliance job", async () => {
+  it("denies enqueue holders from a different alliance", async () => {
     getRbacContext.mockResolvedValue({
       isPlatformMaintainer: false,
       roleName: "officer",
-      currentAllianceId: "alliance-1",
+      currentAllianceId: "alliance-other",
       hqUserId: "other-hq",
       permissions: new Set<string>(),
     });
-    sessionHasPermissionForAlliance.mockResolvedValue(false);
+    sessionHasPermissionForAlliance.mockImplementation(
+      async (_sessionId, allianceId, permission) =>
+        allianceId === "alliance-other" && permission === "hq:video:enqueue",
+    );
     mockState.selectResults = [[]];
     await expect(
       sessionCanAccessAllianceVideoJob("s", "alliance-1", {

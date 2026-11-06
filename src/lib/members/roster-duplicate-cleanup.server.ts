@@ -8,6 +8,7 @@ import { getDb, schema } from "@/lib/db";
 import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
 import { markAshedMemberFormer } from "@/lib/members/ashed-member-write.server";
 import { mergeDuplicateCommander } from "@/lib/members/merge-duplicate-commander.server";
+import { RosterAshedSyncInProgressError } from "@/lib/members/roster-ashed-sync-status.server";
 import {
   groupRosterDuplicates,
   reviewMergePairs,
@@ -113,15 +114,24 @@ export async function mergeRosterDuplicates(input: {
       continue;
     }
 
-    const merged = await mergeDuplicateCommander({
-      allianceId: input.allianceId,
-      keptAshedMemberId: group.keeperAshedMemberId,
-      duplicateAshedMemberId: ashedMemberId,
-      // Keep the recommended Ashed name; do not adopt the LastRank import name.
-      keepName: "kept",
-      actorHqUserId: input.actorHqUserId,
-      sessionId: input.sessionId,
-    });
+    let merged;
+    try {
+      merged = await mergeDuplicateCommander({
+        allianceId: input.allianceId,
+        keptAshedMemberId: group.keeperAshedMemberId,
+        duplicateAshedMemberId: ashedMemberId,
+        // Keep the recommended Ashed name; do not adopt the LastRank import name.
+        keepName: "kept",
+        actorHqUserId: input.actorHqUserId,
+        sessionId: input.sessionId,
+      });
+    } catch (error) {
+      if (error instanceof RosterAshedSyncInProgressError) {
+        result.failed.push({ ashedMemberId, name, code: error.code });
+        continue;
+      }
+      throw error;
+    }
     if (!merged.ok) {
       result.failed.push({ ashedMemberId, name, code: merged.code });
       continue;

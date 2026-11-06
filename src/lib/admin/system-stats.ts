@@ -176,6 +176,7 @@ export async function loadAdminAlliances(params: AdminAlliancesQueryParams) {
       tag: alliance.tag,
       name: alliance.name,
       ashedAllianceId: alliance.ashedAllianceId,
+      lastrankAllianceId: alliance.lastrankAllianceId,
       operatingMode: alliance.operatingMode,
       gameServerNumber: alliance.gameServerNumber,
       ownerEmail: alliance.ownerEmail,

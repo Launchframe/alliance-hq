@@ -368,14 +368,22 @@ export async function sessionCanProcessVideoForAlliance(
 }
 
 /**
- * Cross-device access to a job in a specific alliance: platform maintainer,
- * queue readers, designated processors, or the officer who enqueued the upload.
+ * Cross-device access to a job in a specific alliance for review / handoff.
+ *
+ * Processor slots and owner/maintainer bypass gate **OCR approve/process** via
+ * {@link sessionCanProcessVideoForAlliance} — not this check. Any alliance
+ * officer with `hq:video:enqueue` (or queue readers / designated processors)
+ * may open an already-parsed job and review its results.
+ *
+ * `enqueuedByHqUserId` is retained for callers/tests; enqueue permission alone
+ * is enough for review access (fellow officers, not only the uploader).
  */
 export async function sessionCanAccessAllianceVideoJob(
   sessionId: string,
   allianceId: string,
   options?: { enqueuedByHqUserId?: string | null },
 ): Promise<boolean> {
+  void options;
   const ctx = await getRbacContext(sessionId);
   if (!ctx) {
     return false;
@@ -385,13 +393,11 @@ export async function sessionCanAccessAllianceVideoJob(
   }
 
   if (
-    options?.enqueuedByHqUserId &&
-    options.enqueuedByHqUserId === ctx.hqUserId &&
-    (await sessionHasPermissionForAlliance(
+    await sessionHasPermissionForAlliance(
       sessionId,
       allianceId,
       VIDEO_ENQUEUE_PERMISSION,
-    ))
+    )
   ) {
     return true;
   }

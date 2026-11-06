@@ -1,3 +1,4 @@
+import { massFormerNeedsConfirm } from "@/lib/alliance/rename-in-place.shared";
 import { NATIVE_ROSTER_ASHED_ALLIANCE_ID } from "@/lib/native-alliance/constants";
 
 /**
@@ -73,4 +74,60 @@ export function rosterMemberIdsAbsentFromAshed(input: {
     absent.push(id);
   }
   return absent;
+}
+
+/**
+ * Confirmed-active Ashed rows that can be marked former by the absence pass.
+ * Guarded members are excluded so the mass-former denominator matches the
+ * population `rosterMemberIdsAbsentFromAshed` can actually demote.
+ */
+export function countConfirmedActiveRosterRows(
+  local: readonly RosterAbsenceCandidate[],
+  guardedMemberIds?: readonly string[],
+): number {
+  const guarded = new Set(
+    (guardedMemberIds ?? [])
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0),
+  );
+  let count = 0;
+  for (const row of local) {
+    const id = row.ashedMemberId.trim();
+    if (!id) continue;
+    if (row.status === "former") continue;
+    if (!row.ashedConfirmed) continue;
+    if (isSyntheticAshedAllianceId(row.ashedAllianceId)) continue;
+    if (guarded.has(id)) continue;
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * Whether applying the absence pass would former enough of the roster that
+ * an officer should confirm (post-rename catch-up). Truncation still returns
+ * an empty absent list first.
+ */
+export function rosterAbsenceMassFormerPreview(input: {
+  local: readonly RosterAbsenceCandidate[];
+  returnedAshedMemberIds: readonly string[];
+  guardedMemberIds?: readonly string[];
+}): {
+  absentIds: string[];
+  confirmedActiveCount: number;
+  needsConfirm: boolean;
+} {
+  const absentIds = rosterMemberIdsAbsentFromAshed(input);
+  const confirmedActiveCount = countConfirmedActiveRosterRows(
+    input.local,
+    input.guardedMemberIds,
+  );
+  return {
+    absentIds,
+    confirmedActiveCount,
+    needsConfirm: massFormerNeedsConfirm({
+      wouldFormerCount: absentIds.length,
+      confirmedActiveCount,
+    }),
+  };
 }

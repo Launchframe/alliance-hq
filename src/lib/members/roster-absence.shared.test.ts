@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { rosterMemberIdsAbsentFromAshed } from "./roster-absence.shared";
+import {
+  rosterAbsenceMassFormerPreview,
+  rosterMemberIdsAbsentFromAshed,
+} from "./roster-absence.shared";
 
 const confirmed = (
   ashedMemberId: string,
@@ -101,5 +104,62 @@ describe("rosterMemberIdsAbsentFromAshed", () => {
         returnedAshedMemberIds: ["still-here"],
       }),
     ).toEqual([]);
+  });
+});
+
+describe("rosterAbsenceMassFormerPreview", () => {
+  it("flags confirm when a large share of confirmed actives would go former", () => {
+    const local = [
+      confirmed("keep"),
+      confirmed("a"),
+      confirmed("b"),
+      confirmed("c"),
+      confirmed("d"),
+      confirmed("e"),
+      confirmed("f"),
+      confirmed("g"),
+      confirmed("h"),
+      confirmed("i"),
+    ];
+    const preview = rosterAbsenceMassFormerPreview({
+      local,
+      returnedAshedMemberIds: ["keep", "a", "b", "c", "d", "e", "f"],
+    });
+    expect(preview.absentIds).toEqual(["g", "h", "i"]);
+    expect(preview.confirmedActiveCount).toBe(10);
+    expect(preview.needsConfirm).toBe(true);
+  });
+
+  it("does not flag confirm for a small absence", () => {
+    const local = Array.from({ length: 10 }, (_, i) =>
+      confirmed(`m${i}`),
+    );
+    const preview = rosterAbsenceMassFormerPreview({
+      local,
+      returnedAshedMemberIds: local.slice(0, 9).map((row) => row.ashedMemberId),
+    });
+    expect(preview.absentIds).toEqual(["m9"]);
+    expect(preview.needsConfirm).toBe(false);
+  });
+
+  it("excludes guarded members from the confirm denominator", () => {
+    // 3 unguarded confirmed-actives; Ashed still returns the guarded rows so the
+    // truncation gate passes. Would former 1 of 3 unguarded (33%) → confirm.
+    // If guarded rows inflated the denominator to 10, confirm would be skipped.
+    const guardedIds = Array.from({ length: 7 }, (_, i) => `guarded-${i}`);
+    const local = [
+      confirmed("keep-a"),
+      confirmed("keep-b"),
+      confirmed("gone"),
+      ...guardedIds.map((id) => confirmed(id)),
+    ];
+    const preview = rosterAbsenceMassFormerPreview({
+      local,
+      returnedAshedMemberIds: ["keep-a", "keep-b", ...guardedIds],
+      guardedMemberIds: guardedIds,
+    });
+    expect(preview.absentIds).toEqual(["gone"]);
+    expect(preview.confirmedActiveCount).toBe(3);
+    expect(preview.needsConfirm).toBe(true);
   });
 });
