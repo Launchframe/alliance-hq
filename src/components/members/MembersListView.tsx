@@ -52,6 +52,7 @@ import {
   toggleRosterColumnVisibility,
   writeStoredRosterColumnPrefs,
 } from "@/lib/members/roster-column-prefs.shared";
+import { recordRosterAshedSyncTransaction } from "@/lib/connect/ashed-network-log.shared";
 import { ashedUrlForPath } from "@/lib/nav/routes";
 
 type Props = {
@@ -425,9 +426,42 @@ export function MembersListView({
     [loadRoster],
   );
 
-  const syncRunning = !isNative && data.ashedRosterSync?.status === "running";
-  const syncFailed = !isNative && data.ashedRosterSync?.status === "failed";
+  const syncStatus = !isNative
+    ? (data.ashedRosterSync?.status ?? "idle")
+    : "idle";
+  const syncRunning = syncStatus === "running";
+  const syncFailed = syncStatus === "failed";
   const editsPaused = syncRunning;
+  const lastRecordedSyncStatus = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isNative) {
+      return;
+    }
+    if (lastRecordedSyncStatus.current === syncStatus) {
+      return;
+    }
+    const previous = lastRecordedSyncStatus.current;
+    lastRecordedSyncStatus.current = syncStatus;
+    // Skip the first idle observation so a quiet page load does not spam the log.
+    if (previous == null && syncStatus === "idle") {
+      return;
+    }
+    if (syncStatus === "running") {
+      recordRosterAshedSyncTransaction({ status: "running" });
+      return;
+    }
+    if (syncStatus === "failed") {
+      recordRosterAshedSyncTransaction({
+        status: "failed",
+        lastErrorCode: data.ashedRosterSync?.lastErrorCode,
+      });
+      return;
+    }
+    if (previous === "running" || previous === "failed") {
+      recordRosterAshedSyncTransaction({ status: "idle" });
+    }
+  }, [isNative, syncStatus, data.ashedRosterSync?.lastErrorCode]);
 
   useEffect(() => {
     if (!syncRunning) {

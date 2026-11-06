@@ -78,6 +78,7 @@ export async function GET(_request: Request, { params }: Props) {
         browserVersion: row.browserVersion,
         osVersion: row.osVersion,
         consoleLogs: row.consoleLogs,
+        ashedNetworkLogs: row.ashedNetworkLogs,
         createdAt: isoOrNull(row.createdAt),
         updatedAt: isoOrNull(row.updatedAt),
         screenshots: screenshots.map((shot) => ({

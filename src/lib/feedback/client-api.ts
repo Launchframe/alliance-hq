@@ -61,6 +61,7 @@ export async function submitBugReport(input: {
   browserVersion?: string;
   osVersion?: string;
   consoleLogs?: string;
+  ashedNetworkLogs?: string;
   captureSessionId?: string;
   captureSessionToken?: string;
   captureSessionExpiresAt?: number;
@@ -81,6 +82,9 @@ export async function submitBugReport(input: {
   if (input.browserVersion) form.set("browserVersion", input.browserVersion);
   if (input.osVersion) form.set("osVersion", input.osVersion);
   if (input.consoleLogs) form.set("consoleLogs", input.consoleLogs);
+  if (input.ashedNetworkLogs) {
+    form.set("ashedNetworkLogs", input.ashedNetworkLogs);
+  }
   if (input.captureSessionId) {
     form.set("captureSessionId", input.captureSessionId);
     form.set("captureSessionToken", input.captureSessionToken ?? "");
