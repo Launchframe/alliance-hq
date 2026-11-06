@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Database, Trash2 } from "lucide-react";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Dialog } from "@/components/ui/dialog";
+import {
+  recordDataManagementDatesTransaction,
+  recordDataManagementScoresTransaction,
+} from "@/lib/connect/ashed-network-log.shared";
 import type { DataDateSummary } from "@/lib/data-management/batch-authorization.shared";
 
 type ScoreTargetOption = {
@@ -60,9 +64,11 @@ export function DataManagementClient({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [datesEnriching, setDatesEnriching] = useState(false);
   const [scores, setScores] = useState<DateScoreRow[]>([]);
   const [scoresLoading, setScoresLoading] = useState(false);
   const [scoresError, setScoresError] = useState<string | null>(null);
+  const datesRequest = useRef(0);
 
   const selected = useMemo(
     () => dates.find((date) => date.recordedDate === selectedDate) ?? null,
@@ -75,9 +81,21 @@ export function DataManagementClient({
   );
 
   const refreshDates = useCallback(
-    async (nextScoreTarget: string, preferDate?: string | null) => {
-      setLoading(true);
+    async (
+      nextScoreTarget: string,
+      preferDate?: string | null,
+      options?: { blankList?: boolean },
+    ) => {
+      const blankList = options?.blankList ?? true;
+      const requestId = ++datesRequest.current;
+      const stillCurrent = () => datesRequest.current === requestId;
+      if (blankList) {
+        setLoading(true);
+      } else {
+        setDatesEnriching(true);
+      }
       setError(null);
+      recordDataManagementDatesTransaction({ status: "running" });
       try {
         const res = await fetch(
           `/api/data-management/dates?scoreTarget=${encodeURIComponent(nextScoreTarget)}`,
@@ -86,6 +104,10 @@ export function DataManagementClient({
           dates?: DataDateSummary[];
           error?: string;
         };
+        if (!stillCurrent()) {
+          recordDataManagementDatesTransaction({ status: "cancelled" });
+          return;
+        }
         if (!res.ok) {
           throw new Error(data.error ?? t("loadFailed"));
         }
@@ -99,14 +121,40 @@ export function DataManagementClient({
             ? current
             : (nextDates[0]?.recordedDate ?? null);
         });
+        recordDataManagementDatesTransaction({ status: "idle" });
       } catch (err) {
+        if (!stillCurrent()) {
+          recordDataManagementDatesTransaction({ status: "cancelled" });
+          return;
+        }
+        recordDataManagementDatesTransaction({
+          status: "failed",
+          lastErrorCode: "dm_dates_failed",
+        });
         setError(err instanceof Error ? err.message : t("loadFailed"));
       } finally {
-        setLoading(false);
+        if (!stillCurrent()) return;
+        if (blankList) {
+          setLoading(false);
+        } else {
+          setDatesEnriching(false);
+        }
       }
     },
     [t],
   );
+
+  // Enrich SSR ledger-only dates with Ashed without blanking the list.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshDates(scoreTarget, queryDate || selectedDate, {
+        blankList: false,
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // Intentionally once on mount for the initial score target.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount enrich only
+  }, []);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -116,6 +164,7 @@ export function DataManagementClient({
         setScoresLoading(true);
         setScoresError(null);
         setScores([]);
+        recordDataManagementScoresTransaction({ status: "running" });
         try {
           const res = await fetch(
             `/api/data-management/dates/${encodeURIComponent(selectedDate)}/scores?scoreTarget=${encodeURIComponent(scoreTarget)}`,
@@ -130,9 +179,14 @@ export function DataManagementClient({
           }
           if (!controller.signal.aborted) {
             setScores(data.scores ?? []);
+            recordDataManagementScoresTransaction({ status: "idle" });
           }
         } catch (err) {
           if (controller.signal.aborted) return;
+          recordDataManagementScoresTransaction({
+            status: "failed",
+            lastErrorCode: "dm_scores_failed",
+          });
           setScores([]);
           setScoresError(
             err instanceof Error ? err.message : t("scoresLoadFailed"),
@@ -152,7 +206,7 @@ export function DataManagementClient({
 
   async function handleTargetChange(nextTarget: string) {
     setScoreTarget(nextTarget);
-    await refreshDates(nextTarget);
+    await refreshDates(nextTarget, null, { blankList: true });
   }
 
   async function handleDelete(recordedDate: string) {
@@ -262,6 +316,9 @@ export function DataManagementClient({
         <section className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-medium">{t("availableDates")}</h2>
+            {datesEnriching && !loading ? (
+              <p className="mt-1 text-xs text-muted-foreground">{t("loading")}</p>
+            ) : null}
           </div>
           <div className="max-h-[70vh] space-y-3 overflow-y-auto p-3">
             {loading ? (
