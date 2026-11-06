@@ -30,6 +30,19 @@ export function actionBody(attempt: ActionAttempt) {
   };
 }
 
+/** Confirm and waive stay off until Ashed evidence refresh has finished cleanly. */
+export function complianceManagementPaused(input: {
+  loading: boolean;
+  evidenceRefreshing: boolean;
+  evidenceRefresh: ComplianceDashboard["evidenceRefresh"] | null;
+}): boolean {
+  return (
+    input.loading ||
+    input.evidenceRefreshing ||
+    input.evidenceRefresh !== "ready"
+  );
+}
+
 export function syncLabel(status: unknown): "localOnly" | "pending" | "synced" | "credentialsRequired" | "failed" {
   if (status === "local") return "localOnly";
   if (status === "pending" || status === "synced") return status;
@@ -58,7 +71,7 @@ export function isComplianceHistory(data: Record<string, unknown>): data is Reco
 
 export function isDashboard(data: Record<string, unknown>): data is Record<string, unknown> & ComplianceDashboard {
   const nullableNumber = (value: unknown) => value === null || typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-  return typeof data.weekEnding === "string" && validateVsPeriod(data.weekEnding, "weekly") && typeof data.canManage === "boolean" && Array.isArray(data.rows) && data.rows.every((row) => row && typeof row.id === "string" && typeof row.memberId === "string" && typeof row.memberName === "string" && row.weekEnding === data.weekEnding && typeof row.dailyTarget === "number" && Number.isSafeInteger(row.dailyTarget) && row.dailyTarget > 0 && Array.isArray(row.daily) && row.daily.length === 6 && row.daily.every((day: ComplianceRow["daily"][number], index: number) => day && day.date === addCalendarDays(row.weekEnding, index - 6) && nullableNumber(day.score) && ["ready", "missing", "partial", "conflict"].includes(day.state) && (day.state === "ready" ? day.score !== null : day.score === null) && [null, "hq", "ashed", "derived"].includes(day.source) && typeof day.sourceReady === "boolean" && typeof day.away === "boolean" && typeof day.excused === "boolean" && typeof day.pendingExcusal === "boolean") && typeof row.confirmationBasis === "string" && typeof row.evaluationBasis === "string" && typeof row.syncStatus === "string" && typeof row.correctionReview === "boolean" && nullableNumber(row.score) && nullableNumber(row.threshold) && nullableNumber(row.currentRank) && nullableNumber(row.streak) && nullableNumber(row.policyVersion) && ["ready", "missing", "partial", "conflict"].includes(row.evidenceState) && ["passed", "excused", "waived", "missed", "pending_data", "not_eligible"].includes(row.outcome) && row.recommendation && nullableNumber(row.recommendation.targetRank) && ["none", "demote", "remove", "leadership_review"].includes(row.recommendation.kind) && (row.settled === null || row.settled && typeof row.settled.actionId === "string" && nullableNumber(row.settled.targetRank)));
+  return typeof data.weekEnding === "string" && validateVsPeriod(data.weekEnding, "weekly") && typeof data.canManage === "boolean" && ["pending", "ready", "failed"].includes(String(data.evidenceRefresh)) && Array.isArray(data.rows) && data.rows.every((row) => row && typeof row.id === "string" && typeof row.memberId === "string" && typeof row.memberName === "string" && row.weekEnding === data.weekEnding && typeof row.dailyTarget === "number" && Number.isSafeInteger(row.dailyTarget) && row.dailyTarget > 0 && Array.isArray(row.daily) && row.daily.length === 6 && row.daily.every((day: ComplianceRow["daily"][number], index: number) => day && day.date === addCalendarDays(row.weekEnding, index - 6) && nullableNumber(day.score) && ["ready", "missing", "partial", "conflict"].includes(day.state) && (day.state === "ready" ? day.score !== null : day.score === null) && [null, "hq", "ashed", "derived"].includes(day.source) && typeof day.sourceReady === "boolean" && typeof day.away === "boolean" && typeof day.excused === "boolean" && typeof day.pendingExcusal === "boolean") && typeof row.confirmationBasis === "string" && typeof row.evaluationBasis === "string" && typeof row.syncStatus === "string" && typeof row.correctionReview === "boolean" && nullableNumber(row.score) && nullableNumber(row.threshold) && nullableNumber(row.currentRank) && nullableNumber(row.streak) && nullableNumber(row.policyVersion) && ["ready", "missing", "partial", "conflict"].includes(row.evidenceState) && ["passed", "excused", "waived", "missed", "pending_data", "not_eligible"].includes(row.outcome) && row.recommendation && nullableNumber(row.recommendation.targetRank) && ["none", "demote", "remove", "leadership_review"].includes(row.recommendation.kind) && (row.settled === null || row.settled && typeof row.settled.actionId === "string" && nullableNumber(row.settled.targetRank)));
 }
 
 export function isPolicy(value: unknown): value is VsPolicyVersion {
