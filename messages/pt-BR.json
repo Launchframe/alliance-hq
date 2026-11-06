@@ -1178,6 +1178,28 @@
       "sessionContext": {
         "title": "Contexto de aliança da sessão",
         "hint": "Uploads, membros e ferramentas usam a aliança definida na sua sessão."
+      },
+      "rename": {
+        "title": "Renomear aliança no lugar",
+        "hint": "Mesma linha de aliança no HQ — atualize a tag e o nome após um rebrand. Fixe o id da aliança no LastRank quando souber, para a sincronização encontrar este tenant depois que a tag mudar.",
+        "tagLabel": "Tag no jogo",
+        "nameLabel": "Nome de exibição",
+        "lastrankIdLabel": "Id da aliança no LastRank",
+        "lastrankIdPlaceholder": "Hex de 32 caracteres de lastrank.fun/a/…",
+        "save": "Salvar identidade",
+        "saving": "Salvando…",
+        "fieldsRequired": "Tag e nome de exibição são obrigatórios.",
+        "saveFailed": "Não foi possível renomear a aliança.",
+        "saved": "Identidade da aliança atualizada.",
+        "savedWithAshedCatchUp": "Identidade da aliança atualizada. Use a sincronização de roster do Ashed se o roster no jogo mudou.",
+        "savedWithLastRankPin": "Identidade da aliança atualizada e vinculada ao LastRank ({tag}). Execute a sincronização LastRank quando estiver pronto.",
+        "catchUpAshed": "Sincronizar roster Ashed",
+        "catchingUp": "Sincronizando…",
+        "catchUpFailed": "Falha na sincronização do roster.",
+        "catchUpDone": "Sincronização do roster atualizou {count} membros.",
+        "massFormerConfirm": "Esta atualização marcaria {former} de {active} membros confirmados como ex-membros. Confirme só se o roster no jogo realmente mudou tanto.",
+        "confirmMassFormer": "Confirmar ex-membros em massa",
+        "cancelMassFormer": "Cancelar"
       }
     },
     "nativeAlliance": {
