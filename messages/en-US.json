@@ -2088,6 +2088,10 @@
       "requestsThisSession": "Ashed requests this session",
       "networkStats": "Network",
       "recentActivity": "Recent Ashed activity",
+      "activityLabel": {
+        "roster_sync": "Roster sync",
+        "vs_import": "VS import"
+      },
       "noActivity": "No Ashed activity in this session yet.",
       "errorCount": "{count} errors",
       "clearLog": "Clear log",

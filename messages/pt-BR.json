@@ -2088,6 +2088,10 @@
       "requestsThisSession": "Solicitações Ashed nesta sessão",
       "networkStats": "Rede",
       "recentActivity": "Atividade recente do Ashed",
+      "activityLabel": {
+        "roster_sync": "Sincronização da lista",
+        "vs_import": "Importação VS"
+      },
       "noActivity": "Ainda não há atividade Ashed nesta sessão.",
       "errorCount": "{count} erros",
       "clearLog": "Limpar log",

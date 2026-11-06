@@ -19,7 +19,10 @@ import { addCalendarDays, getWeekStartMonday } from "@/lib/trains/game-time";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 import { resolveVsPerformanceBusyState } from "@/lib/vs-performance/nav-busy.shared";
 import { isVsCalendarDate } from "@/lib/vs-performance/weekly-plan.shared";
-import type { VsWeekPayload } from "@/lib/vs-performance/weekly-view.shared";
+import {
+  applyImportedVsMatchup,
+  type VsWeekPayload,
+} from "@/lib/vs-performance/weekly-view.shared";
 
 type Props = {
   initial: VsWeekPayload;
@@ -226,8 +229,10 @@ export function VsPerformanceClient({
           body: JSON.stringify({ weekStart: payload.weekStart, scope, reason: "auto" }),
         });
         const body = (await res.json()) as VsWeekPayload;
-        if (!active() || revision !== payloadRevision.current || hasDraftRef.current) return;
-        if (!res.ok || body.contextScope !== ctx || body.scope !== scope) {
+        if (!active()) return;
+        const responseOk =
+          res.ok && body.contextScope === ctx && body.scope === scope;
+        if (!responseOk) {
           recordVsMatchupImportTransaction({
             status: "failed",
             lastErrorCode: "vs_import_failed",
@@ -236,9 +241,17 @@ export function VsPerformanceClient({
           return;
         }
         recordVsMatchupImportTransaction({ status: "idle" });
+        const stale =
+          revision !== payloadRevision.current || hasDraftRef.current;
+        if (stale) {
+          setPayload(
+            (current) => applyImportedVsMatchup(current, body) ?? current,
+          );
+          return;
+        }
         handleSaved(body);
       } catch {
-        if (active() && revision === payloadRevision.current) {
+        if (active()) {
           recordVsMatchupImportTransaction({
             status: "failed",
             lastErrorCode: "vs_import_failed",

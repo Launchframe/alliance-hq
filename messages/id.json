@@ -6245,6 +6245,10 @@
       "linkAnotherDevice": "Link another device",
       "networkStats": "Jaringan",
       "recentActivity": "Aktivitas Ashed terbaru",
+      "activityLabel": {
+        "roster_sync": "Sinkronisasi roster",
+        "vs_import": "Impor VS"
+      },
       "noActivity": "Belum ada aktivitas Ashed di sesi ini.",
       "errorCount": "{count} kesalahan",
       "clearLog": "Hapus log",
