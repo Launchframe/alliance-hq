@@ -66,7 +66,7 @@ describe("resolveWheelShareEligibility", () => {
       winProbability: 0.127,
     });
     expect(formatWheelShareEligibilityLine(eligibility, labels, "en-US")).toBe(
-      "Prior-day VS 7.2M pts · 12.7% win chance",
+      "Prior-day VS +30,000 pts · 12.7% win chance",
     );
   });
 

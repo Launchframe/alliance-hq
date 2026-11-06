@@ -1,4 +1,4 @@
-import { formatPriceIsRightVsScore } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 
 export type PriceIsRightLeaderboardEntry = {
@@ -49,8 +49,9 @@ export function buildPriceIsRightVsLeaderboard(
 
 export function formatPriceIsRightLeaderboardEntryLine(
   entry: Pick<PriceIsRightLeaderboardEntry, "rank" | "memberName" | "priorDayVsScore">,
+  locale = "en-US",
 ): string {
-  return `#${entry.rank} ${entry.memberName} — ${formatPriceIsRightVsScore(entry.priorDayVsScore)}`;
+  return `#${entry.rank} ${entry.memberName} — ${formatPriceIsRightVsScoreDelta(entry.priorDayVsScore, locale)}`;
 }
 
 const PODIUM_MEDALS = ["🥇", "🥈", "🥉"] as const;
@@ -60,7 +61,9 @@ export function formatPriceIsRightLeaderboardDiscordMessage(input: {
   trainDate: string;
   entries: PriceIsRightLeaderboardEntry[];
   trainsUrl?: string | null;
+  locale?: string;
 }): string {
+  const locale = input.locale ?? "en-US";
   const podium = input.entries.slice(0, 3);
   if (podium.length === 0) {
     return (
@@ -71,7 +74,7 @@ export function formatPriceIsRightLeaderboardDiscordMessage(input: {
 
   const lines = podium.map((entry, index) => {
     const medal = PODIUM_MEDALS[index] ?? `${entry.rank}.`;
-    return `${medal} **${formatPriceIsRightLeaderboardEntryLine(entry)}**`;
+    return `${medal} **${formatPriceIsRightLeaderboardEntryLine(entry, locale)}**`;
   });
 
   const footer = input.trainsUrl?.trim()

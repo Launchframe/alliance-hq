@@ -35,7 +35,7 @@ export function ScoresReadySpinDialog({ open, onDismiss, onSpin }: Props) {
           <button
             type="button"
             onClick={onSpin}
-            className="rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-hq-selected-fg hover:opacity-90"
+            className="rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
           >
             {t("spin")}
           </button>

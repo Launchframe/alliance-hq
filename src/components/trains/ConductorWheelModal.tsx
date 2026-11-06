@@ -17,6 +17,7 @@ import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-s
 import type { ConductorRule, VipRule } from "@/lib/trains/rules/catalog.shared";
 import { formatEventScore } from "@/lib/hq-events/workspace.shared";
 import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
@@ -105,7 +106,10 @@ function vsScoreColor(score: number): string {
   return "text-hq-fg-muted";
 }
 
-function formatVsScore(score: number): string {
+function formatVsScore(score: number, opts?: { tpifDelta?: boolean; locale?: string }): string {
+  if (opts?.tpifDelta) {
+    return formatPriceIsRightVsScoreDelta(score, opts.locale ?? "en-US");
+  }
   if (score >= 1_000_000) return `${(score / 1_000_000).toFixed(1)}M`;
   if (score >= 1_000) return `${(score / 1_000).toFixed(0)}K`;
   return String(score);
@@ -147,6 +151,8 @@ export function ConductorWheelModal({
 
   const boardKind = scoreBoardKind(rule);
   const scoreSuffix = boardKind === "vr" ? "VR" : "VS";
+  const isTpifWeekday =
+    rule?.kind === "price_is_freight" && rule.board === "weekday";
   const winnerScore = winner
     ? (candidates.find((c) => c.memberId === winner.memberId)
         ?.priorDayVsScore ?? winner.priorDayVsScore)
@@ -270,7 +276,9 @@ export function ConductorWheelModal({
         locale,
         winnerScoreLabel:
           winnerScore != null && winnerScore > 0
-            ? `${formatWheelShareScore(winnerScore, locale)} ${scoreSuffix}`
+            ? isTpifWeekday
+              ? formatPriceIsRightVsScoreDelta(winnerScore, locale)
+              : `${formatWheelShareScore(winnerScore, locale)} ${scoreSuffix}`
             : null,
         leaderboard:
           rankedCandidates.length > 0
@@ -278,6 +286,7 @@ export function ConductorWheelModal({
                 title: scoreBoardTitle,
                 winnerMemberId: winner.memberId,
                 rows: rankedCandidates,
+                scoreFormat: isTpifWeekday ? "tpif_delta" : "compact",
               }
             : null,
       });
@@ -303,6 +312,7 @@ export function ConductorWheelModal({
     locale,
     winnerScore,
     scoreSuffix,
+    isTpifWeekday,
     rankedCandidates,
     scoreBoardTitle,
     t,
@@ -515,7 +525,11 @@ export function ConductorWheelModal({
                     <span
                       className={`mt-0.5 text-sm font-semibold ${vsScoreColor(winnerScore!)}`}
                     >
-                      {formatVsScore(winnerScore!)} {scoreSuffix}
+                      {formatVsScore(winnerScore!, {
+                        tpifDelta: isTpifWeekday,
+                        locale,
+                      })}
+                      {isTpifWeekday ? null : ` ${scoreSuffix}`}
                     </span>
                   ) : null}
                 </div>
@@ -577,7 +591,10 @@ export function ConductorWheelModal({
                       <span
                         className={`shrink-0 text-sm font-semibold ${vsScoreColor(candidate.score)}`}
                       >
-                        {formatVsScore(candidate.score)}
+                        {formatVsScore(candidate.score, {
+                          tpifDelta: isTpifWeekday,
+                          locale,
+                        })}
                       </span>
                     </li>
                   );
