@@ -30,6 +30,19 @@ export function actionBody(attempt: ActionAttempt) {
   };
 }
 
+/** Confirm and waive stay off until Ashed evidence refresh has finished cleanly. */
+export function complianceManagementPaused(input: {
+  loading: boolean;
+  evidenceRefreshing: boolean;
+  evidenceRefresh: ComplianceDashboard["evidenceRefresh"] | null;
+}): boolean {
+  return (
+    input.loading ||
+    input.evidenceRefreshing ||
+    input.evidenceRefresh !== "ready"
+  );
+}
+
 export function syncLabel(status: unknown): "localOnly" | "pending" | "synced" | "credentialsRequired" | "failed" {
   if (status === "local") return "localOnly";
   if (status === "pending" || status === "synced") return status;

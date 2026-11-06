@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionBody, ComplianceClientError, createActionAttempt, isDashboard, isMembershipSettings, isPolicy, isPolicyPreview, readComplianceResponse, RequestVersion, syncLabel, type ComplianceRow } from "./client.shared";
+import { actionBody, ComplianceClientError, complianceManagementPaused, createActionAttempt, isDashboard, isMembershipSettings, isPolicy, isPolicyPreview, readComplianceResponse, RequestVersion, syncLabel, type ComplianceRow } from "./client.shared";
 import { jsx } from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
@@ -28,6 +28,36 @@ describe("compliance client request safety", () => {
     const attempt = createActionAttempt(row, "waive", "  Private reason  ");
     expect(actionBody(attempt)).toMatchObject({ reason: "Private reason", confirmationBasis: row.confirmationBasis });
     expect(attempt.row).not.toHaveProperty("reason");
+  });
+  it("pauses confirm and waive unless evidence refresh is ready", () => {
+    expect(
+      complianceManagementPaused({
+        loading: false,
+        evidenceRefreshing: false,
+        evidenceRefresh: "ready",
+      }),
+    ).toBe(false);
+    expect(
+      complianceManagementPaused({
+        loading: false,
+        evidenceRefreshing: false,
+        evidenceRefresh: "pending",
+      }),
+    ).toBe(true);
+    expect(
+      complianceManagementPaused({
+        loading: false,
+        evidenceRefreshing: false,
+        evidenceRefresh: "failed",
+      }),
+    ).toBe(true);
+    expect(
+      complianceManagementPaused({
+        loading: true,
+        evidenceRefreshing: false,
+        evidenceRefresh: "ready",
+      }),
+    ).toBe(true);
   });
   it("ignores older requests and unmounted loads", () => {
     const requests = new RequestVersion();

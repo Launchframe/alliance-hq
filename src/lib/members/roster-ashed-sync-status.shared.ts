@@ -31,6 +31,22 @@ export function isRosterAshedSyncRunningStale(
   return nowMs - startedAt.getTime() > ROSTER_ASHED_SYNC_STALE_RUNNING_MS;
 }
 
+/**
+ * True only when this claim still owns a live `running` lease.
+ * Completion (`idle` / `failed`) must match this generation so a stale
+ * worker cannot clear a newer owner's status.
+ */
+export function rosterAshedSyncGenerationStillOwns(input: {
+  status: string | null | undefined;
+  startedAt: Date | null | undefined;
+  generationStartedAt: Date;
+}): boolean {
+  if (input.status !== "running" || !input.startedAt) {
+    return false;
+  }
+  return input.startedAt.getTime() === input.generationStartedAt.getTime();
+}
+
 export function serializeAshedRosterSyncState(input: {
   status: string | null | undefined;
   startedAt: Date | null | undefined;

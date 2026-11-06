@@ -50,6 +50,11 @@ vi.mock("@/lib/member-link/inherit-hq-to-discord.server", () => ({
   inheritHqMemberLinkToDiscordIfLinked: vi.fn(),
 }));
 
+vi.mock("@/lib/member-link/game-uid-global-claim.server", () => ({
+  isGameUidClaimedByOtherPrincipal: vi.fn().mockResolvedValue(false),
+  withGameUidClaimLock: async <T>(_uid: string, run: () => Promise<T>) => run(),
+}));
+
 vi.mock("@/lib/native-alliance/claim-seat-reservation.server", () => ({
   isCommanderReservedByPendingClaim: vi.fn().mockResolvedValue(false),
 }));
