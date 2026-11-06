@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Database, Trash2 } from "lucide-react";
@@ -68,6 +68,7 @@ export function DataManagementClient({
   const [scores, setScores] = useState<DateScoreRow[]>([]);
   const [scoresLoading, setScoresLoading] = useState(false);
   const [scoresError, setScoresError] = useState<string | null>(null);
+  const datesRequest = useRef(0);
 
   const selected = useMemo(
     () => dates.find((date) => date.recordedDate === selectedDate) ?? null,
@@ -86,6 +87,8 @@ export function DataManagementClient({
       options?: { blankList?: boolean },
     ) => {
       const blankList = options?.blankList ?? true;
+      const requestId = ++datesRequest.current;
+      const stillCurrent = () => datesRequest.current === requestId;
       if (blankList) {
         setLoading(true);
       } else {
@@ -101,6 +104,10 @@ export function DataManagementClient({
           dates?: DataDateSummary[];
           error?: string;
         };
+        if (!stillCurrent()) {
+          recordDataManagementDatesTransaction({ status: "cancelled" });
+          return;
+        }
         if (!res.ok) {
           throw new Error(data.error ?? t("loadFailed"));
         }
@@ -116,12 +123,17 @@ export function DataManagementClient({
         });
         recordDataManagementDatesTransaction({ status: "idle" });
       } catch (err) {
+        if (!stillCurrent()) {
+          recordDataManagementDatesTransaction({ status: "cancelled" });
+          return;
+        }
         recordDataManagementDatesTransaction({
           status: "failed",
           lastErrorCode: "dm_dates_failed",
         });
         setError(err instanceof Error ? err.message : t("loadFailed"));
       } finally {
+        if (!stillCurrent()) return;
         if (blankList) {
           setLoading(false);
         } else {
@@ -135,7 +147,9 @@ export function DataManagementClient({
   // Enrich SSR ledger-only dates with Ashed without blanking the list.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void refreshDates(scoreTarget, selectedDate, { blankList: false });
+      void refreshDates(scoreTarget, queryDate || selectedDate, {
+        blankList: false,
+      });
     }, 0);
     return () => window.clearTimeout(timer);
     // Intentionally once on mount for the initial score target.

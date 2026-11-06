@@ -117,15 +117,18 @@ describe("ashed-network-log.shared", () => {
     recordDataManagementScoresTransaction({ status: "failed", lastErrorCode: "dm_scores_failed" });
     recordTrainsRosterSyncTransaction({ status: "running" });
     recordSettingsTeamRosterSyncTransaction({ status: "idle" });
+    recordDataManagementDatesTransaction({ status: "cancelled" });
 
     const entries = loadAshedNetworkLog();
     expect(entries.map((entry) => entry.labelKey)).toEqual([
+      "dm_dates",
       "settings_team_roster_sync",
       "trains_roster_sync",
       "dm_scores",
       "dm_dates",
     ]);
-    expect(entries[2]?.outcome).toBe("error");
-    expect(entries[2]?.code).toBe("dm_scores_failed");
+    expect(entries[0]?.outcome).toBe("cancelled");
+    expect(entries[3]?.outcome).toBe("error");
+    expect(entries[3]?.code).toBe("dm_scores_failed");
   });
 });

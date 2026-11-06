@@ -75,13 +75,18 @@ export function SettingsTeamClient({
       };
       onTeamChange(data.team);
       if (data.rosterSynced === false) {
+        recordSettingsTeamRosterSyncTransaction({
+          status: "failed",
+          lastErrorCode: "settings_team_roster_sync_skipped",
+        });
         setWarning(t("rosterSyncSkipped"));
+      } else {
+        recordSettingsTeamRosterSyncTransaction({ status: "idle" });
       }
       const reloaded = await onRolesChanged?.();
       if (reloaded === false) {
         setError(t("roleNudges.loadFailed"));
       }
-      recordSettingsTeamRosterSyncTransaction({ status: "idle" });
     } catch {
       recordSettingsTeamRosterSyncTransaction({
         status: "failed",

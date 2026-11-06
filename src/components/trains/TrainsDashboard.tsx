@@ -1105,8 +1105,6 @@ export function TrainsDashboard({
         setError(message);
         return;
       }
-      recordTrainsRosterSyncTransaction({ status: "idle" });
-
       const syncSnapshot =
         body.rosterDataStatus != null && body.activeMemberCount != null
           ? {
@@ -1132,12 +1130,18 @@ export function TrainsDashboard({
           : "";
 
       if (body.synced === 0 && (body.activeMemberCount ?? 0) === 0) {
+        recordTrainsRosterSyncTransaction({
+          status: "failed",
+          lastErrorCode: "trains_roster_sync_failed",
+        });
         const message = t("guidedFlow.steps.roster.syncFailed");
         setRosterSyncNoticeTone("error");
         setRosterSyncNotice(message);
         setError(message);
         return;
       }
+
+      recordTrainsRosterSyncTransaction({ status: "idle" });
 
       if (status?.ready) {
         setRosterSyncNotice(

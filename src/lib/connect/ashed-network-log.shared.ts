@@ -200,12 +200,22 @@ export function formatAshedNetworkLogForBugReport(
 }
 
 function recordLabeledAshedSyncTransaction(input: {
-  status: "running" | "idle" | "failed";
+  status: "running" | "idle" | "failed" | "cancelled";
   path: string;
   method: string;
   labelKey: string;
   lastErrorCode?: string | null;
 }): void {
+  if (input.status === "cancelled") {
+    recordAshedClientTransaction({
+      kind: "ashed_sync",
+      path: input.path,
+      method: input.method,
+      outcome: "cancelled",
+      labelKey: input.labelKey,
+    });
+    return;
+  }
   if (input.status === "idle") {
     recordAshedClientTransaction({
       kind: "ashed_sync",
@@ -280,7 +290,7 @@ export function recordVsComplianceRefreshTransaction(input: {
 
 /** Record Data Management date-list enrichment (Ashed scores → dates). */
 export function recordDataManagementDatesTransaction(input: {
-  status: "running" | "idle" | "failed";
+  status: "running" | "idle" | "failed" | "cancelled";
   lastErrorCode?: string | null;
 }): void {
   recordLabeledAshedSyncTransaction({
