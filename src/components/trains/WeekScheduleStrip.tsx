@@ -79,9 +79,19 @@ type Props = {
   canPaintDays?: boolean;
   /** Per-date gate (today/future for officers; admins may paint past). */
   isDatePaintable?: (date: string) => boolean;
-  onPaintDate?: (date: string, rule: ConductorRule | null) => void;
+  onPaintDate?: (
+    date: string,
+    patch: { conductorRule: ConductorRule | null; vipRule: VipRule | null },
+  ) => void;
   /** Event results menu entries open the shared event rule picker. */
-  onConfigureEvent?: (date: string) => void;
+  onConfigureEvent?: (
+    date: string,
+    options?: {
+      role?: "conductor" | "vip";
+      pendingConductorRule?: ConductorRule | null;
+      paintBoth?: boolean;
+    },
+  ) => void;
   vrReporterCount?: number;
   navLabels: {
     previousWeek: string;
@@ -701,9 +711,12 @@ export function WeekScheduleStrip({
   }, []);
 
   const handlePaintTemplate = useCallback(
-    (selection: { rule: ConductorRule | null }) => {
+    (selection: {
+      conductorRule: ConductorRule | null;
+      vipRule: VipRule | null;
+    }) => {
       if (!templateMenuAnchor || !onPaintDate) return;
-      onPaintDate(templateMenuAnchor.date, selection.rule);
+      onPaintDate(templateMenuAnchor.date, selection);
     },
     [onPaintDate, templateMenuAnchor],
   );
@@ -940,6 +953,7 @@ export function WeekScheduleStrip({
         open={templateMenuAnchor != null}
         anchor={templateMenuAnchor}
         currentRule={menuDayConfig?.conductorRule ?? null}
+        currentVipRule={menuDayConfig?.vipRule ?? null}
         ruleLabels={ruleLabels ?? ({} as Record<DayRulePaletteId, string>)}
         vrReporterCount={vrReporterCount}
         onSelect={handlePaintTemplate}

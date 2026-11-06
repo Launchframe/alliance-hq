@@ -20,6 +20,7 @@ import { buildMonthGrid } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import { expandPaintRange } from "@/lib/trains/paint-range.shared";
 import {
+  conductorRuleIdentity,
   conductorRuleLabelKey,
   vipRuleLabelKey,
   type ConductorRule,
@@ -35,7 +36,10 @@ import {
   isProvisionalDayConfig,
   provisionalDayConfigClass,
 } from "@/lib/trains/week-schedule-day-configs.shared";
-import { TrainMonthToolbar } from "@/components/trains/TrainMonthToolbar";
+import {
+  TrainMonthToolbar,
+  type MonthPaintBrush,
+} from "@/components/trains/TrainMonthToolbar";
 import { TrainEligibilityOverrideMark } from "@/components/trains/TrainEligibilityOverrideMark";
 
 type Props = {
@@ -72,7 +76,7 @@ type Props = {
   onPaintDates?: (
     dates: string[],
     rule: ConductorRule | null,
-  ) => void;
+  ) => void | Promise<boolean | void>;
   monthToolbar?: {
     today: string;
     canUnlock: boolean;
@@ -150,16 +154,17 @@ export function TrainMonthCalendar({
     anchor: string;
     focus: string;
   } | null>(null);
+  const [brush, setBrush] = useState<MonthPaintBrush | null>(null);
+  const [drafts, setDrafts] = useState<Map<string, ConductorRule | null>>(
+    () => new Map(),
+  );
+  const brushRef = useRef<MonthPaintBrush | null>(null);
   const rangeAnchorRef = useRef<string | null>(null);
   const selectionDragActiveRef = useRef(false);
   const selectedRangeRef = useRef<{ anchor: string; focus: string } | null>(
     null,
   );
   const gridRef = useRef<HTMLDivElement>(null);
-  const onPaintDatesRef = useRef(onPaintDates);
-  useEffect(() => {
-    onPaintDatesRef.current = onPaintDates;
-  }, [onPaintDates]);
 
   useEffect(() => {
     selectedRangeRef.current = selectedRange;
@@ -276,6 +281,18 @@ export function TrainMonthCalendar({
     setSelectedRange(next);
   }, []);
 
+  const stampDraft = useCallback(
+    (dates: string[], rule: ConductorRule | null) => {
+      if (dates.length === 0) return;
+      setDrafts((prev) => {
+        const next = new Map(prev);
+        for (const date of dates) next.set(date, rule);
+        return next;
+      });
+    },
+    [],
+  );
+
   const commitSelectionRange = useCallback(
     (anchor: string, focus: string, shiftKey: boolean) => {
       const rangeAnchor = rangeAnchorRef.current ?? selectedDate;
@@ -287,9 +304,48 @@ export function TrainMonthCalendar({
       setSelectedRange(next);
       rangeAnchorRef.current = focus;
       onSelectDate(focus);
+      const armed = brushRef.current;
+      if (armed) {
+        stampDraft(expandPaintRange(next.anchor, next.focus), armed.rule);
+      }
     },
-    [onSelectDate, selectedDate],
+    [onSelectDate, selectedDate, stampDraft],
   );
+
+  const handleBrushChange = useCallback(
+    (next: MonthPaintBrush | null) => {
+      brushRef.current = next;
+      setBrush(next);
+      if (!next || !selectedRangeRef.current) return;
+      const { anchor, focus } = selectedRangeRef.current;
+      stampDraft(expandPaintRange(anchor, focus), next.rule);
+    },
+    [stampDraft],
+  );
+
+  const discardDrafts = useCallback(() => {
+    setDrafts(new Map());
+  }, []);
+
+  const saveDrafts = useCallback(async () => {
+    if (drafts.size === 0 || !onPaintDates) return;
+    const groups = new Map<
+      string,
+      { rule: ConductorRule | null; dates: string[] }
+    >();
+    for (const [date, rule] of drafts) {
+      const key = conductorRuleIdentity(rule);
+      const group = groups.get(key) ?? { rule, dates: [] };
+      group.dates.push(date);
+      groups.set(key, group);
+    }
+    let failed = false;
+    for (const group of groups.values()) {
+      const result = await onPaintDates(group.dates, group.rule);
+      if (result === false) failed = true;
+    }
+    if (!failed) setDrafts(new Map());
+  }, [drafts, onPaintDates]);
 
   const handleSelectionPointerDown = useCallback(
     (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -420,9 +476,13 @@ export function TrainMonthCalendar({
           ruleLabels={ruleLabels}
           vrReporterCount={vrReporterCount}
           busy={monthToolbar.busy}
-          onPaint={(dates, rule) => {
-            onPaintDates?.(dates, rule);
+          brush={brush}
+          onBrushChange={handleBrushChange}
+          draftCount={drafts.size}
+          onSaveDraft={() => {
+            void saveDrafts();
           }}
+          onDiscardDraft={discardDrafts}
           onConfigureEvent={(date) => monthToolbar.onConfigureEvent?.(date)}
           onSpinSelected={() =>
             monthToolbar.onSpinSelected(selectedDatesList)
@@ -475,26 +535,34 @@ export function TrainMonthCalendar({
         >
           {grid.map(({ date, inMonth }) => {
             const day = configForDate(dayConfigs, date);
+            const hasDraft = drafts.has(date);
+            const conductorRule = hasDraft
+              ? (drafts.get(date) ?? null)
+              : (day?.conductorRule ?? null);
             const record = recordForDate(monthRecords, date);
             const isSelected = date === selectedDate;
             const isToday = date === today;
             const locked = Boolean(record?.lockedAt);
-            const style = ruleCellStyleClass(day?.conductorRule ?? null);
+            const style = ruleCellStyleClass(conductorRule);
             const conductorName = record?.conductorMemberName;
             const vipName = record?.vipMemberName;
             const dayNumber = date.slice(8);
-            const scope = day ? scopeForRule(day.conductorRule) : null;
-            const mechLabel = day
-              ? day.conductorRule?.kind === "event_scores" ||
-                day.conductorRule?.kind === "event_top_x"
-                ? (eventRuleSummary?.(day.conductorRule, day.sourceTemplateId) ??
-                  ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
-                  paletteIdForRule(day.conductorRule))
-                : `${
-                    ruleTextLabels[conductorRuleLabelKey(day.conductorRule)] ??
-                    paletteIdForRule(day.conductorRule)
-                  }${scope != null ? ` ${scope}` : ""}`
-              : null;
+            const scope = scopeForRule(conductorRule);
+            const mechLabel =
+              hasDraft || day
+                ? conductorRule?.kind === "event_scores" ||
+                  conductorRule?.kind === "event_top_x"
+                  ? (eventRuleSummary?.(
+                      conductorRule,
+                      day?.sourceTemplateId,
+                    ) ??
+                    ruleTextLabels[conductorRuleLabelKey(conductorRule)] ??
+                    paletteIdForRule(conductorRule))
+                  : `${
+                      ruleTextLabels[conductorRuleLabelKey(conductorRule)] ??
+                      paletteIdForRule(conductorRule)
+                    }${scope != null ? ` ${scope}` : ""}`
+                : null;
             const vipLabel =
               day && day.vipRule?.kind !== "none"
                 ? ((day.vipRule?.kind === "event_scores" ||
@@ -515,7 +583,8 @@ export function TrainMonthCalendar({
               ? "ring-1 ring-hq-accent/60 ring-offset-1 ring-offset-hq-canvas"
               : "";
 
-            const isProvisional = day ? isProvisionalDayConfig(day.id) : false;
+            const isProvisional =
+              hasDraft || (day ? isProvisionalDayConfig(day.id) : false);
             const cellClass = `relative flex min-h-[4.75rem] min-w-0 flex-col rounded-lg border-2 p-1 text-left ${style} ${selectionClass} ${todayRingClass} ${provisionalDayConfigClass(isProvisional)} ${
               inMonth ? "opacity-100" : "pointer-events-none opacity-25"
             }`;
@@ -621,7 +690,7 @@ export function TrainMonthCalendar({
         </div>
       </div>
 
-      {hasProvisionalDays && navLabels.previewLegend ? (
+      {(hasProvisionalDays || drafts.size > 0) && navLabels.previewLegend ? (
         <p className="text-[11px] leading-relaxed text-hq-fg-subtle">
           {navLabels.previewLegend}
         </p>

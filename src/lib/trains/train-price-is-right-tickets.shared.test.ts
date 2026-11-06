@@ -8,6 +8,8 @@ import {
   buildPriceIsRightTicketBoard,
   computeMemberTicketCount,
   computeWinProbabilities,
+  formatPriceIsRightVsScore,
+  formatPriceIsRightVsScoreDelta,
   resolveChartMaxScore,
   resolveCliffPoints,
   samplePriceIsRightTicketCurve,
@@ -198,5 +200,18 @@ describe("train-price-is-right-tickets.shared", () => {
     expect(
       samplePriceIsRightUniformCurve({ thresholdPoints: null, fudgePct: 1 }),
     ).toEqual([]);
+  });
+
+  it("formats absolute VS scores compactly for chart axes", () => {
+    expect(formatPriceIsRightVsScore(7_200_000)).toBe("7.2M");
+    expect(formatPriceIsRightVsScore(7_250_000)).toBe("7.3M");
+  });
+
+  it("formats VS Save Days scores as delta from 7.2M", () => {
+    expect(formatPriceIsRightVsScoreDelta(7_200_105, "en-US")).toBe("+105");
+    expect(formatPriceIsRightVsScoreDelta(7_200_000, "en-US")).toBe("+0");
+    expect(formatPriceIsRightVsScoreDelta(7_250_000, "en-US")).toBe("+50,000");
+    expect(formatPriceIsRightVsScoreDelta(7_187_550, "en-US")).toBe("-12,450");
+    expect(formatPriceIsRightVsScoreDelta(7_250_000, "pt-BR")).toBe("+50.000");
   });
 });

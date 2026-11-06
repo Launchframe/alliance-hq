@@ -4,6 +4,7 @@ import {
   formatTrainPointCount,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import type { ScoreLeaderboardEntry } from "@/lib/trains/score-leaderboard-podium.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -14,6 +15,8 @@ export type ScoreLeaderboardShareImageInput = {
   entries: ScoreLeaderboardEntry[];
   /** Locale for score formatting. */
   locale?: string;
+  /** VS Save Days boards show delta from 7.2M instead of absolute points. */
+  scoreFormat?: "absolute" | "tpif_delta";
 };
 
 function truncateName(ctx: CanvasRenderingContext2D, name: string, maxWidth: number) {
@@ -37,6 +40,10 @@ export function renderScoreLeaderboardShareCanvas(
   }
 
   const locale = input.locale ?? "en-US";
+  const formatScore = (score: number) =>
+    input.scoreFormat === "tpif_delta"
+      ? formatPriceIsRightVsScoreDelta(score, locale)
+      : formatTrainPointCount(score, locale);
   const entries = input.entries.slice(0, 10);
 
   const gradient = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
@@ -95,7 +102,7 @@ export function renderScoreLeaderboardShareCanvas(
       ctx.fillStyle = "#79c0ff";
       ctx.font = "600 24px system-ui, -apple-system, Segoe UI, sans-serif";
       ctx.fillText(
-        formatTrainPointCount(entry.score, locale),
+        formatScore(entry.score),
         left + slotWidth / 2,
         barTop - 6,
       );
@@ -145,7 +152,7 @@ export function renderScoreLeaderboardShareCanvas(
       ctx.fillStyle = "#79c0ff";
       ctx.font = "700 28px system-ui, -apple-system, Segoe UI, sans-serif";
       ctx.fillText(
-        formatTrainPointCount(entry.score, locale),
+        formatScore(entry.score),
         listLeft + listWidth - 28,
         y + 8,
       );

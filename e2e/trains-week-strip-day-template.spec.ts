@@ -234,6 +234,22 @@ async function selectDayRule(page: Page, paletteId: string) {
   });
 }
 
+/** Finish the long-press VIP step with Free choice (Cancel). */
+async function finishVipStepFreeChoice(page: Page) {
+  const menu = page.getByTestId("trains-day-template-menu");
+  await expect(menu).toHaveAttribute("data-step", "vip");
+  await page.getByTestId("trains-day-vip-cancel-free-choice").click();
+  await expect(menu).toHaveCount(0);
+}
+
+/** Finish the long-press VIP step by picking a concrete VIP rule. */
+async function finishVipStepWithRule(page: Page, vipIdentity: string) {
+  const menu = page.getByTestId("trains-day-template-menu");
+  await expect(menu).toHaveAttribute("data-step", "vip");
+  await page.getByTestId(`trains-day-vip-${vipIdentity}`).click();
+  await expect(menu).toHaveCount(0);
+}
+
 type WeekDayConfigPayload = {
   dayConfigs: Array<{
     date: string;
@@ -349,7 +365,7 @@ test.describe("Week strip day template menu", () => {
 
     await openDayTemplateMenu(page, paintDate);
     await selectDayRule(page, "r3_lottery");
-    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+    await finishVipStepFreeChoice(page);
 
     await expect
       .poll(async () =>
@@ -392,7 +408,7 @@ test.describe("Week strip day template menu", () => {
 
     await openDayTemplateMenu(page, paintDate);
     await selectDayRule(page, "r4_rotation");
-    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+    await finishVipStepFreeChoice(page);
 
     await expect
       .poll(async () =>
@@ -427,7 +443,7 @@ test.describe("Week strip day template menu", () => {
     await selectDayRule(page, "vs_top_n");
     await expect(page.getByTestId("trains-topn-scope-picker")).toBeVisible();
     await page.getByTestId("trains-topn-scope-vs-5").click();
-    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+    await finishVipStepFreeChoice(page);
 
     // The scope is part of the painted rule — Top VS can never land without one.
     await expect
@@ -437,7 +453,7 @@ test.describe("Week strip day template menu", () => {
       .toBe("vs_top_n:5");
   });
 
-  test("conductor-only paint preserves the day's event VIP", async ({
+  test("long-press VIP cancel paints Free choice VIP", async ({
     page,
     request,
   }) => {
@@ -451,7 +467,7 @@ test.describe("Week strip day template menu", () => {
       },
       data: {
         dates: [paintDate],
-        vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+        vipRule: { kind: "donations_second" },
       },
     });
     expect(seedVip.ok(), await seedVip.text()).toBeTruthy();
@@ -462,7 +478,7 @@ test.describe("Week strip day template menu", () => {
 
     await openDayTemplateMenu(page, paintDate);
     await selectDayRule(page, "r3_lottery");
-    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+    await finishVipStepFreeChoice(page);
 
     await expect
       .poll(async () =>
@@ -476,7 +492,38 @@ test.describe("Week strip day template menu", () => {
       )
       .toEqual({
         conductor: "rank_pool:r3:wheel",
-        vip: "event_top_x:capitol_war:10",
+        vip: "free_choice",
+      });
+  });
+
+  test("long-press advances to VIP and can paint both rules", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    const paintDate = pickPaintDateInWeek(fixture);
+
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+
+    await openDayTemplateMenu(page, paintDate);
+    await selectDayRule(page, "r3_lottery");
+    await finishVipStepWithRule(page, "donations_second");
+
+    await expect
+      .poll(async () =>
+        (
+          await readWeekDayConfigs(
+            request,
+            fixture.cookieHeader,
+            fixture.weekStart,
+          )
+        ).get(paintDate),
+      )
+      .toEqual({
+        conductor: "rank_pool:r3:wheel",
+        vip: "donations_second",
       });
   });
 
@@ -631,6 +678,7 @@ test.describe("Week strip day template menu", () => {
 
     await openDayTemplateMenu(page, pastDate);
     await selectDayRule(page, "r3_lottery");
+    await finishVipStepFreeChoice(page);
     await expect(page.getByRole("dialog", { name: /paint past train days/i })).toBeVisible();
     await page.getByTestId("trains-past-paint-confirm").click();
     await expect(page.getByRole("dialog", { name: /paint past train days/i })).toHaveCount(0);
@@ -638,6 +686,50 @@ test.describe("Week strip day template menu", () => {
     await expect
       .poll(async () =>
         readDayRule(request, fixture.cookieHeader, fixture.weekStart, pastDate),
+      )
+      .toBe("rank_pool:r3:wheel");
+  });
+
+  test("month view drafts a palette paint until save", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    const paintDate = pickPaintDateInWeek(fixture);
+    const before = await readDayRule(
+      request,
+      fixture.cookieHeader,
+      fixture.weekStart,
+      paintDate,
+    );
+
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+    await page.getByRole("tab", { name: /^month$/i }).click();
+    await expect(page.getByTestId("trains-month-toolbar")).toBeVisible();
+
+    await page.getByTestId("trains-month-toolbar-palette").click();
+    await page.getByTestId("trains-month-paint-r3_lottery").click();
+    await page
+      .locator(`#hq-app-shell button[data-paint-date="${paintDate}"]`)
+      .first()
+      .click();
+
+    await expect(page.getByTestId("trains-month-toolbar-save")).toBeVisible();
+    expect(
+      await readDayRule(
+        request,
+        fixture.cookieHeader,
+        fixture.weekStart,
+        paintDate,
+      ),
+    ).toBe(before);
+
+    await page.getByTestId("trains-month-toolbar-save").click();
+    await expect
+      .poll(async () =>
+        readDayRule(request, fixture.cookieHeader, fixture.weekStart, paintDate),
       )
       .toBe("rank_pool:r3:wheel");
   });
