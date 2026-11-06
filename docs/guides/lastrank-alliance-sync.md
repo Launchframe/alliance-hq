@@ -9,7 +9,9 @@ Kills are **not** on the alliance page (only in the meta total). Skip kills unti
 
 ## Registry
 
-Maintainer-curated mappings live in `src/lib/lastrank/sync-registry.shared.ts` (`LASTRANK_SYNC_REGISTRY`). Each entry is `[serverNumber] tag: lastrankAllianceId` — **tag may change; server number is stable**.
+Maintainer-curated mappings live in `src/lib/lastrank/sync-registry.shared.ts` (`LASTRANK_SYNC_REGISTRY`). Each entry is `[serverNumber] tag: lastrankAllianceId` — **the LastRank id is the stable pin; tag is mutable display metadata; server number is stable**.
+
+HQ alliances may store `alliances.lastrank_alliance_id`. Sync resolves the HQ tenant **by that pin first**, then falls back to exact server+tag. After an in-game rebrand, update the registry tag for the same id and rename the HQ row (Admin → Alliances → Rename in place) so Discord/tag UX matches; do not create a second HQ alliance for the same LastRank id.
 
 The registry does **not** gate the maintainer CLI. It controls only:
 
@@ -24,7 +26,7 @@ The CLI uses the registry only as a shortcut: for a registered alliance, `--serv
 | --- | --- | --- | --- |
 | 1203 | LFgo | `e7d1eaefdcfc42c8ac6c84247d2dad9b` | yes |
 | 1203 | BigD | `605b91e26dcc4e33b82d114b1846900c` | |
-| 1211 | Roar | `b1cf340c642947579ccbb753e7410c37` | |
+| 1211 | FUze | `b1cf340c642947579ccbb753e7410c37` | |
 | 1203 | B1GG | `3eb55e69381b459db332262f187a7d9a` | |
 | 1203 | MOT0 | `4dfb6edfc33e4b2a935d0dbb70a42fe5` | |
 | 1203 | OMFG | `56467f87fc80423ba5faefd2c99f2976` | |
@@ -36,7 +38,7 @@ The CLI uses the registry only as a shortcut: for a registered alliance, `--serv
 | 1211 | bOoM | `9b495998c41d42a4a2fc38971e9c4b35` | |
 | 1211 | bOND | `806be0616a5544888e42e7a95b3fc16b` | |
 | 1211 | TFw | `81883dfc87b0490384cd0a24decd96cc` | |
-| 1211 | CuT3 | `dc5ce8fef23c408f9de64c6ea0eb96e3` | |
+| 1211 | RIs3 | `dc5ce8fef23c408f9de64c6ea0eb96e3` | |
 | 1211 | KiLR | `703295dbb69d490887627fcf2d6c2918` | |
 | 1211 | RIsE | `c8e8098e9d0b49f49a6f57cb11b49315` | |
 | 1211 | 99BR | `3d74df8221cc464ea912d28fe6ddf358` | |

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isRosterAshedSyncRunningStale,
   ROSTER_ASHED_SYNC_STALE_RUNNING_MS,
+  rosterAshedSyncGenerationStillOwns,
   serializeAshedRosterSyncState,
 } from "@/lib/members/roster-ashed-sync-status.shared";
 
@@ -42,5 +43,37 @@ describe("roster-ashed-sync-status.shared", () => {
         lastErrorCode: "x",
       }).status,
     ).toBe("idle");
+  });
+
+  it("treats only the same running generation as the owner", () => {
+    const generation = new Date("2026-07-07T12:00:00.000Z");
+    expect(
+      rosterAshedSyncGenerationStillOwns({
+        status: "running",
+        startedAt: generation,
+        generationStartedAt: generation,
+      }),
+    ).toBe(true);
+    expect(
+      rosterAshedSyncGenerationStillOwns({
+        status: "running",
+        startedAt: new Date("2026-07-07T12:00:00.001Z"),
+        generationStartedAt: generation,
+      }),
+    ).toBe(false);
+    expect(
+      rosterAshedSyncGenerationStillOwns({
+        status: "idle",
+        startedAt: generation,
+        generationStartedAt: generation,
+      }),
+    ).toBe(false);
+    expect(
+      rosterAshedSyncGenerationStillOwns({
+        status: "running",
+        startedAt: null,
+        generationStartedAt: generation,
+      }),
+    ).toBe(false);
   });
 });

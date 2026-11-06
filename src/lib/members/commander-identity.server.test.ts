@@ -510,6 +510,8 @@ describe("commander-identity.server", () => {
       [],
       [bobMember],
       [],
+      // Applied home after upsert (audit compares prior vs stored home).
+      [{ gameServerNumber: 100 }],
       [bobMember],
       [],
     );

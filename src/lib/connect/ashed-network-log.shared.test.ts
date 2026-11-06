@@ -5,6 +5,7 @@ import {
   formatAshedNetworkLogForBugReport,
   loadAshedNetworkLog,
   recordAshedClientTransaction,
+  recordAshedObservedRequest,
   recordRosterAshedSyncTransaction,
   recordVsMatchupImportTransaction,
   sanitizeAshedNetworkPath,
@@ -81,6 +82,65 @@ describe("ashed-network-log.shared", () => {
     const text = formatAshedNetworkLogForBugReport();
     expect(text).toContain("/api/members");
     expect(text).not.toContain("secret=nope");
+  });
+
+  it("keeps the newest lines when the bug-report attachment is truncated", () => {
+    recordAshedClientTransaction({
+      kind: "hq_api",
+      path: "/api/old",
+      outcome: "ok",
+      at: "2026-01-01T00:00:00.000Z",
+    });
+    recordAshedClientTransaction({
+      kind: "hq_api",
+      path: "/api/new",
+      outcome: "error",
+      status: 500,
+      at: "2026-01-02T00:00:00.000Z",
+    });
+    const text = formatAshedNetworkLogForBugReport(loadAshedNetworkLog(), 180);
+    expect(text).toContain("/api/new");
+    expect(text).toContain("…(truncated)");
+    expect(text).not.toContain("/api/old");
+  });
+
+  it("records observed request status and duration without throwing on quota", () => {
+    const ok = recordAshedObservedRequest({
+      url: "/api/members?token=secret",
+      durationMs: 42.2,
+      responseStatus: 200,
+    });
+    const failed = recordAshedObservedRequest({
+      url: "/api/discord/setup/ashed",
+      durationMs: 10,
+      responseStatus: 503,
+    });
+    expect(ok).toMatchObject({
+      kind: "hq_api",
+      path: "/api/members",
+      outcome: "ok",
+      status: 200,
+      durationMs: 42,
+    });
+    expect(failed).toMatchObject({
+      kind: "ashed_op",
+      path: "/api/discord/setup/ashed",
+      outcome: "error",
+      status: 503,
+      code: "503",
+    });
+
+    const storage = window.localStorage;
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    expect(() =>
+      recordAshedObservedRequest({
+        url: "/api/members",
+        durationMs: 1,
+        responseStatus: 200,
+      }),
+    ).not.toThrow();
   });
 
   it("records roster sync status transitions", () => {

@@ -1,3 +1,5 @@
+import { clearAshedNetworkLog } from "@/lib/connect/ashed-network-log.shared";
+
 export type AshedConnectionSessionStats = {
   /** ISO timestamp when the current browser session connected (or resumed). */
   connectedAt: string;
@@ -69,6 +71,8 @@ export function startAshedConnectionSession(
     requestCount: 0,
   };
   writeStats(stats, { notify: true });
+  // A new connection session must not keep the previous account's activity.
+  clearAshedNetworkLog();
   return stats;
 }
 
@@ -110,7 +114,12 @@ export function clearAshedConnectionSessionStats(): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.removeItem(STATS_KEY);
+  try {
+    window.localStorage.removeItem(STATS_KEY);
+  } catch {
+    // Storage failures should not block disconnect.
+  }
+  clearAshedNetworkLog();
   emit();
 }
 

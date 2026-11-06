@@ -114,7 +114,7 @@ export async function syncAllianceRosterForSession(input: {
     });
     synced = result.synced;
 
-    if (synced === 0) {
+    if (!result.skippedBecauseRunning && synced === 0) {
       const botResult = await syncViaAllianceBotCredentials(input.allianceId);
       if (botResult) {
         synced = botResult.synced;

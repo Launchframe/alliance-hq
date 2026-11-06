@@ -8,6 +8,7 @@ import {
   isRosterAshedSyncRunningStale,
   ROSTER_ASHED_SYNC_IN_PROGRESS_CODE,
   ROSTER_ASHED_SYNC_STALE_RUNNING_MS,
+  rosterAshedSyncGenerationStillOwns,
   serializeAshedRosterSyncState,
   type AshedRosterSyncStatePayload,
 } from "@/lib/members/roster-ashed-sync-status.shared";
@@ -44,14 +45,19 @@ export async function getAllianceRosterAshedSyncState(
   return serializeAshedRosterSyncState(row);
 }
 
+export type RosterAshedSyncClaim = {
+  /** Generation fence. Completion updates must match this timestamp. */
+  startedAt: Date;
+};
+
 /**
  * CAS idle|failed (or stale running) → running.
- * Returns true when this caller claimed the sync slot.
+ * Returns the generation when this caller claimed the sync slot.
  */
 export async function tryBeginAllianceRosterAshedSync(
   allianceId: string,
   now = new Date(),
-): Promise<boolean> {
+): Promise<RosterAshedSyncClaim | null> {
   const db = getDb();
   const staleBefore = new Date(now.getTime() - ROSTER_ASHED_SYNC_STALE_RUNNING_MS);
 
@@ -74,17 +80,43 @@ export async function tryBeginAllianceRosterAshedSync(
         ),
       ),
     )
-    .returning({ id: schema.alliances.id });
+    .returning({
+      startedAt: schema.alliances.rosterAshedSyncStartedAt,
+    });
 
-  return updated.length > 0;
+  const startedAt = updated[0]?.startedAt;
+  if (!startedAt) return null;
+  return { startedAt };
 }
 
+export async function allianceRosterAshedSyncOwnedBy(
+  allianceId: string,
+  generationStartedAt: Date,
+): Promise<boolean> {
+  const state = await getAllianceRosterAshedSyncState(allianceId);
+  return rosterAshedSyncGenerationStillOwns({
+    status: state.status,
+    startedAt: state.startedAt ? new Date(state.startedAt) : null,
+    generationStartedAt,
+  });
+}
+
+function generationFence(allianceId: string, generationStartedAt: Date) {
+  return and(
+    eq(schema.alliances.id, allianceId),
+    eq(schema.alliances.rosterAshedSyncStatus, "running"),
+    eq(schema.alliances.rosterAshedSyncStartedAt, generationStartedAt),
+  );
+}
+
+/** Idle only if this generation still owns `running`. */
 export async function markAllianceRosterAshedSyncIdle(
   allianceId: string,
+  generationStartedAt: Date,
   now = new Date(),
-): Promise<void> {
+): Promise<boolean> {
   const db = getDb();
-  await db
+  const updated = await db
     .update(schema.alliances)
     .set({
       rosterAshedSyncStatus: "idle",
@@ -92,16 +124,20 @@ export async function markAllianceRosterAshedSyncIdle(
       rosterAshedSyncLastErrorCode: null,
       updatedAt: now,
     })
-    .where(eq(schema.alliances.id, allianceId));
+    .where(generationFence(allianceId, generationStartedAt))
+    .returning({ id: schema.alliances.id });
+  return updated.length > 0;
 }
 
+/** Failed only if this generation still owns `running`. */
 export async function markAllianceRosterAshedSyncFailed(
   allianceId: string,
+  generationStartedAt: Date,
   lastErrorCode: string,
   now = new Date(),
-): Promise<void> {
+): Promise<boolean> {
   const db = getDb();
-  await db
+  const updated = await db
     .update(schema.alliances)
     .set({
       rosterAshedSyncStatus: "failed",
@@ -109,9 +145,16 @@ export async function markAllianceRosterAshedSyncFailed(
       rosterAshedSyncLastErrorCode: lastErrorCode,
       updatedAt: now,
     })
-    .where(eq(schema.alliances.id, allianceId));
+    .where(generationFence(allianceId, generationStartedAt))
+    .returning({ id: schema.alliances.id });
+  return updated.length > 0;
 }
 
+/**
+ * Read-only guard. Mutations must call this inside
+ * `withAllianceRosterMutationLock` so a sync cannot claim `running`
+ * between the check and the write.
+ */
 export async function assertAllianceRosterAshedSyncIdle(
   allianceId: string,
 ): Promise<void> {
@@ -124,4 +167,22 @@ export async function assertAllianceRosterAshedSyncIdle(
     return;
   }
   throw new RosterAshedSyncInProgressError();
+}
+
+/** Poll until the live lease ends or `timeoutMs` elapses. Does not take the sync lock. */
+export async function waitForAllianceRosterAshedSyncIdle(
+  allianceId: string,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void> {
+  const timeoutMs = options?.timeoutMs ?? 120_000;
+  const intervalMs = options?.intervalMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const state = await getAllianceRosterAshedSyncState(allianceId);
+    if (state.status !== "running") return;
+    const startedAt = state.startedAt ? new Date(state.startedAt) : null;
+    if (isRosterAshedSyncRunningStale(startedAt)) return;
+    if (Date.now() >= deadline) return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }

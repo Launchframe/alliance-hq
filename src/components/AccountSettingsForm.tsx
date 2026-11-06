@@ -17,6 +17,7 @@ import type {
 } from "@/lib/auth/account-linking.shared";
 import type { AuthSsoAvailability } from "@/lib/auth/sso-config.shared";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
+import { clearAshedConnectionSessionStats } from "@/lib/connect/connection-session-stats.shared";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
 import type { AppearancePreference } from "@/lib/appearance/appearance.shared";
@@ -234,6 +235,7 @@ export function AccountSettingsForm({
         setMessage(data.error ?? tc("disconnectFailed"));
         return;
       }
+      clearAshedConnectionSessionStats();
       setAshed(null);
       setMessage(t("disconnectedAshed"));
       router.refresh();
