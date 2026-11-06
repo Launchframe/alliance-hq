@@ -11,7 +11,7 @@ import { policyForVsWeek } from "@/lib/vs-compliance/policy.shared";
 import { ComplianceDailyEvidence, ComplianceEvidence } from "./ComplianceEvidence";
 import { ComplianceHistory } from "./ComplianceHistory";
 import { ConfirmationDialog } from "./ConfirmationDialog";
-import { ComplianceClientError, isDashboard, isMembershipSettings, readComplianceResponse, RequestVersion, syncLabel, type ComplianceDashboard, type ComplianceRow, type MembershipSettings } from "./client.shared";
+import { ComplianceClientError, complianceManagementPaused, isDashboard, isMembershipSettings, readComplianceResponse, RequestVersion, syncLabel, type ComplianceDashboard, type ComplianceRow, type MembershipSettings } from "./client.shared";
 
 const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm disabled:opacity-50";
 
@@ -52,7 +52,6 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
       if (!isDashboard(payload) || payload.weekEnding !== selectedWeek) {
         throw new Error(all("statSync.actionFailed"));
       }
-      if (!requests.current.current(version)) return;
       if (payload.evidenceRefresh === "failed") {
         recordVsComplianceRefreshTransaction({
           status: "failed",
@@ -61,17 +60,23 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
       } else {
         recordVsComplianceRefreshTransaction({ status: "idle" });
       }
+      if (!requests.current.current(version)) return;
       setData(payload);
     } catch (failure) {
+      recordVsComplianceRefreshTransaction({
+        status: "failed",
+        lastErrorCode: "vs_compliance_refresh_failed",
+      });
       if (requests.current.current(version)) {
-        recordVsComplianceRefreshTransaction({
-          status: "failed",
-          lastErrorCode: "vs_compliance_refresh_failed",
-        });
         setError(
           failure instanceof ComplianceClientError
             ? failure.message
             : all("statSync.actionFailed"),
+        );
+        setData((current) =>
+          current && current.weekEnding === selectedWeek
+            ? { ...current, evidenceRefresh: "failed" }
+            : current,
         );
       }
     } finally {
@@ -115,8 +120,11 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
   const visible = data?.weekEnding === week ? data : null;
   const policy = settings ? policyForVsWeek(settings.history, week) ?? settings.defaults : null;
   const number = (value: number | null) => value === null ? all("commandersIndex.unreportedShort") : new Intl.NumberFormat(locale).format(value);
-  const actionsPaused =
-    loading || evidenceRefreshing || visible?.evidenceRefresh === "pending";
+  const actionsPaused = complianceManagementPaused({
+    loading,
+    evidenceRefreshing,
+    evidenceRefresh: visible?.evidenceRefresh ?? null,
+  });
   return <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
     <header className="space-y-2">
       <h1 className="text-2xl font-semibold">{t("title")}</h1>
