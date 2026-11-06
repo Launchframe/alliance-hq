@@ -9,6 +9,7 @@ import {
 } from "@/lib/trains/rank-sync";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { AshedMember } from "@/lib/video/member-matcher";
+import { withAllianceRosterMutationLock } from "@/lib/members/roster-ashed-sync-lock.server";
 import {
   clearAllianceMemberRank,
 } from "@/lib/members/roster.server";
@@ -36,6 +37,14 @@ export type BulkMemberRankOutput = {
 };
 
 export async function applyBulkMemberRanks(
+  input: BulkMemberRankInput,
+): Promise<BulkMemberRankOutput> {
+  return withAllianceRosterMutationLock(input.ctx.hqAllianceId, () =>
+    applyBulkMemberRanksWithinLock(input),
+  );
+}
+
+async function applyBulkMemberRanksWithinLock(
   input: BulkMemberRankInput,
 ): Promise<BulkMemberRankOutput> {
   const effectiveDate = getServerCalendarDate();

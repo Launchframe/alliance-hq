@@ -16,6 +16,7 @@ import {
   type MergeSide,
 } from "@/lib/members/merge-duplicate-commander.shared";
 import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
+import { withAllianceRosterMutationLock } from "@/lib/members/roster-ashed-sync-lock.server";
 import { resolveAllianceAshedBotConnection } from "@/lib/vr/member-roster";
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -1085,6 +1086,14 @@ async function syncMergeToAshed(input: {
 }
 
 export async function mergeDuplicateCommander(
+  input: MergeInput & { actorHqUserId: string | null; sessionId: string | null },
+): Promise<MergeDuplicateResult> {
+  return withAllianceRosterMutationLock(input.allianceId, () =>
+    mergeDuplicateCommanderWithinLock(input),
+  );
+}
+
+async function mergeDuplicateCommanderWithinLock(
   input: MergeInput & { actorHqUserId: string | null; sessionId: string | null },
 ): Promise<MergeDuplicateResult> {
   // A real Ashed duplicate comes back on the next roster sync unless the bot

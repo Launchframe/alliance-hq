@@ -19,9 +19,11 @@ import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
 import { withAllianceRosterAshedSyncLock } from "@/lib/members/roster-ashed-sync-lock.server";
 import {
+  allianceRosterAshedSyncOwnedBy,
   markAllianceRosterAshedSyncFailed,
   markAllianceRosterAshedSyncIdle,
   tryBeginAllianceRosterAshedSync,
+  waitForAllianceRosterAshedSyncIdle,
 } from "@/lib/members/roster-ashed-sync-status.server";
 import { rosterMemberIdsAbsentFromAshed } from "@/lib/members/roster-absence.shared";
 import { isSyntheticNativeAshedAllianceId } from "@/lib/lastrank/ashed-credential.server";
@@ -62,29 +64,77 @@ export async function syncAllianceMembersFromAshed(input: {
   ashedAllianceId: string;
   connection: ParsedConnection;
   /**
-   * When false, caller already claimed the running slot (background enqueue).
-   * Default true so blocking callers still mark status for edit locks.
+   * When false, caller already claimed the running slot (background enqueue)
+   * and must pass `syncGeneration` from that claim.
+   * Default true so blocking callers claim inside the roster lock.
    */
   claimSyncStatus?: boolean;
-}): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
+  /** Owner fence from `tryBeginAllianceRosterAshedSync`. Required when not claiming. */
+  syncGeneration?: Date;
+}): Promise<{
+  synced: number;
+  commanderConflicts: CommanderIdentityConflict[];
+  /** Another live lease owns the slot. This call did not write roster rows or status. */
+  skippedBecauseRunning?: boolean;
+}> {
   const claimSyncStatus = input.claimSyncStatus !== false;
-  if (claimSyncStatus) {
-    await tryBeginAllianceRosterAshedSync(input.hqAllianceId);
-  }
+  const outcome = await withAllianceRosterAshedSyncLock(
+    input.hqAllianceId,
+    async () => {
+      let generation: Date;
+      if (claimSyncStatus) {
+        const claim = await tryBeginAllianceRosterAshedSync(input.hqAllianceId);
+        if (!claim) {
+          return {
+            synced: 0,
+            commanderConflicts: [] as CommanderIdentityConflict[],
+            skippedBecauseRunning: true as const,
+          };
+        }
+        generation = claim.startedAt;
+      } else if (
+        input.syncGeneration &&
+        (await allianceRosterAshedSyncOwnedBy(
+          input.hqAllianceId,
+          input.syncGeneration,
+        ))
+      ) {
+        generation = input.syncGeneration;
+      } else {
+        return {
+          synced: 0,
+          commanderConflicts: [] as CommanderIdentityConflict[],
+          skippedBecauseRunning: true as const,
+        };
+      }
 
-  try {
-    const result = await withAllianceRosterAshedSyncLock(input.hqAllianceId, () =>
-      syncAllianceMembersFromAshedLocked(input),
-    );
-    await markAllianceRosterAshedSyncIdle(input.hqAllianceId);
-    return result;
-  } catch (error) {
-    await markAllianceRosterAshedSyncFailed(
-      input.hqAllianceId,
-      "ashed_sync_failed",
-    );
-    throw error;
+      try {
+        const result = await syncAllianceMembersFromAshedLocked(input);
+        const cleared = await markAllianceRosterAshedSyncIdle(
+          input.hqAllianceId,
+          generation,
+        );
+        if (!cleared) {
+          console.error("[roster-ashed-sync] idle fence missed", {
+            allianceId: input.hqAllianceId,
+          });
+        }
+        return result;
+      } catch (error) {
+        await markAllianceRosterAshedSyncFailed(
+          input.hqAllianceId,
+          generation,
+          "ashed_sync_failed",
+        );
+        throw error;
+      }
+    },
+  );
+
+  if ("skippedBecauseRunning" in outcome && outcome.skippedBecauseRunning) {
+    await waitForAllianceRosterAshedSyncIdle(input.hqAllianceId);
   }
+  return outcome;
 }
 
 /**
@@ -96,22 +146,25 @@ export async function enqueueAllianceRosterAshedSync(input: {
   ashedAllianceId: string;
   connection: ParsedConnection;
 }): Promise<boolean> {
-  const claimed = await tryBeginAllianceRosterAshedSync(input.hqAllianceId);
-  if (!claimed) {
+  const claim = await withAllianceRosterAshedSyncLock(input.hqAllianceId, () =>
+    tryBeginAllianceRosterAshedSync(input.hqAllianceId),
+  );
+  if (!claim) {
     return false;
   }
 
-  after(() => {
-    void syncAllianceMembersFromAshed({
+  after(() =>
+    syncAllianceMembersFromAshed({
       ...input,
       claimSyncStatus: false,
+      syncGeneration: claim.startedAt,
     }).catch((error) => {
       console.error("[roster-ashed-sync] background sync failed", {
         allianceId: input.hqAllianceId,
         message: error instanceof Error ? error.message : String(error),
       });
-    });
-  });
+    }),
+  );
 
   return true;
 }

@@ -5,6 +5,7 @@ import postgres from "postgres";
 
 import { postgresClientOptions } from "@/lib/db/postgres-client";
 import { getDatabaseUrl } from "@/lib/db/url";
+import { assertAllianceRosterAshedSyncIdle } from "@/lib/members/roster-ashed-sync-status.server";
 
 function advisoryLockPair(material: string): [number, number] {
   const digest = createHash("sha256")
@@ -52,4 +53,19 @@ export async function withAllianceRosterAshedSyncLock<T>(
     }
     await sql.end({ timeout: 5 });
   }
+}
+
+/**
+ * Serialize a roster edit with the Ashed sync lock, then re-check the lease.
+ * The status read alone is not a reservation: sync claims `running` under this
+ * same lock, so the check and the write cannot interleave with a pull.
+ */
+export async function withAllianceRosterMutationLock<T>(
+  allianceId: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  return withAllianceRosterAshedSyncLock(allianceId, async () => {
+    await assertAllianceRosterAshedSyncIdle(allianceId);
+    return run();
+  });
 }
