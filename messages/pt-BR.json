@@ -935,6 +935,11 @@
       "allianceLabel": "Aliança",
       "chooseAlliance": "Escolher aliança…",
       "assignRole": "Atribuir função",
+      "removeFromAlliance": "Remover da aliança",
+      "removeConfirmTitle": "Remover de {alliance}?",
+      "removeConfirmBody": "Isso revoga o acesso deles ao HQ em {alliance}. Não desvincula o comandante.",
+      "removeConfirm": "Remover",
+      "removeFailed": "Não foi possível remover esta associação.",
       "linkedDevicesSummary": "{count, plural, =0 {Nenhum dispositivo móvel adicional vinculado via QR.} one {# dispositivo móvel adicional vinculado via QR.} other {# dispositivos móveis adicionais vinculados via QR.}}",
       "signInMethodsTitle": "Métodos de entrada",
       "signInMethodsHint": "Instantâneo somente leitura para suporte. Os membros gerenciam seus métodos em Configurações → Segurança da conta.",
@@ -3142,7 +3147,13 @@
     "findAllSearching": "Buscando…",
     "findAllNoMatches": "Nenhuma aliança corresponde.",
     "findAllLoadFailed": "Não foi possível buscar alianças.",
-    "findAllServer": "· S{server}"
+    "findAllServer": "· S{server}",
+    "leaveAlliance": "Sair de {tag}",
+    "leaveConfirmTitle": "Sair de {tag}?",
+    "leaveConfirmBody": "Você perderá o acesso do HQ a {tag}. O vínculo do seu comandante permanece na sua conta.",
+    "leaveConfirm": "Sair da aliança",
+    "leaveFailed": "Não foi possível sair desta aliança.",
+    "lastOwner": "Você é o único dono. Transfira a posse antes de sair."
   },
   "credentialShare": {
     "team": {
@@ -3304,7 +3315,11 @@
     "updateLink": "Atualizar conexão",
     "allianceExpiredBanner": "A conexão da aliança {tag} com o Ashed expirou em <date></date>. A sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed estão pausadas.",
     "allianceReminderBanner": "A conexão da aliança {tag} com o Ashed expira em <date></date>. A sincronização de pontuações de VS, as atualizações de membros e as verificações do Ashed serão pausadas quando isso acontecer.",
-    "allianceNextSteps": "<reconnect>Reconecte o Ashed</reconnect> com um novo comando cURL. O HQ atualiza a conexão da aliança automaticamente se foi você quem a instalou ou se você é dono da aliança no Ashed. Caso contrário, peça ao dono da aliança no Ashed para reinstalá-la em <team>Configurações da equipe</team>."
+    "allianceNextSteps": "<reconnect>Reconecte o Ashed</reconnect> com um novo comando cURL. O HQ atualiza a conexão da aliança automaticamente se foi você quem a instalou ou se você é dono da aliança no Ashed. Caso contrário, peça ao dono da aliança no Ashed para reinstalá-la em <team>Configurações da equipe</team>.",
+    "allianceMissingBanner": "O HQ não está guardando as credenciais Ashed da aliança {tag}, então as pontuações de VS e as ferramentas de elenco não podem sincronizar.",
+    "allianceMissingAction": "Instalar a partir desta conexão Ashed",
+    "allianceMissingInstalled": "Credenciais Ashed da aliança salvas para {tag}.",
+    "allianceMissingFailed": "Não foi possível instalar as credenciais Ashed da aliança."
   },
   "members": {
     "title": "Membros",

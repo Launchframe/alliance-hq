@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
@@ -8,6 +8,7 @@ import { AlliancePickerOptionLabel } from "@/components/alliance/AlliancePickerO
 import { MaintainerAllianceSearch } from "@/components/alliance/MaintainerAllianceSearch";
 import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Dialog } from "@/components/ui/dialog";
 import { alliancePickerOptionSearchText } from "@/lib/alliance/alliance-picker-label.shared";
 import { notifyAllianceSessionContextChanged } from "@/lib/alliance/session-context-sync.shared";
 import { resolveAllianceSwitchTargetPath } from "@/lib/alliance/switch-nav.shared";
@@ -56,6 +57,11 @@ export function AllianceSessionSwitcher({
   const [loading, setLoading] = useState(initialAlliances.length === 0);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leaveTarget, setLeaveTarget] = useState<SessionAllianceOption | null>(
+    null,
+  );
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
 
   useAllianceSessionContextSync({
     displayedAllianceId: currentAllianceId,
@@ -205,6 +211,112 @@ export function AllianceSessionSwitcher({
     ],
   );
 
+  const submitLeave = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!leaveTarget) return;
+      setLeaving(true);
+      setLeaveError(null);
+      try {
+        const res = await fetch("/api/settings/alliance-membership/leave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ allianceId: leaveTarget.id }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          currentAllianceId?: string | null;
+        };
+        if (!res.ok) {
+          setLeaveError(
+            data.error === "last_owner" ? t("lastOwner") : t("leaveFailed"),
+          );
+          return;
+        }
+        if (data.currentAllianceId) {
+          notifyAllianceSessionContextChanged(data.currentAllianceId);
+          setCurrentAllianceId(data.currentAllianceId);
+        }
+        window.location.reload();
+      } catch {
+        setLeaveError(t("leaveFailed"));
+      } finally {
+        setLeaving(false);
+      }
+    },
+    [leaveTarget, t],
+  );
+
+  const leaveControls =
+    alliances.length > 1 ? (
+      <div className="mt-2 space-y-1">
+        {alliances.map((alliance) => {
+          const tag = alliance.tag ?? alliance.slug;
+          const blocked = alliance.leaveBlockedReason === "last_owner";
+          return (
+            <div key={alliance.id}>
+              <button
+                type="button"
+                disabled={switching || leaving || blocked}
+                data-testid={`leave-alliance-${alliance.id}`}
+                onClick={() => {
+                  setLeaveError(null);
+                  setLeaveTarget(alliance);
+                }}
+                className="text-xs text-hq-fg-muted underline-offset-2 hover:underline disabled:no-underline disabled:opacity-60"
+              >
+                {t("leaveAlliance", { tag })}
+              </button>
+              {blocked ? (
+                <p className="text-xs text-hq-fg-subtle">{t("lastOwner")}</p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    ) : null;
+
+  const leaveTag = leaveTarget
+    ? (leaveTarget.tag ?? leaveTarget.slug)
+    : "";
+
+  const leaveDialog = (
+    <Dialog
+      open={leaveTarget !== null}
+      onOpenChange={(open) => {
+        if (!open && !leaving) {
+          setLeaveTarget(null);
+          setLeaveError(null);
+        }
+      }}
+      title={leaveTarget ? t("leaveConfirmTitle", { tag: leaveTag }) : undefined}
+      data-testid="leave-alliance-dialog"
+    >
+      {leaveTarget ? (
+        <form onSubmit={(event) => void submitLeave(event)} className="space-y-3">
+          <h2 className="text-base font-medium text-hq-fg">
+            {t("leaveConfirmTitle", { tag: leaveTag })}
+          </h2>
+          <p className="text-sm text-hq-fg-muted">
+            {t("leaveConfirmBody", { tag: leaveTag })}
+          </p>
+          {leaveError ? (
+            <p className="text-sm text-hq-danger" role="alert">
+              {leaveError}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={leaving}
+            className="rounded-lg bg-hq-danger-emphasis px-3 py-2 text-sm font-medium text-white hover:bg-hq-danger disabled:opacity-50"
+          >
+            {t("leaveConfirm")}
+          </button>
+        </form>
+      ) : null}
+    </Dialog>
+  );
+
   const searchable = searchableProp ?? alliances.length > 8;
 
   const membershipAllianceIds = useMemo(
@@ -309,6 +421,8 @@ export function AllianceSessionSwitcher({
         />
       ) : null}
       {switchTargetButton}
+      {leaveControls}
+      {leaveDialog}
       {error ? <p className="mt-1 text-xs text-hq-danger">{error}</p> : null}
       {maintainerSearch}
     </div>
