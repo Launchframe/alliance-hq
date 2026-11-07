@@ -118,10 +118,11 @@ test.describe("Alliance membership leave and missing Ashed credentials", () => {
     });
     expect(patch.status(), await patch.text()).toBe(200);
 
-    const [row] = await sql<{ status: string }[]>`
-      SELECT status FROM alliance_memberships WHERE id = ${membership!.id}
+    const [row] = await sql<{ status: string; source: string }[]>`
+      SELECT status, source FROM alliance_memberships WHERE id = ${membership!.id}
     `;
     expect(row?.status).toBe("revoked");
+    expect(row?.source).toBe("manual");
     const [stillLinked] = await sql<{ id: string }[]>`
       SELECT id FROM hq_member_links
       WHERE hq_user_id = ${member.hqUserId}
@@ -129,6 +130,101 @@ test.describe("Alliance membership leave and missing Ashed credentials", () => {
         AND game_uid = ${link.gameUid}
     `;
     expect(stillLinked?.id).toBeTruthy();
+  });
+
+  test("a member can leave one alliance and the session moves to the other", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const suffix = nanoid(6);
+    const member = await createAuthenticatedHqSession(
+      sql,
+      `leave-self-${suffix}@e2e.test`,
+    );
+    const stay = await createNativeAlliance(sql, {
+      tag: `St${suffix}`.slice(0, 8),
+      name: `Stay ${suffix}`,
+    });
+    const leaving = await createNativeAlliance(sql, {
+      tag: `Go${suffix}`.slice(0, 8),
+      name: `Go ${suffix}`,
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: member.hqUserId,
+      allianceId: stay.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: member.hqUserId,
+      allianceId: leaving.allianceId,
+      roleName: "officer",
+      source: "ashed",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${leaving.allianceId},
+          alliance_tag = ${leaving.tag},
+          updated_at = now()
+      WHERE id = ${member.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/alliance-membership/leave", {
+      headers: { Cookie: authCookieHeader(member) },
+      data: { allianceId: leaving.allianceId },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const body = (await res.json()) as { currentAllianceId?: string | null };
+    expect(body.currentAllianceId).toBe(stay.allianceId);
+
+    const [row] = await sql<{ status: string; source: string }[]>`
+      SELECT status, source FROM alliance_memberships
+      WHERE hq_user_id = ${member.hqUserId}
+        AND alliance_id = ${leaving.allianceId}
+    `;
+    expect(row?.status).toBe("revoked");
+    expect(row?.source).toBe("manual");
+    const [session] = await sql<{ current_alliance_id: string | null }[]>`
+      SELECT current_alliance_id FROM sessions WHERE id = ${member.sessionId}
+    `;
+    expect(session?.current_alliance_id).toBe(stay.allianceId);
+  });
+
+  test("the only owner cannot leave", async ({ request }) => {
+    const sql = getE2eSql();
+    const suffix = nanoid(6);
+    const owner = await createAuthenticatedHqSession(
+      sql,
+      `leave-owner-${suffix}@e2e.test`,
+    );
+    const owned = await createNativeAlliance(sql, {
+      tag: `Ow${suffix}`.slice(0, 8),
+      name: `Owned ${suffix}`,
+    });
+    const other = await createNativeAlliance(sql, {
+      tag: `Ot${suffix}`.slice(0, 8),
+      name: `Other ${suffix}`,
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: owner.hqUserId,
+      allianceId: owned.allianceId,
+      roleName: "owner",
+      source: "manual",
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: owner.hqUserId,
+      allianceId: other.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+
+    const res = await request.post("/api/settings/alliance-membership/leave", {
+      headers: { Cookie: authCookieHeader(owner) },
+      data: { allianceId: owned.allianceId },
+    });
+    expect(res.status(), await res.text()).toBe(409);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toBe("last_owner");
   });
 
   test("an officer with session Ashed sees the missing-credential banner", async ({

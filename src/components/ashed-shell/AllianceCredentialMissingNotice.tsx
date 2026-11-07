@@ -50,8 +50,8 @@ export function AllianceCredentialMissingNotice({
 
   const shell =
     layout === "banner"
-      ? "border-b border-[#d29922]/40 bg-[#d2992215] px-6 py-3 text-sm text-hq-fg"
-      : "space-y-3 rounded-xl border border-[#d29922]/40 bg-[#d2992215] p-4 text-sm text-hq-fg";
+      ? "border-b border-hq-warning/40 bg-hq-warning/10 px-6 py-3 text-sm text-hq-fg"
+      : "space-y-3 rounded-xl border border-hq-warning/40 bg-hq-warning/10 p-4 text-sm text-hq-fg";
 
   return (
     <div className={shell} data-testid="alliance-credential-missing">

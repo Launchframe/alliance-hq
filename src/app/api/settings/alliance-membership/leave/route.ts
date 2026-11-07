@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   } | null;
   const allianceId = body?.allianceId?.trim();
   if (!allianceId) {
-    return NextResponse.json({ error: "not_found" }, { status: 400 });
+    return NextResponse.json({ error: "alliance_id_required" }, { status: 400 });
   }
 
   const [membership] = await getDb()

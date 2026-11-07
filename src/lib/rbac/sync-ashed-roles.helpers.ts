@@ -15,6 +15,15 @@ export function buildAllianceRosterEmails(
   return rosterEmails;
 }
 
+/**
+ * Ashed role sync may refresh role and status only for rows it owns.
+ * An explicit leave or admin remove marks the row manual so a later connect
+ * cannot turn that departure back into an active membership.
+ */
+export function ashedSyncMayUpdateMembership(source: string): boolean {
+  return source === "ashed";
+}
+
 /** Manual memberships are never revoked by Ashed sync. */
 export function shouldRevokeAshedMembership(
   email: string,

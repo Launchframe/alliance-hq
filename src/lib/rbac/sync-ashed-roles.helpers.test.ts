@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   allianceTagsMatchForShellAdoption,
+  ashedSyncMayUpdateMembership,
   buildAllianceRosterEmails,
   isUnlinkedHqAllianceShell,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
+import { EXPLICIT_MEMBERSHIP_REVOKE_PATCH } from "@/lib/rbac/revoke-alliance-membership.shared";
 
 describe("buildAllianceRosterEmails", () => {
   it("includes normalized owner and collaborators", () => {
@@ -23,6 +25,16 @@ describe("buildAllianceRosterEmails", () => {
 
   it("returns empty set when roster fields are missing", () => {
     expect(buildAllianceRosterEmails({}).size).toBe(0);
+  });
+});
+
+describe("ashedSyncMayUpdateMembership", () => {
+  it("refreshes ashed-sourced rows and leaves an explicit revoke alone", () => {
+    expect(ashedSyncMayUpdateMembership("ashed")).toBe(true);
+    expect(
+      ashedSyncMayUpdateMembership(EXPLICIT_MEMBERSHIP_REVOKE_PATCH.source),
+    ).toBe(false);
+    expect(EXPLICIT_MEMBERSHIP_REVOKE_PATCH.status).toBe("revoked");
   });
 });
 

@@ -8,6 +8,7 @@ import { ROLE_IDS } from "@/lib/rbac/constants";
 
 import {
   decideAllianceMembershipRevoke,
+  EXPLICIT_MEMBERSHIP_REVOKE_PATCH,
   sessionAllianceAfterRevoke,
   type MembershipRevokeCode,
 } from "./revoke-alliance-membership.shared";
@@ -106,7 +107,7 @@ export async function revokeAllianceMembership(input: {
   await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(schema.allianceMemberships)
-      .set({ status: "revoked", updatedAt: now })
+      .set({ ...EXPLICIT_MEMBERSHIP_REVOKE_PATCH, updatedAt: now })
       .where(
         and(
           eq(schema.allianceMemberships.id, membership.id),

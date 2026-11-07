@@ -1,5 +1,14 @@
 export type MembershipRevokeCode = "last_owner" | "only_membership" | "not_found";
 
+/**
+ * Written by explicit leave and admin remove.
+ * `source: "manual"` is what keeps Ashed sync from reactivating the row.
+ */
+export const EXPLICIT_MEMBERSHIP_REVOKE_PATCH = {
+  status: "revoked",
+  source: "manual",
+} as const;
+
 export type MembershipRevokeDecision =
   | { ok: true; nextAllianceId: string | null }
   | { ok: false; code: Exclude<MembershipRevokeCode, "not_found"> };
