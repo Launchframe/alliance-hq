@@ -12,6 +12,7 @@ import {
   shouldShowAshedConnectNudge,
   subscribeAshedShellConnectDismissed,
 } from "@/lib/connect/ashed-shell-prompts.shared";
+import { AllianceCredentialMissingNotice } from "@/components/ashed-shell/AllianceCredentialMissingNotice";
 import { AllianceSetupGuideDashboardBanner } from "@/components/ashed-shell/AllianceSetupGuideDashboardBanner";
 import { AshedConnectionStatus } from "@/components/ashed-shell/AshedConnectionStatus";
 import { OpsInboxBell } from "@/components/ashed-shell/OpsInboxBell";
@@ -58,6 +59,7 @@ type Props = {
   isAshedConnectAllowed?: boolean;
   ashed: AshedConnectionMeta | null;
   allianceCredentialBanner?: AllianceCredentialBanner | null;
+  missingAllianceCredential?: { allianceTag: string } | null;
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
   showVideoQueue?: boolean;
@@ -98,6 +100,7 @@ export function AshedShell({
   isAshedConnectAllowed = true,
   ashed,
   allianceCredentialBanner = null,
+  missingAllianceCredential = null,
   showAdminPortal = false,
   showTeamAccess = false,
   showVideoQueue = false,
@@ -304,6 +307,10 @@ export function AshedShell({
             {ashed ? <TokenExpiryBanner ashed={ashed} /> : null}
             {allianceCredentialBanner ? (
               <AllianceTokenExpiryBanner banner={allianceCredentialBanner} />
+            ) : missingAllianceCredential ? (
+              <AllianceCredentialMissingNotice
+                tag={missingAllianceCredential.allianceTag}
+              />
             ) : null}
             <VideoJobStatusBanners />
 

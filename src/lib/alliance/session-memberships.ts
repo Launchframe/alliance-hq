@@ -1,12 +1,14 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
 import { parseOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { ROLE_IDS } from "@/lib/rbac/constants";
+import { leaveBlockedReasonForMembership } from "@/lib/rbac/revoke-alliance-membership.shared";
 
 export type SwitchSessionAllianceResult = {
   allianceId: string;
@@ -115,12 +117,43 @@ function attachLinkedCommanderFlags(
 }
 
 /** Membership-only options for the sidebar alliance picker (all users, including platform maintainers). */
+async function loadActiveOwnerCounts(
+  allianceIds: string[],
+): Promise<Map<string, number>> {
+  if (allianceIds.length === 0) return new Map();
+  const db = getDb();
+  const rows = await db
+    .select({
+      allianceId: schema.allianceMemberships.allianceId,
+      ownerCount: sql<number>`count(*)::int`,
+    })
+    .from(schema.allianceMemberships)
+    .where(
+      and(
+        eq(schema.allianceMemberships.status, "active"),
+        eq(schema.allianceMemberships.roleId, ROLE_IDS.owner),
+        inArray(schema.allianceMemberships.allianceId, allianceIds),
+      ),
+    )
+    .groupBy(schema.allianceMemberships.allianceId);
+  return new Map(rows.map((row) => [row.allianceId, row.ownerCount]));
+}
+
 export async function listAlliancePickerOptions(
   hqUserId: string,
 ): Promise<SessionAllianceOption[]> {
   const commanderAllianceIds = await loadLinkedCommanderAllianceIds(hqUserId);
   const memberships = await listSessionAlliances(hqUserId);
-  return attachLinkedCommanderFlags(memberships, commanderAllianceIds);
+  const ownerCounts = await loadActiveOwnerCounts(memberships.map((row) => row.id));
+  return attachLinkedCommanderFlags(memberships, commanderAllianceIds).map(
+    (option) => ({
+      ...option,
+      leaveBlockedReason: leaveBlockedReasonForMembership({
+        roleName: option.roleName,
+        activeOwnerCount: ownerCounts.get(option.id) ?? 0,
+      }),
+    }),
+  );
 }
 
 export async function loadAlliancePickerOptionById(

@@ -29,6 +29,7 @@ import {
   allianceCredentialNoticeDue,
   decideAllianceCredentialRefresh,
   jwtPayloadMatchesAshedUser,
+  missingAllianceCredentialBannerEligible,
   type AllianceCredentialBanner,
   type AllianceCredentialExpiryStage,
   type AllianceCredentialRefreshDecision,
@@ -120,6 +121,42 @@ export async function loadAllianceCredentialBanner(input: {
       dateStyle: "long",
     }),
   };
+}
+
+/** Banner when the current alliance has no stored Ashed credential. Does not call Ashed. */
+export async function loadMissingAllianceCredentialBanner(input: {
+  allianceId: string | null;
+  permissions: readonly string[];
+  hasSessionAshed: boolean;
+}): Promise<{ allianceTag: string } | null> {
+  if (!input.allianceId) return null;
+  const [row] = await getDb()
+    .select({
+      tag: schema.alliances.tag,
+      operatingMode: schema.alliances.operatingMode,
+      credentialId: schema.allianceAshedCredentials.id,
+    })
+    .from(schema.alliances)
+    .leftJoin(
+      schema.allianceAshedCredentials,
+      eq(schema.allianceAshedCredentials.allianceId, schema.alliances.id),
+    )
+    .where(eq(schema.alliances.id, input.allianceId))
+    .limit(1);
+  if (!row) return null;
+  if (
+    !missingAllianceCredentialBannerEligible({
+      operatingMode: row.operatingMode,
+      hasAllianceCredential: Boolean(row.credentialId),
+      hasSessionAshed: input.hasSessionAshed,
+      permissions: input.permissions,
+    })
+  ) {
+    return null;
+  }
+  const allianceTag = row.tag?.trim() || "";
+  if (!allianceTag) return null;
+  return { allianceTag };
 }
 
 /**

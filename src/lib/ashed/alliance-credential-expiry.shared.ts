@@ -12,6 +12,37 @@ export type AllianceCredentialBanner = {
   expiresAtFormatted: string;
 };
 
+/** Same officer gate as the expiry banner: platform maintainer or alliance write + Ashed connect. */
+export const ALLIANCE_CREDENTIAL_BANNER_PERMISSIONS = [
+  "alliance:write",
+  "ashed:connect",
+] as const;
+
+export function canSeeAllianceCredentialBanner(
+  permissions: readonly string[],
+): boolean {
+  if (permissions.includes("hq:admin")) return true;
+  return ALLIANCE_CREDENTIAL_BANNER_PERMISSIONS.every((permission) =>
+    permissions.includes(permission),
+  );
+}
+
+/**
+ * Shell/team prompt when this alliance has no stored Ashed credential.
+ * Eligibility is local: no Ashed API call. The install POST still checks Ashed owner.
+ */
+export function missingAllianceCredentialBannerEligible(input: {
+  operatingMode: string | null;
+  hasAllianceCredential: boolean;
+  hasSessionAshed: boolean;
+  permissions: readonly string[];
+}): boolean {
+  if (!input.hasSessionAshed) return false;
+  if (input.hasAllianceCredential) return false;
+  if (!input.operatingMode || input.operatingMode === "native") return false;
+  return canSeeAllianceCredentialBanner(input.permissions);
+}
+
 export const ALLIANCE_CREDENTIAL_REMINDER_DAYS = DEFAULT_EXPIRY_REMINDER_DAYS;
 
 export function allianceCredentialExpiryStage(

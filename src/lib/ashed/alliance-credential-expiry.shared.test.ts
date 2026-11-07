@@ -5,6 +5,7 @@ import {
   allianceCredentialNoticeDue,
   decideAllianceCredentialRefresh,
   jwtPayloadMatchesAshedUser,
+  missingAllianceCredentialBannerEligible,
 } from "./alliance-credential-expiry.shared";
 
 const now = new Date("2026-10-10T12:00:00Z");
@@ -125,6 +126,48 @@ describe("decideAllianceCredentialRefresh", () => {
     expect(
       decideAllianceCredentialRefresh({ ...base, storedExpiresAt: null }),
     ).toEqual({ refresh: true });
+  });
+});
+
+describe("missingAllianceCredentialBannerEligible", () => {
+  const officer = ["alliance:write", "ashed:connect"];
+
+  it("shows for an officer session with Ashed when the alliance credential row is missing", () => {
+    expect(
+      missingAllianceCredentialBannerEligible({
+        operatingMode: "ashed",
+        hasAllianceCredential: false,
+        hasSessionAshed: true,
+        permissions: officer,
+      }),
+    ).toBe(true);
+  });
+
+  it("hides when a credential row exists, the alliance is native, or Ashed is not connected", () => {
+    expect(
+      missingAllianceCredentialBannerEligible({
+        operatingMode: "ashed",
+        hasAllianceCredential: true,
+        hasSessionAshed: true,
+        permissions: officer,
+      }),
+    ).toBe(false);
+    expect(
+      missingAllianceCredentialBannerEligible({
+        operatingMode: "native",
+        hasAllianceCredential: false,
+        hasSessionAshed: true,
+        permissions: officer,
+      }),
+    ).toBe(false);
+    expect(
+      missingAllianceCredentialBannerEligible({
+        operatingMode: "ashed",
+        hasAllianceCredential: false,
+        hasSessionAshed: false,
+        permissions: ["hq:admin"],
+      }),
+    ).toBe(false);
   });
 });
 

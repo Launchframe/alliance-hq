@@ -935,6 +935,11 @@
       "allianceLabel": "Alliance",
       "chooseAlliance": "Choose alliance…",
       "assignRole": "Assign role",
+      "removeFromAlliance": "Remove from alliance",
+      "removeConfirmTitle": "Remove from {alliance}?",
+      "removeConfirmBody": "This revokes their HQ access to {alliance}. It does not unlink their commander.",
+      "removeConfirm": "Remove",
+      "removeFailed": "Could not remove this membership.",
       "linkedDevicesSummary": "{count, plural, =0 {No additional mobile devices linked via QR.} one {# additional mobile device linked via QR.} other {# additional mobile devices linked via QR.}}",
       "signInMethodsTitle": "Sign-in methods",
       "signInMethodsHint": "Read-only snapshot for support. Members manage their own methods under Settings → Account security.",
@@ -3288,7 +3293,13 @@
     "findAllSearching": "Searching…",
     "findAllNoMatches": "No alliances match.",
     "findAllLoadFailed": "Could not search alliances.",
-    "findAllServer": "· S{server}"
+    "findAllServer": "· S{server}",
+    "leaveAlliance": "Leave {tag}",
+    "leaveConfirmTitle": "Leave {tag}?",
+    "leaveConfirmBody": "You will lose HQ access to {tag}. Your commander link stays on your account.",
+    "leaveConfirm": "Leave alliance",
+    "leaveFailed": "Could not leave this alliance.",
+    "lastOwner": "You are the only owner. Transfer ownership before leaving."
   },
   "deviceLink": {
     "pageTitle": "Link a device",
@@ -3357,7 +3368,11 @@
     "updateLink": "Update connection",
     "allianceExpiredBanner": "{tag}'s Ashed alliance connection expired on <date></date>. VS score sync, roster updates, and Ashed checks are paused.",
     "allianceReminderBanner": "{tag}'s Ashed alliance connection expires on <date></date>. VS score sync, roster updates, and Ashed checks will pause when it does.",
-    "allianceNextSteps": "<reconnect>Reconnect Ashed</reconnect> with a fresh cURL command. HQ refreshes the alliance connection automatically if you installed it or own the alliance on Ashed. Otherwise, ask your Ashed alliance owner to reinstall it in <team>Team settings</team>."
+    "allianceNextSteps": "<reconnect>Reconnect Ashed</reconnect> with a fresh cURL command. HQ refreshes the alliance connection automatically if you installed it or own the alliance on Ashed. Otherwise, ask your Ashed alliance owner to reinstall it in <team>Team settings</team>.",
+    "allianceMissingBanner": "HQ is not storing alliance Ashed credentials for {tag}, so VS scores and roster tools cannot sync.",
+    "allianceMissingAction": "Install from this Ashed connection",
+    "allianceMissingInstalled": "Alliance Ashed credentials saved for {tag}.",
+    "allianceMissingFailed": "Could not install alliance Ashed credentials."
   },
   "members": {
     "title": "Members",

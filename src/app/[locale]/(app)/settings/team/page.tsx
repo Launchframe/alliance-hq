@@ -4,8 +4,10 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
+import { AllianceCredentialMissingNotice } from "@/components/ashed-shell/AllianceCredentialMissingNotice";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { SettingsTeamTabs } from "@/components/settings/SettingsTeamTabs";
+import { missingAllianceCredentialBannerEligible } from "@/lib/ashed/alliance-credential-expiry.shared";
 import {
   MAX_VIDEO_PROCESSORS,
   listAllianceVideoProcessors,
@@ -121,14 +123,27 @@ export default async function SettingsTeamPage({
     .select({
       tag: schema.alliances.tag,
       name: schema.alliances.name,
+      credentialId: schema.allianceAshedCredentials.id,
     })
     .from(schema.alliances)
+    .leftJoin(
+      schema.allianceAshedCredentials,
+      eq(schema.allianceAshedCredentials.allianceId, schema.alliances.id),
+    )
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
   allianceTag = alliance?.tag ?? allianceTag;
   allianceName = alliance?.name ?? null;
 
   const tagLabel = allianceTag ?? allianceName ?? t("unknownAlliance");
+  const showMissingAllianceCredential =
+    Boolean(allianceTag?.trim()) &&
+    missingAllianceCredentialBannerEligible({
+      operatingMode,
+      hasAllianceCredential: Boolean(alliance?.credentialId),
+      hasSessionAshed: ashedConnection !== null,
+      permissions: rbac ? [...rbac.permissions] : [],
+    });
 
   const showRoleNudges = rbac ? canViewRoleNudges(rbac) : false;
   const roleNudgesOpen =
@@ -150,6 +165,10 @@ export default async function SettingsTeamPage({
         </h1>
         <p className="mt-2 text-sm text-hq-fg-muted">{t("description")}</p>
       </div>
+
+      {showMissingAllianceCredential && allianceTag ? (
+        <AllianceCredentialMissingNotice tag={allianceTag} layout="card" />
+      ) : null}
 
       <SettingsTeamTabs
         canManageInvites={canManageInvites}
