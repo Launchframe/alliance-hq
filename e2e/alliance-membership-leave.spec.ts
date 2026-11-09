@@ -7,12 +7,14 @@ import {
   createAllianceMembership,
   createAshedAlliance,
   createAuthenticatedHqSession,
+  createHqInviteRow,
   createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { ROLE_IDS } from "../src/lib/rbac/constants";
 
 function hqSessionOnlyCookie(sessionId: string): string {
   return `alliance_hq_session=${sessionId}`;
@@ -225,6 +227,69 @@ test.describe("Alliance membership leave and missing Ashed credentials", () => {
     expect(res.status(), await res.text()).toBe(409);
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("last_owner");
+  });
+
+  test("replaying an accepted elevated invite cannot undo leave after a demotion", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const suffix = nanoid(6);
+    const email = `leave-rebind-${suffix}@e2e.test`;
+    const member = await createAuthenticatedHqSession(sql, email);
+    const stay = await createNativeAlliance(sql, {
+      tag: `Rs${suffix}`.slice(0, 8),
+      name: `Rebind stay ${suffix}`,
+    });
+    const left = await createNativeAlliance(sql, {
+      tag: `Rl${suffix}`.slice(0, 8),
+      name: `Rebind left ${suffix}`,
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: member.hqUserId,
+      allianceId: stay.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    // Demoted from officer to member while still active.
+    await createAllianceMembership(sql, {
+      hqUserId: member.hqUserId,
+      allianceId: left.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    const { token, inviteId } = await createHqInviteRow(sql, {
+      allianceId: left.allianceId,
+      email,
+      roleName: "officer",
+    });
+    await sql`
+      UPDATE hq_invites
+      SET accepted_at = now(),
+          accepted_by_hq_user_id = ${member.hqUserId}
+      WHERE id = ${inviteId}
+    `;
+
+    const leave = await request.post("/api/settings/alliance-membership/leave", {
+      headers: { Cookie: authCookieHeader(member) },
+      data: { allianceId: left.allianceId },
+    });
+    expect(leave.status(), await leave.text()).toBe(200);
+
+    const rebind = await request.post(`/api/invite/${token}/accept`, {
+      headers: { Cookie: authCookieHeader(member) },
+      data: {},
+    });
+    expect(rebind.status(), await rebind.text()).toBe(409);
+    const body = (await rebind.json()) as { code?: string };
+    expect(body.code).toBe("MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE");
+
+    const [row] = await sql<{ status: string; role_id: string }[]>`
+      SELECT status, role_id FROM alliance_memberships
+      WHERE hq_user_id = ${member.hqUserId}
+        AND alliance_id = ${left.allianceId}
+    `;
+    expect(row?.status).toBe("revoked");
+    expect(row?.role_id).toBe(ROLE_IDS.member);
   });
 
   test("an officer with session Ashed sees the missing-credential banner", async ({

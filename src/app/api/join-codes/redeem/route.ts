@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuthSession } from "@/lib/auth";
 import { redeemAllianceJoinCode } from "@/lib/native-alliance/join-codes";
+import { MembershipRejoinRequiresFreshInviteError } from "@/lib/native-alliance/provision-membership";
 import { resolvePostInviteOnboardingRedirect } from "@/lib/navigation/safe-redirect.shared";
 import { requireApiSession } from "@/lib/session";
 
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
       ...result,
     });
   } catch (error) {
+    if (error instanceof MembershipRejoinRequiresFreshInviteError) {
+      return NextResponse.json(
+        { code: error.code, error: error.message },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       {
         error:

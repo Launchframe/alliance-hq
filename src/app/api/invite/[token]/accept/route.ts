@@ -7,6 +7,7 @@ import {
   CommanderClaimInviteError,
   resolveHqInviteAcceptRedirect,
 } from "@/lib/native-alliance/invites";
+import { MembershipRejoinRequiresFreshInviteError } from "@/lib/native-alliance/provision-membership";
 import { auditInviteAcceptFailed } from "@/lib/onboarding/onboarding-audit.server";
 import {
   inviteAcceptReasonFromApiCode,
@@ -81,6 +82,18 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof CommanderClaimInviteError) {
+      await auditInviteAcceptFailed({
+        sessionId: session.id,
+        hqUserId: authSession.user.id,
+        reasonCode: inviteAcceptReasonFromApiCode(error.code),
+      });
+      return NextResponse.json(
+        { code: error.code, error: error.message },
+        { status: 409 },
+      );
+    }
+
+    if (error instanceof MembershipRejoinRequiresFreshInviteError) {
       await auditInviteAcceptFailed({
         sessionId: session.id,
         hqUserId: authSession.user.id,

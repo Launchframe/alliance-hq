@@ -36,6 +36,9 @@ describe("inviteAcceptReasonFromApiCode", () => {
     expect(inviteAcceptReasonFromApiCode("commander_already_claimed")).toBe(
       "commander_already_claimed",
     );
+    expect(
+      inviteAcceptReasonFromApiCode("MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE"),
+    ).toBe("membership_revoked_requires_fresh_invite");
     expect(inviteAcceptReasonFromApiCode(undefined)).toBe("accept_failed");
   });
 });

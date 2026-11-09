@@ -20,10 +20,11 @@ export function resolveRoleIdForClaimPendingAccept(input: {
 
 /**
  * Already-accepted invite / join-code rebind must honor the same claim deferral
- * as first accept. `preserve_existing` still applies `inviteRoleId` when there
- * is no active membership — so passing the elevated invite role on rebind
- * grants owner/officer before claim confirm (retry after provision failure,
- * concurrent rebind between mark-accepted and provision, or revoked row).
+ * as first accept. `preserve_existing` applies `inviteRoleId` only when there
+ * is no membership row yet (retry after provision failure / race before the
+ * first write). A **revoked** membership refuses rebind — leave/removal must
+ * not be undone by replaying an already-accepted elevated invite; rejoining
+ * needs a fresh invite (`never_demote`).
  *
  * Defer until the **bound commander** is linked to this acceptor — not merely
  * any alliance member link (a self-service link to a different roster row must
