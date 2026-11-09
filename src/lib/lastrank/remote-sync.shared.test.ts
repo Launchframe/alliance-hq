@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LastRankMatchResult } from "@/lib/lastrank/alliance-page.shared";
 import {
+  buildInteractiveWriteSummaryFromRemoteDecisions,
   claimedRetireCandidateIds,
   collectLastRankRemoteDecisions,
   lastRankRemoteSyncUrl,
@@ -13,6 +14,7 @@ import {
   type LastRankRemotePlan,
   type LastRankRemotePrompt,
 } from "@/lib/lastrank/remote-sync.shared";
+import { lastRankInteractiveWritesNeedConfirm } from "@/lib/lastrank/sync-plan.shared";
 
 const target = {
   gameServerNumber: 1203,
@@ -224,6 +226,66 @@ describe("collectLastRankRemoteDecisions", () => {
       { current: 2, total: 3 },
       { current: 3, total: 3 },
     ]);
+  });
+
+  it("undo rewinds the last match so the HQ name is offered again", async () => {
+    const seen: string[][] = [];
+    const answers = [
+      { kind: "match" as const, hqName: "Alpha" },
+      { kind: "undo" as const },
+      { kind: "match" as const, hqName: "Beta" },
+      { kind: "skip" as const },
+    ];
+    let i = 0;
+    const result = await collectLastRankRemoteDecisions({
+      plan: plan({
+        prompts: [
+          prompt({
+            publicId: 1,
+            lastRankName: "NewAlpha",
+            remainingHqNames: ["Alpha", "Beta"],
+          }),
+          prompt({ publicId: 2, remainingHqNames: ["Alpha", "Beta"] }),
+        ],
+      }),
+      interactivePrompt: async (ctx) => {
+        seen.push(ctx.remainingHqNames);
+        return answers[i++]!;
+      },
+    });
+    expect(seen[0]).toEqual(["Alpha", "Beta"]);
+    expect(seen[1]).toEqual(["Beta"]);
+    expect(seen[2]).toEqual(["Alpha", "Beta"]);
+    expect(result.decisions).toEqual([
+      { publicId: 1, answer: { kind: "match", hqName: "Beta" } },
+    ]);
+    expect(result.stats).toEqual({
+      mapped: 1,
+      creates: 0,
+      retires: 0,
+      skipped: 1,
+      remaining: 0,
+    });
+  });
+
+  it("buildInteractiveWriteSummaryFromRemoteDecisions gates on renames and creates", () => {
+    const remotePlan = plan({
+      prompts: [
+        prompt({ publicId: 1, lastRankName: "NewName", remainingHqNames: ["OldName"] }),
+        prompt({ publicId: 2, lastRankName: "Same", remainingHqNames: ["Same"] }),
+        prompt({ publicId: 3, lastRankName: "Fresh" }),
+      ],
+    });
+    const summary = buildInteractiveWriteSummaryFromRemoteDecisions(remotePlan, [
+      { publicId: 1, answer: { kind: "match", hqName: "OldName" } },
+      { publicId: 2, answer: { kind: "match", hqName: "Same" } },
+      { publicId: 3, answer: { kind: "create" } },
+    ]);
+    expect(lastRankInteractiveWritesNeedConfirm(summary)).toBe(true);
+    expect(summary.renames).toEqual([
+      { priorHqName: "OldName", lastRankName: "NewName", publicId: 1 },
+    ]);
+    expect(summary.creates).toEqual([{ lastRankName: "Fresh", publicId: 3 }]);
   });
 
   it("does not offer retirements without a retire prompt", async () => {

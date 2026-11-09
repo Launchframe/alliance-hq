@@ -1,6 +1,7 @@
-import type {
-  LastRankAllianceMember,
-  LastRankMatchedRow,
+import {
+  isLastRankInteractiveRename,
+  type LastRankAllianceMember,
+  type LastRankMatchedRow,
 } from "@/lib/lastrank/alliance-page.shared";
 
 /** Interactive decisions queued in memory until the sync dispatches them. */
@@ -10,6 +11,16 @@ export type LastRankSyncPlan = {
   retires: Array<{ ashedMemberId: string; memberName: string }>;
   skipped: number;
 };
+
+/** Renames + creates that warrant an end-of-run confirmation before writes. */
+export type LastRankInteractiveWriteSummary = {
+  renames: Array<{ priorHqName: string; lastRankName: string; publicId: number }>;
+  creates: Array<{ lastRankName: string; publicId: number }>;
+};
+
+export type LastRankInteractiveConfirmPrompt = (
+  summary: LastRankInteractiveWriteSummary,
+) => Promise<boolean>;
 
 export type LastRankSyncPlanStats = {
   mapped: number;
@@ -53,3 +64,54 @@ export function formatLastRankSyncPlanStats(stats: LastRankSyncPlanStats): strin
   const left = stats.remaining > 0 ? `, ${stats.remaining} left in this step` : "";
   return `Queued: ${parts.join(", ")}${left} — nothing written yet.`;
 }
+
+export function buildInteractiveWriteSummaryFromPlan(
+  plan: LastRankSyncPlan,
+): LastRankInteractiveWriteSummary {
+  return {
+    renames: plan.mapped
+      .filter(({ row, priorHqName }) =>
+        isLastRankInteractiveRename(priorHqName, row.lastRank.name),
+      )
+      .map(({ row, priorHqName }) => ({
+        priorHqName,
+        lastRankName: row.lastRank.name,
+        publicId: row.lastRank.publicId,
+      })),
+    creates: plan.creates.map((member) => ({
+      lastRankName: member.name,
+      publicId: member.publicId,
+    })),
+  };
+}
+
+export function lastRankInteractiveWritesNeedConfirm(
+  summary: LastRankInteractiveWriteSummary,
+): boolean {
+  return summary.renames.length > 0 || summary.creates.length > 0;
+}
+
+/** Human-readable lines for the interactive confirmation screen. */
+export function formatLastRankInteractiveWriteSummaryLines(
+  summary: LastRankInteractiveWriteSummary,
+): string[] {
+  const lines: string[] = [];
+  if (summary.renames.length > 0) {
+    lines.push("Commander renames:");
+    for (const row of summary.renames) {
+      lines.push(
+        `  - ${row.priorHqName} → ${row.lastRankName} (public_id=${row.publicId})`,
+      );
+    }
+  }
+  if (summary.creates.length > 0) {
+    lines.push("New commanders:");
+    for (const row of summary.creates) {
+      lines.push(`  - ${row.lastRankName} (public_id=${row.publicId})`);
+    }
+  }
+  return lines;
+}
+
+export const LASTRANK_INTERACTIVE_CONFIRM_ABORTED =
+  "Interactive sync aborted — confirmation declined; nothing was written.";
