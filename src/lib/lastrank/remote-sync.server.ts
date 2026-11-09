@@ -111,7 +111,10 @@ export async function applyLastRankRemoteSync(request: LastRankRemoteApplyReques
         : undefined,
     retirePrompt:
       !request.retireAll && retireIds.size > 0
-        ? async (ctx) => retireIds.has(ctx.ashedMemberId)
+        ? async (ctx) =>
+            retireIds.has(ctx.ashedMemberId)
+              ? ({ kind: "retire" } as const)
+              : ({ kind: "keep" } as const)
         : undefined,
   });
 

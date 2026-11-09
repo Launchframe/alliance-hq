@@ -504,7 +504,7 @@ describe("syncLastRankAlliance batch dispatch", () => {
         if (ctx.publicId === 303) return { kind: "create" };
         return { kind: "skip" };
       },
-      retirePrompt: async () => true,
+      retirePrompt: async () => ({ kind: "retire" as const }),
       onDispatchStart,
     });
 
