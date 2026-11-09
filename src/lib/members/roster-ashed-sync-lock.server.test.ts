@@ -68,5 +68,63 @@ describe("alliance roster Ashed sync advisory lock key", () => {
       /syncAllianceMembersFromAshed[\s\S]*withAllianceRosterAshedSyncLock/,
     );
     expect(source).toContain("lte(schema.allianceMembers.syncedAt, input.now)");
+    expect(source).not.toContain("void syncAllianceMembersFromAshed");
+    expect(source).toContain("syncGeneration: claim.startedAt");
+    expect(source).toContain("skippedBecauseRunning");
+    expect(source).toMatch(
+      /after\(\(\) =>\s*syncAllianceMembersFromAshed/,
+    );
+  });
+
+  it("fences sync completion and serializes roster edits with the sync lock", () => {
+    const status = readFileSync(
+      new URL("./roster-ashed-sync-status.server.ts", import.meta.url),
+      "utf8",
+    );
+    const lock = readFileSync(
+      new URL("./roster-ashed-sync-lock.server.ts", import.meta.url),
+      "utf8",
+    );
+    const ranks = readFileSync(
+      new URL("../../app/api/members/ranks/route.ts", import.meta.url),
+      "utf8",
+    );
+    const nameRoute = readFileSync(
+      new URL("../../app/api/members/[ashedMemberId]/route.ts", import.meta.url),
+      "utf8",
+    );
+    const mergeRoute = readFileSync(
+      new URL(
+        "../../app/api/members/[ashedMemberId]/merge-duplicate/route.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const bulk = readFileSync(
+      new URL("./bulk-rank-update.server.ts", import.meta.url),
+      "utf8",
+    );
+    const merge = readFileSync(
+      new URL("./merge-duplicate-commander.server.ts", import.meta.url),
+      "utf8",
+    );
+    const name = readFileSync(
+      new URL("./commander-identity.server.ts", import.meta.url),
+      "utf8",
+    );
+
+    expect(status).toContain("rosterAshedSyncGenerationStillOwns");
+    expect(status).toContain("eq(schema.alliances.rosterAshedSyncStartedAt, generationStartedAt)");
+    expect(lock).toContain("withAllianceRosterMutationLock");
+    expect(lock).toMatch(
+      /withAllianceRosterMutationLock[\s\S]*assertAllianceRosterAshedSyncIdle/,
+    );
+    expect(ranks).toContain("skipAshedSync: true");
+    expect(ranks).not.toContain("assertAllianceRosterAshedSyncIdle");
+    expect(nameRoute).not.toContain("assertAllianceRosterAshedSyncIdle");
+    expect(mergeRoute).not.toContain("assertAllianceRosterAshedSyncIdle");
+    expect(bulk).toContain("withAllianceRosterMutationLock");
+    expect(merge).toContain("withAllianceRosterMutationLock");
+    expect(name).toContain("withAllianceRosterMutationLock");
   });
 });

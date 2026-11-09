@@ -87,6 +87,17 @@ export async function POST(
         connection,
         massFormerMode,
       });
+      if (result.skippedBecauseRunning) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "roster_sync_in_progress",
+            error:
+              "A roster sync is already running. Try again in a moment.",
+          },
+          { status: 409 },
+        );
+      }
       synced = result.synced;
       massFormerPending = result.massFormerPending;
     } else {
@@ -127,6 +138,17 @@ export async function POST(
         connection,
         massFormerMode,
       });
+      if (result.skippedBecauseRunning) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "roster_sync_in_progress",
+            error:
+              "A roster sync is already running. Try again in a moment.",
+          },
+          { status: 409 },
+        );
+      }
       synced = result.synced;
       massFormerPending = result.massFormerPending;
     }

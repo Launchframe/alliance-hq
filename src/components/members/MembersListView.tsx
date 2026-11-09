@@ -164,7 +164,7 @@ export function MembersListView({
       .length;
   }, [data.commanderConflicts, data.members]);
 
-  const isNative = initial.operatingMode === "native";
+  const isNative = data.operatingMode === "native";
   const showRefresh = isNative || canRefreshFromAshed;
   const minThpNum = filterMinThp.trim()
     ? Number.parseInt(filterMinThp.trim(), 10)
@@ -362,9 +362,15 @@ export function MembersListView({
   }, [rosterRows]);
 
   const loadRoster = useCallback(
-    async (refreshFromAshed: boolean) => {
-      setRefreshing(true);
-      setError(null);
+    async (
+      refreshFromAshed: boolean,
+      options?: { quiet?: boolean },
+    ) => {
+      const quiet = options?.quiet === true;
+      if (!quiet) {
+        setRefreshing(true);
+        setError(null);
+      }
       try {
         const params = new URLSearchParams();
         if (query) params.set("q", query);
@@ -383,22 +389,32 @@ export function MembersListView({
             error?: string;
           };
         if (!membersRes.ok) {
-          setError(membersBody.error ?? t("loadFailed"));
+          if (!quiet) {
+            setError(membersBody.error ?? t("loadFailed"));
+          }
           return;
         }
         if (!commandersRes.ok) {
-          setError(commandersBody.error ?? tCommanders("loadFailed"));
+          if (!quiet) {
+            setError(commandersBody.error ?? tCommanders("loadFailed"));
+          }
           return;
         }
         setData(membersBody);
         setCommanderData(commandersBody);
         setPendingSquad({});
         setSaveError({});
-        void loadAttentionSummary();
+        if (!quiet) {
+          void loadAttentionSummary();
+        }
       } catch (e) {
-        setError(e instanceof Error ? e.message : t("loadFailed"));
+        if (!quiet) {
+          setError(e instanceof Error ? e.message : t("loadFailed"));
+        }
       } finally {
-        setRefreshing(false);
+        if (!quiet) {
+          setRefreshing(false);
+        }
       }
     },
     [query, showFormer, t, tCommanders, loadAttentionSummary],
@@ -408,6 +424,27 @@ export function MembersListView({
     () => loadRoster(true),
     [loadRoster],
   );
+
+  const syncRunning = !isNative && data.ashedRosterSync?.status === "running";
+  const syncFailed = !isNative && data.ashedRosterSync?.status === "failed";
+  const editsPaused = syncRunning;
+
+  useEffect(() => {
+    if (!syncRunning) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      void loadRoster(false, { quiet: true });
+    }, 2000);
+    return () => window.clearInterval(interval);
+  }, [syncRunning, loadRoster]);
+
+  useEffect(() => {
+    if (syncRunning && editMode) {
+      setEditMode(false);
+      setSelectedIds(new Set());
+    }
+  }, [syncRunning, editMode]);
 
   const saveSquad = useCallback(
     async (ashedMemberId: string) => {
@@ -572,7 +609,7 @@ export function MembersListView({
   const tableColSpan =
     visibleColumns.length + (editMode ? 1 : 0);
   const selectedCount = selectedIds.size;
-  const bulkDisabled = selectedCount === 0 || applying;
+  const bulkDisabled = selectedCount === 0 || applying || editsPaused;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-full space-y-6">
@@ -680,7 +717,9 @@ export function MembersListView({
             <button
               type="button"
               onClick={() => (editMode ? exitEditMode() : setEditMode(true))}
-              className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
+              disabled={editsPaused && !editMode}
+              title={editsPaused ? t("ashedSyncEditsPaused") : undefined}
+              className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 disabled:opacity-50 sm:w-auto"
             >
               {editMode ? t("doneEditing") : t("editRanks")}
               {!editMode ? (
@@ -701,13 +740,15 @@ export function MembersListView({
             <button
               type="button"
               onClick={() => void refresh()}
-              disabled={refreshing}
+              disabled={refreshing || syncRunning}
               className="w-full rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
             >
-              {refreshing
+              {refreshing || syncRunning
                 ? isNative
                   ? t("refreshingNative")
-                  : t("refreshing")
+                  : syncRunning
+                    ? t("ashedSyncRunning")
+                    : t("refreshing")
                 : isNative
                   ? t("refreshNative")
                   : t("refresh")}
@@ -753,7 +794,9 @@ export function MembersListView({
           <button
             type="button"
             onClick={() => setConflictSheetOpen(true)}
-            className="w-full shrink-0 rounded-lg border border-hq-danger px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514922] sm:w-auto"
+            disabled={editsPaused}
+            title={editsPaused ? t("ashedSyncEditsPaused") : undefined}
+            className="w-full shrink-0 rounded-lg border border-hq-danger px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514922] disabled:opacity-50 sm:w-auto"
           >
             {t("commanderConflicts.resolve")}
           </button>
@@ -858,6 +901,43 @@ export function MembersListView({
 
       {error && <p className="text-sm text-hq-danger">{error}</p>}
 
+      {syncRunning ? (
+        <div
+          className="flex items-center gap-2 rounded-xl border border-hq-accent/40 bg-hq-accent/10 px-4 py-3 text-sm text-hq-fg"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-hq-accent" aria-hidden />
+          <div>
+            <p>{t("ashedSyncRunning")}</p>
+            {editsPaused ? (
+              <p className="mt-0.5 text-xs text-hq-fg-muted">
+                {t("ashedSyncEditsPaused")}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {syncFailed && !syncRunning ? (
+        <div
+          className="flex flex-col gap-2 rounded-xl border border-hq-danger/40 bg-hq-danger/10 px-4 py-3 text-sm text-hq-danger sm:flex-row sm:items-center sm:justify-between"
+          role="alert"
+        >
+          <p>{t("ashedSyncFailed")}</p>
+          {showRefresh ? (
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              className="w-full shrink-0 rounded-lg border border-hq-danger px-3 py-1.5 text-xs hover:bg-hq-danger/10 sm:w-auto"
+            >
+              {t("ashedSyncRetry")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <p className="text-xs text-hq-fg-muted">
         {data.fetchedAt
           ? t("lastSynced", { time: formatDateTime(data.fetchedAt) })
@@ -865,7 +945,7 @@ export function MembersListView({
       </p>
 
       <div className="relative min-w-0 overflow-x-auto rounded-xl border border-hq-border">
-        {refreshing ? (
+        {refreshing && !syncRunning ? (
           <div
             className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-hq-canvas/70 text-sm text-hq-fg-muted"
             role="status"
@@ -877,7 +957,7 @@ export function MembersListView({
         ) : null}
         <table
           className={`w-full min-w-max text-left text-sm ${
-            refreshing ? "pointer-events-none opacity-50" : ""
+            refreshing && !syncRunning ? "pointer-events-none opacity-50" : ""
           }`}
         >
           <thead className="border-b border-hq-border bg-hq-surface text-xs uppercase tracking-wide text-hq-fg-muted">
