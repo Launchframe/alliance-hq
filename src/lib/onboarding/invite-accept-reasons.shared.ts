@@ -17,6 +17,7 @@ export const INVITE_ACCEPT_REASON_CODES = [
   "invite_belongs_to_other_account",
   "commander_already_claimed",
   "hybrid_rank_stale",
+  "membership_revoked_requires_fresh_invite",
   "accept_failed",
 ] as const;
 
@@ -54,5 +55,8 @@ export function inviteAcceptReasonFromApiCode(
   if (code === "auth_required") return "auth_required";
   if (code === "email_mismatch") return "email_mismatch";
   if (code === "commander_already_claimed") return "commander_already_claimed";
+  if (code === "MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE") {
+    return "membership_revoked_requires_fresh_invite";
+  }
   return "accept_failed";
 }

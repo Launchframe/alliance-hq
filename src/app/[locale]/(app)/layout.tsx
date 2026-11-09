@@ -4,7 +4,10 @@ import { TimezoneProvider } from "@/components/timezone/TimezoneProvider";
 import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
 import { ShellActivityBoundary } from "@/components/ashed-shell/ShellActivityBoundary";
-import { loadAllianceCredentialBanner } from "@/lib/ashed/alliance-credential-expiry.server";
+import {
+  loadAllianceCredentialBanner,
+  loadMissingAllianceCredentialBanner,
+} from "@/lib/ashed/alliance-credential-expiry.server";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
 import {
   collectDatabaseErrorText,
@@ -87,8 +90,9 @@ export default async function AppLayout({
     state.permissions.includes("hq:video:read") ||
     (await sessionCanReadAllianceVideoQueue(state.sessionId));
   const showVideoJobsOps = await sessionCanProcessVideo(state.sessionId);
+  const bannerAllianceId = state.currentAllianceId ?? state.allianceId ?? null;
   const allianceCredentialBanner = await loadAllianceCredentialBanner({
-    allianceId: state.currentAllianceId ?? state.allianceId ?? null,
+    allianceId: bannerAllianceId,
     hqUserId: state.hqUserId,
     permissions: state.permissions,
     locale,
@@ -97,6 +101,16 @@ export default async function AppLayout({
     console.error("[app-layout] alliance credential banner failed:", error);
     return null;
   });
+  const missingAllianceCredential = allianceCredentialBanner
+    ? null
+    : await loadMissingAllianceCredentialBanner({
+        allianceId: bannerAllianceId,
+        permissions: state.permissions,
+        hasSessionAshed: state.isConnected,
+      }).catch((error) => {
+        console.error("[app-layout] missing alliance credential banner failed:", error);
+        return null;
+      });
 
   const navigationPreferences = await loadNavigationPreferences(state.hqUserId);
 
@@ -118,6 +132,7 @@ export default async function AppLayout({
         isAshedConnectAllowed={state.rbac?.isAshedConnectAllowed ?? false}
         ashed={state.ashed}
         allianceCredentialBanner={allianceCredentialBanner}
+        missingAllianceCredential={missingAllianceCredential}
         showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
         showVideoQueue={showVideoQueue}

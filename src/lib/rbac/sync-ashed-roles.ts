@@ -8,6 +8,7 @@ import {
 } from "@/lib/alliance/accessible";
 import {
   buildAllianceRosterEmails,
+  ashedSyncMayUpdateMembership,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
 import { findAdoptableHqAllianceShell } from "@/lib/rbac/sync-ashed-roles-shell.server";
@@ -245,7 +246,7 @@ async function upsertAshedMembership(
     .limit(1);
 
   if (existing) {
-    if (existing.source === "manual") {
+    if (!ashedSyncMayUpdateMembership(existing.source)) {
       return;
     }
     await db

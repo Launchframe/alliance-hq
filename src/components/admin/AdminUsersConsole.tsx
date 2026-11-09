@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Dialog } from "@/components/ui/dialog";
 import { AdminCommanderTransferPanel } from "@/components/admin/AdminCommanderTransferPanel";
 import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
 import {
@@ -140,6 +141,7 @@ function AdminIdLine({ label, value }: { label: string; value: string }) {
 
 export function AdminUsersConsole() {
   const t = useTranslations("admin.usersPage");
+  const tPicker = useTranslations("alliancePicker");
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [alliances, setAlliances] = useState<AllianceOption[]>([]);
   const [listUsers, setListUsers] = useState<AdminUserListRow[]>([]);
@@ -161,6 +163,8 @@ export function AdminUsersConsole() {
   const [membershipRoles, setMembershipRoles] = useState<Record<string, string>>(
     {},
   );
+  const [removeTarget, setRemoveTarget] = useState<Membership | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [platformMaintainer, setPlatformMaintainerFlag] = useState(false);
 
   const listQueryParams = useMemo(
@@ -282,6 +286,44 @@ export function AdminUsersConsole() {
       setMessage(t("saved"));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("saveFailed"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmRemove(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedUser || !removeTarget) return;
+    setSaving(true);
+    setRemoveError(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hqUserId: selectedUser.id,
+          removeMembership: { membershipId: removeTarget.id },
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        user?: AdminUser;
+      };
+      if (!res.ok) {
+        setRemoveError(
+          data.error === "last_owner" ? tPicker("lastOwner") : t("removeFailed"),
+        );
+        return;
+      }
+      if (data.user) {
+        applySelectedUser(data.user);
+      }
+      await loadUserList();
+      setRemoveTarget(null);
+      setMessage(t("saved"));
+    } catch {
+      setRemoveError(t("removeFailed"));
     } finally {
       setSaving(false);
     }
@@ -550,6 +592,20 @@ export function AdminUsersConsole() {
                       >
                         {t("saveRole")}
                       </button>
+                      {membership.status === "active" ? (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          data-testid={`remove-membership-${membership.id}`}
+                          onClick={() => {
+                            setRemoveError(null);
+                            setRemoveTarget(membership);
+                          }}
+                          className="rounded-lg border border-hq-danger-emphasis/60 px-3 py-2 text-sm text-hq-danger disabled:opacity-50"
+                        >
+                          {t("removeFromAlliance")}
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -758,6 +814,53 @@ export function AdminUsersConsole() {
                 </button>
               </div>
             </div>
+            <Dialog
+              open={removeTarget !== null}
+              onOpenChange={(open) => {
+                if (!open && !saving) {
+                  setRemoveTarget(null);
+                  setRemoveError(null);
+                }
+              }}
+              title={
+                removeTarget
+                  ? t("removeConfirmTitle", {
+                      alliance: removeTarget.allianceTag ?? removeTarget.allianceName,
+                    })
+                  : undefined
+              }
+              data-testid="remove-membership-dialog"
+            >
+              {removeTarget ? (
+                <form
+                  onSubmit={(event) => void confirmRemove(event)}
+                  className="space-y-3"
+                >
+                  <h2 className="text-base font-medium text-hq-fg">
+                    {t("removeConfirmTitle", {
+                      alliance: removeTarget.allianceTag ?? removeTarget.allianceName,
+                    })}
+                  </h2>
+                  <p className="text-sm text-hq-fg-muted">
+                    {t("removeConfirmBody", {
+                      alliance: removeTarget.allianceTag ?? removeTarget.allianceName,
+                    })}
+                  </p>
+                  {removeError ? (
+                    <p className="text-sm text-hq-danger" role="alert">
+                      {removeError}
+                    </p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-lg bg-hq-danger-emphasis px-3 py-2 text-sm font-medium text-white hover:bg-hq-danger disabled:opacity-50"
+                  >
+                    {t("removeConfirm")}
+                  </button>
+                </form>
+              ) : null}
+            </Dialog>
           </>
         )}
 

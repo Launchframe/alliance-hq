@@ -32,4 +32,6 @@ export type SessionAllianceOption = {
   roleName: string;
   /** HQ user has at least one linked Commander in this alliance. */
   hasLinkedCommanders?: boolean;
+  /** Set when this user is the alliance's only active owner. */
+  leaveBlockedReason?: "last_owner" | null;
 };

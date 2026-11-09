@@ -13,6 +13,19 @@ import {
 
 export type ProvisionRolePolicy = "never_demote" | "preserve_existing";
 
+/** Accepted-invite / join-code rebind cannot revive a left or removed membership. */
+export const MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE =
+  "MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE";
+
+export class MembershipRejoinRequiresFreshInviteError extends Error {
+  readonly code = MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE;
+
+  constructor() {
+    super(MEMBERSHIP_REVOKED_REQUIRES_FRESH_INVITE);
+    this.name = "MembershipRejoinRequiresFreshInviteError";
+  }
+}
+
 export type ProvisionAllianceMembershipInput = {
   hqUserId: string;
   sessionId: string;
@@ -24,9 +37,11 @@ export type ProvisionAllianceMembershipInput = {
    * How to treat an already-active membership for this alliance:
    * - `never_demote` (default): apply invite/code role only when it is a
    *   privilege upgrade (officer invite after member). Blocks silent demotion
-   *   when an officer later accepts a member/claim invite.
-   * - `preserve_existing`: never change roleId (rebind / join-code re-redeem).
-   *   Blocks silent re-escalation after an intentional demotion.
+   *   when an officer later accepts a member/claim invite. A fresh invite may
+   *   also reactivate a previously revoked membership at the invite role.
+   * - `preserve_existing`: never change roleId on an *active* membership
+   *   (rebind / join-code re-redeem). Refuses revoked rows so leave/removal
+   *   cannot be undone by replaying an already-accepted elevated invite.
    */
   rolePolicy?: ProvisionRolePolicy;
 };
@@ -49,12 +64,18 @@ export function resolveProvisionRoleId(input: {
   existingStatus: string | null | undefined;
   rolePolicy: ProvisionRolePolicy;
 }): string {
-  if (input.existingStatus !== "active" || !input.existingRoleId) {
+  if (input.rolePolicy === "preserve_existing") {
+    if (input.existingStatus === "revoked") {
+      throw new MembershipRejoinRequiresFreshInviteError();
+    }
+    if (input.existingStatus === "active" && input.existingRoleId) {
+      return input.existingRoleId;
+    }
     return input.inviteRoleId;
   }
 
-  if (input.rolePolicy === "preserve_existing") {
-    return input.existingRoleId;
+  if (input.existingStatus !== "active" || !input.existingRoleId) {
+    return input.inviteRoleId;
   }
 
   const currentName = systemRoleNameForId(input.existingRoleId);

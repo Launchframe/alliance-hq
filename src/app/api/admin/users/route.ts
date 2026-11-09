@@ -10,8 +10,12 @@ import {
   updateManualMembershipRole,
   type AdminUserRow,
 } from "@/lib/rbac/admin-users";
+import {
+  MembershipRevokeError,
+  revokeAllianceMembership,
+} from "@/lib/rbac/revoke-alliance-membership.server";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
-import { readSessionId } from "@/lib/session";
+import { loadSession, readSessionId } from "@/lib/session";
 
 function serializeAdminUser(user: AdminUserRow) {
   return {
@@ -80,6 +84,11 @@ export async function PATCH(request: Request) {
   const denied = await requirePlatformMaintainer(sessionId);
   if (denied) return denied;
 
+  const session = await loadSession(sessionId);
+  if (!session?.hqUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await request.json()) as {
     hqUserId?: string;
     isPlatformMaintainer?: boolean;
@@ -90,6 +99,9 @@ export async function PATCH(request: Request) {
     updateMembership?: {
       membershipId: string;
       roleId: string;
+    };
+    removeMembership?: {
+      membershipId: string;
     };
   };
 
@@ -117,6 +129,17 @@ export async function PATCH(request: Request) {
       );
     }
 
+    if (body.removeMembership?.membershipId) {
+      await revokeAllianceMembership({
+        membershipId: body.removeMembership.membershipId,
+        actorHqUserId: session.hqUserId,
+        actorSessionId: session.id,
+        actorSessionAllianceId: session.currentAllianceId,
+        mode: "admin",
+        expectedHqUserId: body.hqUserId,
+      });
+    }
+
     const user = await loadAdminUserById(body.hqUserId);
     if (!user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
@@ -127,6 +150,10 @@ export async function PATCH(request: Request) {
       user: serializeAdminUser(user),
     });
   } catch (error) {
+    if (error instanceof MembershipRevokeError) {
+      const status = error.code === "not_found" ? 404 : 409;
+      return NextResponse.json({ error: error.code }, { status });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Update failed." },
       { status: 400 },
