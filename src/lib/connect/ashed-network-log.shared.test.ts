@@ -7,6 +7,7 @@ import {
   recordAshedClientTransaction,
   recordAshedObservedRequest,
   recordRosterAshedSyncTransaction,
+  recordVsMatchupImportTransaction,
   sanitizeAshedNetworkPath,
   summarizeAshedNetworkLog,
 } from "@/lib/connect/ashed-network-log.shared";
@@ -156,5 +157,14 @@ describe("ashed-network-log.shared", () => {
     expect(entries.every((entry) => entry.labelKey === "roster_sync")).toBe(
       true,
     );
+  });
+
+  it("records VS matchup import transitions", () => {
+    recordVsMatchupImportTransaction({ status: "running" });
+    recordVsMatchupImportTransaction({ status: "idle" });
+    const entries = loadAshedNetworkLog();
+    expect(entries[0]?.labelKey).toBe("vs_import");
+    expect(entries[0]?.path).toBe("/api/vs-performance/matchup/import");
+    expect(entries[0]?.outcome).toBe("ok");
   });
 });

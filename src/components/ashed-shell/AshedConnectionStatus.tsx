@@ -423,10 +423,19 @@ export function AshedConnectionStatus({
                             {formatConnectedSince(entry.at, locale)}
                           </span>
                           {" · "}
-                          <span className="font-mono">
-                            {entry.method ? `${entry.method} ` : ""}
-                            {entry.path}
-                          </span>
+                          {entry.labelKey === "roster_sync" ||
+                          entry.labelKey === "vs_import" ? (
+                            t(
+                              entry.labelKey === "roster_sync"
+                                ? "activityLabel.roster_sync"
+                                : "activityLabel.vs_import",
+                            )
+                          ) : (
+                            <span className="font-mono">
+                              {entry.method ? `${entry.method} ` : ""}
+                              {entry.path}
+                            </span>
+                          )}
                           {" · "}
                           {t(outcomeMessageKey(entry.outcome))}
                           {entry.durationMs != null

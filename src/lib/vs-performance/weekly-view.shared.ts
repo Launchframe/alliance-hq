@@ -144,3 +144,31 @@ export type TrustedVsResultEvidence = {
   reviewJobId?: string | null;
   reviewCaptureId?: string | null;
 };
+
+/**
+ * Apply an Ashed matchup import onto the week the officer is looking at
+ * without replacing plan, preferences, or day rules they may be editing.
+ */
+export function applyImportedVsMatchup(
+  current: VsWeekPayload,
+  imported: VsWeekPayload,
+): VsWeekPayload | null {
+  if (
+    current.weekStart !== imported.weekStart ||
+    current.scope !== imported.scope ||
+    current.contextScope !== imported.contextScope
+  ) {
+    return null;
+  }
+  return {
+    ...current,
+    matchup: imported.matchup,
+    points: imported.points,
+    pif: imported.pif,
+    pifError: imported.pifError,
+    canImportAshed: imported.canImportAshed,
+    ashedLinked: imported.ashedLinked,
+    memberScoreChecks: imported.memberScoreChecks,
+    allianceIdentity: imported.allianceIdentity,
+  };
+}
