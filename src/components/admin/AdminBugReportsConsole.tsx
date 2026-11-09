@@ -53,6 +53,7 @@ type BugReportDetail = {
   browserVersion: string | null;
   osVersion: string | null;
   consoleLogs: string | null;
+  ashedNetworkLogs: string | null;
   createdAt: string | null;
   updatedAt: string | null;
   screenshots: Array<{
@@ -349,6 +350,11 @@ export function AdminBugReportsConsole() {
                     {activeDetail.consoleLogs?.trim() ? (
                       <AdminStatusPill>{t("hasConsoleLogs")}</AdminStatusPill>
                     ) : null}
+                    {activeDetail.ashedNetworkLogs?.trim() ? (
+                      <AdminStatusPill>
+                        {t("hasAshedNetworkLogs")}
+                      </AdminStatusPill>
+                    ) : null}
                   </div>
 
                   <AdminDetailField label={t("reporter")}>
@@ -402,7 +408,14 @@ export function AdminBugReportsConsole() {
                     ]}
                   />
 
-                  <AdminConsoleLogsBlock logs={activeDetail.consoleLogs} />
+                  <AdminConsoleLogsBlock
+                    logs={activeDetail.consoleLogs}
+                    label={t("consoleLogs")}
+                  />
+                  <AdminConsoleLogsBlock
+                    logs={activeDetail.ashedNetworkLogs}
+                    label={t("ashedNetworkLogs")}
+                  />
 
                   {activeDetail.screenshots.length > 0 ? (
                     <AdminDetailField label={t("screenshots")}>

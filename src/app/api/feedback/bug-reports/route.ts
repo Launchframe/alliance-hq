@@ -12,6 +12,7 @@ import {
   APP_VERSION,
   MAX_BUG_REPORT_SCREENSHOTS,
   MAX_BUG_REPORT_SCREENSHOT_BYTES,
+  truncateBugReportAshedNetworkLogs,
   truncateBugReportConsoleLogs,
 } from "@/lib/feedback/constants";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
@@ -98,6 +99,9 @@ export async function POST(request: Request) {
       browserVersion: formField(form, "browserVersion") ?? null,
       osVersion: formField(form, "osVersion") ?? null,
       consoleLogs: truncateBugReportConsoleLogs(formField(form, "consoleLogs")),
+      ashedNetworkLogs: truncateBugReportAshedNetworkLogs(
+        formField(form, "ashedNetworkLogs"),
+      ),
       captureSessionId: captureSessionId ?? null,
       createdAt: now,
       updatedAt: now,

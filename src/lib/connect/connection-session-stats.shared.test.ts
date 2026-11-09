@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  loadAshedNetworkLog,
+  recordAshedClientTransaction,
+} from "./ashed-network-log.shared";
+import {
   clearAshedConnectionSessionStats,
   incrementAshedRequestCountSilent,
   loadAshedConnectionSessionStats,
@@ -35,6 +39,25 @@ describe("connection-session-stats.shared", () => {
   afterEach(() => {
     clearAshedConnectionSessionStats();
     vi.unstubAllGlobals();
+  });
+
+  it("clears the network log when a session starts or ends", () => {
+    recordAshedClientTransaction({
+      kind: "hq_api",
+      path: "/api/members",
+      outcome: "ok",
+    });
+    expect(loadAshedNetworkLog()).toHaveLength(1);
+    startAshedConnectionSession("2026-07-18T12:00:00.000Z");
+    expect(loadAshedNetworkLog()).toHaveLength(0);
+
+    recordAshedClientTransaction({
+      kind: "hq_api",
+      path: "/api/members",
+      outcome: "ok",
+    });
+    clearAshedConnectionSessionStats();
+    expect(loadAshedNetworkLog()).toHaveLength(0);
   });
 
   it("starts a session with zero requests", () => {
