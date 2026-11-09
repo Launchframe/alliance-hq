@@ -30,8 +30,13 @@ import {
 } from "@/lib/lastrank/alliance-page.shared";
 import type { LastRankSyncTarget } from "@/lib/lastrank/sync-registry.shared";
 import {
+  buildInteractiveWriteSummaryFromPlan,
   emptyLastRankSyncPlan,
+  LASTRANK_INTERACTIVE_CONFIRM_ABORTED,
+  lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanStats,
+  type LastRankInteractiveConfirmPrompt,
+  type LastRankRetireAnswer,
   type LastRankSyncPlan,
   type LastRankSyncPlanListener,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -130,7 +135,7 @@ export type LastRankInteractivePrompt = (
 export type LastRankRetirePrompt = (ctx: {
   memberName: string;
   ashedMemberId: string;
-}) => Promise<boolean>;
+}) => Promise<LastRankRetireAnswer>;
 
 export type LastRankAllianceSyncResult = {
   tag: string;
@@ -654,6 +659,76 @@ function emitPlan(
   listener?.(lastRankSyncPlanStats(plan, remaining));
 }
 
+type InteractiveResolutionEntry =
+  | { kind: "skip" }
+  | { kind: "create"; lastRank: LastRankAllianceMember; queued: boolean }
+  | {
+      kind: "match";
+      lastRankPublicId: number;
+      hq: LastRankHqRosterRow;
+      priorHqName: string;
+    };
+
+/** Rebuild plan + match from the decision stack so undo stays consistent. */
+function rebuildInteractiveResolutions(
+  initial: LastRankMatchResult,
+  stack: readonly InteractiveResolutionEntry[],
+  plan: LastRankSyncPlan,
+): { match: LastRankMatchResult; claimed: Set<string> } {
+  const claimed = new Set(initial.matched.map((row) => row.hq.commanderId));
+  plan.mapped.length = 0;
+  plan.creates.length = 0;
+  plan.skipped = 0;
+
+  const matchResolutions: Array<{
+    lastRankPublicId: number;
+    hq: LastRankHqRosterRow;
+  }> = [];
+  const priorByPublicId = new Map<number, string>();
+
+  for (const entry of stack) {
+    if (entry.kind === "skip") {
+      plan.skipped += 1;
+      continue;
+    }
+    if (entry.kind === "create") {
+      if (entry.queued) plan.creates.push(entry.lastRank);
+      else plan.skipped += 1;
+      continue;
+    }
+    claimed.add(entry.hq.commanderId);
+    matchResolutions.push({
+      lastRankPublicId: entry.lastRankPublicId,
+      hq: entry.hq,
+    });
+    priorByPublicId.set(entry.lastRankPublicId, entry.priorHqName);
+  }
+
+  const match =
+    matchResolutions.length > 0
+      ? applyInteractiveMatches(initial, matchResolutions)
+      : initial;
+
+  for (const resolution of matchResolutions) {
+    const matchedRow = match.matched.find(
+      (row) =>
+        row.matchMethod === "interactive" &&
+        row.lastRank.publicId === resolution.lastRankPublicId,
+    );
+    if (!matchedRow) continue;
+    plan.mapped.push({
+      row: matchedRow,
+      priorHqName:
+        priorByPublicId.get(resolution.lastRankPublicId) ??
+        matchedRow.hq.currentNames[0] ??
+        matchedRow.hq.previousNames[0] ??
+        matchedRow.hq.commanderId,
+    });
+  }
+
+  return { match, claimed };
+}
+
 /** Prompts only queue decisions on `plan`; nothing is written until dispatch. */
 async function runInteractiveResolutions(
   match: LastRankMatchResult,
@@ -662,10 +737,11 @@ async function runInteractiveResolutions(
   options: {
     apply: boolean;
     onPlanChanged?: LastRankSyncPlanListener;
+    /** Resume after undoing out of the retire phase. */
+    initialStack?: InteractiveResolutionEntry[];
   },
-): Promise<LastRankMatchResult> {
-  let current = match;
-  const claimed = new Set(match.matched.map((row) => row.hq.commanderId));
+): Promise<{ match: LastRankMatchResult; stack: InteractiveResolutionEntry[] }> {
+  const initial = match;
   const allHq = [
     ...match.matched.map((row) => row.hq),
     ...match.unmatchedHq,
@@ -673,8 +749,20 @@ async function runInteractiveResolutions(
   const pending = match.unmatched.filter(
     (row) => row.status === "unmatched" || row.status === "ambiguous",
   );
+  const stack: InteractiveResolutionEntry[] = [...(options.initialStack ?? [])];
+  let current = match;
+  let claimed = new Set(match.matched.map((row) => row.hq.commanderId));
+  let index = 0;
+  if (stack.length > 0) {
+    const rebuilt = rebuildInteractiveResolutions(initial, stack, plan);
+    current = rebuilt.match;
+    claimed = rebuilt.claimed;
+    index = stack.length;
+    emitPlan(plan, pending.length - index, options.onPlanChanged);
+  }
 
-  for (const [index, row] of pending.entries()) {
+  while (index < pending.length) {
+    const row = pending[index]!;
     const remainingHqNames = allHq
       .filter((hq) => !claimed.has(hq.commanderId))
       .map((hq) => hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId);
@@ -690,63 +778,66 @@ async function runInteractiveResolutions(
       },
       { current: index + 1, total: pending.length },
     );
-    const remaining = pending.length - index - 1;
 
-    if (answer.kind === "skip") {
-      plan.skipped += 1;
-      emitPlan(plan, remaining, options.onPlanChanged);
+    if (answer.kind === "undo") {
+      if (stack.length === 0) {
+        console.error("Nothing to undo.");
+        continue;
+      }
+      stack.pop();
+      const rebuilt = rebuildInteractiveResolutions(initial, stack, plan);
+      current = rebuilt.match;
+      claimed = rebuilt.claimed;
+      index = stack.length;
+      emitPlan(plan, pending.length - index, options.onPlanChanged);
       continue;
     }
 
-    if (answer.kind === "create") {
+    if (answer.kind === "skip") {
+      stack.push({ kind: "skip" });
+    } else if (answer.kind === "create") {
       if (!options.apply) {
         console.error(
           `Create skipped for "${row.lastRank.name}" (re-run with --apply to create HQ members).`,
         );
-        plan.skipped += 1;
+        stack.push({ kind: "create", lastRank: row.lastRank, queued: false });
       } else if (!lastRankMemberEligibleForCreate(row.lastRank)) {
         console.error(
           `Create skipped for "${row.lastRank.name}" (unranked — often a leaver; leave blank to skip).`,
         );
-        plan.skipped += 1;
+        stack.push({ kind: "create", lastRank: row.lastRank, queued: false });
       } else {
-        plan.creates.push(row.lastRank);
+        stack.push({ kind: "create", lastRank: row.lastRank, queued: true });
       }
-      emitPlan(plan, remaining, options.onPlanChanged);
-      continue;
+    } else {
+      const resolved = resolveHqNameToRosterRow(answer.hqName, allHq, claimed);
+      if (!resolved.ok) {
+        console.error(
+          `Could not map "${row.lastRank.name}" → "${answer.hqName}" (${resolved.reason})`,
+        );
+        stack.push({ kind: "skip" });
+      } else {
+        const priorHqName =
+          resolved.hq.currentNames[0] ??
+          resolved.hq.previousNames[0] ??
+          resolved.hq.commanderId;
+        stack.push({
+          kind: "match",
+          lastRankPublicId: row.lastRank.publicId,
+          hq: resolved.hq,
+          priorHqName,
+        });
+      }
     }
 
-    const resolved = resolveHqNameToRosterRow(answer.hqName, allHq, claimed);
-    if (!resolved.ok) {
-      console.error(
-        `Could not map "${row.lastRank.name}" → "${answer.hqName}" (${resolved.reason})`,
-      );
-      plan.skipped += 1;
-      emitPlan(plan, remaining, options.onPlanChanged);
-      continue;
-    }
-    claimed.add(resolved.hq.commanderId);
-    current = applyInteractiveMatches(current, [
-      { lastRankPublicId: row.lastRank.publicId, hq: resolved.hq },
-    ]);
-    const matchedRow = current.matched.find(
-      (matched) =>
-        matched.matchMethod === "interactive" &&
-        matched.lastRank.publicId === row.lastRank.publicId,
-    );
-    if (matchedRow) {
-      plan.mapped.push({
-        row: matchedRow,
-        priorHqName:
-          matchedRow.hq.currentNames[0] ??
-          matchedRow.hq.previousNames[0] ??
-          matchedRow.hq.commanderId,
-      });
-    }
-    emitPlan(plan, remaining, options.onPlanChanged);
+    const rebuilt = rebuildInteractiveResolutions(initial, stack, plan);
+    current = rebuilt.match;
+    claimed = rebuilt.claimed;
+    index = stack.length;
+    emitPlan(plan, pending.length - index, options.onPlanChanged);
   }
 
-  return current;
+  return { match: current, stack };
 }
 
 type CreatedLastRankMembers = {
@@ -856,30 +947,75 @@ async function createUnmatchedLastRankMembers(
   };
 }
 
-/** Queues retire choices on `plan`; nothing is written until dispatch. */
+type RetireDecisionEntry =
+  | { kind: "retire"; ashedMemberId: string; memberName: string }
+  | { kind: "keep"; ashedMemberId: string; memberName: string };
+
+function applyRetireStackToPlan(
+  plan: LastRankSyncPlan,
+  stack: readonly RetireDecisionEntry[],
+): void {
+  plan.retires.length = 0;
+  for (const entry of stack) {
+    if (entry.kind === "retire") {
+      plan.retires.push({
+        ashedMemberId: entry.ashedMemberId,
+        memberName: entry.memberName,
+      });
+    }
+  }
+}
+
+/**
+ * Queues retire choices on `plan`. `undo` rewinds the last retire answer; when
+ * the retire stack is empty and `canUndoNames` is true, returns `undo_names` so
+ * the caller can rewind into the name-mapping phase.
+ */
 async function runInteractiveRetires(
   hqAllianceId: string,
   match: LastRankMatchResult,
   prompt: LastRankRetirePrompt,
   plan: LastRankSyncPlan,
   onPlanChanged: LastRankSyncPlanListener | undefined,
-): Promise<void> {
+  canUndoNames: boolean,
+): Promise<"done" | "undo_names"> {
   const keepIds = new Set(match.matched.map((row) => row.hq.ashedMemberId));
   const candidates = await listActiveMemberIdsNotInSet(hqAllianceId, keepIds);
+  const stack: RetireDecisionEntry[] = [];
+  plan.retires.length = 0;
+  let index = 0;
 
-  for (const [index, member] of candidates.entries()) {
-    const shouldRetire = await prompt({
+  while (index < candidates.length) {
+    const member = candidates[index]!;
+    const answer = await prompt({
       memberName: member.currentName,
       ashedMemberId: member.ashedMemberId,
     });
-    if (shouldRetire) {
-      plan.retires.push({
-        ashedMemberId: member.ashedMemberId,
-        memberName: member.currentName,
-      });
+    if (answer.kind === "undo") {
+      if (stack.length === 0) {
+        if (!canUndoNames) {
+          console.error("Nothing to undo.");
+          continue;
+        }
+        return "undo_names";
+      }
+      stack.pop();
+      applyRetireStackToPlan(plan, stack);
+      index = stack.length;
+      emitPlan(plan, candidates.length - index, onPlanChanged);
+      continue;
     }
-    emitPlan(plan, candidates.length - index - 1, onPlanChanged);
+    stack.push({
+      kind: answer.kind,
+      ashedMemberId: member.ashedMemberId,
+      memberName: member.currentName,
+    });
+    applyRetireStackToPlan(plan, stack);
+    index = stack.length;
+    emitPlan(plan, candidates.length - index, onPlanChanged);
   }
+
+  return "done";
 }
 
 async function dispatchQueuedRetires(
@@ -968,6 +1104,11 @@ export async function syncLastRankAlliance(input: {
   interactivePrompt?: LastRankInteractivePrompt;
   alliancePrompt?: LastRankAllianceResolvePrompt;
   retirePrompt?: LastRankRetirePrompt;
+  /**
+   * When interactive renames or creates are queued, called once before
+   * `onDispatchStart`. Returning false aborts with nothing written.
+   */
+  confirmInteractiveWrites?: LastRankInteractiveConfirmPrompt;
   /** Called after every interactive answer with the queued (unwritten) plan. */
   onPlanChanged?: LastRankSyncPlanListener;
   /** Called once prompts finish, just before any queued writes run. */
@@ -1041,20 +1182,51 @@ export async function syncLastRankAlliance(input: {
   // Interactive answers only queue decisions; writes happen in one dispatch
   // below so each prompt does not wait on remote DB / Ashed round trips.
   const plan = emptyLastRankSyncPlan();
-  if (input.interactivePrompt && match.unmatched.length > 0) {
-    match = await runInteractiveResolutions(match, input.interactivePrompt, plan, {
-      apply: input.apply,
-      onPlanChanged: input.onPlanChanged,
-    });
-  }
-  if (input.apply && !input.retireAllUnmatched && input.retirePrompt) {
-    await runInteractiveRetires(
+  const initialMatch = match;
+  let nameStack: InteractiveResolutionEntry[] = [];
+  const wantNames =
+    Boolean(input.interactivePrompt) && initialMatch.unmatched.length > 0;
+  const wantRetires =
+    Boolean(input.apply) &&
+    !input.retireAllUnmatched &&
+    Boolean(input.retirePrompt);
+
+  while (wantNames || wantRetires) {
+    if (wantNames && input.interactivePrompt) {
+      const resolved = await runInteractiveResolutions(
+        initialMatch,
+        input.interactivePrompt,
+        plan,
+        {
+          apply: input.apply,
+          onPlanChanged: input.onPlanChanged,
+          initialStack: nameStack,
+        },
+      );
+      match = resolved.match;
+      nameStack = resolved.stack;
+    }
+
+    if (!wantRetires || !input.retirePrompt) {
+      break;
+    }
+
+    const retireOutcome = await runInteractiveRetires(
       hqAllianceId,
       match,
       input.retirePrompt,
       plan,
       input.onPlanChanged,
+      wantNames && nameStack.length > 0,
     );
+    if (retireOutcome === "done") {
+      break;
+    }
+    // Retire phase asked to rewind into names; pop the last name answer.
+    nameStack.pop();
+    plan.retires.length = 0;
+    const rebuilt = rebuildInteractiveResolutions(initialMatch, nameStack, plan);
+    match = rebuilt.match;
   }
 
   // Diff before create/retire so operators see excess/missing even on --apply.
@@ -1062,6 +1234,21 @@ export async function syncLastRankAlliance(input: {
     lastRankCount: page.members.length,
     match,
   });
+
+  const writeSummary = buildInteractiveWriteSummaryFromPlan(plan);
+  if (lastRankInteractiveWritesNeedConfirm(writeSummary)) {
+    if (input.apply && !input.confirmInteractiveWrites) {
+      throw new Error(
+        "Interactive renames/creates require confirmInteractiveWrites before apply dispatch.",
+      );
+    }
+    if (
+      input.confirmInteractiveWrites &&
+      !(await input.confirmInteractiveWrites(writeSummary))
+    ) {
+      throw new Error(LASTRANK_INTERACTIVE_CONFIRM_ABORTED);
+    }
+  }
 
   input.onDispatchStart?.(lastRankSyncPlanStats(plan, 0));
 

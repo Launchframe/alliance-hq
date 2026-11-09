@@ -19,6 +19,7 @@ import {
   isLocalDatabaseHost,
 } from "@/lib/lastrank/cli-database-guard.shared";
 import {
+  buildInteractiveWriteSummaryFromRemoteDecisions,
   buildLastRankSyncSummary,
   collectLastRankRemoteDecisions,
   LASTRANK_REMOTE_SYNC_VERSION,
@@ -35,8 +36,16 @@ import {
   type LastRankSyncTarget,
 } from "@/lib/lastrank/sync-registry.shared";
 import {
+  formatLastRankInteractiveWriteSummaryLines,
   formatLastRankSyncPlanStats,
+  LASTRANK_INTERACTIVE_CONFIRM_ABORTED,
+  lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanQueuedCount,
+  parseLastRankInteractiveConfirmAnswer,
+  parseLastRankRetireAnswer,
+  type LastRankInteractiveConfirmPrompt,
+  type LastRankInteractiveWriteSummary,
+  type LastRankRetireAnswer,
   type LastRankSyncPlanListener,
   type LastRankSyncPlanStats,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -75,11 +84,15 @@ Flags:
   --interactive       TTY prompts: map unmatched names, pick fuzzy alliance, retire leavers
                       Each name prompt shows [n/total]; prints the LastRank profile URL;
                       unranked rows hint leavers (blank = skip).
-                      Name prompt: number = HQ choice, C = create one member, blank = skip
-                      Mapping always saves lastrank_public_id; --apply also renames HQ/Ashed.
-                      Suggestions rank by name + THP and country (profession breaks ties).
-                      Answers are queued and written in one batch after the last prompt;
-                      Ctrl+C before then discards them (asks twice).
+                      Name prompt: number = HQ choice, C = create one member, U = undo last
+                      answer, blank = skip. Retire prompt: y/yes, n/blank, U = undo (can
+                      rewind into the prior name answer). Invalid retire keys re-prompt.
+                      Mapping always saves lastrank_public_id; --apply also renames
+                      HQ/Ashed. Suggestions rank by name + THP and country (profession
+                      breaks ties). Answers are queued and written in one batch after the
+                      last prompt; when that batch includes renames or new commanders, a
+                      confirmation screen must be accepted first (y/yes). Ctrl+C before
+                      then discards them (asks twice).
   --ashed-connection-key <key>
                       Upsert alliance bot Ashed credential (with --apply, or with
                       --save-ashed-credential on dry-run). Never logged.
@@ -145,6 +158,20 @@ function argInt(flag: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+async function promptInteractiveWriteConfirm(
+  rl: readline.Interface,
+  summary: LastRankInteractiveWriteSummary,
+): Promise<boolean> {
+  console.error("");
+  console.error("Review queued interactive writes (nothing written yet):");
+  for (const line of formatLastRankInteractiveWriteSummaryLines(summary)) {
+    console.error(line);
+  }
+  console.error("Proceed with these changes? [y/N]");
+  const answer = await rl.question("> ");
+  return parseLastRankInteractiveConfirmAnswer(answer);
+}
+
 function createTtyPrompts(options: { remote?: boolean } = {}): {
   interactivePrompt: LastRankInteractivePrompt;
   alliancePrompt: (ctx: {
@@ -167,7 +194,8 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
   retirePrompt: (ctx: {
     memberName: string;
     ashedMemberId: string;
-  }) => Promise<boolean>;
+  }) => Promise<LastRankRetireAnswer>;
+  confirmInteractiveWrites: LastRankInteractiveConfirmPrompt;
   onPlanChanged: LastRankSyncPlanListener;
   onDispatchStart: LastRankSyncPlanListener;
   close: () => void;
@@ -286,14 +314,17 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
           `  C. Create new HQ member + commander from LastRank ("${ctx.lastRankName}")`,
         );
       }
+      console.error("  U. Undo last answer");
       console.error(
         ctx.unranked
-          ? "Enter a number, type an HQ roster name, or leave blank to skip."
-          : "Enter a number, C to create, type an HQ roster name, or leave blank to skip.",
+          ? "Enter a number, U to undo, type an HQ roster name, or leave blank to skip."
+          : "Enter a number, C to create, U to undo, type an HQ roster name, or leave blank to skip.",
       );
       const answer = await rl.question("> ");
       return resolveInteractiveHqNameAnswer(answer, choices);
     },
+    confirmInteractiveWrites: (summary) =>
+      promptInteractiveWriteConfirm(rl, summary),
     alliancePrompt: async (ctx) => {
       console.error("");
       console.error(
@@ -332,13 +363,16 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
       );
     },
     retirePrompt: async (ctx) => {
-      console.error("");
-      console.error(
-        `HQ member "${ctx.memberName}" is active locally but missing from LastRank.`,
-      );
-      console.error("Retire as former? [y/N]");
-      const answer = (await rl.question("> ")).trim().toLowerCase();
-      return answer === "y" || answer === "yes";
+      for (;;) {
+        console.error("");
+        console.error(
+          `HQ member "${ctx.memberName}" is active locally but missing from LastRank.`,
+        );
+        console.error("Retire as former? [y/N] (U = undo)");
+        const parsed = parseLastRankRetireAnswer(await rl.question("> "));
+        if (parsed) return parsed;
+        console.error("Enter y/yes, n/no/blank to keep, or U to undo.");
+      }
     },
   };
 }
@@ -464,6 +498,16 @@ async function runRemote(input: {
           })
         : null;
     if (tty && collected) {
+      const summary = buildInteractiveWriteSummaryFromRemoteDecisions(
+        plan,
+        collected.decisions,
+      );
+      if (
+        lastRankInteractiveWritesNeedConfirm(summary) &&
+        !(await tty.confirmInteractiveWrites(summary))
+      ) {
+        throw new Error(LASTRANK_INTERACTIVE_CONFIRM_ABORTED);
+      }
       tty.onDispatchStart(collected.stats);
     } else {
       console.error("Sending sync to the server…");
@@ -582,6 +626,7 @@ async function main() {
       alliancePrompt: tty?.alliancePrompt,
       retirePrompt:
         apply && !retireAll && wantInteractive ? tty?.retirePrompt : undefined,
+      confirmInteractiveWrites: tty?.confirmInteractiveWrites,
       onPlanChanged: tty?.onPlanChanged,
       onDispatchStart: tty?.onDispatchStart,
     });

@@ -504,7 +504,8 @@ describe("syncLastRankAlliance batch dispatch", () => {
         if (ctx.publicId === 303) return { kind: "create" };
         return { kind: "skip" };
       },
-      retirePrompt: async () => true,
+      retirePrompt: async () => ({ kind: "retire" as const }),
+      confirmInteractiveWrites: async () => true,
       onDispatchStart,
     });
 
@@ -602,5 +603,138 @@ describe("syncLastRankAlliance batch dispatch", () => {
       expect.objectContaining({ mapped: 0, skipped: 1 }),
     );
     expect(mocks.applyInteractiveNameMapping).not.toHaveBeenCalled();
+  });
+
+  it("undo rewinds the last name decision and restores the claimed HQ name", async () => {
+    mocks.fetchPage.mockResolvedValue({
+      members: [
+        lrMember({ publicId: 501, name: "Alpha" }),
+        lrMember({ publicId: 502, name: "Beta" }),
+      ],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-old",
+        ashedMemberId: "m-old",
+        currentNames: ["OldHQ"],
+      }),
+      hqRow({
+        commanderId: "c-other",
+        ashedMemberId: "m-other",
+        currentNames: ["Other"],
+      }),
+    ]);
+
+    const seenRemaining: string[][] = [];
+    const answers: Array<
+      | { kind: "match"; hqName: string }
+      | { kind: "undo" }
+      | { kind: "create" }
+      | { kind: "skip" }
+    > = [
+      { kind: "match", hqName: "OldHQ" },
+      { kind: "undo" },
+      { kind: "match", hqName: "Other" },
+      { kind: "create" },
+    ];
+    let answerIdx = 0;
+    const onPlanChanged = vi.fn();
+
+    await syncLastRankAlliance({
+      target,
+      apply: true,
+      interactivePrompt: async (ctx) => {
+        seenRemaining.push(ctx.remainingHqNames);
+        return answers[answerIdx++]!;
+      },
+      confirmInteractiveWrites: async () => true,
+      onPlanChanged,
+    });
+
+    expect(seenRemaining[0]).toEqual(expect.arrayContaining(["OldHQ", "Other"]));
+    expect(seenRemaining[1]).toEqual(["Other"]);
+    // After undo, OldHQ is available again for the re-ask of prompt 1.
+    expect(seenRemaining[2]).toEqual(expect.arrayContaining(["OldHQ", "Other"]));
+    expect(mocks.applyInteractiveNameMapping).toHaveBeenCalledOnce();
+    expect(mocks.createAllianceMemberFromLastRank).toHaveBeenCalledOnce();
+    expect(onPlanChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ mapped: 1, creates: 1 }),
+    );
+  });
+
+  it("aborts before dispatch when interactive confirm declines a rename", async () => {
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 601, name: "Beta" })],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-old",
+        ashedMemberId: "m-old",
+        currentNames: ["OldHQ"],
+      }),
+    ]);
+
+    const onDispatchStart = vi.fn();
+    await expect(
+      syncLastRankAlliance({
+        target,
+        apply: true,
+        interactivePrompt: async () => ({ kind: "match", hqName: "OldHQ" }),
+        confirmInteractiveWrites: async () => false,
+        onDispatchStart,
+      }),
+    ).rejects.toThrow(/confirmation declined/);
+    expect(onDispatchStart).not.toHaveBeenCalled();
+    expect(mocks.applyInteractiveNameMapping).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on apply when renames are queued without a confirm hook", async () => {
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 602, name: "Beta" })],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-old",
+        ashedMemberId: "m-old",
+        currentNames: ["OldHQ"],
+      }),
+    ]);
+
+    const onDispatchStart = vi.fn();
+    await expect(
+      syncLastRankAlliance({
+        target,
+        apply: true,
+        interactivePrompt: async () => ({ kind: "match", hqName: "OldHQ" }),
+        onDispatchStart,
+      }),
+    ).rejects.toThrow(/confirmInteractiveWrites/);
+    expect(onDispatchStart).not.toHaveBeenCalled();
+    expect(mocks.applyInteractiveNameMapping).not.toHaveBeenCalled();
+  });
+
+  it("skips the confirm hook when only same-name links are queued", async () => {
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 701, name: "Alpha" })],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-alpha",
+        ashedMemberId: "m-alpha",
+        currentNames: ["Alpha"],
+      }),
+    ]);
+
+    const confirmInteractiveWrites = vi.fn(async () => false);
+    const onDispatchStart = vi.fn();
+    await syncLastRankAlliance({
+      target,
+      apply: true,
+      interactivePrompt: async () => ({ kind: "match", hqName: "Alpha" }),
+      confirmInteractiveWrites,
+      onDispatchStart,
+    });
+    expect(confirmInteractiveWrites).not.toHaveBeenCalled();
+    expect(onDispatchStart).toHaveBeenCalledOnce();
   });
 });
