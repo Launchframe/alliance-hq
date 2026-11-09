@@ -505,6 +505,7 @@ describe("syncLastRankAlliance batch dispatch", () => {
         return { kind: "skip" };
       },
       retirePrompt: async () => ({ kind: "retire" as const }),
+      confirmInteractiveWrites: async () => true,
       onDispatchStart,
     });
 
@@ -683,6 +684,31 @@ describe("syncLastRankAlliance batch dispatch", () => {
         onDispatchStart,
       }),
     ).rejects.toThrow(/confirmation declined/);
+    expect(onDispatchStart).not.toHaveBeenCalled();
+    expect(mocks.applyInteractiveNameMapping).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on apply when renames are queued without a confirm hook", async () => {
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 602, name: "Beta" })],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-old",
+        ashedMemberId: "m-old",
+        currentNames: ["OldHQ"],
+      }),
+    ]);
+
+    const onDispatchStart = vi.fn();
+    await expect(
+      syncLastRankAlliance({
+        target,
+        apply: true,
+        interactivePrompt: async () => ({ kind: "match", hqName: "OldHQ" }),
+        onDispatchStart,
+      }),
+    ).rejects.toThrow(/confirmInteractiveWrites/);
     expect(onDispatchStart).not.toHaveBeenCalled();
     expect(mocks.applyInteractiveNameMapping).not.toHaveBeenCalled();
   });

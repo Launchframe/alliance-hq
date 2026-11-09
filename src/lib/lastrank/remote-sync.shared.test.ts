@@ -58,6 +58,7 @@ function plan(partial: Partial<LastRankRemotePlan>): LastRankRemotePlan {
     rosterDiff: {} as LastRankRemotePlan["rosterDiff"],
     prompts: [],
     retireCandidates: [],
+    hqRoster: [],
     ...partial,
   };
 }
@@ -278,6 +279,10 @@ describe("collectLastRankRemoteDecisions", () => {
         prompt({ publicId: 2, lastRankName: "Same", remainingHqNames: ["Same"] }),
         prompt({ publicId: 3, lastRankName: "Fresh" }),
       ],
+      hqRoster: [
+        { currentName: "OldName", previousNames: [] },
+        { currentName: "Same", previousNames: [] },
+      ],
     });
     const summary = buildInteractiveWriteSummaryFromRemoteDecisions(remotePlan, [
       { publicId: 1, answer: { kind: "match", hqName: "OldName" } },
@@ -289,6 +294,26 @@ describe("collectLastRankRemoteDecisions", () => {
       { priorHqName: "OldName", lastRankName: "NewName", publicId: 1 },
     ]);
     expect(summary.creates).toEqual([{ lastRankName: "Fresh", publicId: 3 }]);
+  });
+
+  it("remote confirm uses current HQ name when the operator typed a previous name", () => {
+    const summary = buildInteractiveWriteSummaryFromRemoteDecisions(
+      plan({
+        prompts: [prompt({ publicId: 1, lastRankName: "CanonName" })],
+        hqRoster: [
+          { currentName: "CurrentName", previousNames: ["CanonName"] },
+        ],
+      }),
+      [{ publicId: 1, answer: { kind: "match", hqName: "CanonName" } }],
+    );
+    expect(lastRankInteractiveWritesNeedConfirm(summary)).toBe(true);
+    expect(summary.renames).toEqual([
+      {
+        priorHqName: "CurrentName",
+        lastRankName: "CanonName",
+        publicId: 1,
+      },
+    ]);
   });
 
   it("does not offer retirements without a retire prompt", async () => {
