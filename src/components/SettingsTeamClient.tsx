@@ -9,6 +9,7 @@ import {
   RecordDetailField,
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
+import { recordSettingsTeamRosterSyncTransaction } from "@/lib/connect/ashed-network-log.shared";
 import type { TeamMember } from "@/lib/rbac/sync-ashed-roles";
 
 type Props = {
@@ -57,9 +58,14 @@ export function SettingsTeamClient({
     setRefreshing(true);
     setError(null);
     setWarning(null);
+    recordSettingsTeamRosterSyncTransaction({ status: "running" });
     try {
       const res = await fetch("/api/settings/team", { method: "POST" });
       if (!res.ok) {
+        recordSettingsTeamRosterSyncTransaction({
+          status: "failed",
+          lastErrorCode: "settings_team_roster_sync_failed",
+        });
         setError(t("refreshFailed"));
         return;
       }
@@ -69,13 +75,23 @@ export function SettingsTeamClient({
       };
       onTeamChange(data.team);
       if (data.rosterSynced === false) {
+        recordSettingsTeamRosterSyncTransaction({
+          status: "failed",
+          lastErrorCode: "settings_team_roster_sync_skipped",
+        });
         setWarning(t("rosterSyncSkipped"));
+      } else {
+        recordSettingsTeamRosterSyncTransaction({ status: "idle" });
       }
       const reloaded = await onRolesChanged?.();
       if (reloaded === false) {
         setError(t("roleNudges.loadFailed"));
       }
     } catch {
+      recordSettingsTeamRosterSyncTransaction({
+        status: "failed",
+        lastErrorCode: "settings_team_roster_sync_failed",
+      });
       setError(t("refreshFailed"));
     } finally {
       setRefreshing(false);

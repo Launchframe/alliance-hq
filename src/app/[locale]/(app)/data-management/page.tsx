@@ -8,9 +8,8 @@ import { buildDataDateSummaries } from "@/lib/data-management/batch-actions.serv
 import { listAllianceDataBatches } from "@/lib/data-management/batch-ledger.server";
 import { resolveDataManagementRbac } from "@/lib/data-management/api-context.server";
 import { resolveCanUseAshedEmbedsForSession } from "@/lib/dashboard/page-context.server";
-import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
-import { requirePageSession, getAshedConnection } from "@/lib/session";
+import { requirePageSession } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getScoreTarget, SCORE_TARGETS } from "@/lib/video/score-targets";
 
@@ -36,13 +35,10 @@ export default async function DataManagementPage({ searchParams }: PageProps) {
 
   const params = await searchParams;
 
-  const [rbac, canUseAshedEmbeds, connection, ashedAllianceId] =
-    await Promise.all([
-      resolveDataManagementRbac(session.id),
-      resolveCanUseAshedEmbedsForSession(session.id),
-      getAshedConnection(session.id),
-      getAshedAllianceIdIfLinked(allianceId),
-    ]);
+  const [rbac, canUseAshedEmbeds] = await Promise.all([
+    resolveDataManagementRbac(session.id),
+    resolveCanUseAshedEmbedsForSession(session.id),
+  ]);
   if (!rbac) {
     return null;
   }
@@ -69,13 +65,15 @@ export default async function DataManagementPage({ searchParams }: PageProps) {
         status: "active",
       })
     : [];
+  // Local-first: HQ ledger only. Client enriches with Ashed via GET /dates.
   const initialDates = targetDef
     ? await buildDataDateSummaries({
-        connection,
-        ashedAllianceId,
+        connection: null,
+        ashedAllianceId: null,
         submitEntity: targetDef.submitEntity,
         ledgerBatches,
         rbac,
+        includeAshed: false,
       })
     : [];
 

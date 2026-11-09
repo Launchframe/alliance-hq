@@ -6,7 +6,11 @@ import {
   loadAshedNetworkLog,
   recordAshedClientTransaction,
   recordAshedObservedRequest,
+  recordDataManagementDatesTransaction,
+  recordDataManagementScoresTransaction,
   recordRosterAshedSyncTransaction,
+  recordSettingsTeamRosterSyncTransaction,
+  recordTrainsRosterSyncTransaction,
   recordVsMatchupImportTransaction,
   sanitizeAshedNetworkPath,
   summarizeAshedNetworkLog,
@@ -166,5 +170,25 @@ describe("ashed-network-log.shared", () => {
     expect(entries[0]?.labelKey).toBe("vs_import");
     expect(entries[0]?.path).toBe("/api/vs-performance/matchup/import");
     expect(entries[0]?.outcome).toBe("ok");
+  });
+
+  it("records data-management and leftover roster sync surfaces", () => {
+    recordDataManagementDatesTransaction({ status: "idle" });
+    recordDataManagementScoresTransaction({ status: "failed", lastErrorCode: "dm_scores_failed" });
+    recordTrainsRosterSyncTransaction({ status: "running" });
+    recordSettingsTeamRosterSyncTransaction({ status: "idle" });
+    recordDataManagementDatesTransaction({ status: "cancelled" });
+
+    const entries = loadAshedNetworkLog();
+    expect(entries.map((entry) => entry.labelKey)).toEqual([
+      "dm_dates",
+      "settings_team_roster_sync",
+      "trains_roster_sync",
+      "dm_scores",
+      "dm_dates",
+    ]);
+    expect(entries[0]?.outcome).toBe("cancelled");
+    expect(entries[3]?.outcome).toBe("error");
+    expect(entries[3]?.code).toBe("dm_scores_failed");
   });
 });
