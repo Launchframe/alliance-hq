@@ -32,9 +32,25 @@ export function projectVsPolicyRow(row: VsPolicyRow): VsPolicyVersion {
 }
 export type ExternalComplianceEvidence = { native: boolean; verifiedAt: Date | null; weeks: Map<string, Map<string, VsEvidence[]>>; excuses: ExcusedRecord[] };
 
+/** Local-first shell: native alliances are ready; Ashed alliances defer remote pulls. */
+export async function emptyExternalEvidenceShell(
+  allianceId: string,
+): Promise<ExternalComplianceEvidence> {
+  const [alliance] = await getDb()
+    .select({ mode: schema.alliances.operatingMode })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return {
+    native: alliance?.mode === "native",
+    verifiedAt: null,
+    weeks: new Map(),
+    excuses: [],
+  };
+}
+
 export async function prepareExternalEvidence(allianceId: string, weeks: string[]): Promise<ExternalComplianceEvidence> {
-  const [alliance] = await getDb().select({ mode: schema.alliances.operatingMode }).from(schema.alliances).where(eq(schema.alliances.id, allianceId)).limit(1);
-  const result: ExternalComplianceEvidence = { native: alliance?.mode === "native", verifiedAt: null, weeks: new Map(), excuses: [] };
+  const result = await emptyExternalEvidenceShell(allianceId);
   if (result.native) return result;
   try {
     const connection = await resolveExcusedConnection(allianceId);
