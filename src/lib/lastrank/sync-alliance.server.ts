@@ -1236,12 +1236,18 @@ export async function syncLastRankAlliance(input: {
   });
 
   const writeSummary = buildInteractiveWriteSummaryFromPlan(plan);
-  if (
-    lastRankInteractiveWritesNeedConfirm(writeSummary) &&
-    input.confirmInteractiveWrites &&
-    !(await input.confirmInteractiveWrites(writeSummary))
-  ) {
-    throw new Error(LASTRANK_INTERACTIVE_CONFIRM_ABORTED);
+  if (lastRankInteractiveWritesNeedConfirm(writeSummary)) {
+    if (input.apply && !input.confirmInteractiveWrites) {
+      throw new Error(
+        "Interactive renames/creates require confirmInteractiveWrites before apply dispatch.",
+      );
+    }
+    if (
+      input.confirmInteractiveWrites &&
+      !(await input.confirmInteractiveWrites(writeSummary))
+    ) {
+      throw new Error(LASTRANK_INTERACTIVE_CONFIRM_ABORTED);
+    }
   }
 
   input.onDispatchStart?.(lastRankSyncPlanStats(plan, 0));

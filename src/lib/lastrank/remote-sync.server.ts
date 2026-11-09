@@ -72,6 +72,10 @@ export async function planLastRankRemoteSync(
     result.hqAllianceId,
     keep,
   );
+  const hqRows = [
+    ...result.match.matched.map((row) => row.hq),
+    ...result.match.unmatchedHq,
+  ];
 
   return {
     version: LASTRANK_REMOTE_SYNC_VERSION,
@@ -86,6 +90,11 @@ export async function planLastRankRemoteSync(
       ashedMemberId: row.ashedMemberId,
       memberName: row.currentName,
       previousNames: row.previousNames,
+    })),
+    hqRoster: hqRows.map((hq) => ({
+      currentName:
+        hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId,
+      previousNames: hq.previousNames,
     })),
   };
 }
@@ -116,6 +125,8 @@ export async function applyLastRankRemoteSync(request: LastRankRemoteApplyReques
               ? ({ kind: "retire" } as const)
               : ({ kind: "keep" } as const)
         : undefined,
+    // CLI already confirmed renames/creates before POSTing apply.
+    confirmInteractiveWrites: async () => true,
   });
 
   return {

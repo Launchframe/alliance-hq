@@ -88,6 +88,12 @@ export function claimedRetireCandidateIds(
   return ids;
 }
 
+/** Current + previous names so remote confirm can resolve typed aliases. */
+export type LastRankRemoteHqRosterEntry = {
+  currentName: string;
+  previousNames: string[];
+};
+
 export type LastRankRemotePlan = {
   version: typeof LASTRANK_REMOTE_SYNC_VERSION;
   target: LastRankSyncTarget;
@@ -99,7 +105,31 @@ export type LastRankRemotePlan = {
   prompts: LastRankRemotePrompt[];
   /** Active HQ members not auto-matched to LastRank (before interactive mapping). */
   retireCandidates: LastRankRemoteRetireCandidate[];
+  /**
+   * HQ roster snapshot for confirm: typed previous names must compare against
+   * the commander's current name (same as local `priorHqName`).
+   */
+  hqRoster: LastRankRemoteHqRosterEntry[];
 };
+
+/**
+ * Resolve the typed interactive HQ name to the current roster name used for
+ * rename confirm. Exact current-name hits win; else a unique previous-name hit.
+ */
+export function resolveRemotePriorHqName(
+  typedName: string,
+  roster: readonly LastRankRemoteHqRosterEntry[],
+): string {
+  const norm = (name: string) => name.trim().toLowerCase();
+  const want = norm(typedName);
+  const current = roster.find((row) => norm(row.currentName) === want);
+  if (current) return current.currentName;
+  const previous = roster.filter((row) =>
+    row.previousNames.some((name) => norm(name) === want),
+  );
+  if (previous.length === 1) return previous[0]!.currentName;
+  return typedName;
+}
 
 export type LastRankRemoteDecision = {
   publicId: number;
@@ -282,15 +312,18 @@ export function buildInteractiveWriteSummaryFromRemoteDecisions(
       });
       continue;
     }
-    if (
-      decision.answer.kind === "match" &&
-      isLastRankInteractiveRename(decision.answer.hqName, prompt.lastRankName)
-    ) {
-      renames.push({
-        priorHqName: decision.answer.hqName,
-        lastRankName: prompt.lastRankName,
-        publicId: decision.publicId,
-      });
+    if (decision.answer.kind === "match") {
+      const priorHqName = resolveRemotePriorHqName(
+        decision.answer.hqName,
+        plan.hqRoster,
+      );
+      if (isLastRankInteractiveRename(priorHqName, prompt.lastRankName)) {
+        renames.push({
+          priorHqName,
+          lastRankName: prompt.lastRankName,
+          publicId: decision.publicId,
+        });
+      }
     }
   }
   return { renames, creates };
