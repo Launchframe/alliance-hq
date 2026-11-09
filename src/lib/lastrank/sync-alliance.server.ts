@@ -36,6 +36,7 @@ import {
   lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanStats,
   type LastRankInteractiveConfirmPrompt,
+  type LastRankRetireAnswer,
   type LastRankSyncPlan,
   type LastRankSyncPlanListener,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -134,7 +135,7 @@ export type LastRankInteractivePrompt = (
 export type LastRankRetirePrompt = (ctx: {
   memberName: string;
   ashedMemberId: string;
-}) => Promise<boolean>;
+}) => Promise<LastRankRetireAnswer>;
 
 export type LastRankAllianceSyncResult = {
   tag: string;
@@ -736,8 +737,10 @@ async function runInteractiveResolutions(
   options: {
     apply: boolean;
     onPlanChanged?: LastRankSyncPlanListener;
+    /** Resume after undoing out of the retire phase. */
+    initialStack?: InteractiveResolutionEntry[];
   },
-): Promise<LastRankMatchResult> {
+): Promise<{ match: LastRankMatchResult; stack: InteractiveResolutionEntry[] }> {
   const initial = match;
   const allHq = [
     ...match.matched.map((row) => row.hq),
@@ -746,10 +749,17 @@ async function runInteractiveResolutions(
   const pending = match.unmatched.filter(
     (row) => row.status === "unmatched" || row.status === "ambiguous",
   );
-  const stack: InteractiveResolutionEntry[] = [];
+  const stack: InteractiveResolutionEntry[] = [...(options.initialStack ?? [])];
   let current = match;
   let claimed = new Set(match.matched.map((row) => row.hq.commanderId));
   let index = 0;
+  if (stack.length > 0) {
+    const rebuilt = rebuildInteractiveResolutions(initial, stack, plan);
+    current = rebuilt.match;
+    claimed = rebuilt.claimed;
+    index = stack.length;
+    emitPlan(plan, pending.length - index, options.onPlanChanged);
+  }
 
   while (index < pending.length) {
     const row = pending[index]!;
@@ -827,7 +837,7 @@ async function runInteractiveResolutions(
     emitPlan(plan, pending.length - index, options.onPlanChanged);
   }
 
-  return current;
+  return { match: current, stack };
 }
 
 type CreatedLastRankMembers = {
@@ -937,30 +947,75 @@ async function createUnmatchedLastRankMembers(
   };
 }
 
-/** Queues retire choices on `plan`; nothing is written until dispatch. */
+type RetireDecisionEntry =
+  | { kind: "retire"; ashedMemberId: string; memberName: string }
+  | { kind: "keep"; ashedMemberId: string; memberName: string };
+
+function applyRetireStackToPlan(
+  plan: LastRankSyncPlan,
+  stack: readonly RetireDecisionEntry[],
+): void {
+  plan.retires.length = 0;
+  for (const entry of stack) {
+    if (entry.kind === "retire") {
+      plan.retires.push({
+        ashedMemberId: entry.ashedMemberId,
+        memberName: entry.memberName,
+      });
+    }
+  }
+}
+
+/**
+ * Queues retire choices on `plan`. `undo` rewinds the last retire answer; when
+ * the retire stack is empty and `canUndoNames` is true, returns `undo_names` so
+ * the caller can rewind into the name-mapping phase.
+ */
 async function runInteractiveRetires(
   hqAllianceId: string,
   match: LastRankMatchResult,
   prompt: LastRankRetirePrompt,
   plan: LastRankSyncPlan,
   onPlanChanged: LastRankSyncPlanListener | undefined,
-): Promise<void> {
+  canUndoNames: boolean,
+): Promise<"done" | "undo_names"> {
   const keepIds = new Set(match.matched.map((row) => row.hq.ashedMemberId));
   const candidates = await listActiveMemberIdsNotInSet(hqAllianceId, keepIds);
+  const stack: RetireDecisionEntry[] = [];
+  plan.retires.length = 0;
+  let index = 0;
 
-  for (const [index, member] of candidates.entries()) {
-    const shouldRetire = await prompt({
+  while (index < candidates.length) {
+    const member = candidates[index]!;
+    const answer = await prompt({
       memberName: member.currentName,
       ashedMemberId: member.ashedMemberId,
     });
-    if (shouldRetire) {
-      plan.retires.push({
-        ashedMemberId: member.ashedMemberId,
-        memberName: member.currentName,
-      });
+    if (answer.kind === "undo") {
+      if (stack.length === 0) {
+        if (!canUndoNames) {
+          console.error("Nothing to undo.");
+          continue;
+        }
+        return "undo_names";
+      }
+      stack.pop();
+      applyRetireStackToPlan(plan, stack);
+      index = stack.length;
+      emitPlan(plan, candidates.length - index, onPlanChanged);
+      continue;
     }
-    emitPlan(plan, candidates.length - index - 1, onPlanChanged);
+    stack.push({
+      kind: answer.kind,
+      ashedMemberId: member.ashedMemberId,
+      memberName: member.currentName,
+    });
+    applyRetireStackToPlan(plan, stack);
+    index = stack.length;
+    emitPlan(plan, candidates.length - index, onPlanChanged);
   }
+
+  return "done";
 }
 
 async function dispatchQueuedRetires(
@@ -1127,20 +1182,51 @@ export async function syncLastRankAlliance(input: {
   // Interactive answers only queue decisions; writes happen in one dispatch
   // below so each prompt does not wait on remote DB / Ashed round trips.
   const plan = emptyLastRankSyncPlan();
-  if (input.interactivePrompt && match.unmatched.length > 0) {
-    match = await runInteractiveResolutions(match, input.interactivePrompt, plan, {
-      apply: input.apply,
-      onPlanChanged: input.onPlanChanged,
-    });
-  }
-  if (input.apply && !input.retireAllUnmatched && input.retirePrompt) {
-    await runInteractiveRetires(
+  const initialMatch = match;
+  let nameStack: InteractiveResolutionEntry[] = [];
+  const wantNames =
+    Boolean(input.interactivePrompt) && initialMatch.unmatched.length > 0;
+  const wantRetires =
+    Boolean(input.apply) &&
+    !input.retireAllUnmatched &&
+    Boolean(input.retirePrompt);
+
+  while (wantNames || wantRetires) {
+    if (wantNames && input.interactivePrompt) {
+      const resolved = await runInteractiveResolutions(
+        initialMatch,
+        input.interactivePrompt,
+        plan,
+        {
+          apply: input.apply,
+          onPlanChanged: input.onPlanChanged,
+          initialStack: nameStack,
+        },
+      );
+      match = resolved.match;
+      nameStack = resolved.stack;
+    }
+
+    if (!wantRetires || !input.retirePrompt) {
+      break;
+    }
+
+    const retireOutcome = await runInteractiveRetires(
       hqAllianceId,
       match,
       input.retirePrompt,
       plan,
       input.onPlanChanged,
+      wantNames && nameStack.length > 0,
     );
+    if (retireOutcome === "done") {
+      break;
+    }
+    // Retire phase asked to rewind into names; pop the last name answer.
+    nameStack.pop();
+    plan.retires.length = 0;
+    const rebuilt = rebuildInteractiveResolutions(initialMatch, nameStack, plan);
+    match = rebuilt.match;
   }
 
   // Diff before create/retire so operators see excess/missing even on --apply.

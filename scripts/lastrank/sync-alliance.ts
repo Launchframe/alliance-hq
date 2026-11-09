@@ -42,8 +42,10 @@ import {
   lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanQueuedCount,
   parseLastRankInteractiveConfirmAnswer,
+  parseLastRankRetireAnswer,
   type LastRankInteractiveConfirmPrompt,
   type LastRankInteractiveWriteSummary,
+  type LastRankRetireAnswer,
   type LastRankSyncPlanListener,
   type LastRankSyncPlanStats,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -83,12 +85,14 @@ Flags:
                       Each name prompt shows [n/total]; prints the LastRank profile URL;
                       unranked rows hint leavers (blank = skip).
                       Name prompt: number = HQ choice, C = create one member, U = undo last
-                      answer, blank = skip. Mapping always saves lastrank_public_id;
-                      --apply also renames HQ/Ashed. Suggestions rank by name + THP and
-                      country (profession breaks ties). Answers are queued and written in
-                      one batch after the last prompt; when that batch includes renames or
-                      new commanders, a confirmation screen must be accepted first.
-                      Ctrl+C before then discards them (asks twice).
+                      answer, blank = skip. Retire prompt: y/yes, n/blank, U = undo (can
+                      rewind into the prior name answer). Invalid retire keys re-prompt.
+                      Mapping always saves lastrank_public_id; --apply also renames
+                      HQ/Ashed. Suggestions rank by name + THP and country (profession
+                      breaks ties). Answers are queued and written in one batch after the
+                      last prompt; when that batch includes renames or new commanders, a
+                      confirmation screen must be accepted first (y/yes). Ctrl+C before
+                      then discards them (asks twice).
   --ashed-connection-key <key>
                       Upsert alliance bot Ashed credential (with --apply, or with
                       --save-ashed-credential on dry-run). Never logged.
@@ -190,7 +194,7 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
   retirePrompt: (ctx: {
     memberName: string;
     ashedMemberId: string;
-  }) => Promise<boolean>;
+  }) => Promise<LastRankRetireAnswer>;
   confirmInteractiveWrites: LastRankInteractiveConfirmPrompt;
   onPlanChanged: LastRankSyncPlanListener;
   onDispatchStart: LastRankSyncPlanListener;
@@ -359,13 +363,16 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
       );
     },
     retirePrompt: async (ctx) => {
-      console.error("");
-      console.error(
-        `HQ member "${ctx.memberName}" is active locally but missing from LastRank.`,
-      );
-      console.error("Retire as former? [y/N]");
-      const answer = (await rl.question("> ")).trim().toLowerCase();
-      return answer === "y" || answer === "yes";
+      for (;;) {
+        console.error("");
+        console.error(
+          `HQ member "${ctx.memberName}" is active locally but missing from LastRank.`,
+        );
+        console.error("Retire as former? [y/N] (U = undo)");
+        const parsed = parseLastRankRetireAnswer(await rl.question("> "));
+        if (parsed) return parsed;
+        console.error("Enter y/yes, n/no/blank to keep, or U to undo.");
+      }
     },
   };
 }

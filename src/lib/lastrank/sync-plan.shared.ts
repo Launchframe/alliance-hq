@@ -121,3 +121,20 @@ export function parseLastRankInteractiveConfirmAnswer(answer: string): boolean {
   const trimmed = answer.trim().toLowerCase();
   return trimmed === "y" || trimmed === "yes";
 }
+
+export type LastRankRetireAnswer =
+  | { kind: "retire" }
+  | { kind: "keep" }
+  | { kind: "undo" };
+
+/**
+ * Parse a retire-prompt TTY answer. Returns `null` when the operator should be
+ * re-prompted (e.g. a stray `C` from the name step must not silently skip).
+ */
+export function parseLastRankRetireAnswer(raw: string): LastRankRetireAnswer | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed === "y" || trimmed === "yes") return { kind: "retire" };
+  if (trimmed === "" || trimmed === "n" || trimmed === "no") return { kind: "keep" };
+  if (trimmed === "u" || trimmed === "undo") return { kind: "undo" };
+  return null;
+}

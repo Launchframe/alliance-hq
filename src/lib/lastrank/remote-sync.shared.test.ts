@@ -192,7 +192,10 @@ describe("collectLastRankRemoteDecisions", () => {
         seen.push(ctx);
         return answers[seen.length - 1]!;
       },
-      retirePrompt: async (candidate) => candidate.memberName === "Beta",
+      retirePrompt: async (candidate) =>
+        candidate.memberName === "Beta"
+          ? { kind: "retire" as const }
+          : { kind: "keep" as const },
     });
 
     expect(seen[1]?.remainingHqNames).toEqual(["Beta"]);
@@ -309,10 +312,72 @@ describe("collectLastRankRemoteDecisions", () => {
       interactivePrompt: async () => ({ kind: "match", hqName: "oldname" }),
       retirePrompt: async (candidate) => {
         offered.push(candidate.ashedMemberId);
-        return false;
+        return { kind: "keep" };
       },
     });
     expect(offered).toEqual(["m-leaver"]);
+  });
+
+  it("undo on a retire prompt rewinds the prior retire answer", async () => {
+    const offered: string[] = [];
+    const answers = [
+      { kind: "retire" as const }, // A
+      { kind: "undo" as const }, // B → rewind to A
+      { kind: "keep" as const }, // A again
+      { kind: "retire" as const }, // B
+    ];
+    let i = 0;
+    const result = await collectLastRankRemoteDecisions({
+      plan: plan({
+        retireCandidates: [
+          { ashedMemberId: "m-a", memberName: "A" },
+          { ashedMemberId: "m-b", memberName: "B" },
+        ],
+      }),
+      interactivePrompt: async () => ({ kind: "skip" }),
+      retirePrompt: async (candidate) => {
+        offered.push(candidate.memberName);
+        return answers[i++]!;
+      },
+    });
+    expect(offered).toEqual(["A", "B", "A", "B"]);
+    expect(result.retireAshedMemberIds).toEqual(["m-b"]);
+  });
+
+  it("undo on the first retire prompt rewinds into the name phase", async () => {
+    const nameSeen: string[] = [];
+    const nameAnswers = [
+      { kind: "match" as const, hqName: "Alpha" },
+      { kind: "match" as const, hqName: "Beta" },
+    ];
+    let nameI = 0;
+    const retireAnswers = [
+      { kind: "undo" as const },
+      { kind: "keep" as const },
+    ];
+    let retireI = 0;
+    const result = await collectLastRankRemoteDecisions({
+      plan: plan({
+        prompts: [
+          prompt({
+            publicId: 1,
+            lastRankName: "New",
+            remainingHqNames: ["Alpha", "Beta"],
+          }),
+        ],
+        retireCandidates: [{ ashedMemberId: "m-leaver", memberName: "Leaver" }],
+      }),
+      interactivePrompt: async (ctx) => {
+        nameSeen.push(ctx.remainingHqNames.join(","));
+        return nameAnswers[nameI++]!;
+      },
+      retirePrompt: async () => retireAnswers[retireI++]!,
+    });
+    expect(nameSeen).toEqual(["Alpha,Beta", "Alpha,Beta"]);
+    expect(result.decisions).toEqual([
+      { publicId: 1, answer: { kind: "match", hqName: "Beta" } },
+    ]);
+    expect(result.retireAshedMemberIds).toEqual([]);
   });
 });
 

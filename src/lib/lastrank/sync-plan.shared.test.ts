@@ -10,6 +10,7 @@ import {
   lastRankSyncPlanQueuedCount,
   lastRankSyncPlanStats,
   parseLastRankInteractiveConfirmAnswer,
+  parseLastRankRetireAnswer,
 } from "@/lib/lastrank/sync-plan.shared";
 
 function lastRankMember(
@@ -154,5 +155,17 @@ describe("interactive write confirmation summary", () => {
     expect(parseLastRankInteractiveConfirmAnswer("")).toBe(false);
     expect(parseLastRankInteractiveConfirmAnswer("n")).toBe(false);
     expect(parseLastRankInteractiveConfirmAnswer("no")).toBe(false);
+  });
+
+  it("parses retire answers and rejects stray keys like C", () => {
+    expect(parseLastRankRetireAnswer("y")).toEqual({ kind: "retire" });
+    expect(parseLastRankRetireAnswer("YES")).toEqual({ kind: "retire" });
+    expect(parseLastRankRetireAnswer("")).toEqual({ kind: "keep" });
+    expect(parseLastRankRetireAnswer("n")).toEqual({ kind: "keep" });
+    expect(parseLastRankRetireAnswer("no")).toEqual({ kind: "keep" });
+    expect(parseLastRankRetireAnswer("u")).toEqual({ kind: "undo" });
+    expect(parseLastRankRetireAnswer("undo")).toEqual({ kind: "undo" });
+    expect(parseLastRankRetireAnswer("C")).toBeNull();
+    expect(parseLastRankRetireAnswer("yesplease")).toBeNull();
   });
 });
