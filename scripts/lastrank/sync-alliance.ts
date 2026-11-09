@@ -41,6 +41,7 @@ import {
   LASTRANK_INTERACTIVE_CONFIRM_ABORTED,
   lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanQueuedCount,
+  parseLastRankInteractiveConfirmAnswer,
   type LastRankInteractiveConfirmPrompt,
   type LastRankInteractiveWriteSummary,
   type LastRankSyncPlanListener,
@@ -162,9 +163,9 @@ async function promptInteractiveWriteConfirm(
   for (const line of formatLastRankInteractiveWriteSummaryLines(summary)) {
     console.error(line);
   }
-  console.error('Type "yes" to proceed, or leave blank / n to abort.');
-  const answer = (await rl.question("> ")).trim().toLowerCase();
-  return answer === "yes";
+  console.error("Proceed with these changes? [y/N]");
+  const answer = await rl.question("> ");
+  return parseLastRankInteractiveConfirmAnswer(answer);
 }
 
 function createTtyPrompts(options: { remote?: boolean } = {}): {

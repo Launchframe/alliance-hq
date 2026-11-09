@@ -9,6 +9,7 @@ import {
   lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanQueuedCount,
   lastRankSyncPlanStats,
+  parseLastRankInteractiveConfirmAnswer,
 } from "@/lib/lastrank/sync-plan.shared";
 
 function lastRankMember(
@@ -143,5 +144,15 @@ describe("interactive write confirmation summary", () => {
       "New commanders:",
       "  - Fresh (public_id=10)",
     ]);
+  });
+
+  it("accepts y/yes for confirm and declines blank or n", () => {
+    expect(parseLastRankInteractiveConfirmAnswer("y")).toBe(true);
+    expect(parseLastRankInteractiveConfirmAnswer("Y")).toBe(true);
+    expect(parseLastRankInteractiveConfirmAnswer("yes")).toBe(true);
+    expect(parseLastRankInteractiveConfirmAnswer(" YES ")).toBe(true);
+    expect(parseLastRankInteractiveConfirmAnswer("")).toBe(false);
+    expect(parseLastRankInteractiveConfirmAnswer("n")).toBe(false);
+    expect(parseLastRankInteractiveConfirmAnswer("no")).toBe(false);
   });
 });
