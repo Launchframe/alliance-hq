@@ -30,8 +30,12 @@ import {
 } from "@/lib/lastrank/alliance-page.shared";
 import type { LastRankSyncTarget } from "@/lib/lastrank/sync-registry.shared";
 import {
+  buildInteractiveWriteSummaryFromPlan,
   emptyLastRankSyncPlan,
+  LASTRANK_INTERACTIVE_CONFIRM_ABORTED,
+  lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanStats,
+  type LastRankInteractiveConfirmPrompt,
   type LastRankSyncPlan,
   type LastRankSyncPlanListener,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -654,6 +658,76 @@ function emitPlan(
   listener?.(lastRankSyncPlanStats(plan, remaining));
 }
 
+type InteractiveResolutionEntry =
+  | { kind: "skip" }
+  | { kind: "create"; lastRank: LastRankAllianceMember; queued: boolean }
+  | {
+      kind: "match";
+      lastRankPublicId: number;
+      hq: LastRankHqRosterRow;
+      priorHqName: string;
+    };
+
+/** Rebuild plan + match from the decision stack so undo stays consistent. */
+function rebuildInteractiveResolutions(
+  initial: LastRankMatchResult,
+  stack: readonly InteractiveResolutionEntry[],
+  plan: LastRankSyncPlan,
+): { match: LastRankMatchResult; claimed: Set<string> } {
+  const claimed = new Set(initial.matched.map((row) => row.hq.commanderId));
+  plan.mapped.length = 0;
+  plan.creates.length = 0;
+  plan.skipped = 0;
+
+  const matchResolutions: Array<{
+    lastRankPublicId: number;
+    hq: LastRankHqRosterRow;
+  }> = [];
+  const priorByPublicId = new Map<number, string>();
+
+  for (const entry of stack) {
+    if (entry.kind === "skip") {
+      plan.skipped += 1;
+      continue;
+    }
+    if (entry.kind === "create") {
+      if (entry.queued) plan.creates.push(entry.lastRank);
+      else plan.skipped += 1;
+      continue;
+    }
+    claimed.add(entry.hq.commanderId);
+    matchResolutions.push({
+      lastRankPublicId: entry.lastRankPublicId,
+      hq: entry.hq,
+    });
+    priorByPublicId.set(entry.lastRankPublicId, entry.priorHqName);
+  }
+
+  const match =
+    matchResolutions.length > 0
+      ? applyInteractiveMatches(initial, matchResolutions)
+      : initial;
+
+  for (const resolution of matchResolutions) {
+    const matchedRow = match.matched.find(
+      (row) =>
+        row.matchMethod === "interactive" &&
+        row.lastRank.publicId === resolution.lastRankPublicId,
+    );
+    if (!matchedRow) continue;
+    plan.mapped.push({
+      row: matchedRow,
+      priorHqName:
+        priorByPublicId.get(resolution.lastRankPublicId) ??
+        matchedRow.hq.currentNames[0] ??
+        matchedRow.hq.previousNames[0] ??
+        matchedRow.hq.commanderId,
+    });
+  }
+
+  return { match, claimed };
+}
+
 /** Prompts only queue decisions on `plan`; nothing is written until dispatch. */
 async function runInteractiveResolutions(
   match: LastRankMatchResult,
@@ -664,8 +738,7 @@ async function runInteractiveResolutions(
     onPlanChanged?: LastRankSyncPlanListener;
   },
 ): Promise<LastRankMatchResult> {
-  let current = match;
-  const claimed = new Set(match.matched.map((row) => row.hq.commanderId));
+  const initial = match;
   const allHq = [
     ...match.matched.map((row) => row.hq),
     ...match.unmatchedHq,
@@ -673,8 +746,13 @@ async function runInteractiveResolutions(
   const pending = match.unmatched.filter(
     (row) => row.status === "unmatched" || row.status === "ambiguous",
   );
+  const stack: InteractiveResolutionEntry[] = [];
+  let current = match;
+  let claimed = new Set(match.matched.map((row) => row.hq.commanderId));
+  let index = 0;
 
-  for (const [index, row] of pending.entries()) {
+  while (index < pending.length) {
+    const row = pending[index]!;
     const remainingHqNames = allHq
       .filter((hq) => !claimed.has(hq.commanderId))
       .map((hq) => hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId);
@@ -690,60 +768,63 @@ async function runInteractiveResolutions(
       },
       { current: index + 1, total: pending.length },
     );
-    const remaining = pending.length - index - 1;
 
-    if (answer.kind === "skip") {
-      plan.skipped += 1;
-      emitPlan(plan, remaining, options.onPlanChanged);
+    if (answer.kind === "undo") {
+      if (stack.length === 0) {
+        console.error("Nothing to undo.");
+        continue;
+      }
+      stack.pop();
+      const rebuilt = rebuildInteractiveResolutions(initial, stack, plan);
+      current = rebuilt.match;
+      claimed = rebuilt.claimed;
+      index = stack.length;
+      emitPlan(plan, pending.length - index, options.onPlanChanged);
       continue;
     }
 
-    if (answer.kind === "create") {
+    if (answer.kind === "skip") {
+      stack.push({ kind: "skip" });
+    } else if (answer.kind === "create") {
       if (!options.apply) {
         console.error(
           `Create skipped for "${row.lastRank.name}" (re-run with --apply to create HQ members).`,
         );
-        plan.skipped += 1;
+        stack.push({ kind: "create", lastRank: row.lastRank, queued: false });
       } else if (!lastRankMemberEligibleForCreate(row.lastRank)) {
         console.error(
           `Create skipped for "${row.lastRank.name}" (unranked — often a leaver; leave blank to skip).`,
         );
-        plan.skipped += 1;
+        stack.push({ kind: "create", lastRank: row.lastRank, queued: false });
       } else {
-        plan.creates.push(row.lastRank);
+        stack.push({ kind: "create", lastRank: row.lastRank, queued: true });
       }
-      emitPlan(plan, remaining, options.onPlanChanged);
-      continue;
+    } else {
+      const resolved = resolveHqNameToRosterRow(answer.hqName, allHq, claimed);
+      if (!resolved.ok) {
+        console.error(
+          `Could not map "${row.lastRank.name}" → "${answer.hqName}" (${resolved.reason})`,
+        );
+        stack.push({ kind: "skip" });
+      } else {
+        const priorHqName =
+          resolved.hq.currentNames[0] ??
+          resolved.hq.previousNames[0] ??
+          resolved.hq.commanderId;
+        stack.push({
+          kind: "match",
+          lastRankPublicId: row.lastRank.publicId,
+          hq: resolved.hq,
+          priorHqName,
+        });
+      }
     }
 
-    const resolved = resolveHqNameToRosterRow(answer.hqName, allHq, claimed);
-    if (!resolved.ok) {
-      console.error(
-        `Could not map "${row.lastRank.name}" → "${answer.hqName}" (${resolved.reason})`,
-      );
-      plan.skipped += 1;
-      emitPlan(plan, remaining, options.onPlanChanged);
-      continue;
-    }
-    claimed.add(resolved.hq.commanderId);
-    current = applyInteractiveMatches(current, [
-      { lastRankPublicId: row.lastRank.publicId, hq: resolved.hq },
-    ]);
-    const matchedRow = current.matched.find(
-      (matched) =>
-        matched.matchMethod === "interactive" &&
-        matched.lastRank.publicId === row.lastRank.publicId,
-    );
-    if (matchedRow) {
-      plan.mapped.push({
-        row: matchedRow,
-        priorHqName:
-          matchedRow.hq.currentNames[0] ??
-          matchedRow.hq.previousNames[0] ??
-          matchedRow.hq.commanderId,
-      });
-    }
-    emitPlan(plan, remaining, options.onPlanChanged);
+    const rebuilt = rebuildInteractiveResolutions(initial, stack, plan);
+    current = rebuilt.match;
+    claimed = rebuilt.claimed;
+    index = stack.length;
+    emitPlan(plan, pending.length - index, options.onPlanChanged);
   }
 
   return current;
@@ -968,6 +1049,11 @@ export async function syncLastRankAlliance(input: {
   interactivePrompt?: LastRankInteractivePrompt;
   alliancePrompt?: LastRankAllianceResolvePrompt;
   retirePrompt?: LastRankRetirePrompt;
+  /**
+   * When interactive renames or creates are queued, called once before
+   * `onDispatchStart`. Returning false aborts with nothing written.
+   */
+  confirmInteractiveWrites?: LastRankInteractiveConfirmPrompt;
   /** Called after every interactive answer with the queued (unwritten) plan. */
   onPlanChanged?: LastRankSyncPlanListener;
   /** Called once prompts finish, just before any queued writes run. */
@@ -1062,6 +1148,15 @@ export async function syncLastRankAlliance(input: {
     lastRankCount: page.members.length,
     match,
   });
+
+  const writeSummary = buildInteractiveWriteSummaryFromPlan(plan);
+  if (
+    lastRankInteractiveWritesNeedConfirm(writeSummary) &&
+    input.confirmInteractiveWrites &&
+    !(await input.confirmInteractiveWrites(writeSummary))
+  ) {
+    throw new Error(LASTRANK_INTERACTIVE_CONFIRM_ABORTED);
+  }
 
   input.onDispatchStart?.(lastRankSyncPlanStats(plan, 0));
 

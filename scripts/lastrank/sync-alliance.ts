@@ -19,6 +19,7 @@ import {
   isLocalDatabaseHost,
 } from "@/lib/lastrank/cli-database-guard.shared";
 import {
+  buildInteractiveWriteSummaryFromRemoteDecisions,
   buildLastRankSyncSummary,
   collectLastRankRemoteDecisions,
   LASTRANK_REMOTE_SYNC_VERSION,
@@ -35,8 +36,13 @@ import {
   type LastRankSyncTarget,
 } from "@/lib/lastrank/sync-registry.shared";
 import {
+  formatLastRankInteractiveWriteSummaryLines,
   formatLastRankSyncPlanStats,
+  LASTRANK_INTERACTIVE_CONFIRM_ABORTED,
+  lastRankInteractiveWritesNeedConfirm,
   lastRankSyncPlanQueuedCount,
+  type LastRankInteractiveConfirmPrompt,
+  type LastRankInteractiveWriteSummary,
   type LastRankSyncPlanListener,
   type LastRankSyncPlanStats,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -75,10 +81,12 @@ Flags:
   --interactive       TTY prompts: map unmatched names, pick fuzzy alliance, retire leavers
                       Each name prompt shows [n/total]; prints the LastRank profile URL;
                       unranked rows hint leavers (blank = skip).
-                      Name prompt: number = HQ choice, C = create one member, blank = skip
-                      Mapping always saves lastrank_public_id; --apply also renames HQ/Ashed.
-                      Suggestions rank by name + THP and country (profession breaks ties).
-                      Answers are queued and written in one batch after the last prompt;
+                      Name prompt: number = HQ choice, C = create one member, U = undo last
+                      answer, blank = skip. Mapping always saves lastrank_public_id;
+                      --apply also renames HQ/Ashed. Suggestions rank by name + THP and
+                      country (profession breaks ties). Answers are queued and written in
+                      one batch after the last prompt; when that batch includes renames or
+                      new commanders, a confirmation screen must be accepted first.
                       Ctrl+C before then discards them (asks twice).
   --ashed-connection-key <key>
                       Upsert alliance bot Ashed credential (with --apply, or with
@@ -145,6 +153,20 @@ function argInt(flag: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+async function promptInteractiveWriteConfirm(
+  rl: readline.Interface,
+  summary: LastRankInteractiveWriteSummary,
+): Promise<boolean> {
+  console.error("");
+  console.error("Review queued interactive writes (nothing written yet):");
+  for (const line of formatLastRankInteractiveWriteSummaryLines(summary)) {
+    console.error(line);
+  }
+  console.error('Type "yes" to proceed, or leave blank / n to abort.');
+  const answer = (await rl.question("> ")).trim().toLowerCase();
+  return answer === "yes";
+}
+
 function createTtyPrompts(options: { remote?: boolean } = {}): {
   interactivePrompt: LastRankInteractivePrompt;
   alliancePrompt: (ctx: {
@@ -168,6 +190,7 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
     memberName: string;
     ashedMemberId: string;
   }) => Promise<boolean>;
+  confirmInteractiveWrites: LastRankInteractiveConfirmPrompt;
   onPlanChanged: LastRankSyncPlanListener;
   onDispatchStart: LastRankSyncPlanListener;
   close: () => void;
@@ -286,14 +309,17 @@ function createTtyPrompts(options: { remote?: boolean } = {}): {
           `  C. Create new HQ member + commander from LastRank ("${ctx.lastRankName}")`,
         );
       }
+      console.error("  U. Undo last answer");
       console.error(
         ctx.unranked
-          ? "Enter a number, type an HQ roster name, or leave blank to skip."
-          : "Enter a number, C to create, type an HQ roster name, or leave blank to skip.",
+          ? "Enter a number, U to undo, type an HQ roster name, or leave blank to skip."
+          : "Enter a number, C to create, U to undo, type an HQ roster name, or leave blank to skip.",
       );
       const answer = await rl.question("> ");
       return resolveInteractiveHqNameAnswer(answer, choices);
     },
+    confirmInteractiveWrites: (summary) =>
+      promptInteractiveWriteConfirm(rl, summary),
     alliancePrompt: async (ctx) => {
       console.error("");
       console.error(
@@ -464,6 +490,16 @@ async function runRemote(input: {
           })
         : null;
     if (tty && collected) {
+      const summary = buildInteractiveWriteSummaryFromRemoteDecisions(
+        plan,
+        collected.decisions,
+      );
+      if (
+        lastRankInteractiveWritesNeedConfirm(summary) &&
+        !(await tty.confirmInteractiveWrites(summary))
+      ) {
+        throw new Error(LASTRANK_INTERACTIVE_CONFIRM_ABORTED);
+      }
       tty.onDispatchStart(collected.stats);
     } else {
       console.error("Sending sync to the server…");
@@ -582,6 +618,7 @@ async function main() {
       alliancePrompt: tty?.alliancePrompt,
       retirePrompt:
         apply && !retireAll && wantInteractive ? tty?.retirePrompt : undefined,
+      confirmInteractiveWrites: tty?.confirmInteractiveWrites,
       onPlanChanged: tty?.onPlanChanged,
       onDispatchStart: tty?.onDispatchStart,
     });
