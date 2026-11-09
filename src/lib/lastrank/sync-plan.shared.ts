@@ -115,3 +115,9 @@ export function formatLastRankInteractiveWriteSummaryLines(
 
 export const LASTRANK_INTERACTIVE_CONFIRM_ABORTED =
   "Interactive sync aborted — confirmation declined; nothing was written.";
+
+/** Accepts `y` / `yes` (case-insensitive); blank and anything else declines. */
+export function parseLastRankInteractiveConfirmAnswer(answer: string): boolean {
+  const trimmed = answer.trim().toLowerCase();
+  return trimmed === "y" || trimmed === "yes";
+}
