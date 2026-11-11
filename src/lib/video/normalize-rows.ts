@@ -247,7 +247,10 @@ export function foldOcrLatin(name: string): string {
     .replace(/[Øø]/g, (ch) => (ch === "Ø" ? "O" : "o"))
     .replace(/[Đđ]/g, (ch) => (ch === "Đ" ? "D" : "d"))
     .replace(/Æ/g, "AE")
-    .replace(/æ/g, "ae");
+    .replace(/æ/g, "ae")
+    // Greek lookalikes in commander tags. Eng Tesseract reads Σ as I and υ as u.
+    .replace(/[Σσς]/g, (ch) => (ch === "Σ" ? "S" : "s"))
+    .replace(/[Υυ]/g, (ch) => (ch === "Υ" ? "U" : "u"));
   return mapped.normalize("NFKD").replace(/\p{M}/gu, "");
 }
 
