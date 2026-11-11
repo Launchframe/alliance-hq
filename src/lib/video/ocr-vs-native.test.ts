@@ -9,8 +9,21 @@ vi.mock("sharp", () => ({
       resize: () => image,
       grayscale: () => image,
       normalize: () => image,
+      sharpen: () => image,
+      extract: () => image,
+      clone: () => image,
+      ensureAlpha: () => image,
+      raw: () => image,
       png: () => image,
-      toBuffer: async () => Buffer.from("processed"),
+      toBuffer: async (options?: { resolveWithObject?: boolean }) => {
+        if (options?.resolveWithObject) {
+          return {
+            data: Buffer.alloc(8 * 8 * 4, 255),
+            info: { width: 8, height: 8, channels: 4 },
+          };
+        }
+        return Buffer.from("processed");
+      },
     };
     return image;
   },

@@ -164,6 +164,16 @@ describe("buildMemberIndex", () => {
     expect(noisy.matchMethod).toBe("fuzzy");
   });
 
+  it("folds Greek sigma and upsilon so a Latin OCR read matches the roster spelling", () => {
+    const index = buildMemberIndex([
+      { id: "zeus", current_name: "ZΣυS", status: "active" },
+    ]);
+    const match = matchMemberName("ZIuS", index);
+    expect(match.memberId).toBe("zeus");
+    expect(match.memberName).toBe("ZΣυS");
+    expect(match.matchMethod).toBe("exact");
+  });
+
   it("strips a trailing 1-edit alliance tag before matching Redd", () => {
     const index = buildMemberIndex([
       { id: "redd", current_name: "Redd", status: "active" },
