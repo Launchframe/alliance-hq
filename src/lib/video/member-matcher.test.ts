@@ -171,6 +171,7 @@ describe("buildMemberIndex", () => {
     const match = matchMemberName("ZIuS", index);
     expect(match.memberId).toBe("zeus");
     expect(match.memberName).toBe("ZΣυS");
+    expect(match.matchMethod).toBe("exact");
   });
 
   it("strips a trailing 1-edit alliance tag before matching Redd", () => {

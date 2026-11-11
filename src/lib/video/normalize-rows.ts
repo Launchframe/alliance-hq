@@ -248,8 +248,10 @@ export function foldOcrLatin(name: string): string {
     .replace(/[Đđ]/g, (ch) => (ch === "Đ" ? "D" : "d"))
     .replace(/Æ/g, "AE")
     .replace(/æ/g, "ae")
-    // Greek lookalikes in commander tags. Eng Tesseract reads Σ as I and υ as u.
-    .replace(/[Σσς]/g, (ch) => (ch === "Σ" ? "S" : "s"))
+    // Eng Tesseract reads this font's Σ as I. Lowercase sigma stays S.
+    // Upsilon is the Latin u in commander tags.
+    .replace(/Σ/g, "I")
+    .replace(/[σς]/g, "s")
     .replace(/[Υυ]/g, (ch) => (ch === "Υ" ? "U" : "u"));
   return mapped.normalize("NFKD").replace(/\p{M}/gu, "");
 }
