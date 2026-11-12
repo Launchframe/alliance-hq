@@ -4471,6 +4471,9 @@
     },
     "guidedFlow": {
       "heading": "Configuração do condutor de hoje",
+      "conductorInvite": {
+        "defaultTemplate": "Ei {conductor.commander.nickname}, você ganhou o trem! {vip.commander.name} será o seu VIP. Convide essa pessoa como {conductorToVipPowerDelta > 0.1 ? 'defensor' : 'convidado'}"
+      },
       "steps": {
         "roster": {
           "title": "Preparar roster",

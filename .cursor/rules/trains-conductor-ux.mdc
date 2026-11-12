@@ -55,11 +55,14 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Guided order: `… → conductor → lock → vip → done` (`guided-flow.shared.ts` / `currentGuidedStep`).
 - VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked. Guided VIP step shows **Pick VIP manually** next to Spin (same parity as conductor). Month toolbar Crown is VIP pick after lock. **Manual VIP pick is an open roster assign** — it must not consult or consume conductor/event pools.
 - Do **not** put VIP before lock in UI, skill, or docs.
+- A paired Conductor + VIP draw may store the VIP before lock. Keep the VIP step after lock, and keep that drawn name visible on the VIP step while it is still upcoming so officers can message both people before they lock.
+- When both names are known, show a copy-paste invite for the conductor. The default template follows the officer's locale; each officer may save their own override. The role word is defender when `(conductorPower − vipPower) / vipPower > 0.1`, and guest otherwise, including when power is missing.
 - **Clear pending conductor** — officers may unassign an unlocked draft (`POST /api/trains/conductor/clear`). This **releases** the depleting-pool slot. Distinct from **Unlock** (undoes `lockedAt` only). **Train ownership:** the locking officer may unlock until midnight Server Time of that train day (past-day locks remain unlockable by that officer). After midnight, alliance owner or platform maintainer. Show the control in guided Conductor step, advanced quick-actions, and month toolbar when `conductorMemberId` is set and `lockedAt` is null.
 
 ## Dates (server calendar)
 
 - “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
+- Hub default date (`defaultTrainsHubDate`): with no `?date=`, lead time ≥ 1, today’s conductor already locked, and that `lockedAt` more than 8 hours ago, open **server tomorrow**. An explicit `?date=` still wins.
 - **Monday:** with **lead time 0**, no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals. With **lead time ≥ 1**, score reference is `trainDate − 1 − leadDays` (e.g. lead=1 Monday train uses Saturday Buster Day scores).
 - **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day) at lead 0.
 - Alliance setting `trainConductorLeadTimeDays` (0–7) + optional `trainConductorConfirmationEnabled` (auto-nominate → R4 confirm → lock). Score-upload rules nominate when VS lands; pool/sequence rules nominate at day-before-train reset. Cron: `/api/internal/train/nominate-conductor-scheduled`, `/api/internal/train/conductor-confirmation-tick`.

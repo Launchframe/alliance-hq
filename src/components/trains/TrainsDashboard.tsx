@@ -63,6 +63,7 @@ import {
 } from "@/lib/trains/walkthrough-context";
 import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
+import { ConductorInviteMessage } from "@/components/trains/ConductorInviteMessage";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { DayMechanismPickerDialog } from "@/components/trains/DayMechanismPickerDialog";
@@ -832,6 +833,24 @@ export function TrainsDashboard({
     () => activeRecords.find((r) => r.date === selectedDate) ?? null,
     [activeRecords, selectedDate],
   );
+  const saveConductorInviteTemplate = useCallback(async (template: string | null) => {
+    const res = await fetch("/api/settings/trains-preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conductorInviteTemplate: template }),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      conductorInviteTemplate?: string | null;
+    } | null;
+    if (!res.ok) {
+      throw new Error(body?.error ?? "");
+    }
+    setData((current) => ({
+      ...current,
+      conductorInviteTemplate: body?.conductorInviteTemplate ?? template,
+    }));
+  }, []);
 
   const selectedDayScoreStats = useMemo((): TrainDayScoreStats | null => {
     const fromWeek = viewedWeek.dayScoreStats?.[selectedDate];
@@ -3002,6 +3021,26 @@ export function TrainsDashboard({
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
+  const conductorNickname = selectedRecord?.conductorMemberName?.trim() ?? "";
+  const vipRosterName = selectedRecord?.vipMemberName?.trim() ?? "";
+  const conductorProfile = selectedRecord?.conductorMemberId
+    ? data.memberInviteProfiles[selectedRecord.conductorMemberId]
+    : undefined;
+  const vipProfile = selectedRecord?.vipMemberId
+    ? data.memberInviteProfiles[selectedRecord.vipMemberId]
+    : undefined;
+  const conductorInvite =
+    conductorNickname && vipRosterName ? (
+      <ConductorInviteMessage
+        conductorNickname={conductorNickname}
+        vipName={vipProfile?.name?.trim() || vipRosterName}
+        conductorPowerM={conductorProfile?.powerM ?? null}
+        vipPowerM={vipProfile?.powerM ?? null}
+        savedTemplate={data.conductorInviteTemplate}
+        canEdit={data.canManageTrains}
+        onSaveTemplate={saveConductorInviteTemplate}
+      />
+    ) : null;
   const selectedConductorSpinSource = useMemo(
     () =>
       conductorSpinSourceForTrainDay({
@@ -3513,6 +3552,7 @@ export function TrainsDashboard({
           )}
 
           {showConductorCard ? (
+            <>
             <TodayConductorCard
               record={selectedRecord}
               stats={selectedStats}
@@ -3564,6 +3604,8 @@ export function TrainsDashboard({
               }
               data-testid="trains-conductor-card"
             />
+            {conductorInvite}
+            </>
           ) : null}
           {shareExportError ? (
             <p
@@ -3617,6 +3659,7 @@ export function TrainsDashboard({
                 vipNeeded={guidedVipNeeded}
                 hasVip={guidedHasVip}
                 vipName={selectedRecord?.vipMemberName}
+                conductorInvite={showConductorCard ? null : conductorInvite}
                 locked={locked}
                 canRoll={canRoll}
                 canManualPick={canPickConductor}

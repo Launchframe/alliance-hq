@@ -4524,6 +4524,9 @@
     },
     "guidedFlow": {
       "heading": "Today’s conductor setup",
+      "conductorInvite": {
+        "defaultTemplate": "Hey {conductor.commander.nickname}, you won the train! {vip.commander.name} will be your VIP. Please invite them as your {conductorToVipPowerDelta > 0.1 ? 'defender' : 'guest'}"
+      },
       "steps": {
         "roster": {
           "title": "Prepare roster",
