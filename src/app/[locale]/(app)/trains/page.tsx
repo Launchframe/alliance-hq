@@ -7,7 +7,11 @@ import {
   parseTrainsScoresReadyParam,
 } from "@/lib/trains/guided-video-upload.shared";
 import { defaultTrainsHubDate } from "@/lib/trains/conductor-invite.shared";
-import { loadTrainsDashboard } from "@/lib/trains/load-dashboard";
+import {
+  loadTrainsDashboard,
+  loadWeekSchedulePage,
+} from "@/lib/trains/load-dashboard";
+import { getTrainWeekStart } from "@/lib/trains/train-week-calendar.shared";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 
@@ -39,16 +43,27 @@ export default async function TrainsPage({ searchParams }: Props) {
     initial.conductorRecord?.date === initial.today
       ? initial.conductorRecord
       : null;
+  const hubDate = defaultTrainsHubDate({
+    today: initial.today,
+    leadDays: initial.trainConductorLeadTimeDays,
+    explicitDate: requestedDate,
+    todayLockedAt: todayRecord?.lockedAt ?? null,
+    now: new Date(),
+  });
+  // The dashboard payload is the week that contains today. Tomorrow can be
+  // the next train week (default weeks start Tuesday, so this is Monday).
+  const hubWeekStart = getTrainWeekStart(hubDate, {
+    trainWeekStartDow: initial.trainWeekStartDow,
+  });
+  const initialViewedWeek =
+    hubWeekStart === initial.weekStart
+      ? null
+      : await loadWeekSchedulePage(session.id, hubWeekStart);
   return (
     <TrainsDashboard
       initial={initial}
-      initialSelectedDate={defaultTrainsHubDate({
-        today: initial.today,
-        leadDays: initial.trainConductorLeadTimeDays,
-        explicitDate: requestedDate,
-        todayLockedAt: todayRecord?.lockedAt ?? null,
-        now: new Date(),
-      })}
+      initialSelectedDate={hubDate}
+      initialViewedWeek={initialViewedWeek}
       initialEventId={sp.eventId?.trim() || null}
       initialScoresReady={parseTrainsScoresReadyParam(sp.scoresReady)}
       videoUpload={{

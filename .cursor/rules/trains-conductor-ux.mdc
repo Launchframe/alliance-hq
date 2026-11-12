@@ -62,7 +62,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Dates (server calendar)
 
 - “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
-- Hub default date (`defaultTrainsHubDate`): with no `?date=`, lead time ≥ 1, today’s conductor already locked, and that `lockedAt` more than 8 hours ago, open **server tomorrow**. An explicit `?date=` still wins.
+- Hub default date (`defaultTrainsHubDate`): with no `?date=`, lead time ≥ 1, today’s conductor already locked, and that `lockedAt` more than 8 hours ago, open **server tomorrow**. An explicit `?date=` still wins. The dashboard payload is the train week that contains today; when tomorrow falls in the next train week, load that week with the page so the day is not an empty preview.
 - **Monday:** with **lead time 0**, no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals. With **lead time ≥ 1**, score reference is `trainDate − 1 − leadDays` (e.g. lead=1 Monday train uses Saturday Buster Day scores).
 - **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day) at lead 0.
 - Alliance setting `trainConductorLeadTimeDays` (0–7) + optional `trainConductorConfirmationEnabled` (auto-nominate → R4 confirm → lock). Score-upload rules nominate when VS lands; pool/sequence rules nominate at day-before-train reset. Cron: `/api/internal/train/nominate-conductor-scheduled`, `/api/internal/train/conductor-confirmation-tick`.

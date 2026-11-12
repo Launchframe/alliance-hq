@@ -53,9 +53,10 @@ export function renderConductorInviteTemplate(
     input.vipPowerM,
   );
   const defender = delta != null && delta > 0.1;
+  // Function replacers so a name that contains "$&" or "$'" is inserted literally.
   return template
-    .replaceAll("{conductor.commander.nickname}", input.conductorNickname)
-    .replaceAll("{vip.commander.name}", input.vipName)
+    .replaceAll("{conductor.commander.nickname}", () => input.conductorNickname)
+    .replaceAll("{vip.commander.name}", () => input.vipName)
     .replace(INVITE_ROLE_TOKEN, (_match, defenderWord: string, guestWord: string) =>
       defender ? defenderWord : guestWord,
     );
