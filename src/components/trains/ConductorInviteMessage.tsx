@@ -33,6 +33,7 @@ export function ConductorInviteMessage({
   const tCommon = useTranslations("common");
   const tTemplates = useTranslations("trains.templates");
   const tSettings = useTranslations("trains.userSettings");
+  // t.raw: the template is not ICU. Formatting it would throw on the role token.
   const defaultTemplate = String(t.raw("conductorInvite.defaultTemplate"));
   const activeTemplate = savedTemplate?.trim() || defaultTemplate;
   const message = renderConductorInviteTemplate(activeTemplate, {
