@@ -18,6 +18,13 @@ import {
   isLocalDatabaseHost,
 } from "@/lib/lastrank/cli-database-guard.shared";
 import { resolveLastRankSyncCliTarget } from "@/lib/lastrank/sync-registry.shared";
+import {
+  formatLastRankSyncPlanStats,
+  lastRankSyncPlanQueuedCount,
+  type LastRankSyncPlanListener,
+  type LastRankSyncPlanStats,
+} from "@/lib/lastrank/sync-plan.shared";
+import type { LastRankInteractivePrompt } from "@/lib/lastrank/sync-alliance.server";
 
 const require = createRequire(import.meta.url);
 require("./register-server-only.cjs");
@@ -51,6 +58,9 @@ Flags:
                       Prints LastRank profile URL; unranked rows hint leavers (blank = skip).
                       Name prompt: number = HQ choice, C = create one member, blank = skip
                       Mapping always saves lastrank_public_id; --apply also renames HQ/Ashed.
+                      Suggestions rank by name + THP and country (profession breaks ties).
+                      Answers are queued and written in one batch after the last prompt;
+                      Ctrl+C before then discards them (asks twice).
   --ashed-connection-key <key>
                       Upsert alliance bot Ashed credential (with --apply, or with
                       --save-ashed-credential on dry-run). Never logged.
@@ -108,16 +118,7 @@ function argInt(flag: string): number | undefined {
 }
 
 function createTtyPrompts(): {
-  interactivePrompt: (ctx: {
-    lastRankName: string;
-    publicId: number;
-    profileUrl: string;
-    unranked: boolean;
-    suggestions: Array<{ name: string; score: number }>;
-    remainingHqNames: string[];
-  }) => Promise<
-    import("@/lib/lastrank/alliance-page.shared").LastRankInteractiveAnswer
-  >;
+  interactivePrompt: LastRankInteractivePrompt;
   alliancePrompt: (ctx: {
     target: { gameServerNumber: number; tag: string; lastrankAllianceId: string };
     exactMatches: Array<{
@@ -139,7 +140,11 @@ function createTtyPrompts(): {
     memberName: string;
     ashedMemberId: string;
   }) => Promise<boolean>;
+  onPlanChanged: LastRankSyncPlanListener;
+  onDispatchStart: LastRankSyncPlanListener;
   close: () => void;
+  /** Removes the write-phase SIGINT listener after sync completes or aborts. */
+  clearWritePhaseSigint: () => void;
 } | null {
   if (!input.isTTY || !output.isTTY) {
     console.error(
@@ -149,16 +154,74 @@ function createTtyPrompts(): {
   }
 
   const rl = readline.createInterface({ input, output });
+  let closed = false;
+  let latest: LastRankSyncPlanStats | null = null;
+  let interruptArmed = false;
+  let writePhaseSigintHandler: (() => void) | null = null;
+
+  // Answers are only queued in memory, so an accidental Ctrl+C would discard
+  // them. Warn once; a second press quits.
+  rl.on("SIGINT", () => {
+    const answered =
+      latest != null &&
+      lastRankSyncPlanQueuedCount(latest) + latest.skipped > 0;
+    if (!answered || interruptArmed) {
+      console.error("\nAborted — nothing was written.");
+      process.exit(130);
+    }
+    interruptArmed = true;
+    console.error(
+      `\nPress Ctrl+C again to quit. ${lastRankSyncPlanQueuedCount(latest!)} queued change(s) will be lost — nothing has been written yet.`,
+    );
+  });
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    rl.close();
+  };
+
+  const clearWritePhaseSigint = () => {
+    if (writePhaseSigintHandler) {
+      process.removeListener("SIGINT", writePhaseSigintHandler);
+      writePhaseSigintHandler = null;
+    }
+  };
 
   return {
-    close: () => rl.close(),
+    close,
+    clearWritePhaseSigint,
+    onPlanChanged: (stats) => {
+      latest = stats;
+      interruptArmed = false;
+      console.error(formatLastRankSyncPlanStats(stats));
+    },
+    onDispatchStart: (stats) => {
+      close();
+      const queued = lastRankSyncPlanQueuedCount(stats);
+      console.error("");
+      console.error(
+        queued > 0
+          ? `Writing ${queued} queued change(s) (${stats.mapped} mapped, ${stats.creates} to create, ${stats.retires} to retire)…`
+          : "No queued changes from prompts; writing remaining sync updates…",
+      );
+      clearWritePhaseSigint();
+      let abortArmed = false;
+      writePhaseSigintHandler = () => {
+        if (abortArmed) {
+          console.error("\nAborted during writes — the sync is partially applied.");
+          process.exit(130);
+        }
+        abortArmed = true;
+        console.error(
+          "\nWrites in progress — stopping now leaves a partial sync. Press Ctrl+C again to abort.",
+        );
+      };
+      process.on("SIGINT", writePhaseSigintHandler);
+    },
     interactivePrompt: async (ctx) => {
       const choices = buildInteractiveHqChoices({
-        suggestions: ctx.suggestions.map((row) => ({
-          commanderId: "",
-          name: row.name,
-          score: row.score,
-        })),
+        suggestions: ctx.suggestions,
         remainingHqNames: ctx.remainingHqNames,
       });
 
@@ -179,7 +242,7 @@ function createTtyPrompts(): {
         for (const [i, choice] of choices.entries()) {
           const score =
             choice.score != null
-              ? ` (score ${choice.score.toFixed(2)})`
+              ? ` (score ${choice.score.toFixed(2)}${choice.detail ? `: ${choice.detail}` : ""})`
               : "";
           console.error(`  ${i + 1}. ${choice.name}${score}`);
         }
@@ -322,6 +385,8 @@ async function main() {
       alliancePrompt: tty?.alliancePrompt,
       retirePrompt:
         apply && !retireAll && wantInteractive ? tty?.retirePrompt : undefined,
+      onPlanChanged: tty?.onPlanChanged,
+      onDispatchStart: tty?.onDispatchStart,
     });
 
     console.error(
@@ -405,6 +470,7 @@ async function main() {
       ),
     );
   } finally {
+    tty?.clearWritePhaseSigint();
     tty?.close();
   }
 }
