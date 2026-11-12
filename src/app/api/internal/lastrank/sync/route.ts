@@ -5,7 +5,9 @@ import { syncLastRankAlliance } from "@/lib/lastrank/sync-alliance.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Same ceiling as remote apply: matched rows can include Last War lookups and
+// Ashed rank PUTs (each bounded, with a per-run Ashed failure breaker).
+export const maxDuration = 300;
 
 function authorize(request: Request): boolean {
   const auth = request.headers.get("authorization");

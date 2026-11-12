@@ -14,6 +14,10 @@ const rosterDbRows = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
 }));
 
+const rankUpdateRows = vi.hoisted(() => ({
+  rows: [] as Array<{ ashedAllianceId: string | null }>,
+}));
+
 const mocks = vi.hoisted(() => ({
   resolveAlliance: vi.fn(),
   fetchPage: vi.fn(),
@@ -27,6 +31,15 @@ const mocks = vi.hoisted(() => ({
   upsertLevel: vi.fn(),
   loadProfessionChanges: vi.fn(),
   lookupPlayer: vi.fn(),
+  syncMemberRankToAshed: vi.fn(),
+}));
+
+vi.mock("@/lib/trains/rank-sync", () => ({
+  syncMemberRankToAshed: mocks.syncMemberRankToAshed,
+}));
+
+vi.mock("@/lib/trains/pool-rank-eligibility.server", () => ({
+  syncRankEligibilityForCurrentGenerations: vi.fn(),
 }));
 
 vi.mock("@/lib/lastrank/alliance-resolve.server", () => ({
@@ -40,6 +53,8 @@ vi.mock("@/lib/lastrank/fetch-alliance.server", () => ({
 vi.mock("@/lib/lastrank/ashed-credential.server", () => ({
   loadLastRankAshedWriteContext: mocks.loadAshed,
   upsertAllianceAshedCredentialFromConnectionKey: vi.fn(),
+  isSyntheticNativeAshedAllianceId: (id: string | null | undefined) =>
+    !id?.trim() || id.startsWith("native"),
 }));
 
 vi.mock("@/lib/lastrank/sync-upsert.server", () => ({
@@ -87,7 +102,10 @@ vi.mock("@/lib/db", () => ({
     }),
     update: () => ({
       set: () => ({
-        where: () => Promise.resolve(),
+        where: () =>
+          Object.assign(Promise.resolve(), {
+            returning: () => Promise.resolve(rankUpdateRows.rows),
+          }),
       }),
     }),
     select: () => ({
@@ -129,9 +147,10 @@ vi.mock("@/lib/db", () => ({
       allianceRank: "allianceRank",
       allianceRankTitle: "allianceRankTitle",
       ashedRankRaw: "ashedRankRaw",
+      ashedAllianceId: "ashedAllianceId",
       updatedAt: "updatedAt",
     },
-    memberAllianceRankEvents: {},
+    memberAllianceRankEvents: { id: "id" },
     commanderAllianceMemberships: {
       commanderId: "commanderId",
       ashedMemberId: "ashedMemberId",
@@ -258,6 +277,153 @@ describe("syncLastRankAlliance batch dispatch", () => {
     mocks.loadProfessionChanges.mockResolvedValue(new Map());
     mocks.lookupPlayer.mockResolvedValue({ ok: false });
     rosterDbRows.rows = [];
+    rankUpdateRows.rows = [];
+  });
+
+  it("mirrors changed ranks to Ashed for Ashed-backed members", async () => {
+    mocks.loadAshed.mockResolvedValue({
+      connection: { token: "t" },
+      ashedAllianceId: "ash-1",
+    });
+    mocks.syncMemberRankToAshed.mockResolvedValue(undefined);
+    rankUpdateRows.rows = [{ ashedAllianceId: "ash-1" }];
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 501, name: "Alpha", allianceRank: 4 })],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-alpha",
+        ashedMemberId: "m-alpha",
+        currentNames: ["Alpha"],
+        hqAllianceRank: 2,
+      }),
+    ]);
+
+    const result = await syncLastRankAlliance({ target, apply: true });
+
+    expect(mocks.syncMemberRankToAshed).toHaveBeenCalledWith(
+      { token: "t" },
+      "m-alpha",
+      4,
+      null,
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(result.apply).toEqual(
+      expect.objectContaining({ rankApplied: 1, rankAshedSynced: 1, rankAshedFailed: 0 }),
+    );
+  });
+
+  it("stops calling Ashed for ranks after repeated failures in one run", async () => {
+    mocks.loadAshed.mockResolvedValue({
+      connection: { token: "t" },
+      ashedAllianceId: "ash-1",
+    });
+    mocks.syncMemberRankToAshed.mockRejectedValue(new Error("down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    rankUpdateRows.rows = [{ ashedAllianceId: "ash-1" }];
+    const names = Array.from({ length: 10 }, (_, i) => `Member${i}`);
+    mocks.fetchPage.mockResolvedValue({
+      members: names.map((name, i) =>
+        lrMember({ publicId: 600 + i, name, allianceRank: 4 }),
+      ),
+    });
+    seedHqRoster(
+      names.map((name) =>
+        hqRow({
+          commanderId: `c-${name}`,
+          ashedMemberId: `m-${name}`,
+          currentNames: [name],
+          hqAllianceRank: 2,
+        }),
+      ),
+    );
+
+    const result = await syncLastRankAlliance({ target, apply: true });
+
+    // Up to three in-flight rows may already be past the breaker check when it trips.
+    const calls = mocks.syncMemberRankToAshed.mock.calls.length;
+    expect(calls).toBeGreaterThanOrEqual(3);
+    expect(calls).toBeLessThanOrEqual(6);
+    expect(result.apply).toEqual(
+      expect.objectContaining({ rankApplied: 10, rankAshedSynced: 0, rankAshedFailed: 10 }),
+    );
+  });
+
+  it("counts the Ashed rank outcome of members created from LastRank", async () => {
+    mocks.loadAshed.mockResolvedValue({
+      connection: { token: "t" },
+      ashedAllianceId: "ash-1",
+    });
+    mocks.createAllianceMemberFromLastRank.mockImplementation(async ({ lastRank }) => ({
+      hq: hqRow({
+        commanderId: `c-new-${lastRank.publicId}`,
+        ashedMemberId: `m-new-${lastRank.publicId}`,
+        currentNames: [lastRank.name],
+        hqAllianceRank: lastRank.allianceRank,
+      }),
+      ashedCreated: true,
+      ashedRankSynced: false,
+    }));
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 701, name: "Newbie", allianceRank: 3 })],
+    });
+    seedHqRoster([]);
+
+    const result = await syncLastRankAlliance({
+      target,
+      apply: true,
+      createAllUnmatched: true,
+    });
+
+    expect(result.apply).toEqual(
+      expect.objectContaining({ membersCreated: 1, rankAshedSynced: 0, rankAshedFailed: 1 }),
+    );
+  });
+
+  it("keeps rank writes HQ-only for native members and counts Ashed failures", async () => {
+    mocks.loadAshed.mockResolvedValue({
+      connection: { token: "t" },
+      ashedAllianceId: "ash-1",
+    });
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 502, name: "Alpha", allianceRank: 4 })],
+    });
+    seedHqRoster([
+      hqRow({
+        commanderId: "c-alpha",
+        ashedMemberId: "m-alpha",
+        currentNames: ["Alpha"],
+        hqAllianceRank: 2,
+      }),
+    ]);
+
+    rankUpdateRows.rows = [{ ashedAllianceId: "native" }];
+    await syncLastRankAlliance({ target, apply: true });
+    expect(mocks.syncMemberRankToAshed).not.toHaveBeenCalled();
+
+    rankUpdateRows.rows = [{ ashedAllianceId: "ash-1" }];
+    mocks.syncMemberRankToAshed.mockRejectedValue(new Error("boom"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await syncLastRankAlliance({ target, apply: true });
+    expect(result.apply).toEqual(
+      expect.objectContaining({ rankAshedSynced: 0, rankAshedFailed: 1 }),
+    );
+  });
+
+  it("refuses to write when the alliance no longer matches the plan", async () => {
+    mocks.fetchPage.mockResolvedValue({
+      members: [lrMember({ publicId: 503, name: "Alpha" })],
+    });
+    seedHqRoster([]);
+
+    await expect(
+      syncLastRankAlliance({
+        target,
+        apply: true,
+        expectedHqAllianceId: "some-other-alliance",
+      }),
+    ).rejects.toThrow(/re-run the plan/);
+    expect(mocks.updateLastRankProfileFields).not.toHaveBeenCalled();
   });
 
   it("dry-run queues interactive maps and writes only after onDispatchStart", async () => {
@@ -328,10 +494,12 @@ describe("syncLastRankAlliance batch dispatch", () => {
       trace.order.push("onDispatchStart");
     });
 
+    const positions: Array<{ current: number; total: number } | undefined> = [];
     await syncLastRankAlliance({
       target,
       apply: true,
-      interactivePrompt: async (ctx) => {
+      interactivePrompt: async (ctx, position) => {
+        positions.push(position);
         if (ctx.publicId === 302) return { kind: "match", hqName: "OldHQ" };
         if (ctx.publicId === 303) return { kind: "create" };
         return { kind: "skip" };
@@ -339,6 +507,11 @@ describe("syncLastRankAlliance batch dispatch", () => {
       retirePrompt: async () => true,
       onDispatchStart,
     });
+
+    expect(positions.length).toBeGreaterThan(1);
+    expect(positions).toEqual(
+      positions.map((_, i) => ({ current: i + 1, total: positions.length })),
+    );
 
     expect(mocks.applyInteractiveNameMapping).toHaveBeenCalledOnce();
     expect(mocks.createAllianceMemberFromLastRank).toHaveBeenCalledOnce();

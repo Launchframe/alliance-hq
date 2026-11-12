@@ -11,13 +11,29 @@ import { config } from "dotenv";
 import { databaseHostFromUrl, resolveDatabaseUrl } from "@/lib/db/url";
 import {
   buildInteractiveHqChoices,
+  formatLastRankPromptPosition,
   resolveInteractiveHqNameAnswer,
 } from "@/lib/lastrank/alliance-page.shared";
 import {
   assertCliDatabaseHostConfirmed,
   isLocalDatabaseHost,
 } from "@/lib/lastrank/cli-database-guard.shared";
-import { resolveLastRankSyncCliTarget } from "@/lib/lastrank/sync-registry.shared";
+import {
+  buildLastRankSyncSummary,
+  collectLastRankRemoteDecisions,
+  LASTRANK_REMOTE_SYNC_VERSION,
+  lastRankRemoteSyncUrl,
+  type LastRankRemoteApplyRequest,
+  type LastRankRemotePlan,
+} from "@/lib/lastrank/remote-sync.shared";
+import type { LastRankRemoteApplyResponse } from "@/lib/lastrank/remote-sync.server";
+import { formatLastRankRosterDiffText } from "@/lib/lastrank/roster-diff.shared";
+import {
+  assertLastRankCliIdMatchesFlags,
+  lastRankCliIdNeedsIdentityCheck,
+  resolveLastRankSyncCliTarget,
+  type LastRankSyncTarget,
+} from "@/lib/lastrank/sync-registry.shared";
 import {
   formatLastRankSyncPlanStats,
   lastRankSyncPlanQueuedCount,
@@ -45,6 +61,8 @@ Target (required — one of):
 
   Any alliance works. --server + --tag alone needs a LASTRANK_SYNC_REGISTRY entry;
   otherwise pass --id --server --tag. Explicit --server/--tag override the registry.
+  With --id plus --tag and/or --server, LastRank's page for that id must list the
+  same tag (case-insensitive) and server, or the run stops before touching any DB.
 
   Env fallbacks: LASTRANK_SYNC_SERVER + LASTRANK_SYNC_TAG, or LASTRANK_ALLIANCE_ID
 
@@ -55,7 +73,8 @@ Flags:
   --retire-all        With --apply: mark every excess HQ active (not on LastRank) as former
                       (Ashed status + HQ). Requires --apply.
   --interactive       TTY prompts: map unmatched names, pick fuzzy alliance, retire leavers
-                      Prints LastRank profile URL; unranked rows hint leavers (blank = skip).
+                      Each name prompt shows [n/total]; prints the LastRank profile URL;
+                      unranked rows hint leavers (blank = skip).
                       Name prompt: number = HQ choice, C = create one member, blank = skip
                       Mapping always saves lastrank_public_id; --apply also renames HQ/Ashed.
                       Suggestions rank by name + THP and country (profession breaks ties).
@@ -68,6 +87,11 @@ Flags:
   --save-ashed-credential
                       Persist --ashed-connection-key even without --apply
   --hq-only           Never dual-write to Ashed (HQ DB only). Use on Neon clones.
+  --remote <origin>   Run against a deployed HQ (e.g. production): the server plans and
+                      writes with its own DB + saved Ashed credential; prompts run here.
+                      Needs LASTRANK_SYNC_TOKEN (same value as the server env). Without
+                      --apply it only prints the plan. Existing alliances only; no
+                      --ashed-connection-key. Rank changes are mirrored to Ashed.
   --confirm-host <host>
                       Required to write (--apply, --interactive, --save-ashed-credential)
                       to a non-localhost database; must equal the host printed at startup.
@@ -93,6 +117,10 @@ Examples:
   # Interactive map + write
   npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo --apply --interactive
 
+  # Same, but writes happen on production (prod key + Ashed credential)
+  LASTRANK_SYNC_TOKEN=... npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo \\
+    --remote https://<hq origin> --apply --interactive
+
 Docs: docs/guides/lastrank-alliance-sync.md`);
 }
 
@@ -117,7 +145,7 @@ function argInt(flag: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function createTtyPrompts(): {
+function createTtyPrompts(options: { remote?: boolean } = {}): {
   interactivePrompt: LastRankInteractivePrompt;
   alliancePrompt: (ctx: {
     target: { gameServerNumber: number; tag: string; lastrankAllianceId: string };
@@ -209,17 +237,23 @@ function createTtyPrompts(): {
       let abortArmed = false;
       writePhaseSigintHandler = () => {
         if (abortArmed) {
-          console.error("\nAborted during writes — the sync is partially applied.");
+          console.error(
+            options.remote
+              ? "\nStopped waiting — the server keeps writing; re-run without --apply to check the result."
+              : "\nAborted during writes — the sync is partially applied.",
+          );
           process.exit(130);
         }
         abortArmed = true;
         console.error(
-          "\nWrites in progress — stopping now leaves a partial sync. Press Ctrl+C again to abort.",
+          options.remote
+            ? "\nThe server is writing and will finish even if you quit. Press Ctrl+C again to stop waiting."
+            : "\nWrites in progress — stopping now leaves a partial sync. Press Ctrl+C again to abort.",
         );
       };
       process.on("SIGINT", writePhaseSigintHandler);
     },
-    interactivePrompt: async (ctx) => {
+    interactivePrompt: async (ctx, position) => {
       const choices = buildInteractiveHqChoices({
         suggestions: ctx.suggestions,
         remainingHqNames: ctx.remainingHqNames,
@@ -227,7 +261,7 @@ function createTtyPrompts(): {
 
       console.error("");
       console.error(
-        `No auto-match for LastRank canon "${ctx.lastRankName}" (public_id=${ctx.publicId}).`,
+        `${formatLastRankPromptPosition(position)}No auto-match for LastRank canon "${ctx.lastRankName}" (public_id=${ctx.publicId}).`,
       );
       console.error(`  Profile: ${ctx.profileUrl}`);
       if (ctx.unranked) {
@@ -309,6 +343,162 @@ function createTtyPrompts(): {
   };
 }
 
+function cliTargetInput(): {
+  lastrankAllianceId?: string;
+  tag?: string;
+  gameServerNumber?: number;
+} {
+  const rawServer =
+    argInt("--server") ??
+    (process.env.LASTRANK_SYNC_SERVER
+      ? Number.parseInt(process.env.LASTRANK_SYNC_SERVER, 10)
+      : undefined);
+  return {
+    lastrankAllianceId: arg("--id") ?? process.env.LASTRANK_ALLIANCE_ID,
+    tag: arg("--tag") ?? process.env.LASTRANK_SYNC_TAG,
+    gameServerNumber:
+      rawServer != null && Number.isFinite(rawServer) && rawServer > 0
+        ? rawServer
+        : undefined,
+  };
+}
+
+/** Resolves the target, then blocks when `--id` disagrees with `--tag` / `--server`. */
+async function resolveCliTarget(): Promise<LastRankSyncTarget> {
+  const input = cliTargetInput();
+  const target = resolveLastRankSyncCliTarget(input);
+  if (!lastRankCliIdNeedsIdentityCheck(input)) return target;
+
+  const { fetchLastRankAlliancePage } = await import(
+    "@/lib/lastrank/fetch-alliance.server"
+  );
+  const page = await fetchLastRankAlliancePage(target.lastrankAllianceId);
+  assertLastRankCliIdMatchesFlags({
+    lastrankAllianceId: target.lastrankAllianceId,
+    tag: input.tag,
+    gameServerNumber: input.gameServerNumber,
+    identity: page.identity,
+  });
+  console.error(
+    `LastRank id ${target.lastrankAllianceId}: [${page.identity!.tag}] on server ${page.identity!.gameServerNumber} (matches flags).`,
+  );
+  return target;
+}
+
+async function postRemote<T>(url: string, token: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(330_000),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | (T & { error?: string })
+    | null;
+  if (!response.ok) {
+    const detail = payload?.error ?? response.statusText;
+    throw new Error(
+      response.status === 403
+        ? "Remote sync refused (403): check LASTRANK_SYNC_TOKEN matches the server's value."
+        : `Remote sync failed (${response.status}): ${detail}`,
+    );
+  }
+  if (!payload) throw new Error(`Remote sync returned no JSON (${response.status}).`);
+  return payload;
+}
+
+async function runRemote(input: {
+  origin: string;
+  target: LastRankSyncTarget;
+  apply: boolean;
+  createAll: boolean;
+  retireAll: boolean;
+  hqOnly: boolean;
+  wantInteractive: boolean;
+}): Promise<void> {
+  const token = process.env.LASTRANK_SYNC_TOKEN?.trim();
+  if (!token) {
+    throw new Error("--remote requires LASTRANK_SYNC_TOKEN in the environment (never on the command line).");
+  }
+  const planUrl = lastRankRemoteSyncUrl(input.origin, "plan");
+  const applyUrl = lastRankRemoteSyncUrl(input.origin, "apply");
+  console.error(`Remote: ${new URL(planUrl).origin} (server DB + Ashed credential)`);
+
+  const plan = await postRemote<LastRankRemotePlan>(planUrl, token, {
+    version: LASTRANK_REMOTE_SYNC_VERSION,
+    target: input.target,
+  });
+  console.error(
+    formatLastRankRosterDiffText({
+      tag: plan.target.tag,
+      gameServerNumber: plan.target.gameServerNumber,
+      diff: plan.rosterDiff,
+    }),
+  );
+  console.error(
+    plan.ashedDualWrite
+      ? "Ashed dual-write: available."
+      : "Ashed dual-write: unavailable (native or missing bot credential).",
+  );
+
+  if (!input.apply) {
+    if (input.wantInteractive) {
+      console.error("Remote dry-run: prompts are skipped. Add --apply to answer and write.");
+    }
+    console.log(JSON.stringify({ plan: { ...plan, prompts: plan.prompts.length } }, null, 2));
+    return;
+  }
+
+  const tty = input.wantInteractive ? createTtyPrompts({ remote: true }) : null;
+  try {
+    const collected =
+      tty && plan.prompts.length + plan.retireCandidates.length > 0
+        ? await collectLastRankRemoteDecisions({
+            plan,
+            interactivePrompt: tty.interactivePrompt,
+            retirePrompt: input.retireAll ? undefined : tty.retirePrompt,
+            onPlanChanged: tty.onPlanChanged,
+          })
+        : null;
+    if (tty && collected) {
+      tty.onDispatchStart(collected.stats);
+    } else {
+      console.error("Sending sync to the server…");
+    }
+
+    const result = await postRemote<LastRankRemoteApplyResponse>(applyUrl, token, {
+      version: LASTRANK_REMOTE_SYNC_VERSION,
+      target: plan.target,
+      expectedHqAllianceId: plan.hqAllianceId,
+      decisions: collected?.decisions ?? [],
+      retireAshedMemberIds: collected?.retireAshedMemberIds ?? [],
+      createAll: input.createAll,
+      retireAll: input.retireAll,
+      hqOnly: input.hqOnly,
+    } satisfies LastRankRemoteApplyRequest);
+
+    for (const row of result.unappliedMappings) {
+      console.error(
+        `Not mapped on the server: LastRank public_id=${row.publicId} → "${row.hqName}" (name changed or already claimed — re-run to retry).`,
+      );
+    }
+    console.error(
+      formatLastRankRosterDiffText({
+        tag: result.summary.tag,
+        gameServerNumber: result.summary.gameServerNumber,
+        diff: result.summary.rosterDiff,
+      }),
+    );
+    console.log(JSON.stringify(result.summary, null, 2));
+  } finally {
+    tty?.clearWritePhaseSigint();
+    tty?.close();
+  }
+}
+
 async function main() {
   if (wantsHelp()) {
     printHelp();
@@ -339,6 +529,31 @@ async function main() {
     throw new Error("Do not pass --ashed-connection-key with --hq-only.");
   }
 
+  const remoteOrigin = arg("--remote");
+  if (
+    remoteOrigin != null &&
+    (ashedConnectionKey?.trim() || saveAshedCredential)
+  ) {
+    throw new Error(
+      "--remote uses the server's saved Ashed credential; do not pass --ashed-connection-key / --save-ashed-credential.",
+    );
+  }
+
+  const target = await resolveCliTarget();
+
+  if (remoteOrigin != null) {
+    await runRemote({
+      origin: remoteOrigin,
+      target,
+      apply,
+      createAll,
+      retireAll,
+      hqOnly,
+      wantInteractive,
+    });
+    return;
+  }
+
   const databaseHost = databaseHostFromUrl(resolveDatabaseUrl(process.env));
   console.error(
     `Database: ${databaseHost} (${isLocalDatabaseHost(databaseHost) ? "local" : "REMOTE"})`,
@@ -349,27 +564,9 @@ async function main() {
     confirmHost: arg("--confirm-host"),
   });
 
-  const lastrankAllianceId = arg("--id") ?? process.env.LASTRANK_ALLIANCE_ID;
-  const tag = arg("--tag") ?? process.env.LASTRANK_SYNC_TAG;
-  const gameServerNumber =
-    argInt("--server") ??
-    (process.env.LASTRANK_SYNC_SERVER
-      ? Number.parseInt(process.env.LASTRANK_SYNC_SERVER, 10)
-      : undefined);
-
-  const target = resolveLastRankSyncCliTarget({
-    lastrankAllianceId,
-    tag,
-    gameServerNumber,
-  });
-
   const { syncLastRankAlliance } = await import(
     "@/lib/lastrank/sync-alliance.server"
   );
-  const { formatLastRankRosterDiffText } = await import(
-    "@/lib/lastrank/roster-diff.shared"
-  );
-
   const tty = wantInteractive ? createTtyPrompts() : null;
 
   try {
@@ -414,61 +611,7 @@ async function main() {
       );
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          tag: result.tag,
-          gameServerNumber: result.gameServerNumber,
-          lastrankAllianceId: result.lastrankAllianceId,
-          hqAllianceId: result.hqAllianceId,
-          allianceCreated: result.allianceCreated,
-          lastRankCount: result.lastRankCount,
-          rosterDiff: result.rosterDiff,
-          ashedCredentialSaved: result.ashedCredentialSaved,
-          ashedDualWrite: result.ashedDualWrite,
-          matched: result.match.matched.length,
-          unmatched: result.match.unmatched.filter(
-            (r) => r.status === "unmatched",
-          ).length,
-          ambiguous: result.match.unmatched.filter(
-            (r) => r.status === "ambiguous",
-          ).length,
-          unmatchedHq: result.match.unmatchedHq.length,
-          matchMethods: result.match.matched.reduce<Record<string, number>>(
-            (acc, row) => {
-              acc[row.matchMethod] = (acc[row.matchMethod] ?? 0) + 1;
-              return acc;
-            },
-            {},
-          ),
-          ranks: result.match.matched.reduce<Record<string, number>>(
-            (acc, row) => {
-              const key =
-                row.lastRank.allianceRank != null
-                  ? `R${row.lastRank.allianceRank}`
-                  : "unset";
-              acc[key] = (acc[key] ?? 0) + 1;
-              return acc;
-            },
-            {},
-          ),
-          apply: result.apply,
-          unmatchedNames: result.match.unmatched.map((r) => ({
-            status: r.status,
-            name: r.lastRank.name,
-            suggestions: r.suggestions.slice(0, 3).map((s) => ({
-              name: s.name,
-              score: Number(s.score.toFixed(2)),
-            })),
-          })),
-          unmatchedHqNames: result.match.unmatchedHq.map(
-            (r) => r.currentNames[0] ?? r.previousNames[0],
-          ),
-        },
-        null,
-        2,
-      ),
-    );
+    console.log(JSON.stringify(buildLastRankSyncSummary(result), null, 2));
   } finally {
     tty?.clearWritePhaseSigint();
     tty?.close();
