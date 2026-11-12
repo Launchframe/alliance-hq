@@ -7066,6 +7066,9 @@
     "guardianIsVipHint": "VIP squads defend",
     "guidedFlow": {
       "heading": "Today’s conductor setup",
+      "conductorInvite": {
+        "defaultTemplate": "Hai {conductor.commander.nickname}, kamu memenangkan kereta! {vip.commander.name} akan menjadi VIP-mu. Undang mereka sebagai {conductorToVipPowerDelta > 0.1 ? 'pembela' : 'tamu'}"
+      },
       "steps": {
         "conductor": {
           "assigned": "Conductor: {name}",

@@ -18,12 +18,15 @@ export type TrainsUserPreferences = {
   displayWeekStartDow: TrainsDisplayWeekStartDow;
   wheelSpinSpeed: TrainsWheelSpinSpeed;
   simpleModeEnabled: boolean;
+  /** Null means the locale default invite template. */
+  conductorInviteTemplate: string | null;
 };
 
 const DEFAULT_PREFERENCES: TrainsUserPreferences = {
   displayWeekStartDow: DEFAULT_TRAINS_DISPLAY_WEEK_START_DOW,
   wheelSpinSpeed: DEFAULT_TRAINS_WHEEL_SPIN_SPEED,
   simpleModeEnabled: true,
+  conductorInviteTemplate: null,
 };
 
 function normalizeSimpleModeEnabled(value: unknown): boolean {
@@ -44,6 +47,7 @@ export async function loadTrainsUserPreferences(
       displayWeekStartDow: schema.hqUsers.trainsDisplayWeekStartDow,
       wheelSpinSpeed: schema.hqUsers.trainsWheelSpinSpeed,
       simpleModeEnabled: schema.hqUsers.trainsSimpleModeEnabled,
+      conductorInviteTemplate: schema.hqUsers.trainsConductorInviteTemplate,
     })
     .from(schema.hqUsers)
     .where(eq(schema.hqUsers.id, hqUserId))
@@ -57,7 +61,17 @@ export async function loadTrainsUserPreferences(
     displayWeekStartDow: normalizeDisplayWeekStartDow(user.displayWeekStartDow),
     wheelSpinSpeed: normalizeTrainsWheelSpinSpeed(user.wheelSpinSpeed),
     simpleModeEnabled: normalizeSimpleModeEnabled(user.simpleModeEnabled),
+    conductorInviteTemplate: normalizeConductorInviteTemplate(
+      user.conductorInviteTemplate,
+    ),
   };
+}
+
+function normalizeConductorInviteTemplate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 500);
 }
 
 export async function updateTrainsUserPreferences(
@@ -70,6 +84,7 @@ export async function updateTrainsUserPreferences(
     trainsDisplayWeekStartDow?: TrainsDisplayWeekStartDow;
     trainsWheelSpinSpeed?: TrainsWheelSpinSpeed;
     trainsSimpleModeEnabled?: boolean;
+    trainsConductorInviteTemplate?: string | null;
   } = {
     updatedAt: new Date(),
   };
@@ -89,6 +104,12 @@ export async function updateTrainsUserPreferences(
   if (partial.simpleModeEnabled !== undefined) {
     patch.trainsSimpleModeEnabled = normalizeSimpleModeEnabled(
       partial.simpleModeEnabled,
+    );
+  }
+
+  if (partial.conductorInviteTemplate !== undefined) {
+    patch.trainsConductorInviteTemplate = normalizeConductorInviteTemplate(
+      partial.conductorInviteTemplate,
     );
   }
 

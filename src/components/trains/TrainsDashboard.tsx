@@ -63,6 +63,7 @@ import {
 } from "@/lib/trains/walkthrough-context";
 import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
+import { ConductorInviteMessage } from "@/components/trains/ConductorInviteMessage";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { DayMechanismPickerDialog } from "@/components/trains/DayMechanismPickerDialog";
@@ -232,8 +233,13 @@ const TrainsInlineVsUpload = dynamic(() =>
 
 type Props = {
   initial: TrainsDashboardPayload;
-  /** From `?date=` when returning from VS score upload. */
+  /** From `?date=` when returning from VS score upload, or the hub default. */
   initialSelectedDate?: string | null;
+  /**
+   * Train week for `initialSelectedDate` when that day is outside the week
+   * bundled on `initial` (the week that contains server today).
+   */
+  initialViewedWeek?: WeekSchedulePagePayload | null;
   initialEventId?: string | null;
   /** From `?scoresReady=1` after VS scores were saved. */
   initialScoresReady?: boolean;
@@ -267,9 +273,23 @@ type PaintOptions = {
   sourceTemplateId?: string | null;
 };
 
+function weekPageFromDashboard(
+  initial: TrainsDashboardPayload,
+): WeekSchedulePagePayload {
+  return {
+    weekStart: initial.weekStart,
+    weekEnd: initial.weekEnd,
+    templateId: initial.schedule?.templateId ?? null,
+    dayConfigs: initial.dayConfigs,
+    weekRecords: initial.weekRecords,
+    dayScoreStats: initial.weekDayScoreStats ?? {},
+  };
+}
+
 export function TrainsDashboard({
   initial,
   initialSelectedDate = null,
+  initialViewedWeek = null,
   initialEventId = null,
   initialScoresReady = false,
   videoUpload,
@@ -322,14 +342,10 @@ export function TrainsDashboard({
   }, []);
 
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
-  const [viewedWeek, setViewedWeek] = useState<WeekSchedulePagePayload>({
-    weekStart: initial.weekStart,
-    weekEnd: initial.weekEnd,
-    templateId: initial.schedule?.templateId ?? null,
-    dayConfigs: initial.dayConfigs,
-    weekRecords: initial.weekRecords,
-    dayScoreStats: initial.weekDayScoreStats ?? {},
-  });
+  const openingWeek = initialViewedWeek ?? weekPageFromDashboard(initial);
+  const [viewedWeek, setViewedWeek] = useState<WeekSchedulePagePayload>(
+    openingWeek,
+  );
   const initialMonthKey = getMonthKey(initial.today);
   const [viewedMonth, setViewedMonth] = useState<MonthSchedulePagePayload>({
     monthKey: initialMonthKey,
@@ -338,7 +354,7 @@ export function TrainsDashboard({
     dayConfigs: initial.dayConfigs,
     monthRecords: initial.weekRecords,
   });
-  const viewedWeekStartRef = useRef(initial.weekStart);
+  const viewedWeekStartRef = useRef(openingWeek.weekStart);
   const viewedMonthKeyRef = useRef(initialMonthKey);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickRole, setPickRole] = useState<"conductor" | "vip">("conductor");
@@ -691,16 +707,20 @@ export function TrainsDashboard({
     handleMonthChange(body);
   }, [handleMonthChange, t]);
 
+  const weekFetchGenRef = useRef(0);
   const fetchWeek = useCallback(
     async (weekStart: string) => {
+      const gen = ++weekFetchGenRef.current;
       const res = await fetch(
         `/api/trains/schedule/week?weekStart=${encodeURIComponent(weekStart)}`,
       );
+      if (gen !== weekFetchGenRef.current) return;
       if (!res.ok) {
         setError(t("weekLoadFailed"));
         return;
       }
       const body = (await res.json()) as WeekSchedulePagePayload;
+      if (gen !== weekFetchGenRef.current) return;
       handleWeekChange(body);
     },
     [handleWeekChange, t],
@@ -709,6 +729,12 @@ export function TrainsDashboard({
   const goToToday = useCallback(() => {
     const today = data.today;
     selectDate(today);
+    // An explicit ?date= wins over the stale-lock default. Keep Next's history
+    // state so this updates the URL for the next full load without remounting.
+    const params = new URLSearchParams(window.location.search);
+    params.set("date", today);
+    const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
     if (scheduleView === "month") {
       void fetchMonth(getMonthKey(today));
       return;
@@ -832,6 +858,24 @@ export function TrainsDashboard({
     () => activeRecords.find((r) => r.date === selectedDate) ?? null,
     [activeRecords, selectedDate],
   );
+  const saveConductorInviteTemplate = useCallback(async (template: string | null) => {
+    const res = await fetch("/api/settings/trains-preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conductorInviteTemplate: template }),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      conductorInviteTemplate?: string | null;
+    } | null;
+    if (!res.ok) {
+      throw new Error(body?.error ?? "");
+    }
+    setData((current) => ({
+      ...current,
+      conductorInviteTemplate: body?.conductorInviteTemplate ?? template,
+    }));
+  }, []);
 
   const selectedDayScoreStats = useMemo((): TrainDayScoreStats | null => {
     const fromWeek = viewedWeek.dayScoreStats?.[selectedDate];
@@ -3002,6 +3046,26 @@ export function TrainsDashboard({
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
+  const conductorNickname = selectedRecord?.conductorMemberName?.trim() ?? "";
+  const vipRosterName = selectedRecord?.vipMemberName?.trim() ?? "";
+  const conductorProfile = selectedRecord?.conductorMemberId
+    ? data.memberInviteProfiles[selectedRecord.conductorMemberId]
+    : undefined;
+  const vipProfile = selectedRecord?.vipMemberId
+    ? data.memberInviteProfiles[selectedRecord.vipMemberId]
+    : undefined;
+  const conductorInvite =
+    conductorNickname && vipRosterName ? (
+      <ConductorInviteMessage
+        conductorNickname={conductorNickname}
+        vipName={vipProfile?.name?.trim() || vipRosterName}
+        conductorPowerM={conductorProfile?.powerM ?? null}
+        vipPowerM={vipProfile?.powerM ?? null}
+        savedTemplate={data.conductorInviteTemplate}
+        canEdit={data.canManageTrains}
+        onSaveTemplate={saveConductorInviteTemplate}
+      />
+    ) : null;
   const selectedConductorSpinSource = useMemo(
     () =>
       conductorSpinSourceForTrainDay({
@@ -3513,6 +3577,7 @@ export function TrainsDashboard({
           )}
 
           {showConductorCard ? (
+            <>
             <TodayConductorCard
               record={selectedRecord}
               stats={selectedStats}
@@ -3564,6 +3629,8 @@ export function TrainsDashboard({
               }
               data-testid="trains-conductor-card"
             />
+            {conductorInvite}
+            </>
           ) : null}
           {shareExportError ? (
             <p
@@ -3617,6 +3684,7 @@ export function TrainsDashboard({
                 vipNeeded={guidedVipNeeded}
                 hasVip={guidedHasVip}
                 vipName={selectedRecord?.vipMemberName}
+                conductorInvite={showConductorCard ? null : conductorInvite}
                 locked={locked}
                 canRoll={canRoll}
                 canManualPick={canPickConductor}

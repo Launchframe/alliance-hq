@@ -901,6 +901,8 @@ export const hqUsers = pgTable("hq_users", {
   trainsSimpleModeEnabled: boolean("trains_simple_mode_enabled")
     .notNull()
     .default(true),
+  /** Officer override of the conductor + VIP invite. Null uses the locale default. */
+  trainsConductorInviteTemplate: text("trains_conductor_invite_template"),
   /** Offer to dual-write unmatched scoreboard OCR names as new roster members */
   offerScoreboardNewMembers: boolean("offer_scoreboard_new_members")
     .notNull()

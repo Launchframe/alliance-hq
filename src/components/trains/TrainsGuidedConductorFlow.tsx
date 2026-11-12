@@ -109,6 +109,8 @@ export type TrainsGuidedConductorFlowProps = {
   /** Share image export when a conductor is already assigned. */
   onShareImage?: () => void;
   shareBusy?: boolean;
+  /** Copy-paste invite shown once both the conductor and VIP are known. */
+  conductorInvite?: ReactNode;
 };
 
 type StepId =
@@ -119,7 +121,7 @@ type StepId =
   | "vip"
   | "lock"
   | "done";
-type StepStatus = "completed" | "current" | "upcoming" | "skipped";
+type StepStatus = "completed" | "current" | "upcoming" | "skipped" | "pending";
 
 const STEP_ORDER: StepId[] = [
   "template",
@@ -162,6 +164,13 @@ function StepMarker({ status }: { status: StepStatus }) {
     return (
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-cyan-500 bg-cyan-500/15">
         <span className="h-2 w-2 rounded-full bg-cyan-500" aria-hidden />
+      </span>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15">
+        <span className="h-2 w-2 rounded-full bg-amber-600 dark:bg-amber-300" aria-hidden />
       </span>
     );
   }
@@ -304,6 +313,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onSyncRoster,
     onShareImage,
     shareBusy = false,
+    conductorInvite = null,
   } = props;
   const tWheel = useTranslations("trains.wheel");
 
@@ -433,6 +443,8 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     rosterRequired,
   );
   const vipStatus = stepStatus("vip", current, vipNeeded, prerequisiteRequired, rosterRequired);
+  const vipDisplayStatus: StepStatus =
+    vipStatus === "upcoming" && hasVip && vipName ? "pending" : vipStatus;
   const lockStatus = stepStatus("lock", current, vipNeeded, prerequisiteRequired, rosterRequired);
   const doneStatus = stepStatus("done", current, vipNeeded, prerequisiteRequired, rosterRequired);
 
@@ -727,6 +739,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                     : tWheel("share.action")}
                 </button>
               ) : null}
+              {conductorInvite}
             </div>
           ) : conductorStatus === "current" ? (
             <div className="flex flex-col gap-2">
@@ -837,8 +850,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
           ) : null}
         </StepRow>
 
-        <StepRow status={vipStatus} title={t("steps.vip.title")}>
-          {vipStatus === "skipped" ? (
+        <StepRow status={vipDisplayStatus} title={t("steps.vip.title")}>
+          {vipDisplayStatus === "pending" ? (
+            <p className="text-sm text-hq-fg" data-testid="trains-guided-vip-pending">
+              {t("steps.vip.assigned", { name: vipName ?? "—" })}
+            </p>
+          ) : vipStatus === "skipped" ? (
             <p className="text-sm text-hq-fg-muted">{t("steps.vip.skipped")}</p>
           ) : vipStatus === "completed" ? (
             <div className="flex flex-wrap items-center gap-2">

@@ -57,6 +57,8 @@ import {
   trainDiscordConfigured,
 } from "@/lib/trains/train-discord-settings.server";
 import { loadTrainsUserPreferences } from "@/lib/trains/trains-user-preferences.server";
+import { loadMemberInviteProfiles } from "@/lib/trains/conductor-invite.server";
+import type { MemberInviteProfile } from "@/lib/trains/conductor-invite.shared";
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsWheelSpinSpeed } from "@/lib/trains/trains-wheel-speed.shared";
 import {
@@ -196,6 +198,10 @@ export type TrainsDashboardPayload = {
   wheelSpinSpeed: TrainsWheelSpinSpeed;
   /** Guided conductor flow (Simple Mode); defaults true. */
   simpleModeEnabled: boolean;
+  /** Officer's saved conductor invite. Null uses the locale default. */
+  conductorInviteTemplate: string | null;
+  /** Canonical name and power for roster members, keyed by ashed member id. */
+  memberInviteProfiles: Record<string, MemberInviteProfile>;
   trainWeekStartDow: number;
   canManageTrains: boolean;
   /** Pre-production only: train managers may clear a persisted week schedule. */
@@ -292,6 +298,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "trainConductorLeadTimeDays"
   | "trainConductorConfirmationEnabled"
   | "weekConductorMinimumsDataStatus"
+  | "memberInviteProfiles"
 > = {
   operatingMode: "ashed",
   schedule: null,
@@ -315,6 +322,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   trainConductorLeadTimeDays: 0,
   trainConductorConfirmationEnabled: false,
   weekConductorMinimumsDataStatus: {},
+  memberInviteProfiles: {},
 };
 
 async function loadConductorRecordAccess(sessionId: string, allianceId: string) {
@@ -383,6 +391,7 @@ export async function loadTrainsDashboard(
     displayWeekStartDow: userPreferences.displayWeekStartDow,
     wheelSpinSpeed: userPreferences.wheelSpinSpeed,
     simpleModeEnabled: userPreferences.simpleModeEnabled,
+    conductorInviteTemplate: userPreferences.conductorInviteTemplate,
     trainWeekStartDow: trainWeekConfig.trainWeekStartDow,
   };
 
@@ -405,6 +414,10 @@ export async function loadTrainsDashboard(
 
   const members = await loadActiveAlliancePoolMembers({ allianceId });
   const activeMemberCount = members.length;
+  const memberInviteProfilesPromise = loadMemberInviteProfiles(
+    allianceId,
+    members.map((member) => member.ashedMemberId),
+  );
 
   const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
   const operatingMode = await getAllianceOperatingMode(allianceId);
@@ -518,6 +531,7 @@ export async function loadTrainsDashboard(
   const vsDataStatus = todayScoreStats
     ? trainDayScoreStatsToVsDataStatus(todayScoreStats)
     : null;
+  const memberInviteProfiles = await memberInviteProfilesPromise;
 
   return {
     today,
@@ -543,6 +557,7 @@ export async function loadTrainsDashboard(
     schedulePersisted: scheduleRow != null,
     dayConfigs,
     weekRecords,
+    memberInviteProfiles,
     roster: members.map((m) => ({
       memberId: m.ashedMemberId,
       memberName: m.currentName,
