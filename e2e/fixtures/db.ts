@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import os from "node:os";
 
 import { nanoid } from "nanoid";
 import postgres from "postgres";
@@ -36,7 +37,12 @@ export function getE2eSql(): Sql {
   if (e2eSqlSingleton) {
     return e2eSqlSingleton;
   }
-  e2eSqlSingleton = postgres(url, { max: 4, prepare: false });
+  const username = new URL(url).username || os.userInfo().username;
+  e2eSqlSingleton = postgres(url, {
+    max: 4,
+    prepare: false,
+    user: username,
+  });
   return e2eSqlSingleton;
 }
 

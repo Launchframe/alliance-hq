@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import os from "node:os";
 
 import nextEnv from "@next/env";
 import { describe, expect, it } from "vitest";
@@ -49,6 +50,20 @@ describe("createE2eRuntimeEnv", () => {
         }),
       ),
     ).toThrow(/Refusing to run e2e against a non-e2e database/);
+  });
+
+  it("pins a userless e2e URL to the OS user instead of PGUSER", () => {
+    const env = createE2eRuntimeEnv(
+      source({
+        E2E_DATABASE_URL: "postgresql://localhost/alliance_hq_e2e",
+        PGUSER: "neondb_owner",
+        PGUSERNAME: "neondb_owner",
+      }),
+    );
+    const username = os.userInfo().username;
+    expect(new URL(env.E2E_DATABASE_URL).username).toBe(username);
+    expect(new URL(env.DATABASE_URL).username).toBe(username);
+    expect(new URL(env.LOCAL_DATABASE_URL).username).toBe(username);
   });
 
   it("replaces a stale LOCAL_DATABASE_URL with E2E_DATABASE_URL everywhere", () => {

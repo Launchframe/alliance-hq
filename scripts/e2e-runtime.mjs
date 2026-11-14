@@ -1,3 +1,5 @@
+import os from "node:os";
+
 import { assertE2eDatabaseUrl } from "./e2e-database-url-guard.mjs";
 import { resolveDatabaseUrl } from "./lib/database-url.mjs";
 
@@ -26,12 +28,25 @@ function assertLoopbackHttpUrl(raw) {
   }
 }
 
+/**
+ * postgres.js uses PGUSER when a URL has no username. A developer shell often
+ * exports PGUSER=neondb_owner for Neon, and that role does not exist on local
+ * Postgres. Pin a blank e2e URL to the OS user, matching libpq/psql.
+ */
+export function databaseUrlWithExplicitUser(raw) {
+  const url = new URL(raw);
+  if (url.username) return raw;
+  url.username = os.userInfo().username;
+  return url.toString();
+}
+
 export function createE2eRuntimeEnv(source = process.env) {
-  const url =
+  const supplied =
     source.E2E_DATABASE_URL?.trim() || source.LOCAL_DATABASE_URL?.trim();
-  if (!url) {
+  if (!supplied) {
     throw new Error("Set E2E_DATABASE_URL to a dedicated e2e database.");
   }
+  const url = databaseUrlWithExplicitUser(supplied);
   assertE2eDatabaseUrl(url);
 
   const port = source.PLAYWRIGHT_E2E_PORT?.trim() || "5176";

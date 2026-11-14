@@ -27,6 +27,11 @@ process.env.NOTES_HISTORY_TEST_PROVIDER =
 process.env.NOTES_KNOWLEDGE_TEST_PROVIDER =
   runtimeEnv.NOTES_KNOWLEDGE_TEST_PROVIDER;
 
+// Workers inherit the developer shell. postgres.js fills a userless database
+// URL from PGUSER, which is often the Neon role and does not exist locally.
+delete process.env.PGUSER;
+delete process.env.PGUSERNAME;
+
 /** Minimal env for Next — avoid libpq PG* vars from the developer shell. */
 function e2eServerEnv(): Record<string, string> {
   return {

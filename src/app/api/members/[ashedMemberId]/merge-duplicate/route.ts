@@ -15,6 +15,7 @@ import {
 } from "@/lib/members/merge-duplicate-commander.server";
 import { RosterAshedSyncInProgressError } from "@/lib/members/roster-ashed-sync-status.server";
 import { getRbacContext } from "@/lib/rbac/context";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,11 @@ async function authorize(params: Props["params"]) {
   const sessionOrError = await requireApiSession();
   if (sessionOrError instanceof NextResponse) return sessionOrError;
   const session = sessionOrError;
+
+  // Privilege first: bootstrap / anonymous sessions must 403 before the
+  // alliance-context check (which would otherwise return 400).
+  const writeDenied = await requireSessionPermission(session.id, "members:write");
+  if (writeDenied) return writeDenied;
 
   const { allianceId, hqUserId } = await resolveCommanderSessionContext(session.id);
   await assertCommanderReadAccess(session.id, allianceId);
