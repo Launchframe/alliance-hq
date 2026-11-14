@@ -1,6 +1,7 @@
 "use client";
 
 import { formatWheelShareScore } from "@/lib/trains/conductor-wheel-share.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -35,6 +36,8 @@ export type ConductorWheelShareImageInput = {
     title: string;
     winnerMemberId: string;
     rows: ConductorWheelShareLeaderboardRow[];
+    /** VS Save Days boards show delta from 7.2M instead of compact absolute. */
+    scoreFormat?: "compact" | "tpif_delta";
   } | null;
   winnerScoreLabel?: string | null;
   locale?: string;
@@ -144,6 +147,7 @@ function drawShareLeaderboard(
     rows: ConductorWheelShareLeaderboardRow[];
     locale: string;
     top: number;
+    scoreFormat?: "compact" | "tpif_delta";
   },
 ): number {
   ctx.textAlign = "center";
@@ -195,11 +199,11 @@ function drawShareLeaderboard(
     ctx.textAlign = "right";
     ctx.fillStyle = "#facc15";
     ctx.font = "700 26px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText(
-      formatWheelShareScore(row.score, input.locale),
-      listLeft + listWidth - 24,
-      textY,
-    );
+    const scoreLabel =
+      input.scoreFormat === "tpif_delta"
+        ? formatPriceIsRightVsScoreDelta(row.score, input.locale)
+        : formatWheelShareScore(row.score, input.locale);
+    ctx.fillText(scoreLabel, listLeft + listWidth - 24, textY);
   });
 
   ctx.textAlign = "center";
@@ -322,6 +326,7 @@ export function renderConductorWheelShareCanvas(
       rows: leaderboardRows,
       locale,
       top: contentY + 8,
+      scoreFormat: input.leaderboard.scoreFormat,
     });
   }
 

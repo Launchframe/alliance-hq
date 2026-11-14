@@ -9,6 +9,10 @@ export type ScoreLeaderboardDisplayEntry = {
   isViewer?: boolean;
 };
 
+/** Shared column/content width so long names/scores cannot stretch one bar. */
+const PODIUM_COL_CLASS = "flex min-w-0 flex-col items-center justify-end";
+const PODIUM_CONTENT_WIDTH = "w-full max-w-[7.5rem]";
+
 const PODIUM_STYLES = {
   1: {
     bar: "h-36 border border-amber-400 bg-gradient-to-t from-amber-500 via-amber-300 to-amber-100 dark:border-amber-300/50 dark:from-amber-600/90 dark:via-amber-400/80 dark:to-amber-200/30",
@@ -41,9 +45,9 @@ function PodiumSlot({
   const style = PODIUM_STYLES[rank];
   if (!entry) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-end opacity-40">
+      <div className={`${PODIUM_COL_CLASS} opacity-40`}>
         <div
-          className={`w-full max-w-[7.5rem] rounded-t-xl border-dashed border-hq-border/60 ${style.bar}`}
+          className={`${PODIUM_CONTENT_WIDTH} rounded-t-xl border-dashed border-hq-border/60 ${style.bar}`}
         />
         <p className="mt-2 text-xs text-hq-fg-muted">{emptyLabel}</p>
       </div>
@@ -52,7 +56,7 @@ function PodiumSlot({
 
   return (
     <div
-      className={`flex flex-1 flex-col items-center justify-end ${
+      className={`${PODIUM_COL_CLASS} ${
         entry.isViewer ? "drop-shadow-[0_0_12px_rgba(251,191,36,0.45)]" : ""
       }`}
       data-testid={`score-leaderboard-podium-rank-${rank}`}
@@ -63,18 +67,24 @@ function PodiumSlot({
       >
         {style.rank}
       </div>
-      <p className="max-w-[8.5rem] truncate text-center text-sm font-semibold text-hq-fg">
+      <p
+        className={`${PODIUM_CONTENT_WIDTH} truncate text-center text-sm font-semibold text-hq-fg`}
+      >
         {entry.memberName}
       </p>
-      <p className="mt-0.5 text-center text-sm font-semibold text-hq-accent">
+      <p
+        className={`${PODIUM_CONTENT_WIDTH} mt-0.5 truncate text-center text-sm font-semibold text-hq-accent`}
+      >
         {entry.label}
       </p>
       {entry.sublabel ? (
-        <p className="mt-0.5 text-center text-xs text-hq-fg-muted">
+        <p
+          className={`${PODIUM_CONTENT_WIDTH} mt-0.5 truncate text-center text-xs text-hq-fg-muted`}
+        >
           {entry.sublabel}
         </p>
       ) : null}
-      <div className={`mt-3 w-full max-w-[7.5rem] rounded-t-xl ${style.bar}`} />
+      <div className={`mt-3 ${PODIUM_CONTENT_WIDTH} rounded-t-xl ${style.bar}`} />
     </div>
   );
 }
@@ -131,7 +141,7 @@ export function ScoreLeaderboardDisplay({
       {notices}
 
       <div
-        className="relative mt-6 flex items-end justify-center gap-2 px-2 pb-2 sm:gap-4"
+        className="relative mt-6 grid grid-cols-3 items-end gap-2 px-2 pb-2 sm:gap-4"
         aria-label={podiumAria}
       >
         <div

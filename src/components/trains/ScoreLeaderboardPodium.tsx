@@ -16,6 +16,7 @@ import {
   type ScoreLeaderboardKind,
   type ScoreLeaderboardPayload,
 } from "@/lib/trains/score-leaderboard-podium.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 type Props = {
   trainDate: string;
@@ -145,13 +146,18 @@ export function ScoreLeaderboardPodium({ trainDate, kind }: Props) {
     ? formatScoreDay(payload.scoreDate, locale)
     : trainDate;
 
+  const formatEntryScore = (score: number) =>
+    kind === "tpif"
+      ? formatPriceIsRightVsScoreDelta(score, locale)
+      : formatTrainPointCount(score, locale);
+
   const toDisplayEntry = (entry: ScoreLeaderboardEntry) => ({
     rank: entry.rank,
     memberId: entry.memberId,
     memberName: entry.memberName,
     label: t("podium.rankScore", {
       rank: entry.rank,
-      score: formatTrainPointCount(entry.score, locale),
+      score: formatEntryScore(entry.score),
     }),
     isViewer: entry.isViewer,
   });
@@ -166,6 +172,7 @@ export function ScoreLeaderboardPodium({ trainDate, kind }: Props) {
         subtitle: t("share.subtitle", { day: dayLabel }),
         entries: shareEntries,
         locale,
+        scoreFormat: kind === "tpif" ? "tpif_delta" : "absolute",
       });
       const safeDate =
         dayLabel.replace(/[^\w-]+/g, "-").toLowerCase() || "leaderboard";

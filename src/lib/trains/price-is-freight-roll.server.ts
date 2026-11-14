@@ -118,7 +118,7 @@ export async function rollPriceIsFreightConductor(input: {
   /** Day-scoped re-spin exclusions (does not touch depleting pools). */
   excludedMemberIds?: ReadonlySet<string>;
   /**
-   * Also draw a VIP from the remaining Eligible VS scores list.
+   * Also draw a VIP from the remaining VS Save Days list.
    * Weekday board only; the caller checks the day's VIP rule.
    */
   drawPairedVip?: boolean;

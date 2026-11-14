@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   filterMemberScoreRowsByName,
   paginateMemberScoreRows,
 } from "@/lib/trains/searchable-member-score-list.shared";
-import { formatPriceIsRightVsScore } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 export type MemberScoreListRow = {
   memberId: string;
@@ -35,6 +35,7 @@ export function SearchablePaginatedMemberScoreList({
   pageSize = DEFAULT_PAGE_SIZE,
 }: Props) {
   const t = useTranslations("trains.priceIsRight.scoreList");
+  const locale = useLocale();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
 
@@ -97,7 +98,7 @@ export function SearchablePaginatedMemberScoreList({
                     {row.memberName}
                   </td>
                   <td className="px-3 py-2 text-hq-fg-muted">
-                    {formatPriceIsRightVsScore(row.priorDayVsScore)}
+                    {formatPriceIsRightVsScoreDelta(row.priorDayVsScore, locale)}
                   </td>
                 </tr>
               ))

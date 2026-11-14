@@ -391,11 +391,25 @@ export function TrainsDashboard({
 
   // Event results entries on every paint surface funnel here — the shared
   // event rule picker inside the day mechanism dialog, on one apply path.
+  const [pendingMenuConductorRule, setPendingMenuConductorRule] = useState<
+    ConductorRule | null | undefined
+  >(undefined);
+  const [dayMechanismPaintBoth, setDayMechanismPaintBoth] = useState(false);
+
   const openEventRuleConfig = useCallback(
-    (date: string, role: "conductor" | "vip" = "conductor") => {
+    (
+      date: string,
+      role: "conductor" | "vip" = "conductor",
+      options?: {
+        pendingConductorRule?: ConductorRule | null;
+        paintBoth?: boolean;
+      },
+    ) => {
       selectDate(date);
       setDayMechanismPickerDate(date);
       setDayMechanismPickerEventRole(role);
+      setPendingMenuConductorRule(options?.pendingConductorRule);
+      setDayMechanismPaintBoth(options?.paintBoth === true);
       setDayMechanismPickerOpen(true);
     },
     [
@@ -403,6 +417,8 @@ export function TrainsDashboard({
       setDayMechanismPickerDate,
       setDayMechanismPickerEventRole,
       setDayMechanismPickerOpen,
+      setPendingMenuConductorRule,
+      setDayMechanismPaintBoth,
     ],
   );
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
@@ -2555,6 +2571,7 @@ export function TrainsDashboard({
                 }),
                 winnerMemberId: winner.memberId,
                 rows: scoreProof.leaderboard,
+                scoreFormat: "tpif_delta" as const,
               }
             : scoreProof.leaderboard.length > 0 &&
           (shareRule?.kind === "vs_top_n" || shareRule?.kind === "vr_top_n")
@@ -3363,24 +3380,25 @@ export function TrainsDashboard({
               ruleTextLabels={ruleTextLabels}
               ruleLabels={ruleLabels}
               eventRuleSummary={eventRuleSummary}
-              onConfigureEvent={(date) => openEventRuleConfig(date, "conductor")}
+              onConfigureEvent={(date, options) =>
+                openEventRuleConfig(date, options?.role ?? "conductor", {
+                  pendingConductorRule: options?.pendingConductorRule,
+                  paintBoth: options?.paintBoth,
+                })
+              }
               canPaintDays={data.canManageTrains}
               isDatePaintable={(date) =>
                 data.canPaintPastDays ||
                 canOfficerChangeTemplateForDate(date, data.today)
               }
               vrReporterCount={data.vrReporterCount}
-              onPaintDate={(date, rule) => {
+              onPaintDate={(date, patch) => {
                 const weekStart = getTrainWeekStart(date, trainWeekConfig);
                 const weekPage =
                   viewedWeek.weekStart === weekStart ? viewedWeek : weekViewSeed;
-                void paintDates(
-                  [date],
-                  { conductorRule: rule },
-                  {
-                    preferredWeekTemplate: weekPage.templateId,
-                  },
-                );
+                void paintDates([date], patch, {
+                  preferredWeekTemplate: weekPage.templateId,
+                });
               }}
               navLabels={{
                 previousWeek: t("weekNavPrevious"),
@@ -3421,9 +3439,9 @@ export function TrainsDashboard({
               onSelectDate={selectDate}
               onMonthChange={handleMonthChange}
               onMonthLoadError={() => setError(t("monthLoadFailed"))}
-              onPaintDates={(dates, rule) => {
-                void paintDates(dates, { conductorRule: rule });
-              }}
+              onPaintDates={(dates, rule) =>
+                paintDates(dates, { conductorRule: rule })
+              }
               monthToolbar={{
                 onConfigureEvent: (date) =>
                   openEventRuleConfig(date, "conductor"),
@@ -4420,17 +4438,32 @@ export function TrainsDashboard({
       <DayMechanismPickerDialog
         key={
           dayMechanismPickerOpen
-            ? `day-mechanism-picker:open:${conductorRuleIdentity(selectedConductorRule)}:${dayMechanismPickerTargetDate(dayMechanismPickerDate ?? selectedDate)}`
+            ? `day-mechanism-picker:open:${conductorRuleIdentity(
+                pendingMenuConductorRule !== undefined
+                  ? pendingMenuConductorRule
+                  : selectedConductorRule,
+              )}:${dayMechanismPickerTargetDate(dayMechanismPickerDate ?? selectedDate)}:${dayMechanismPickerEventRole ?? "none"}`
             : "day-mechanism-picker:closed"
         }
         open={dayMechanismPickerOpen}
-        currentRule={selectedConductorRule}
+        currentRule={
+          pendingMenuConductorRule !== undefined
+            ? pendingMenuConductorRule
+            : selectedConductorRule
+        }
         currentVipRule={selectedVipRule}
         leadDays={data.trainConductorLeadTimeDays}
         date={dayMechanismPickerTargetDate(
           dayMechanismPickerDate ?? selectedDate,
         )}
         initialEventRole={dayMechanismPickerEventRole}
+        initialTarget={
+          dayMechanismPaintBoth ||
+          pendingMenuConductorRule !== undefined ||
+          dayMechanismPickerEventRole === "vip"
+            ? "both"
+            : "conductor"
+        }
         vrReporterCount={data.vrReporterCount}
         disabled={!data.canManageTrains}
         weightingEnabled={data.priceIsRightWeightingEnabled}
@@ -4439,6 +4472,8 @@ export function TrainsDashboard({
           setDayMechanismPickerOpen(false);
           setDayMechanismPickerEventRole(null);
           setDayMechanismPickerDate(null);
+          setPendingMenuConductorRule(undefined);
+          setDayMechanismPaintBoth(false);
         }}
         initialEventId={initialEventId}
         onSelect={(patch) => {
@@ -4448,7 +4483,14 @@ export function TrainsDashboard({
             dayMechanismPickerDate ?? selectedDate,
           );
           setDayMechanismPickerDate(null);
-          void paintDates([target], patch);
+          const seeded =
+            pendingMenuConductorRule !== undefined &&
+            patch.conductorRule === undefined
+              ? { ...patch, conductorRule: pendingMenuConductorRule }
+              : patch;
+          setPendingMenuConductorRule(undefined);
+          setDayMechanismPaintBoth(false);
+          void paintDates([target], seeded);
         }}
       />
 
