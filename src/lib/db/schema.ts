@@ -904,11 +904,11 @@ export const hqUsers = pgTable("hq_users", {
   /** Offer to dual-write unmatched scoreboard OCR names as new roster members */
   offerScoreboardNewMembers: boolean("offer_scoreboard_new_members")
     .notNull()
-    .default(false),
+    .default(true),
   /** Offer to dual-write OCR names onto manually matched roster members */
   offerScoreboardMemberNames: boolean("offer_scoreboard_member_names")
     .notNull()
-    .default(false),
+    .default(true),
   /** Per-user customized hotkey bindings (JSON payload with overrides). */
   hotkeyBindings: jsonb("hotkey_bindings"),
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
