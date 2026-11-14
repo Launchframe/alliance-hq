@@ -7,8 +7,8 @@ export type ScoreboardReviewPreferences = {
 
 export const DEFAULT_SCOREBOARD_REVIEW_PREFERENCES: ScoreboardReviewPreferences =
   {
-    offerCreate: false,
-    offerRename: false,
+    offerCreate: true,
+    offerRename: true,
   };
 
 export function normalizeScoreboardOfferFlag(value: unknown): boolean {

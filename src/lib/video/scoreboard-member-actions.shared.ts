@@ -1,6 +1,14 @@
 /** Scoreboard review: create unmatched OCR names, or apply OCR as a manual match's current name. */
 
+import {
+  MEMBER_FUZZY_AUTO_MATCH_MIN,
+  nameMatchScore,
+} from "@/lib/video/member-matcher";
+
 export const SCOREBOARD_MANUAL_MATCH_METHOD = "manual";
+
+/** Floor for Ashed “Did you mean…?” near-matches during scoreboard create. */
+export const SCOREBOARD_ASHED_SUGGEST_MIN = MEMBER_FUZZY_AUTO_MATCH_MIN;
 
 export type ScoreboardMemberOfferRow = {
   id: string;
@@ -16,8 +24,70 @@ export type ScoreboardMemberOption = {
   current_name: string;
 };
 
+export type ScoreboardMemberActionRowInput = {
+  id: string;
+  confirmedName: string;
+  bindAshedMemberId?: string;
+  nameOverride?: boolean;
+};
+
+export type ScoreboardAshedNameCandidate = {
+  id: string;
+  name: string;
+};
+
+export type ScoreboardAshedNameSuggestion = ScoreboardAshedNameCandidate & {
+  score: number;
+};
+
 export function normalizeScoreboardMemberName(name: string): string {
   return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function trimScoreboardConfirmedName(name: string): string {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Exact + fuzzy Ashed matches for a confirmed create name.
+ * Candidates already on the HQ roster are excluded.
+ */
+export function scoreboardAshedNameSuggestions(
+  confirmedName: string,
+  ashedMembers: ScoreboardAshedNameCandidate[],
+  hqAshedMemberIds: ReadonlySet<string>,
+  minScore: number = SCOREBOARD_ASHED_SUGGEST_MIN,
+): {
+  exact: ScoreboardAshedNameSuggestion | null;
+  suggestions: ScoreboardAshedNameSuggestion[];
+} {
+  const needle = normalizeScoreboardMemberName(confirmedName);
+  if (!needle) {
+    return { exact: null, suggestions: [] };
+  }
+
+  let exact: ScoreboardAshedNameSuggestion | null = null;
+  const fuzzy: ScoreboardAshedNameSuggestion[] = [];
+
+  for (const member of ashedMembers) {
+    if (!member.id || hqAshedMemberIds.has(member.id)) continue;
+    const name = trimScoreboardConfirmedName(member.name);
+    const key = normalizeScoreboardMemberName(name);
+    if (!key) continue;
+    if (key === needle) {
+      if (!exact) {
+        exact = { id: member.id, name, score: 1 };
+      }
+      continue;
+    }
+    const score = nameMatchScore(needle, key);
+    if (score >= minScore) {
+      fuzzy.push({ id: member.id, name, score });
+    }
+  }
+
+  fuzzy.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  return { exact, suggestions: fuzzy.slice(0, 3) };
 }
 
 export function scoreboardOcrNameDiffersFromMember(

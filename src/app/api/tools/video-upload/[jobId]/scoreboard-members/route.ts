@@ -24,9 +24,16 @@ import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-a
 
 type Props = { params: Promise<{ jobId: string }> };
 
+const actionRowSchema = z.object({
+  id: z.string().min(1),
+  confirmedName: z.string().min(1).max(120),
+  bindAshedMemberId: z.string().min(1).optional(),
+  nameOverride: z.boolean().optional(),
+});
+
 const bodySchema = z.object({
   action: z.enum(["create", "rename"]),
-  rowIds: z.array(z.string().min(1)).min(1).max(200),
+  rows: z.array(actionRowSchema).min(1).max(200),
 });
 
 export async function POST(request: Request, { params }: Props) {
@@ -105,13 +112,13 @@ export async function POST(request: Request, { params }: Props) {
             sessionId: session.id,
             allianceId,
             parseSessionId: job.parseSessionId,
-            rowIds: body.rowIds,
+            rows: body.rows,
           })
         : await applyScoreboardMemberNamesFromReview({
             sessionId: session.id,
             allianceId,
             parseSessionId: job.parseSessionId,
-            rowIds: body.rowIds,
+            rows: body.rows,
           });
 
     await writeAuditLog({

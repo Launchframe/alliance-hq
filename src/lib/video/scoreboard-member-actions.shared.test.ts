@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   nextPreviousNames,
   SCOREBOARD_MANUAL_MATCH_METHOD,
+  scoreboardAshedNameSuggestions,
   scoreboardCreateRowIds,
   scoreboardOcrNameDiffersFromMember,
   scoreboardRenameRowIds,
@@ -86,5 +87,32 @@ describe("nextPreviousNames", () => {
     expect(nextPreviousNames("Old", [], "New")).toEqual(["Old"]);
     expect(nextPreviousNames("Old", ["Old"], "New")).toEqual(["Old"]);
     expect(nextPreviousNames("Same", ["Prior"], "Same")).toEqual(["Prior"]);
+  });
+});
+
+describe("scoreboardAshedNameSuggestions", () => {
+  const ashed = [
+    { id: "a1", name: "BatPig" },
+    { id: "a2", name: "NobuU DwDx" },
+    { id: "a3", name: "Zudie" },
+  ];
+
+  it("returns exact matches and excludes HQ roster ids", () => {
+    expect(
+      scoreboardAshedNameSuggestions("batpig", ashed, new Set()),
+    ).toEqual({
+      exact: { id: "a1", name: "BatPig", score: 1 },
+      suggestions: [],
+    });
+    expect(
+      scoreboardAshedNameSuggestions("batpig", ashed, new Set(["a1"])),
+    ).toEqual({ exact: null, suggestions: [] });
+  });
+
+  it("returns fuzzy near-matches above the floor", () => {
+    const result = scoreboardAshedNameSuggestions("Bat Pig", ashed, new Set());
+    expect(result.exact).toBeNull();
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions[0]?.id).toBe("a1");
   });
 });

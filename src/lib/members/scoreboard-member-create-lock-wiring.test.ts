@@ -64,8 +64,9 @@ vi.mock("@/lib/base44/fetch", () => ({
 vi.mock("@/lib/members/commander-identity.server", () => ({
   syncCommanderFromAllianceMember,
 }));
+const syncMemberNameToAshed = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/members/member-name-sync.server", () => ({
-  syncMemberNameToAshed: vi.fn(),
+  syncMemberNameToAshed,
 }));
 vi.mock("@/lib/native-alliance/provision", () => ({
   nativeRosterAshedAllianceId,
@@ -172,7 +173,7 @@ describe("createScoreboardMembersFromReview dedicated lock", () => {
       sessionId: "sess-1",
       allianceId: "alliance-1",
       parseSessionId: "parse-1",
-      rowIds: ["row-1"],
+      rows: [{ id: "row-1", confirmedName: "Bat Pig" }],
     });
 
     expect(withScoreboardMemberCreateLock).toHaveBeenCalledWith(
@@ -182,5 +183,69 @@ describe("createScoreboardMembersFromReview dedicated lock", () => {
     expect(order).toEqual(["lock", "ashed-create", "hq-tx", "unlock"]);
     expect(base44EntityPost).toHaveBeenCalledTimes(1);
     expect(insertValues).toHaveBeenCalled();
+  });
+
+  it("binds an Ashed near-match with nameOverride and dual-writes previous_names", async () => {
+    base44ListMembers.mockResolvedValue([
+      { id: "ashed-existing", current_name: "BatPig" },
+    ]);
+
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    // findHqMemberIdByAshedId (outside TX)
+    selectQueue.push([]);
+    // findHqMemberIdByAshedId (inside TX)
+    selectQueue.push([]);
+    // fresh parsed row lock
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    const result = await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          confirmedName: "Bat Pig",
+          bindAshedMemberId: "ashed-existing",
+          nameOverride: true,
+        },
+      ],
+    });
+
+    expect(base44EntityPost).not.toHaveBeenCalled();
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "ashed-existing",
+        currentName: "Bat Pig",
+        previousNamesJson: ["BatPig"],
+      }),
+    );
+    expect(syncMemberNameToAshed).toHaveBeenCalledWith(
+      { token: "t" },
+      "ashed-existing",
+      "Bat Pig",
+      ["BatPig"],
+    );
+    expect(result.members[0]).toMatchObject({
+      id: "ashed-existing",
+      current_name: "Bat Pig",
+      previous_names: ["BatPig"],
+    });
   });
 });
