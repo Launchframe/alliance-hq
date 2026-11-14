@@ -4423,11 +4423,19 @@ export function TrainsDashboard({
       <DayMechanismPickerDialog
         key={
           dayMechanismPickerOpen
-            ? `day-mechanism-picker:open:${conductorRuleIdentity(pendingMenuConductorRule ?? selectedConductorRule)}:${dayMechanismPickerTargetDate(dayMechanismPickerDate ?? selectedDate)}:${dayMechanismPickerEventRole ?? "none"}`
+            ? `day-mechanism-picker:open:${conductorRuleIdentity(
+                pendingMenuConductorRule !== undefined
+                  ? pendingMenuConductorRule
+                  : selectedConductorRule,
+              )}:${dayMechanismPickerTargetDate(dayMechanismPickerDate ?? selectedDate)}:${dayMechanismPickerEventRole ?? "none"}`
             : "day-mechanism-picker:closed"
         }
         open={dayMechanismPickerOpen}
-        currentRule={pendingMenuConductorRule ?? selectedConductorRule}
+        currentRule={
+          pendingMenuConductorRule !== undefined
+            ? pendingMenuConductorRule
+            : selectedConductorRule
+        }
         currentVipRule={selectedVipRule}
         leadDays={data.trainConductorLeadTimeDays}
         date={dayMechanismPickerTargetDate(

@@ -158,7 +158,9 @@ export function TrainMonthCalendar({
   const [drafts, setDrafts] = useState<Map<string, ConductorRule | null>>(
     () => new Map(),
   );
+  const [savingDrafts, setSavingDrafts] = useState(false);
   const brushRef = useRef<MonthPaintBrush | null>(null);
+  const savingDraftsRef = useRef(false);
   const rangeAnchorRef = useRef<string | null>(null);
   const selectionDragActiveRef = useRef(false);
   const selectedRangeRef = useRef<{ anchor: string; focus: string } | null>(
@@ -190,7 +192,7 @@ export function TrainMonthCalendar({
     return () => clearTimeout(id);
   }, [externalMonth, page.dayConfigs, page.monthRecords, selectedDate, viewMonthKey]);
 
-  const selectionMode = Boolean(canPaint && onPaintDates);
+  const selectionMode = Boolean(canPaint && onPaintDates && !savingDrafts);
 
   const applyPage = useCallback(
     (next: MonthSchedulePagePayload) => {
@@ -205,6 +207,7 @@ export function TrainMonthCalendar({
     async (monthKey: string) => {
       setSelectedRange(null);
       selectedRangeRef.current = null;
+      setDrafts(new Map());
       if (monthKey === initialMonthKey) {
         applyPage({
           monthKey: initialMonthKey,
@@ -283,7 +286,7 @@ export function TrainMonthCalendar({
 
   const stampDraft = useCallback(
     (dates: string[], rule: ConductorRule | null) => {
-      if (dates.length === 0) return;
+      if (dates.length === 0 || savingDraftsRef.current) return;
       setDrafts((prev) => {
         const next = new Map(prev);
         for (const date of dates) next.set(date, rule);
@@ -312,39 +315,55 @@ export function TrainMonthCalendar({
     [onSelectDate, selectedDate, stampDraft],
   );
 
-  const handleBrushChange = useCallback(
-    (next: MonthPaintBrush | null) => {
-      brushRef.current = next;
-      setBrush(next);
-      if (!next || !selectedRangeRef.current) return;
-      const { anchor, focus } = selectedRangeRef.current;
-      stampDraft(expandPaintRange(anchor, focus), next.rule);
-    },
-    [stampDraft],
-  );
+  const handleBrushChange = useCallback((next: MonthPaintBrush | null) => {
+    // Arm or clear the brush only — paint happens on the next day/range
+    // pointer interaction, not when the palette selection changes.
+    brushRef.current = next;
+    setBrush(next);
+  }, []);
 
   const discardDrafts = useCallback(() => {
+    if (savingDraftsRef.current) return;
     setDrafts(new Map());
   }, []);
 
   const saveDrafts = useCallback(async () => {
-    if (drafts.size === 0 || !onPaintDates) return;
+    if (drafts.size === 0 || !onPaintDates || savingDraftsRef.current) return;
+    savingDraftsRef.current = true;
+    setSavingDrafts(true);
+    const snapshot = new Map(drafts);
     const groups = new Map<
       string,
       { rule: ConductorRule | null; dates: string[] }
     >();
-    for (const [date, rule] of drafts) {
+    for (const [date, rule] of snapshot) {
       const key = conductorRuleIdentity(rule);
       const group = groups.get(key) ?? { rule, dates: [] };
       group.dates.push(date);
       groups.set(key, group);
     }
-    let failed = false;
-    for (const group of groups.values()) {
-      const result = await onPaintDates(group.dates, group.rule);
-      if (result === false) failed = true;
+    const submitted = new Set<string>();
+    try {
+      for (const group of groups.values()) {
+        const result = await onPaintDates(group.dates, group.rule);
+        if (result === false) {
+          // Confirmation / gate dialog is open — stop so later groups do not
+          // overwrite pending dialog state. Leave unsubmitted drafts for retry.
+          break;
+        }
+        for (const date of group.dates) submitted.add(date);
+      }
+      if (submitted.size > 0) {
+        setDrafts((prev) => {
+          const next = new Map(prev);
+          for (const date of submitted) next.delete(date);
+          return next;
+        });
+      }
+    } finally {
+      savingDraftsRef.current = false;
+      setSavingDrafts(false);
     }
-    if (!failed) setDrafts(new Map());
   }, [drafts, onPaintDates]);
 
   const handleSelectionPointerDown = useCallback(
@@ -475,7 +494,7 @@ export function TrainMonthCalendar({
           spinDisabledReason={monthToolbar.spinDisabledReason}
           ruleLabels={ruleLabels}
           vrReporterCount={vrReporterCount}
-          busy={monthToolbar.busy}
+          busy={Boolean(monthToolbar.busy) || savingDrafts}
           brush={brush}
           onBrushChange={handleBrushChange}
           draftCount={drafts.size}

@@ -417,12 +417,17 @@ export function DayTemplateContextMenu({
                   role="menuitemradio"
                   aria-checked={step.kind === "vip_vs_min"}
                   data-testid="trains-day-vip-vs_min_score"
-                  onClick={() =>
+                  onClick={() => {
+                    setVsMinScoreInput(
+                      currentVipRule?.kind === "vs_min_score"
+                        ? String(currentVipRule.minScore / 1_000_000)
+                        : "",
+                    );
                     setStep({
                       kind: "vip_vs_min",
                       conductorRule: vipConductorRule,
-                    })
-                  }
+                    });
+                  }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-canvas"
                 >
                   <span className="min-w-0 flex-1 truncate">

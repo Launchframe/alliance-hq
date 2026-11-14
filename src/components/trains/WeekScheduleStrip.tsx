@@ -34,6 +34,7 @@ import {
 } from "@/lib/client/use-week-schedule-infinite-days";
 import {
   conductorRuleLabelKey,
+  vipRuleIdentity,
   vipRuleLabelKey,
   type ConductorRule,
   type VipRule,
@@ -949,7 +950,11 @@ export function WeekScheduleStrip({
       </div>
 
       <DayTemplateContextMenu
-        key={templateMenuAnchor?.date ?? "closed"}
+        key={
+          templateMenuAnchor == null
+            ? "closed"
+            : `${templateMenuAnchor.date}:${vipRuleIdentity(menuDayConfig?.vipRule ?? null)}`
+        }
         open={templateMenuAnchor != null}
         anchor={templateMenuAnchor}
         currentRule={menuDayConfig?.conductorRule ?? null}
