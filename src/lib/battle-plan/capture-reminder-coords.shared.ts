@@ -10,7 +10,7 @@ export function hasCompleteCaptureCoords(input: {
   coordX?: number | null;
   coordY?: number | null;
   level?: number | null;
-}): boolean {
+}): input is CaptureReminderCoords {
   return (
     input.gameServerNumber != null &&
     input.coordX != null &&

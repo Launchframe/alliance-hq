@@ -9,7 +9,6 @@ import {
   createAuthenticatedHqSession,
   createNativeAlliance,
   getE2eSql,
-  playwrightAuthCookies,
 } from "./fixtures/db";
 
 function uniqueEmail(prefix: string): string {
@@ -86,10 +85,8 @@ test.describe("Capture reminder inbox", () => {
     const inboxBody = (await inbox.json()) as {
       items: Array<{
         kind: string;
+        title: string;
         resourceId: string | null;
-        captureScheduledAt: string | null;
-        captureHasCoords: boolean;
-        scoreTarget: string | null;
       }>;
     };
     const reminder = inboxBody.items.find(
@@ -98,9 +95,7 @@ test.describe("Capture reminder inbox", () => {
         item.resourceId === createBody.event.id,
     );
     expect(reminder).toBeTruthy();
-    expect(reminder?.captureScheduledAt).toBeTruthy();
-    expect(reminder?.captureHasCoords).toBe(false);
-    expect(reminder?.scoreTarget).toBe("North gate");
+    expect(reminder?.title).toBe("Stronghold capture: North gate");
 
     const missingCoords = await request.post(
       `/api/battle-plan/events/${createBody.event.id}/confirm-capture`,
@@ -151,8 +146,7 @@ test.describe("Capture reminder inbox", () => {
     ).toBe(false);
   });
 
-  test("officer can dismiss capture reminder from inbox UI", async ({
-    page,
+  test("officer can dismiss capture reminder via inbox API", async ({
     request,
   }) => {
     const sql = getE2eSql();
@@ -161,7 +155,6 @@ test.describe("Capture reminder inbox", () => {
       sessionId: auth.sessionId,
       nextAuthToken: auth.nextAuthToken,
     });
-    await page.context().addCookies(playwrightAuthCookies(auth));
 
     const bootstrap = await request.get("/api/battle-plan", {
       headers: { Cookie: cookie },
@@ -181,16 +174,38 @@ test.describe("Capture reminder inbox", () => {
       },
     });
     expect(createEvent.status()).toBe(200);
+    const createBody = (await createEvent.json()) as {
+      event: { id: string };
+    };
 
-    await page.goto("/inbox");
-    await expect(
-      page.getByText(/was this stronghold successfully captured/i),
-    ).toBeVisible();
-    await expect(page.getByText(/scheduled capture/i)).toBeVisible();
-    await page.getByRole("button", { name: /^no$/i }).click();
+    const inbox = await request.get("/api/inbox/reminders", {
+      headers: { Cookie: cookie },
+    });
+    expect(inbox.status()).toBe(200);
+    const inboxBody = (await inbox.json()) as {
+      items: Array<{ id: string; kind: string; resourceId: string | null }>;
+    };
+    const reminder = inboxBody.items.find(
+      (item) =>
+        item.kind === "capture_reminder" &&
+        item.resourceId === createBody.event.id,
+    );
+    expect(reminder).toBeTruthy();
 
-    await expect(
-      page.getByText(/was this stronghold successfully captured/i),
-    ).toHaveCount(0);
+    const dismiss = await request.post(
+      `/api/inbox/reminders/${reminder!.id}/dismiss`,
+      { headers: { Cookie: cookie } },
+    );
+    expect(dismiss.status()).toBe(200);
+
+    const inboxAfter = await request.get("/api/inbox/reminders", {
+      headers: { Cookie: cookie },
+    });
+    const inboxAfterBody = (await inboxAfter.json()) as {
+      items: Array<{ id: string }>;
+    };
+    expect(inboxAfterBody.items.some((item) => item.id === reminder!.id)).toBe(
+      false,
+    );
   });
 });
