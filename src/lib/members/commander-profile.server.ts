@@ -23,6 +23,7 @@ import { viewerCanIssueLeadershipHybridInvite } from "@/lib/native-alliance/team
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import { parseEventScoreMetadata } from "@/lib/members/commander-profile.shared";
+import { commanderKillsTotal } from "@/lib/kills/format.shared";
 import {
   syncMemberCommendationsFromAshed,
   syncMemberViolationsFromAshed,
@@ -130,6 +131,7 @@ export async function loadCommanderProfile(
       primaryName: schema.commanders.primaryName,
       powerLevel: schema.commanders.powerLevel,
       currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+      currentKills: schema.commanders.currentKills,
       memberLevel: schema.commanders.memberLevel,
       profession: schema.commanders.profession,
       professionLevel: schema.commanders.professionalLevel,
@@ -421,6 +423,9 @@ export async function loadCommanderProfile(
       titleLabel,
       powerLevel: commanderIdentity?.powerLevel ?? null,
       totalHeroPower: commanderIdentity?.currentTotalHeroPower ?? null,
+      kills: commanderKillsTotal({
+        currentKills: commanderIdentity?.currentKills ?? null,
+      }),
       memberLevel: commanderIdentity?.memberLevel ?? null,
       profession: commanderIdentity?.profession ?? null,
       professionLevel: commanderIdentity?.professionLevel ?? null,

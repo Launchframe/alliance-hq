@@ -16,6 +16,7 @@ export type RosterColumnId =
   | "status"
   | "powerLevel"
   | "thp"
+  | "kills"
   | "mainSquad"
   | "profession"
   | "professionLevel"
@@ -32,6 +33,7 @@ export const ROSTER_COLUMN_IDS: readonly RosterColumnId[] = [
   "status",
   "powerLevel",
   "thp",
+  "kills",
   "mainSquad",
   "profession",
   "professionLevel",
@@ -74,6 +76,7 @@ export function defaultRosterColumnVisibility(
     status: true,
     powerLevel: true,
     thp: true,
+    kills: true,
     mainSquad: true,
     profession: true,
     professionLevel: true,
@@ -113,6 +116,10 @@ export function rosterRowPowerLevel(row: RosterMergedRow): string {
 
 export function rosterRowThpDisplay(row: RosterMergedRow): string {
   return formatThpDisplay(rosterRowTotalHeroPower(row));
+}
+
+export function rosterRowKills(row: RosterMergedRow): number | null {
+  return row.commander?.kills ?? null;
 }
 
 export function rosterRowMainSquad(
@@ -160,6 +167,7 @@ export type RosterSortKey =
   | "name"
   | "powerLevel"
   | "thp"
+  | "kills"
   | "squad"
   | "profession"
   | "professionLevel"
@@ -205,6 +213,14 @@ export function sortRosterRows(
         break;
       case "thp":
         cmp = rosterRowTotalHeroPower(a) - rosterRowTotalHeroPower(b);
+        break;
+      case "kills":
+        cmp = compareNullsLast(
+          rosterRowKills(a),
+          rosterRowKills(b),
+          (x, y) => x - y,
+          sortDir,
+        );
         break;
       case "powerLevel": {
         const aM = a.commander?.powerLevel ?? "";

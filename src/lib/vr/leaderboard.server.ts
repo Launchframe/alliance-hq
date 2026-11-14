@@ -23,7 +23,7 @@ export async function loadAllianceLeaderboard(allianceId: string) {
   const commanderThpByMemberId = new Map(
     [...commanderStats.entries()].map(([id, stats]) => [
       id,
-      { currentTotalHeroPower: stats.totalHeroPower },
+      { currentTotalHeroPower: stats.totalHeroPower, currentKills: stats.kills },
     ]),
   );
   const rows = buildLeaderboardRows(

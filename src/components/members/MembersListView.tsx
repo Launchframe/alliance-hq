@@ -71,6 +71,7 @@ const SORTABLE_COLUMNS: Partial<Record<RosterColumnId, RosterSortKey>> = {
   name: "name",
   powerLevel: "powerLevel",
   thp: "thp",
+  kills: "kills",
   mainSquad: "squad",
   profession: "profession",
   professionLevel: "professionLevel",

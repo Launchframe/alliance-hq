@@ -3,9 +3,13 @@ import { defaultDisplayPreferences, displayPreferencesSchema, matchesUnsortedFil
 
 describe("support-team personal presentation", () => {
   it("validates independent toggles and rejects caller identity and unknown settings", () => {
-    expect(displayPreferencesSchema.parse({ ...defaultDisplayPreferences, thp: false })).toEqual({ professionLevel: false, baseLevel: false, thp: false, tenureDays: false });
+    expect(displayPreferencesSchema.parse({ ...defaultDisplayPreferences, thp: false })).toEqual({ professionLevel: false, baseLevel: false, thp: false, kills: true, tenureDays: false });
     expect(displayPreferencesSchema.safeParse({ ...defaultDisplayPreferences, hqUserId: "other" }).success).toBe(false);
     expect(displayPreferencesSchema.safeParse({ ...defaultDisplayPreferences, thp: "true" }).success).toBe(false);
+  });
+  it("shows kills for preferences saved before the kills toggle existed", () => {
+    expect(displayPreferencesSchema.parse({ professionLevel: true, baseLevel: false, thp: false, tenureDays: true })).toEqual({ professionLevel: true, baseLevel: false, thp: false, kills: true, tenureDays: true });
+    expect(displayPreferencesSchema.parse({ ...defaultDisplayPreferences, kills: false }).kills).toBe(false);
   });
   it("keeps missing metrics unknown, distinct from zero", () => {
     expect(metric(null)).toBeNull();
@@ -27,7 +31,9 @@ describe("support-team personal presentation", () => {
     expect(normalizeCountry("ZZ")).toBeNull();
   });
   it("filters only supplied pool members and treats unknown handling explicitly", () => {
-    const m = { country: null, professionLevel: null, baseLevel: 20, thp: null, tenureDays: 3 };
+    const m = { country: null, professionLevel: null, baseLevel: 20, thp: null, kills: 500, tenureDays: 3 };
+    expect(matchesUnsortedFilters(m, { kills: { min: 1000 } })).toBe(false);
+    expect(matchesUnsortedFilters(m, { kills: { min: 100, max: 1000 } })).toBe(true);
     expect(matchesUnsortedFilters(m, {})).toBe(true);
     expect(matchesUnsortedFilters(m, { thp: { min: 1, unknown: "include" } })).toBe(true);
     expect(matchesUnsortedFilters(m, { thp: { min: 1, unknown: "exclude" } })).toBe(false);

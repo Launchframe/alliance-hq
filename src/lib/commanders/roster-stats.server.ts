@@ -4,10 +4,12 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
 import { getDb, schema } from "@/lib/db";
+import { commanderKillsTotal } from "@/lib/kills/format.shared";
 
 export type CommanderRosterStats = {
   powerLevel: string | null;
   totalHeroPower: number;
+  kills: number | null;
 };
 
 export async function loadCommanderRosterStatsByMember(
@@ -19,6 +21,7 @@ export async function loadCommanderRosterStatsByMember(
       ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
       powerLevel: schema.commanders.powerLevel,
       currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+      currentKills: schema.commanders.currentKills,
     })
     .from(schema.commanderAllianceMemberships)
     .innerJoin(
@@ -39,6 +42,7 @@ export async function loadCommanderRosterStatsByMember(
       totalHeroPower: commanderThpTotal({
         currentTotalHeroPower: row.currentTotalHeroPower,
       }),
+      kills: commanderKillsTotal({ currentKills: row.currentKills }),
     });
   }
   return byMember;

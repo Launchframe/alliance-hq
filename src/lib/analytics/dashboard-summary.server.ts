@@ -178,6 +178,7 @@ export async function loadLinkingDashboard(
       ashedMemberId: row.ashedMemberId,
       memberName: row.memberName,
       totalHeroPower: row.totalHeroPower,
+      kills: row.kills,
     })),
     canWriteMembers,
     range,

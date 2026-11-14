@@ -30,6 +30,7 @@ function commanderRow(
     allianceRankTitle: null,
     powerLevel: null,
     totalHeroPower: 1_000_000,
+    kills: null,
     mainSquad: null,
     mainSquadSource: null,
     highestBaseVr: null,
@@ -49,6 +50,7 @@ describe("defaultRosterColumnVisibility", () => {
       name: true,
       previousNames: false,
       thp: true,
+      kills: true,
       profession: true,
       professionLevel: true,
       squadEdit: false,
@@ -155,6 +157,21 @@ describe("sortRosterRows", () => {
     );
     const sorted = sortRosterRows(rows, "thp", "desc");
     expect(sorted.map((row) => row.ashedMemberId)).toEqual(["b", "a"]);
+  });
+
+  it("sorts kills with unreported members last in both directions", () => {
+    const rows = mergeMembersWithCommanderIndex(
+      [member("a", "A"), member("b", "B"), member("c", "C")],
+      [
+        commanderRow("a", { kills: 500 }),
+        commanderRow("b", { kills: 9_000 }),
+        commanderRow("c", { kills: null }),
+      ],
+    );
+    const ids = (dir: "asc" | "desc") =>
+      sortRosterRows(rows, "kills", dir).map((row) => row.ashedMemberId);
+    expect(ids("desc")).toEqual(["b", "a", "c"]);
+    expect(ids("asc")).toEqual(["a", "b", "c"]);
   });
 
   const professionRows = mergeMembersWithCommanderIndex(
