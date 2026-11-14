@@ -6,6 +6,10 @@ import {
   validateBankPayload,
   type BankPayload,
 } from "@/lib/banks/api.shared";
+import {
+  hasCompleteCaptureCoords,
+  type CaptureReminderCoords,
+} from "@/lib/battle-plan/capture-reminder-coords.shared";
 import { ensureBankAtCoords } from "@/lib/banks/repository.server";
 import { getDb, schema } from "@/lib/db";
 
@@ -13,8 +17,8 @@ export type ConfirmCaptureErrorCode =
   | "NOT_FOUND"
   | "NOT_STRONGHOLD"
   | "CANCELLED"
-  | "MISSING_COORDS"
-  | "INVALID_BANK"
+  |     "MISSING_COORDS"
+    | "INVALID_BANK"
   | "CONFLICT";
 
 export class ConfirmCaptureError extends Error {
@@ -37,6 +41,8 @@ export class ConfirmCaptureError extends Error {
 export async function confirmStrongholdCaptureCreatesBank(input: {
   allianceId: string;
   eventId: string;
+  /** Fills coords on the event when planners did not enter them before capture time. */
+  coords?: CaptureReminderCoords | null;
 }): Promise<(typeof schema.banks.$inferSelect)> {
   const db = getDb();
 
@@ -84,12 +90,40 @@ export async function confirmStrongholdCaptureCreatesBank(input: {
       }
     }
 
-    if (
-      event.gameServerNumber == null ||
-      event.coordX == null ||
-      event.coordY == null ||
-      event.level == null
-    ) {
+    let coords: CaptureReminderCoords | {
+      gameServerNumber: number | null;
+      coordX: number | null;
+      coordY: number | null;
+      level: number | null;
+    } = {
+      gameServerNumber: event.gameServerNumber,
+      coordX: event.coordX,
+      coordY: event.coordY,
+      level: event.level,
+    };
+
+    if (!hasCompleteCaptureCoords(coords)) {
+      if (!input.coords) {
+        throw new ConfirmCaptureError(
+          "Event is missing coordinate or level data.",
+          "MISSING_COORDS",
+        );
+      }
+      coords = input.coords;
+
+      await tx
+        .update(schema.battlePlanCaptureEvents)
+        .set({
+          gameServerNumber: coords.gameServerNumber,
+          coordX: coords.coordX,
+          coordY: coords.coordY,
+          level: coords.level,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.battlePlanCaptureEvents.id, input.eventId));
+    }
+
+    if (!hasCompleteCaptureCoords(coords)) {
       throw new ConfirmCaptureError(
         "Event is missing coordinate or level data.",
         "MISSING_COORDS",
@@ -100,10 +134,10 @@ export async function confirmStrongholdCaptureCreatesBank(input: {
       event.capturePolicy === "war" ? "warzone" : "alliance";
 
     const bankPayload: BankPayload = {
-      gameServerNumber: event.gameServerNumber,
-      coordX: event.coordX,
-      coordY: event.coordY,
-      level: event.level,
+      gameServerNumber: coords.gameServerNumber,
+      coordX: coords.coordX,
+      coordY: coords.coordY,
+      level: coords.level,
       capturedAt: event.scheduledAt.toISOString(),
       depositPolicy,
       priorCaptureCount: 1,

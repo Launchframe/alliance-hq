@@ -169,4 +169,43 @@ describe("confirmStrongholdCaptureCreatesBank", () => {
       }),
     ).rejects.toBeInstanceOf(ConfirmCaptureError);
   });
+
+  it("fills missing coords from confirm payload before bank create", async () => {
+    const noCoords = {
+      ...scheduledEvent,
+      gameServerNumber: null,
+      coordX: null,
+      coordY: null,
+      level: null,
+    };
+    mocks.limit.mockReturnValueOnce(limitChain([noCoords]));
+    mocks.updateWhere.mockResolvedValueOnce(undefined);
+    mocks.ensureBankAtCoords.mockResolvedValueOnce(bankRow);
+    mocks.updateReturning.mockResolvedValueOnce([
+      { id: "evt-1", status: "completed", bankId: "bank-1" },
+    ]);
+
+    const bank = await confirmStrongholdCaptureCreatesBank({
+      allianceId: "ally-1",
+      eventId: "evt-1",
+      coords: {
+        gameServerNumber: 742,
+        coordX: 100,
+        coordY: 200,
+        level: 5,
+      },
+    });
+
+    expect(bank).toEqual(bankRow);
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gameServerNumber: 742,
+        coordX: 100,
+        coordY: 200,
+        level: 5,
+        updatedAt: expect.any(Date),
+      }),
+    );
+    expect(mocks.ensureBankAtCoords).toHaveBeenCalledOnce();
+  });
 });

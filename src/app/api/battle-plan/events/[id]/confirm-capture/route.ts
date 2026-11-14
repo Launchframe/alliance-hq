@@ -4,6 +4,10 @@ import { serializeBank } from "@/lib/banks/api.shared";
 import { requireBankWrite } from "@/lib/banks/route-helpers.server";
 import { deactivateCaptureReminderInboxItem } from "@/lib/battle-plan/capture-reminder-inbox.server";
 import {
+  parseCaptureReminderCoordsBody,
+  validateCaptureReminderCoords,
+} from "@/lib/battle-plan/capture-reminder-coords.shared";
+import {
   ConfirmCaptureError,
   confirmStrongholdCaptureCreatesBank,
 } from "@/lib/battle-plan/confirm-capture.server";
@@ -37,10 +41,20 @@ export async function POST(request: Request, { params }: Props) {
 
   const { id: eventId } = await params;
 
+  const rawBody = await request.json().catch(() => null);
+  const parsedCoords = parseCaptureReminderCoordsBody(rawBody);
+  const coordValidationError = parsedCoords
+    ? validateCaptureReminderCoords(parsedCoords)
+    : null;
+  if (coordValidationError) {
+    return NextResponse.json({ error: coordValidationError }, { status: 400 });
+  }
+
   try {
     const bank = await confirmStrongholdCaptureCreatesBank({
       allianceId,
       eventId,
+      coords: parsedCoords,
     });
 
     await deactivateCaptureReminderInboxItem(eventId);
