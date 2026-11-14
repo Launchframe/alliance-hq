@@ -5471,6 +5471,7 @@
     "ashedKeepTypedHint": "Links the existing Ashed member and saves your name as current. Their Ashed name is kept as a previous name.",
     "confirmAction": "Confirm",
     "confirmContinue": "Continue",
+    "scoreboardMemberNameConflict": "Those rows would give the same member different names. Use one name and try again.",
     "opponentServerLabel": "Server #",
     "opponentTagLabel": "Tag",
     "opponentNameLabel": "Name",

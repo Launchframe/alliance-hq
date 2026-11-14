@@ -8525,7 +8525,8 @@
     "ashedKeepTyped": "Keep this name",
     "ashedKeepTypedHint": "Links the existing Ashed member and saves your name as current. Their Ashed name is kept as a previous name.",
     "confirmAction": "Confirm",
-    "confirmContinue": "Continue"
+    "confirmContinue": "Continue",
+    "scoreboardMemberNameConflict": "Baris ini akan memberi nama yang berbeda untuk anggota yang sama. Gunakan satu nama lalu coba lagi."
   },
   "videoSurvey": {
     "back": "Kembali",

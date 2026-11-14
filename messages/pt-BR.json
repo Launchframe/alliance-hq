@@ -5418,6 +5418,7 @@
     "ashedKeepTypedHint": "Vincula o membro existente do Ashed e salva o seu nome como atual. O nome do Ashed fica como nome anterior.",
     "confirmAction": "Confirmar",
     "confirmContinue": "Continuar",
+    "scoreboardMemberNameConflict": "Essas linhas dariariam nomes diferentes ao mesmo membro. Use um só nome e tente de novo.",
     "opponentServerLabel": "Servidor nº",
     "opponentTagLabel": "Tag",
     "opponentNameLabel": "Nome",

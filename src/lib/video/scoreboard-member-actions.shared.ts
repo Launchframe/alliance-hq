@@ -7,6 +7,10 @@ import {
 
 export const SCOREBOARD_MANUAL_MATCH_METHOD = "manual";
 
+/** API `code` when one confirm would store two names on the same member. */
+export const SCOREBOARD_MEMBER_NAME_CONFLICT_CODE =
+  "scoreboard_member_name_conflict";
+
 /** Floor for Ashed “Did you mean…?” near-matches during scoreboard create. */
 export const SCOREBOARD_ASHED_SUGGEST_MIN = MEMBER_FUZZY_AUTO_MATCH_MIN;
 
@@ -66,7 +70,7 @@ export function scoreboardAshedNameSuggestions(
     return { exact: null, suggestions: [] };
   }
 
-  let exact: ScoreboardAshedNameSuggestion | null = null;
+  const exactMatches: ScoreboardAshedNameSuggestion[] = [];
   const fuzzy: ScoreboardAshedNameSuggestion[] = [];
 
   for (const member of ashedMembers) {
@@ -75,9 +79,7 @@ export function scoreboardAshedNameSuggestions(
     const key = normalizeScoreboardMemberName(name);
     if (!key) continue;
     if (key === needle) {
-      if (!exact) {
-        exact = { id: member.id, name, score: 1 };
-      }
+      exactMatches.push({ id: member.id, name, score: 1 });
       continue;
     }
     const score = nameMatchScore(needle, key);
@@ -86,8 +88,15 @@ export function scoreboardAshedNameSuggestions(
     }
   }
 
+  if (exactMatches.length > 1) {
+    exactMatches.sort(
+      (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+    );
+    return { exact: null, suggestions: exactMatches.slice(0, 3) };
+  }
+
   fuzzy.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-  return { exact, suggestions: fuzzy.slice(0, 3) };
+  return { exact: exactMatches[0] ?? null, suggestions: fuzzy.slice(0, 3) };
 }
 
 export function scoreboardOcrNameDiffersFromMember(
@@ -152,4 +161,69 @@ export function nextPreviousNames(
   if (currentName === nextName) return previousNames;
   if (previousNames.includes(currentName)) return previousNames;
   return [...previousNames, currentName];
+}
+
+export function sameScoreboardNameList(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((name, index) => name === right[index])
+  );
+}
+
+/**
+ * Previous names to store when a scoreboard confirm binds an Ashed member.
+ * Keeps both histories and appends each current name that the new name replaces.
+ */
+export function previousNamesForScoreboardBind(input: {
+  ashedCurrentName: string;
+  ashedPreviousNames: readonly string[];
+  hqCurrentName?: string | null;
+  hqPreviousNames?: readonly string[];
+  nextName: string;
+}): string[] {
+  let previous: string[] = [];
+  for (const name of [
+    ...input.ashedPreviousNames,
+    ...(input.hqPreviousNames ?? []),
+  ]) {
+    const trimmed = trimScoreboardConfirmedName(name);
+    if (!trimmed || previous.includes(trimmed)) continue;
+    previous.push(trimmed);
+  }
+  const hqCurrent = trimScoreboardConfirmedName(input.hqCurrentName ?? "");
+  if (hqCurrent) {
+    previous = nextPreviousNames(hqCurrent, previous, input.nextName);
+  }
+  return nextPreviousNames(
+    trimScoreboardConfirmedName(input.ashedCurrentName),
+    previous,
+    input.nextName,
+  );
+}
+
+export function scoreboardAshedRenameNeedsSync(input: {
+  remoteName: string;
+  remotePreviousNames: readonly string[];
+  nextName: string;
+  nextPreviousNames: readonly string[];
+}): boolean {
+  return (
+    trimScoreboardConfirmedName(input.remoteName) !== input.nextName ||
+    !sameScoreboardNameList(input.remotePreviousNames, input.nextPreviousNames)
+  );
+}
+
+export function scoreboardConfirmedNamesConflict(
+  rows: Array<{ memberKey: string; confirmedName: string }>,
+): boolean {
+  const seen = new Map<string, string>();
+  for (const row of rows) {
+    const prior = seen.get(row.memberKey);
+    if (prior !== undefined && prior !== row.confirmedName) return true;
+    seen.set(row.memberKey, row.confirmedName);
+  }
+  return false;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -7,6 +8,7 @@ import { requireApiSession } from "@/lib/session";
 import {
   applyScoreboardMemberNamesFromReview,
   createScoreboardMembersFromReview,
+  scoreboardMemberActionFailure,
 } from "@/lib/members/scoreboard-member-actions.server";
 import {
   canOfferScoreboardMemberActionsForAlliance,
@@ -144,6 +146,14 @@ export async function POST(request: Request, { params }: Props) {
         { error: "Invalid scoreboard member action." },
         { status: 400 },
       );
+    }
+    const { jobId } = await params;
+    const t = await getTranslations("videoReview");
+    const mapped = scoreboardMemberActionFailure(error, jobId, {
+      nameConflict: t("scoreboardMemberNameConflict"),
+    });
+    if (mapped) {
+      return NextResponse.json(mapped.body, { status: mapped.status });
     }
     return NextResponse.json(
       {

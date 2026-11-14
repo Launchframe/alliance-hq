@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
-import { previewScoreboardMemberCreates } from "@/lib/members/scoreboard-member-actions.server";
+import {
+  previewScoreboardMemberCreates,
+  scoreboardMemberActionFailure,
+} from "@/lib/members/scoreboard-member-actions.server";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 import {
@@ -110,6 +114,14 @@ export async function POST(request: Request, { params }: Props) {
         { error: "Invalid scoreboard member preview." },
         { status: 400 },
       );
+    }
+    const { jobId } = await params;
+    const t = await getTranslations("videoReview");
+    const mapped = scoreboardMemberActionFailure(error, jobId, {
+      nameConflict: t("scoreboardMemberNameConflict"),
+    });
+    if (mapped) {
+      return NextResponse.json(mapped.body, { status: mapped.status });
     }
     return NextResponse.json(
       {

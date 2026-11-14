@@ -4970,7 +4970,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           open
           action={scoreboardConfirm.action}
           drafts={scoreboardConfirm.drafts}
-          busy={scoreboardMemberBusy}
+          // Opening the dialog sets scoreboardMemberBusy so review actions
+          // cannot start a second confirm. That flag must not disable this form.
+          busy={false}
           jobId={jobId}
           onOpenChange={(open) => {
             if (!open) {

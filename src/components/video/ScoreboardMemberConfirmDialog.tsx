@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -12,7 +13,10 @@ import type {
   ScoreboardAshedNameSuggestion,
   ScoreboardMemberActionRowInput,
 } from "@/lib/video/scoreboard-member-actions.shared";
-import { trimScoreboardConfirmedName } from "@/lib/video/scoreboard-member-actions.shared";
+import {
+  SCOREBOARD_MEMBER_NAME_CONFLICT_CODE,
+  trimScoreboardConfirmedName,
+} from "@/lib/video/scoreboard-member-actions.shared";
 
 export type ScoreboardMemberConfirmDraft = {
   id: string;
@@ -80,6 +84,7 @@ export function ScoreboardMemberConfirmDialog({
   const t = useTranslations("videoReview");
   const tc = useTranslations("common");
   const tVp = useTranslations("vsPerformance");
+  const tQueue = useTranslations("videoQueue");
   // Parent remounts via key when drafts/action change so state resets cleanly.
   const [names, setNames] = useState(() => initialNamesFromDrafts(drafts));
   const [step, setStep] = useState<"edit" | "suggest">("edit");
@@ -88,9 +93,11 @@ export function ScoreboardMemberConfirmDialog({
     Array<{
       id: string;
       confirmedName: string;
-      suggestion: ScoreboardAshedNameSuggestion;
+      suggestions: ScoreboardAshedNameSuggestion[];
     }>
   >([]);
+  const [connectHref, setConnectHref] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement | null>(null);
   const [pendingAutoRows, setPendingAutoRows] = useState<
     ScoreboardMemberActionRowInput[]
   >([]);
@@ -110,6 +117,11 @@ export function ScoreboardMemberConfirmDialog({
   }, [action, drafts.length, t]);
 
   const submitting = busy || localBusy;
+
+  useEffect(() => {
+    if (!localError) return;
+    errorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [localError]);
   const canSubmitEdit = drafts.every((draft) =>
     Boolean(trimScoreboardConfirmedName(names[draft.id] ?? "")),
   );
@@ -120,6 +132,7 @@ export function ScoreboardMemberConfirmDialog({
   async function commitRows(rows: ScoreboardMemberActionRowInput[]) {
     setLocalBusy(true);
     setLocalError(null);
+    setConnectHref(null);
     try {
       const res = await fetch(
         `/api/tools/video-upload/${jobId}/scoreboard-members`,
@@ -144,10 +157,15 @@ export function ScoreboardMemberConfirmDialog({
           matchMethod: string;
           matchConfidence: number;
         }>;
+        code?: string;
       };
       if (!res.ok) {
-        const message = data.error ?? tc("uploadFailed");
+        const message =
+          data.code === SCOREBOARD_MEMBER_NAME_CONFLICT_CODE
+            ? t("scoreboardMemberNameConflict")
+            : (data.error ?? tc("uploadFailed"));
         setLocalError(message);
+        setConnectHref(data.connectUrl ?? null);
         onError(message, data.connectUrl ?? null);
         return;
       }
@@ -179,11 +197,12 @@ export function ScoreboardMemberConfirmDialog({
 
     setLocalBusy(true);
     setLocalError(null);
+    setConnectHref(null);
     let autoRows: ScoreboardMemberActionRowInput[] = [];
     const needsChoice: Array<{
       id: string;
       confirmedName: string;
-      suggestion: ScoreboardAshedNameSuggestion;
+      suggestions: ScoreboardAshedNameSuggestion[];
     }> = [];
     try {
       const res = await fetch(
@@ -196,12 +215,17 @@ export function ScoreboardMemberConfirmDialog({
       );
       const data = (await res.json()) as {
         error?: string;
+        code?: string;
         connectUrl?: string;
         rows?: PreviewRow[];
       };
       if (!res.ok) {
-        const message = data.error ?? tc("uploadFailed");
+        const message =
+          data.code === SCOREBOARD_MEMBER_NAME_CONFLICT_CODE
+            ? t("scoreboardMemberNameConflict")
+            : (data.error ?? tc("uploadFailed"));
         setLocalError(message);
+        setConnectHref(data.connectUrl ?? null);
         onError(message, data.connectUrl ?? null);
         return;
       }
@@ -219,12 +243,11 @@ export function ScoreboardMemberConfirmDialog({
           });
           continue;
         }
-        const top = row.suggestions[0];
-        if (top) {
+        if (row.suggestions.length > 0) {
           needsChoice.push({
             id: row.id,
             confirmedName: row.confirmedName,
-            suggestion: top,
+            suggestions: row.suggestions,
           });
           continue;
         }
@@ -243,8 +266,8 @@ export function ScoreboardMemberConfirmDialog({
             needsChoice.map((row) => [
               row.id,
               {
-                bindAshedMemberId: row.suggestion.id,
-                suggestedName: row.suggestion.name,
+                bindAshedMemberId: row.suggestions[0]!.id,
+                suggestedName: row.suggestions[0]!.name,
                 nameOverride: false,
               } satisfies SuggestionChoice,
             ]),
@@ -349,56 +372,70 @@ export function ScoreboardMemberConfirmDialog({
           <div className="space-y-4">
             {pendingSuggestions.map((row) => {
               const choice = choices[row.id];
-              const useSuggested = choice?.nameOverride !== true;
+              const keepTyped = choice?.nameOverride === true;
               return (
                 <div
                   key={row.id}
                   className="rounded-lg border border-hq-border bg-hq-surface-muted/40 p-3"
                 >
-                  <p className="text-sm font-medium text-hq-fg">
-                    {t("ashedDidYouMean", { name: row.suggestion.name })}
-                  </p>
-                  <p className="mt-1 text-xs text-hq-fg-muted">
-                    {row.confirmedName}
-                  </p>
+                  <p className="text-sm text-hq-fg-muted">{row.confirmedName}</p>
                   <div className="mt-3 flex flex-col gap-2">
+                    {row.suggestions.map((suggestion) => {
+                      const useSuggested =
+                        !keepTyped &&
+                        choice?.bindAshedMemberId === suggestion.id;
+                      return (
+                        <button
+                          key={suggestion.id}
+                          type="button"
+                          disabled={submitting}
+                          onClick={() =>
+                            setChoices((prev) => ({
+                              ...prev,
+                              [row.id]: {
+                                bindAshedMemberId: suggestion.id,
+                                suggestedName: suggestion.name,
+                                nameOverride: false,
+                              },
+                            }))
+                          }
+                          className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                            useSuggested
+                              ? "border-hq-success bg-hq-success/10 text-hq-success"
+                              : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
+                          }`}
+                        >
+                          <span className="block font-medium">
+                            {t("ashedDidYouMean", { name: suggestion.name })}
+                          </span>
+                          <span className="mt-1 block text-xs">
+                            {t("ashedUseSuggested")}
+                          </span>
+                        </button>
+                      );
+                    })}
                     <button
                       type="button"
                       disabled={submitting}
                       onClick={() =>
-                        setChoices((prev) => ({
-                          ...prev,
-                          [row.id]: {
-                            bindAshedMemberId: row.suggestion.id,
-                            suggestedName: row.suggestion.name,
-                            nameOverride: false,
-                          },
-                        }))
+                        setChoices((prev) => {
+                          const current = prev[row.id];
+                          const fallback = row.suggestions[0]!;
+                          return {
+                            ...prev,
+                            [row.id]: {
+                              bindAshedMemberId:
+                                current?.bindAshedMemberId ?? fallback.id,
+                              suggestedName:
+                                current?.suggestedName ?? fallback.name,
+                              nameOverride: true,
+                            },
+                          };
+                        })
                       }
                       className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                        useSuggested
-                          ? "border-hq-success bg-hq-success/10 text-hq-success"
-                          : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
-                      }`}
-                    >
-                      {t("ashedUseSuggested")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={submitting}
-                      onClick={() =>
-                        setChoices((prev) => ({
-                          ...prev,
-                          [row.id]: {
-                            bindAshedMemberId: row.suggestion.id,
-                            suggestedName: row.suggestion.name,
-                            nameOverride: true,
-                          },
-                        }))
-                      }
-                      className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                        !useSuggested
-                          ? "border-[#d29922] bg-[#d29922]/10 text-[#e3b341]"
+                        keepTyped
+                          ? "border-hq-warning bg-hq-warning/10 text-hq-warning"
                           : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
                       }`}
                     >
@@ -415,9 +452,17 @@ export function ScoreboardMemberConfirmDialog({
         )}
 
         {localError ? (
-          <p className="text-sm text-hq-danger" role="alert">
-            {localError}
-          </p>
+          <div ref={errorRef} className="space-y-2" role="alert">
+            <p className="text-sm text-hq-danger">{localError}</p>
+            {connectHref ? (
+              <Link
+                href={connectHref}
+                className="inline-flex rounded-lg border border-hq-danger/60 px-3 py-1.5 text-sm font-medium text-hq-danger hover:bg-hq-danger/10"
+              >
+                {tQueue("connectCta")}
+              </Link>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="flex flex-wrap justify-end gap-2">

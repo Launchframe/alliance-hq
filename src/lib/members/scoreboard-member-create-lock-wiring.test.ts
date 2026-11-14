@@ -101,7 +101,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { createScoreboardMembersFromReview } from "./scoreboard-member-actions.server";
+import { AshedNotConnectedError } from "@/lib/video/errors";
+
+import {
+  applyScoreboardMemberNamesFromReview,
+  createScoreboardMembersFromReview,
+  ScoreboardMemberActionError,
+  scoreboardMemberActionFailure,
+} from "./scoreboard-member-actions.server";
 
 describe("createScoreboardMembersFromReview dedicated lock", () => {
   beforeEach(() => {
@@ -200,9 +207,7 @@ describe("createScoreboardMembersFromReview dedicated lock", () => {
         deleted: 0,
       },
     ]);
-    // findHqMemberIdByAshedId (outside TX)
-    selectQueue.push([]);
-    // findHqMemberIdByAshedId (inside TX)
+    // alliance member lookup inside the bind transaction
     selectQueue.push([]);
     // fresh parsed row lock
     selectQueue.push([
@@ -246,6 +251,435 @@ describe("createScoreboardMembersFromReview dedicated lock", () => {
       id: "ashed-existing",
       current_name: "Bat Pig",
       previous_names: ["BatPig"],
+    });
+    expect(syncMemberNameToAshed).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps existing Ashed previous names when overriding", async () => {
+    base44ListMembers.mockResolvedValue([
+      {
+        id: "ashed-existing",
+        current_name: "BatPig",
+        previous_names: ["Piglet"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    selectQueue.push([]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          confirmedName: "Bat Pig",
+          bindAshedMemberId: "ashed-existing",
+          nameOverride: true,
+        },
+      ],
+    });
+
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousNamesJson: ["Piglet", "BatPig"],
+      }),
+    );
+    expect(syncMemberNameToAshed).toHaveBeenCalledWith(
+      { token: "t" },
+      "ashed-existing",
+      "Bat Pig",
+      ["Piglet", "BatPig"],
+    );
+  });
+
+  it("copies Ashed history and does not rename when using the suggested name", async () => {
+    base44ListMembers.mockResolvedValue([
+      {
+        id: "ashed-existing",
+        current_name: "BatPig",
+        previous_names: ["Piglet"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    selectQueue.push([]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          confirmedName: "Bat Pig",
+          bindAshedMemberId: "ashed-existing",
+          nameOverride: false,
+        },
+      ],
+    });
+
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentName: "BatPig",
+        previousNamesJson: ["Piglet"],
+      }),
+    );
+    expect(syncMemberNameToAshed).not.toHaveBeenCalled();
+  });
+
+  it("keeps the HQ name when the suggested member is already on the roster", async () => {
+    base44ListMembers.mockResolvedValue([
+      {
+        id: "ashed-existing",
+        current_name: "BatPig",
+        previous_names: ["Piglet"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "hq-1",
+        ashedMemberId: "ashed-existing",
+        currentName: "Alice",
+        previousNamesJson: ["Allie"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    const result = await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          confirmedName: "Bat Pig",
+          bindAshedMemberId: "ashed-existing",
+          nameOverride: false,
+        },
+      ],
+    });
+
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(updateSet).not.toHaveBeenCalledWith(
+      expect.objectContaining({ currentName: expect.any(String) }),
+    );
+    expect(syncMemberNameToAshed).not.toHaveBeenCalled();
+    expect(result.rows[0]).toMatchObject({
+      memberId: "ashed-existing",
+      memberName: "Alice",
+    });
+  });
+
+  it("retries the Ashed rename when HQ already has the override name", async () => {
+    base44ListMembers.mockResolvedValue([
+      { id: "ashed-existing", current_name: "BatPig", previous_names: [] },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "hq-1",
+        ashedMemberId: "ashed-existing",
+        currentName: "Bat Pig",
+        previousNamesJson: ["BatPig"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          confirmedName: "Bat Pig",
+          bindAshedMemberId: "ashed-existing",
+          nameOverride: true,
+        },
+      ],
+    });
+
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(updateSet).not.toHaveBeenCalledWith(
+      expect.objectContaining({ currentName: "Bat Pig" }),
+    );
+    expect(syncMemberNameToAshed).toHaveBeenCalledTimes(1);
+    expect(syncMemberNameToAshed).toHaveBeenCalledWith(
+      { token: "t" },
+      "ashed-existing",
+      "Bat Pig",
+      ["BatPig"],
+    );
+  });
+
+  it("skips the Ashed rename when HQ and Ashed already match", async () => {
+    base44ListMembers.mockResolvedValue([
+      {
+        id: "ashed-existing",
+        current_name: "Bat Pig",
+        previous_names: ["BatPig"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "hq-1",
+        ashedMemberId: "ashed-existing",
+        currentName: "Bat Pig",
+        previousNamesJson: ["BatPig"],
+      },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          confirmedName: "Bat Pig",
+          bindAshedMemberId: "ashed-existing",
+          nameOverride: true,
+        },
+      ],
+    });
+
+    expect(syncMemberNameToAshed).not.toHaveBeenCalled();
+  });
+
+  it("does not bind a former Ashed member with the same name", async () => {
+    base44ListMembers.mockResolvedValue([
+      { id: "former-1", current_name: "Bat Pig", status: "former" },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+    selectQueue.push([]);
+    selectQueue.push([]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+      },
+    ]);
+
+    await createScoreboardMembersFromReview({
+      sessionId: "sess-1",
+      allianceId: "alliance-1",
+      parseSessionId: "parse-1",
+      rows: [{ id: "row-1", confirmedName: "Bat Pig" }],
+    });
+
+    expect(base44EntityPost).toHaveBeenCalledTimes(1);
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ ashedMemberId: "ashed-member-new" }),
+    );
+  });
+
+  it("rejects two confirmed names for the same Ashed bind before writing", async () => {
+    base44ListMembers.mockResolvedValue([
+      { id: "ashed-existing", current_name: "BatPig" },
+    ]);
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+      {
+        id: "row-2",
+        ocrName: "Batty",
+        memberId: null,
+        memberName: null,
+        matchMethod: null,
+        deleted: 0,
+      },
+    ]);
+
+    await expect(
+      createScoreboardMembersFromReview({
+        sessionId: "sess-1",
+        allianceId: "alliance-1",
+        parseSessionId: "parse-1",
+        rows: [
+          {
+            id: "row-1",
+            confirmedName: "Bat Pig",
+            bindAshedMemberId: "ashed-existing",
+            nameOverride: true,
+          },
+          {
+            id: "row-2",
+            confirmedName: "Batty",
+            bindAshedMemberId: "ashed-existing",
+            nameOverride: true,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ScoreboardMemberActionError);
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(withScoreboardMemberCreateLock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a rename that would store two names on one member", async () => {
+    selectQueue.push([
+      {
+        id: "row-1",
+        ocrName: "Bat Pig",
+        memberId: "m1",
+        memberName: "Old",
+        matchMethod: "manual",
+        deleted: 0,
+      },
+      {
+        id: "row-2",
+        ocrName: "Batty",
+        memberId: "m1",
+        memberName: "Old",
+        matchMethod: "manual",
+        deleted: 0,
+      },
+    ]);
+
+    await expect(
+      applyScoreboardMemberNamesFromReview({
+        sessionId: "sess-1",
+        allianceId: "alliance-1",
+        parseSessionId: "parse-1",
+        rows: [
+          { id: "row-1", confirmedName: "Bat Pig" },
+          { id: "row-2", confirmedName: "Batty" },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ScoreboardMemberActionError);
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+});
+
+describe("scoreboardMemberActionFailure", () => {
+  it("maps name conflicts and missing Ashed credentials", () => {
+    expect(
+      scoreboardMemberActionFailure(new Error("other"), "job-1", {
+        nameConflict: "conflict",
+      }),
+    ).toBeNull();
+    expect(
+      scoreboardMemberActionFailure(new ScoreboardMemberActionError(), "job-1", {
+        nameConflict: "conflict",
+      }),
+    ).toEqual({
+      status: 409,
+      body: { error: "conflict", code: "scoreboard_member_name_conflict" },
+    });
+    expect(
+      scoreboardMemberActionFailure(
+        new AshedNotConnectedError("Connect Ashed"),
+        "job-9",
+        { nameConflict: "conflict" },
+      ),
+    ).toEqual({
+      status: 409,
+      body: {
+        error: "Connect Ashed",
+        code: "ashed_not_connected",
+        connectUrl: "/connect?next=%2Ftools%2Fvideo-upload%2Fjob-9%2Freview",
+      },
     });
   });
 });

@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
 import { base44ListMembers } from "@/lib/base44/fetch";
+import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import { createAshedMember } from "@/lib/members/ashed-member-write.server";
@@ -14,14 +15,59 @@ import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
 import { withScoreboardMemberCreateLock } from "@/lib/members/scoreboard-member-create-lock.server";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 import {
+  AshedNotConnectedError,
+  isAshedNotConnectedError,
+} from "@/lib/video/errors";
+import {
   nextPreviousNames,
   normalizeScoreboardMemberName,
+  previousNamesForScoreboardBind,
+  sameScoreboardNameList,
   SCOREBOARD_MANUAL_MATCH_METHOD,
+  SCOREBOARD_MEMBER_NAME_CONFLICT_CODE,
   scoreboardAshedNameSuggestions,
+  scoreboardAshedRenameNeedsSync,
+  scoreboardConfirmedNamesConflict,
   trimScoreboardConfirmedName,
   type ScoreboardAshedNameSuggestion,
   type ScoreboardMemberActionRowInput,
 } from "@/lib/video/scoreboard-member-actions.shared";
+
+export class ScoreboardMemberActionError extends Error {
+  readonly code = SCOREBOARD_MEMBER_NAME_CONFLICT_CODE;
+
+  constructor() {
+    super(SCOREBOARD_MEMBER_NAME_CONFLICT_CODE);
+    this.name = "ScoreboardMemberActionError";
+  }
+}
+
+export function scoreboardMemberActionFailure(
+  error: unknown,
+  jobId: string,
+  messages: { nameConflict: string },
+): {
+  status: 409;
+  body: { error: string; code: string; connectUrl?: string };
+} | null {
+  if (error instanceof ScoreboardMemberActionError) {
+    return {
+      status: 409,
+      body: { error: messages.nameConflict, code: error.code },
+    };
+  }
+  if (isAshedNotConnectedError(error)) {
+    return {
+      status: 409,
+      body: {
+        error: error.message,
+        code: error.code,
+        connectUrl: buildConnectHref(`/tools/video-upload/${jobId}/review`),
+      },
+    };
+  }
+  return null;
+}
 
 export type ScoreboardMemberActionResult = {
   members: Array<{
@@ -64,6 +110,7 @@ type ScoreboardDb = Pick<
 type AshedMemberSnapshot = {
   id: string;
   current_name: string;
+  previous_names: string[];
 };
 
 function normalizeActionRows(
@@ -178,24 +225,6 @@ async function findHqMemberIdByNormalizedName(
   return match?.ashedMemberId ?? null;
 }
 
-async function findHqMemberIdByAshedId(
-  db: ScoreboardDb,
-  allianceId: string,
-  ashedMemberId: string,
-): Promise<string | null> {
-  const [row] = await db
-    .select({ ashedMemberId: schema.allianceMembers.ashedMemberId })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, allianceId),
-        eq(schema.allianceMembers.ashedMemberId, ashedMemberId),
-      ),
-    )
-    .limit(1);
-  return row?.ashedMemberId ?? null;
-}
-
 async function loadHqAshedMemberIds(
   db: ScoreboardDb,
   allianceId: string,
@@ -216,7 +245,18 @@ async function loadAshedMembers(
   for (const member of remote) {
     const name = trimScoreboardConfirmedName(member.current_name ?? "");
     if (!member.id || !normalizeScoreboardMemberName(name)) continue;
-    out.push({ id: member.id, current_name: name });
+    if (member.status === "former") continue;
+    const previousNames: string[] = [];
+    for (const previous of member.previous_names ?? []) {
+      const trimmed = trimScoreboardConfirmedName(previous);
+      if (!trimmed || previousNames.includes(trimmed)) continue;
+      previousNames.push(trimmed);
+    }
+    out.push({
+      id: member.id,
+      current_name: name,
+      previous_names: previousNames,
+    });
   }
   return out;
 }
@@ -274,7 +314,9 @@ export async function previewScoreboardMemberCreates(input: {
     delegatedAction: "scoreboard-member-create",
   });
   if (!connection) {
-    throw new Error("Connect Ashed before creating members from a scoreboard.");
+    throw new AshedNotConnectedError(
+      "Connect Ashed before creating members from a scoreboard.",
+    );
   }
 
   const db = getDb();
@@ -333,7 +375,9 @@ export async function createScoreboardMembersFromReview(input: {
   });
   const linkedAshedId = await getAshedAllianceIdIfLinked(input.allianceId);
   if (linkedAshedId && !connection) {
-    throw new Error("Connect Ashed before creating members from a scoreboard.");
+    throw new AshedNotConnectedError(
+      "Connect Ashed before creating members from a scoreboard.",
+    );
   }
 
   const db = getDb();
@@ -359,11 +403,6 @@ export async function createScoreboardMembersFromReview(input: {
 
   const members: ScoreboardMemberActionResult["members"] = [];
   const patchedRows: ScoreboardMemberActionResult["rows"] = [];
-  const ashedRenameSync: Array<{
-    memberId: string;
-    nextName: string;
-    nextPrevious: string[];
-  }> = [];
 
   type WorkItem = {
     key: string;
@@ -394,6 +433,23 @@ export async function createScoreboardMembersFromReview(input: {
     }
   }
 
+  const bindResolutions: Array<{ memberKey: string; confirmedName: string }> =
+    [];
+  for (const group of work.values()) {
+    if (!group.bindAshedMemberId) continue;
+    const remote = ashedById.get(group.bindAshedMemberId);
+    if (!remote) continue;
+    bindResolutions.push({
+      memberKey: group.bindAshedMemberId,
+      confirmedName: group.nameOverride
+        ? group.confirmedName
+        : remote.current_name,
+    });
+  }
+  if (scoreboardConfirmedNamesConflict(bindResolutions)) {
+    throw new ScoreboardMemberActionError();
+  }
+
   for (const group of work.values()) {
     const lockName = group.bindAshedMemberId
       ? `bind:${group.bindAshedMemberId}`
@@ -410,106 +466,82 @@ export async function createScoreboardMembersFromReview(input: {
             );
           }
 
-          const ashedCurrentName = remote.current_name;
           const nextName = group.nameOverride
             ? group.confirmedName
-            : ashedCurrentName;
-          const nextPrevious = group.nameOverride
-            ? nextPreviousNames(ashedCurrentName, [], nextName)
-            : [];
+            : remote.current_name;
 
-          let memberId = await findHqMemberIdByAshedId(
-            db,
-            input.allianceId,
-            group.bindAshedMemberId,
-          );
-          let createdNow = false;
+          const ashedSync = await db.transaction(async (tx) => {
+            const [existing] = await tx
+              .select()
+              .from(schema.allianceMembers)
+              .where(
+                and(
+                  eq(schema.allianceMembers.allianceId, input.allianceId),
+                  eq(
+                    schema.allianceMembers.ashedMemberId,
+                    group.bindAshedMemberId!,
+                  ),
+                ),
+              )
+              .limit(1)
+              .for("update");
+            const resolvedId =
+              existing?.ashedMemberId ?? group.bindAshedMemberId!;
 
-          if (!memberId) {
-            memberId = group.bindAshedMemberId;
-            createdNow = true;
-          }
+            const mergedPrevious = previousNamesForScoreboardBind({
+              ashedCurrentName: remote.current_name,
+              ashedPreviousNames: remote.previous_names,
+              hqCurrentName: existing?.currentName,
+              hqPreviousNames: existing?.previousNamesJson ?? [],
+              nextName,
+            });
+            const displayName =
+              existing && !group.nameOverride ? existing.currentName : nextName;
+            const displayPrevious =
+              existing && !group.nameOverride
+                ? (existing.previousNamesJson ?? [])
+                : mergedPrevious;
 
-          await db.transaction(async (tx) => {
-            const existingId = await findHqMemberIdByAshedId(
-              tx,
-              input.allianceId,
-              group.bindAshedMemberId!,
-            );
-            const resolvedId = existingId ?? memberId!;
-
-            if (!existingId) {
+            if (!existing) {
               await insertHqAllianceMember(tx, {
                 allianceId: input.allianceId,
                 ashedMemberId: resolvedId,
                 ashedAllianceId,
-                currentName: nextName,
-                previousNames: nextPrevious,
-              });
-              members.push({
-                id: resolvedId,
-                current_name: nextName,
-                previous_names: nextPrevious,
+                currentName: displayName,
+                previousNames: displayPrevious,
               });
             } else if (group.nameOverride) {
-              const [existing] = await tx
-                .select()
-                .from(schema.allianceMembers)
-                .where(
-                  and(
-                    eq(schema.allianceMembers.allianceId, input.allianceId),
-                    eq(schema.allianceMembers.ashedMemberId, resolvedId),
-                  ),
-                )
-                .limit(1)
-                .for("update");
-              if (existing) {
-                const previousNames = existing.previousNamesJson ?? [];
-                const mergedPrevious = nextPreviousNames(
-                  existing.currentName,
-                  previousNames,
-                  nextName,
-                );
-                if (
-                  existing.currentName !== nextName ||
-                  mergedPrevious !== previousNames
-                ) {
-                  await tx
-                    .update(schema.allianceMembers)
-                    .set({
-                      currentName: nextName,
-                      previousNamesJson: mergedPrevious,
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(schema.allianceMembers.id, existing.id));
-                  members.push({
-                    id: resolvedId,
-                    current_name: nextName,
-                    previous_names: mergedPrevious,
-                  });
-                  if (linkedAshedId && connection) {
-                    ashedRenameSync.push({
-                      memberId: resolvedId,
-                      nextName,
-                      nextPrevious: mergedPrevious,
-                    });
-                  }
-                }
+              const previousNames = existing.previousNamesJson ?? [];
+              if (
+                existing.currentName !== displayName ||
+                !sameScoreboardNameList(previousNames, displayPrevious)
+              ) {
+                await tx
+                  .update(schema.allianceMembers)
+                  .set({
+                    currentName: displayName,
+                    previousNamesJson: displayPrevious,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(schema.allianceMembers.id, existing.id));
               }
             }
 
-            if (
-              createdNow &&
+            members.push({
+              id: resolvedId,
+              current_name: displayName,
+              previous_names: displayPrevious,
+            });
+
+            const shouldSyncAshed =
               group.nameOverride &&
-              linkedAshedId &&
-              connection
-            ) {
-              ashedRenameSync.push({
-                memberId: resolvedId,
-                nextName,
-                nextPrevious,
+              Boolean(linkedAshedId && connection) &&
+              scoreboardAshedRenameNeedsSync({
+                remoteName: remote.current_name,
+                remotePreviousNames: remote.previous_names,
+                nextName: displayName,
+                nextPreviousNames: displayPrevious,
               });
-            }
 
             for (const row of group.rows) {
               const [fresh] = await tx
@@ -527,7 +559,7 @@ export async function createScoreboardMembersFromReview(input: {
                 patchedRows.push({
                   id: row.id,
                   memberId: fresh.memberId,
-                  memberName: fresh.memberName ?? nextName,
+                  memberName: fresh.memberName ?? displayName,
                   matchMethod: fresh.matchMethod ?? "exact",
                   matchConfidence: 1,
                 });
@@ -537,18 +569,34 @@ export async function createScoreboardMembersFromReview(input: {
               await persistParsedRowMatch(tx, {
                 rowId: row.id,
                 memberId: resolvedId,
-                memberName: nextName,
+                memberName: displayName,
                 matchMethod: "exact",
               });
               patchedRows.push({
                 id: row.id,
                 memberId: resolvedId,
-                memberName: nextName,
+                memberName: displayName,
                 matchMethod: "exact",
                 matchConfidence: 1,
               });
             }
+
+            if (!shouldSyncAshed) return null;
+            return {
+              memberId: resolvedId,
+              nextName: displayName,
+              nextPrevious: displayPrevious,
+            };
           });
+
+          if (ashedSync && connection) {
+            await syncMemberNameToAshed(
+              connection,
+              ashedSync.memberId,
+              ashedSync.nextName,
+              ashedSync.nextPrevious,
+            );
+          }
           return;
         }
 
@@ -642,18 +690,10 @@ export async function createScoreboardMembersFromReview(input: {
     );
   }
 
-  if (connection) {
-    for (const item of ashedRenameSync) {
-      await syncMemberNameToAshed(
-        connection,
-        item.memberId,
-        item.nextName,
-        item.nextPrevious,
-      );
-    }
-  }
-
-  for (const member of members) {
+  const uniqueMembers = [
+    ...new Map(members.map((member) => [member.id, member])).values(),
+  ];
+  for (const member of uniqueMembers) {
     await syncCommanderFromAllianceMember({
       allianceId: input.allianceId,
       ashedMemberId: member.id,
@@ -661,7 +701,7 @@ export async function createScoreboardMembersFromReview(input: {
     });
   }
 
-  return { members, rows: patchedRows };
+  return { members: uniqueMembers, rows: patchedRows };
 }
 
 export async function applyScoreboardMemberNamesFromReview(input: {
@@ -683,7 +723,7 @@ export async function applyScoreboardMemberNamesFromReview(input: {
   });
   const linkedAshedId = await getAshedAllianceIdIfLinked(input.allianceId);
   if (linkedAshedId && !connection) {
-    throw new Error(
+    throw new AshedNotConnectedError(
       "Connect Ashed before updating member names from a scoreboard.",
     );
   }
@@ -722,6 +762,9 @@ export async function applyScoreboardMemberNamesFromReview(input: {
       const nextName = actionRows.get(row.id)!.confirmedName;
       const existing = grouped.get(memberId);
       if (existing) {
+        if (existing.nextName !== nextName) {
+          throw new ScoreboardMemberActionError();
+        }
         existing.rows.push(row);
       } else {
         grouped.set(memberId, { nextName, rows: [row] });
