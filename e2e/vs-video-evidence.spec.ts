@@ -48,8 +48,18 @@ async function attachScreenshot(
   ).toBeVisible({ timeout: 180_000 });
 }
 
+async function openVideoAdvanced(page: Page) {
+  const advanced = page.getByTestId("vs-video-advanced");
+  await expect(advanced).toBeVisible();
+  const isOpen = await advanced.evaluate(
+    (el: HTMLDetailsElement) => el.open,
+  );
+  if (!isOpen) await advanced.locator("summary").click();
+}
+
 async function reviewDailyDayTwo(page: Page) {
   await attachScreenshot(page, dayTwoPng);
+  await openVideoAdvanced(page);
   await page.getByTestId("vs-video-ourside").selectOption("left");
   await panel(page)
     .getByLabel("Left alliance Tag", { exact: true })
@@ -58,7 +68,7 @@ async function reviewDailyDayTwo(page: Page) {
     .getByLabel("Opponent alliance tag", { exact: true })
     .fill("TriV");
   await page.getByTestId("vs-video-confirm-sides").check();
-  await page.getByTestId("vs-video-finalday").check();
+  await expect(page.getByTestId("vs-video-finalday")).not.toBeChecked();
 }
 
 async function evidenceRow(sql: Sql, jobId: string, allianceId: string) {
@@ -366,6 +376,7 @@ test("c) manual opponent score saves match results without a screenshot or sides
     .getByLabel("Opponent score", { exact: true })
     .fill("333");
 
+  await openVideoAdvanced(page);
   await page.getByTestId("vs-video-include-results").check();
   await page
     .getByRole("button", { name: "Save 1 scores", exact: true })
@@ -461,6 +472,7 @@ test("d) weekly overview saves reported points and preserves confirmed daily tot
   await expect(
     page.getByTestId("vs-video-comparison"),
   ).toHaveCount(0);
+  await openVideoAdvanced(page);
   await page.getByTestId("vs-video-ourside").selectOption("left");
   await expect(
     page.getByTestId("vs-video-our-points"),
@@ -587,7 +599,7 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
   await expect(
     panel(page).getByLabel("Opponent alliance name", { exact: true }),
   ).toHaveValue("TriVision");
-  await expect(page.getByTestId("vs-video-confirm-sides")).not.toBeChecked();
+  await expect(page.getByTestId("vs-video-confirm-sides")).toBeChecked();
 
   const uploadHold = await holdRoute(
     page,
@@ -609,7 +621,7 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
   await expect(
     panel(page).getByLabel("Opponent alliance name", { exact: true }),
   ).toHaveValue("TriVision");
-  await expect(page.getByTestId("vs-video-confirm-sides")).not.toBeChecked();
+  await expect(page.getByTestId("vs-video-confirm-sides")).toBeChecked();
 
   const removeHold = await holdRoute(
     page,
@@ -943,6 +955,7 @@ test("h) sync retries preserve unsaved review edits", async ({
     exact: true,
   });
   const include = page.getByTestId("vs-video-include-results");
+  await openVideoAdvanced(page);
   await opponentName.fill("KeepMeName");
   await opponentScore.fill("555");
   await include.check();
@@ -1208,6 +1221,7 @@ test("l) cancel resets only the opponent edit and keeps other edits", async ({
   await gotoReview(page, job.jobId);
   await attachScreenshot(page, dailyPng);
 
+  await openVideoAdvanced(page);
   await page.getByTestId("vs-video-ourside").selectOption("left");
   const ourTotal = panel(page).getByLabel(/Our alliance.s final score/);
   await ourTotal.fill("1234567890");
@@ -1287,6 +1301,7 @@ test("g) localized review renders comparison in Portuguese with private versione
   );
 
   const comparison = page.getByTestId("vs-video-comparison");
+  await openVideoAdvanced(page);
   await page.getByTestId("vs-video-ourside").selectOption("left");
   await expect(comparison).toBeVisible();
   await expect(

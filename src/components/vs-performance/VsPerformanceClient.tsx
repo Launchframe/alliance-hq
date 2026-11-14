@@ -31,6 +31,77 @@ type Props = {
   scoreTargetId: string | null;
 };
 
+function VsPerformanceMoreMenu(props: {
+  disabled: boolean;
+  onCapture: () => void;
+  onImport: () => void;
+}) {
+  const t = useTranslations("vsPerformance");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0 sm:hidden">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        disabled={props.disabled}
+        onClick={() => setOpen((value) => !value)}
+        className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50"
+        data-testid="vs-performance-more"
+      >
+        {t("moreActions")}
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-2 min-w-[14rem] rounded-xl border border-hq-border bg-hq-surface p-2 shadow-lg"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-surface-muted"
+            onClick={() => {
+              setOpen(false);
+              props.onCapture();
+            }}
+          >
+            {t("capture.open")}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-surface-muted"
+            onClick={() => {
+              setOpen(false);
+              props.onImport();
+            }}
+          >
+            {t("import.button")}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function VsPerformanceClient({
   initial,
   canUseAshedEmbeds,
@@ -303,27 +374,31 @@ export function VsPerformanceClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => goWeek(-1)}
-            disabled={navLocked}
-            aria-label={t("week.previous")}
-            className="rounded-lg border border-hq-border bg-hq-surface px-2.5 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
-          >
-            ‹
-          </button>
-          <h2 className="text-lg font-semibold text-hq-fg">{weekTitle}</h2>
-          <button
-            type="button"
-            onClick={() => goWeek(1)}
-            disabled={navLocked}
-            aria-label={t("week.next")}
-            className="rounded-lg border border-hq-border bg-hq-surface px-2.5 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
-          >
-            ›
-          </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full flex-col gap-2 sm:w-auto">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+            <button
+              type="button"
+              onClick={() => goWeek(-1)}
+              disabled={navLocked}
+              aria-label={t("week.previous")}
+              className="rounded-lg border border-hq-border bg-hq-surface px-2.5 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+            >
+              ‹
+            </button>
+            <h2 className="min-w-0 flex-1 text-center text-lg font-semibold text-hq-fg sm:flex-none sm:text-left">
+              {weekTitle}
+            </h2>
+            <button
+              type="button"
+              onClick={() => goWeek(1)}
+              disabled={navLocked}
+              aria-label={t("week.next")}
+              className="rounded-lg border border-hq-border bg-hq-surface px-2.5 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+            >
+              ›
+            </button>
+          </div>
           {!isCurrentWeek ? (
             <button
               type="button"
@@ -335,13 +410,13 @@ export function VsPerformanceClient({
                 router.push(`${pathname}?${params.toString()}`);
               }}
               disabled={navLocked}
-              className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-xs text-hq-fg-muted hover:bg-hq-surface-muted disabled:opacity-50"
+              className="self-center rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-xs text-hq-fg-muted hover:bg-hq-surface-muted disabled:opacity-50 sm:self-start"
             >
               {t("week.current")}
             </button>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-stretch gap-2 sm:w-auto sm:items-center">
           {payload.canEdit && tab === "native" ? (
             <button
               type="button"
@@ -349,7 +424,7 @@ export function VsPerformanceClient({
                 if (!navLocked) setCaptureOpen(true);
               }}
               disabled={navLocked}
-              className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50"
+              className="hidden rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50 sm:inline-flex"
               data-testid="vs-capture-open"
             >
               {t("capture.open")}
@@ -362,7 +437,7 @@ export function VsPerformanceClient({
                 if (!navLocked) setSpreadsheetOpen(true);
               }}
               disabled={navLocked}
-              className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50"
+              className="hidden rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50 sm:inline-flex"
               data-testid="vs-spreadsheet-import-open"
             >
               {t("import.button")}
@@ -371,17 +446,28 @@ export function VsPerformanceClient({
           {scoreTargetId ? (
             <Link
               href={buildVideoUploadHref(scoreTargetId)}
-              className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm font-medium text-white hover:bg-hq-success-hover"
+              className="min-w-0 flex-1 rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-center text-sm font-medium text-white hover:bg-hq-success-hover sm:flex-none"
             >
               {tEmbed("uploadVideoScores")}
             </Link>
           ) : null}
           <Link
             href="/vs-performance/buster-day"
-            className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-border"
+            className="min-w-0 flex-1 rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-center text-sm font-medium text-hq-fg hover:bg-hq-border sm:flex-none"
           >
             {tEmbed("busterDayEfficiency")}
           </Link>
+          {payload.canEdit && tab === "native" ? (
+            <VsPerformanceMoreMenu
+              disabled={navLocked}
+              onCapture={() => {
+                if (!navLocked) setCaptureOpen(true);
+              }}
+              onImport={() => {
+                if (!navLocked) setSpreadsheetOpen(true);
+              }}
+            />
+          ) : null}
         </div>
       </div>
 
