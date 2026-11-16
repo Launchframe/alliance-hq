@@ -1001,11 +1001,13 @@ export function buildInteractiveHqChoices(input: {
 }
 
 /**
- * Parse interactive CLI input: blank → skip, `c`/`C` → create member,
- * 1-based index → menu choice, otherwise typed HQ roster name.
+ * Parse interactive CLI input: blank → skip, `u`/`undo` → undo last answer,
+ * `c`/`C` → create member, 1-based index → menu choice, otherwise typed HQ
+ * roster name.
  */
 export type LastRankInteractiveAnswer =
   | { kind: "skip" }
+  | { kind: "undo" }
   | { kind: "create" }
   | { kind: "match"; hqName: string };
 
@@ -1024,6 +1026,7 @@ export function resolveInteractiveHqNameAnswer(
 ): LastRankInteractiveAnswer {
   const trimmed = answer.trim();
   if (!trimmed) return { kind: "skip" };
+  if (/^(u|undo)$/i.test(trimmed)) return { kind: "undo" };
   if (/^c$/i.test(trimmed)) return { kind: "create" };
   if (/^\d+$/.test(trimmed)) {
     const index = Number.parseInt(trimmed, 10);
@@ -1032,6 +1035,14 @@ export function resolveInteractiveHqNameAnswer(
     }
   }
   return { kind: "match", hqName: trimmed };
+}
+
+/** True when an interactive link will rename the HQ commander to the LastRank name. */
+export function isLastRankInteractiveRename(
+  priorHqName: string,
+  lastRankName: string,
+): boolean {
+  return priorHqName.trim().toLowerCase() !== lastRankName.trim().toLowerCase();
 }
 
 export function applyInteractiveMatches(

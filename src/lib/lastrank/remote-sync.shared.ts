@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   isLastRankAllianceId,
+  isLastRankInteractiveRename,
   type LastRankInteractiveAnswer,
   type LastRankMatchResult,
   type LastRankPromptPosition,
@@ -9,6 +10,8 @@ import {
 } from "@/lib/lastrank/alliance-page.shared";
 import type { LastRankRosterDiff } from "@/lib/lastrank/roster-diff.shared";
 import type {
+  LastRankInteractiveWriteSummary,
+  LastRankRetireAnswer,
   LastRankSyncPlanListener,
   LastRankSyncPlanStats,
 } from "@/lib/lastrank/sync-plan.shared";
@@ -85,6 +88,12 @@ export function claimedRetireCandidateIds(
   return ids;
 }
 
+/** Current + previous names so remote confirm can resolve typed aliases. */
+export type LastRankRemoteHqRosterEntry = {
+  currentName: string;
+  previousNames: string[];
+};
+
 export type LastRankRemotePlan = {
   version: typeof LASTRANK_REMOTE_SYNC_VERSION;
   target: LastRankSyncTarget;
@@ -96,7 +105,31 @@ export type LastRankRemotePlan = {
   prompts: LastRankRemotePrompt[];
   /** Active HQ members not auto-matched to LastRank (before interactive mapping). */
   retireCandidates: LastRankRemoteRetireCandidate[];
+  /**
+   * HQ roster snapshot for confirm: typed previous names must compare against
+   * the commander's current name (same as local `priorHqName`).
+   */
+  hqRoster: LastRankRemoteHqRosterEntry[];
 };
+
+/**
+ * Resolve the typed interactive HQ name to the current roster name used for
+ * rename confirm. Exact current-name hits win; else a unique previous-name hit.
+ */
+export function resolveRemotePriorHqName(
+  typedName: string,
+  roster: readonly LastRankRemoteHqRosterEntry[],
+): string {
+  const norm = (name: string) => name.trim().toLowerCase();
+  const want = norm(typedName);
+  const current = roster.find((row) => norm(row.currentName) === want);
+  if (current) return current.currentName;
+  const previous = roster.filter((row) =>
+    row.previousNames.some((name) => norm(name) === want),
+  );
+  if (previous.length === 1) return previous[0]!.currentName;
+  return typedName;
+}
 
 export type LastRankRemoteDecision = {
   publicId: number;
@@ -208,11 +241,100 @@ export function withoutClaimedHqNames(
   };
 }
 
+type RemoteNameDecisionEntry =
+  | { kind: "skip" }
+  | { kind: "match"; publicId: number; hqName: string }
+  | { kind: "create"; publicId: number };
+
+function remoteStatsFromStack(
+  stack: readonly RemoteNameDecisionEntry[],
+  retires: number,
+  remaining: number,
+): LastRankSyncPlanStats {
+  let mapped = 0;
+  let creates = 0;
+  let skipped = 0;
+  for (const entry of stack) {
+    if (entry.kind === "match") mapped += 1;
+    else if (entry.kind === "create") creates += 1;
+    else skipped += 1;
+  }
+  return { mapped, creates, retires, skipped, remaining };
+}
+
+function claimedNamesFromStack(
+  stack: readonly RemoteNameDecisionEntry[],
+): Set<string> {
+  const claimed = new Set<string>();
+  for (const entry of stack) {
+    if (entry.kind === "match") claimed.add(entry.hqName.trim().toLowerCase());
+  }
+  return claimed;
+}
+
+function decisionsFromStack(
+  stack: readonly RemoteNameDecisionEntry[],
+): LastRankRemoteDecision[] {
+  const decisions: LastRankRemoteDecision[] = [];
+  for (const entry of stack) {
+    if (entry.kind === "match") {
+      decisions.push({
+        publicId: entry.publicId,
+        answer: { kind: "match", hqName: entry.hqName },
+      });
+    } else if (entry.kind === "create") {
+      decisions.push({
+        publicId: entry.publicId,
+        answer: { kind: "create" },
+      });
+    }
+  }
+  return decisions;
+}
+
+/** Build the confirm summary from remote prompt decisions (renames + creates). */
+export function buildInteractiveWriteSummaryFromRemoteDecisions(
+  plan: LastRankRemotePlan,
+  decisions: readonly LastRankRemoteDecision[],
+): LastRankInteractiveWriteSummary {
+  const byPublicId = new Map(
+    plan.prompts.map((prompt) => [prompt.publicId, prompt]),
+  );
+  const renames: LastRankInteractiveWriteSummary["renames"] = [];
+  const creates: LastRankInteractiveWriteSummary["creates"] = [];
+  for (const decision of decisions) {
+    const prompt = byPublicId.get(decision.publicId);
+    if (!prompt) continue;
+    if (decision.answer.kind === "create") {
+      creates.push({
+        lastRankName: prompt.lastRankName,
+        publicId: decision.publicId,
+      });
+      continue;
+    }
+    if (decision.answer.kind === "match") {
+      const priorHqName = resolveRemotePriorHqName(
+        decision.answer.hqName,
+        plan.hqRoster,
+      );
+      if (isLastRankInteractiveRename(priorHqName, prompt.lastRankName)) {
+        renames.push({
+          priorHqName,
+          lastRankName: prompt.lastRankName,
+          publicId: decision.publicId,
+        });
+      }
+    }
+  }
+  return { renames, creates };
+}
+
 /**
  * Runs the operator prompts for a remote plan without touching the server and
  * returns the decisions to send. Mirrors the server's queue rules: unranked
  * rows are never created, and members mapped this session are not offered for
- * retirement.
+ * retirement. `U` / undo rewinds the last name or retire decision (and can
+ * cross from the retire phase back into name mapping).
  */
 export async function collectLastRankRemoteDecisions(input: {
   plan: LastRankRemotePlan;
@@ -220,64 +342,147 @@ export async function collectLastRankRemoteDecisions(input: {
     ctx: LastRankRemotePrompt,
     position: LastRankPromptPosition,
   ) => Promise<LastRankInteractiveAnswer>;
-  retirePrompt?: (ctx: LastRankRemoteRetireCandidate) => Promise<boolean>;
+  retirePrompt?: (
+    ctx: LastRankRemoteRetireCandidate,
+  ) => Promise<LastRankRetireAnswer>;
   onPlanChanged?: LastRankSyncPlanListener;
 }): Promise<{
   decisions: LastRankRemoteDecision[];
   retireAshedMemberIds: string[];
   stats: LastRankSyncPlanStats;
 }> {
-  const decisions: LastRankRemoteDecision[] = [];
-  const retireAshedMemberIds: string[] = [];
-  const claimed = new Set<string>();
-  const stats: LastRankSyncPlanStats = {
-    mapped: 0,
-    creates: 0,
-    retires: 0,
-    skipped: 0,
-    remaining: 0,
-  };
-  const emit = (remaining: number) => {
-    stats.remaining = remaining;
-    input.onPlanChanged?.({ ...stats });
-  };
-
+  const stack: RemoteNameDecisionEntry[] = [];
+  const retireStack: Array<"retire" | "keep"> = [];
   const { prompts } = input.plan;
-  for (const [index, prompt] of prompts.entries()) {
-    const answer = await input.interactivePrompt(
-      withoutClaimedHqNames(prompt, claimed),
-      { current: index + 1, total: prompts.length },
-    );
-    const remaining = prompts.length - index - 1;
-    if (answer.kind === "match") {
-      claimed.add(answer.hqName.trim().toLowerCase());
-      decisions.push({ publicId: prompt.publicId, answer });
-      stats.mapped += 1;
-    } else if (answer.kind === "create" && !prompt.unranked) {
-      decisions.push({ publicId: prompt.publicId, answer });
-      stats.creates += 1;
-    } else {
-      stats.skipped += 1;
-    }
-    emit(remaining);
-  }
 
-  if (input.retirePrompt) {
-    const claimedIds = claimedRetireCandidateIds(input.plan.retireCandidates, claimed);
+  const retireAshedMemberIdsFromStack = (
+    candidates: LastRankRemoteRetireCandidate[],
+  ): string[] => {
+    const ids: string[] = [];
+    for (const [i, answer] of retireStack.entries()) {
+      if (answer === "retire") ids.push(candidates[i]!.ashedMemberId);
+    }
+    return ids;
+  };
+
+  const emit = (
+    remaining: number,
+    candidates: LastRankRemoteRetireCandidate[] = [],
+  ) => {
+    input.onPlanChanged?.(
+      remoteStatsFromStack(
+        stack,
+        retireAshedMemberIdsFromStack(candidates).length,
+        remaining,
+      ),
+    );
+  };
+
+  let phase: "names" | "retires" = "names";
+  let index = 0;
+
+  while (true) {
+    if (phase === "names") {
+      while (index < prompts.length) {
+        const prompt = prompts[index]!;
+        const claimed = claimedNamesFromStack(stack);
+        const answer = await input.interactivePrompt(
+          withoutClaimedHqNames(prompt, claimed),
+          { current: index + 1, total: prompts.length },
+        );
+
+        if (answer.kind === "undo") {
+          if (stack.length === 0) {
+            console.error("Nothing to undo.");
+            continue;
+          }
+          stack.pop();
+          index = stack.length;
+          emit(prompts.length - index);
+          continue;
+        }
+
+        if (answer.kind === "match") {
+          stack.push({
+            kind: "match",
+            publicId: prompt.publicId,
+            hqName: answer.hqName,
+          });
+        } else if (answer.kind === "create" && !prompt.unranked) {
+          stack.push({ kind: "create", publicId: prompt.publicId });
+        } else {
+          stack.push({ kind: "skip" });
+        }
+        index = stack.length;
+        emit(prompts.length - index);
+      }
+
+      if (!input.retirePrompt) {
+        break;
+      }
+      retireStack.length = 0;
+      phase = "retires";
+      continue;
+    }
+
+    // Retire phase
+    const claimed = claimedNamesFromStack(stack);
+    const claimedIds = claimedRetireCandidateIds(
+      input.plan.retireCandidates,
+      claimed,
+    );
     const candidates = input.plan.retireCandidates.filter(
       (row) => !claimedIds.has(row.ashedMemberId),
     );
-    for (const [index, candidate] of candidates.entries()) {
-      if (await input.retirePrompt(candidate)) {
-        retireAshedMemberIds.push(candidate.ashedMemberId);
-        stats.retires += 1;
+    let retireIndex = retireStack.length;
+
+    while (retireIndex < candidates.length) {
+      const candidate = candidates[retireIndex]!;
+      const answer = await input.retirePrompt!(candidate);
+      if (answer.kind === "undo") {
+        if (retireStack.length > 0) {
+          retireStack.pop();
+          retireIndex = retireStack.length;
+          emit(candidates.length - retireIndex, candidates);
+          continue;
+        }
+        if (stack.length === 0) {
+          console.error("Nothing to undo.");
+          continue;
+        }
+        stack.pop();
+        index = stack.length;
+        retireStack.length = 0;
+        phase = "names";
+        emit(prompts.length - index);
+        break;
       }
-      emit(candidates.length - index - 1);
+      retireStack.push(answer.kind === "retire" ? "retire" : "keep");
+      retireIndex = retireStack.length;
+      emit(candidates.length - retireIndex, candidates);
     }
+
+    if (phase === "names") {
+      continue;
+    }
+    break;
   }
 
-  stats.remaining = 0;
-  return { decisions, retireAshedMemberIds, stats: { ...stats } };
+  const claimed = claimedNamesFromStack(stack);
+  const claimedIds = claimedRetireCandidateIds(
+    input.plan.retireCandidates,
+    claimed,
+  );
+  const candidates = input.plan.retireCandidates.filter(
+    (row) => !claimedIds.has(row.ashedMemberId),
+  );
+  const retireAshedMemberIds = retireAshedMemberIdsFromStack(candidates);
+
+  return {
+    decisions: decisionsFromStack(stack),
+    retireAshedMemberIds,
+    stats: remoteStatsFromStack(stack, retireAshedMemberIds.length, 0),
+  };
 }
 
 /** Mapping decisions that did not become a match on the server (name drift / conflict). */
