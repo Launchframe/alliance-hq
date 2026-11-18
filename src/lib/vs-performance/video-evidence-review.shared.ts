@@ -1,4 +1,4 @@
-import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { getServerCalendarDate, getServerMinutesOfDay } from "@/lib/trains/game-time";
 import { parseLocalizedVsTotal } from "./match-results.shared";
 import { normalizedVsCaptureTag, type VsCaptureAlliance, type VsCaptureReview } from "./vs-capture.shared";
 import { VsPerformanceError, vsDatesForWeek } from "./weekly-plan.shared";
@@ -115,16 +115,31 @@ function withAllianceIdentity(
   side: VsCaptureAlliance,
   alliance: VsVideoEvidenceResponse["alliance"],
 ): VsCaptureAlliance {
-  const next = { ...side };
-  if (next.tag == null && alliance.tag) next.tag = alliance.tag;
-  if (next.name == null && alliance.name) next.name = alliance.name;
-  if (next.server == null && alliance.server != null && alliance.server > 0) {
-    next.server = alliance.server;
-  }
-  return next;
+  return {
+    tag: alliance.tag ?? side.tag,
+    name: alliance.name ?? side.name,
+    server:
+      alliance.server != null && alliance.server > 0
+        ? alliance.server
+        : side.server,
+  };
 }
 
-export function seedVsVideoDraftForm(response: VsVideoEvidenceResponse): VsVideoDraftForm {
+/** Final once the target day is over, or in its last 15 server-time minutes. */
+export function vsVideoDefaultFinalDay(
+  recordedDate: string,
+  serverToday: string,
+  now = new Date(),
+): boolean {
+  if (recordedDate < serverToday) return true;
+  if (recordedDate > serverToday) return false;
+  return getServerMinutesOfDay(now) >= 23 * 60 + 45;
+}
+
+export function seedVsVideoDraftForm(
+  response: VsVideoEvidenceResponse,
+  now = new Date(),
+): VsVideoDraftForm {
   const candidate = response.evidence.status === "ready" ? response.evidence.candidate : null;
   const tag = response.alliance.tag ? normalizedVsCaptureTag(response.alliance.tag) : null;
   const leftMatches = tag !== null && candidate?.left.tag != null && normalizedVsCaptureTag(candidate.left.tag) === tag;
@@ -135,7 +150,11 @@ export function seedVsVideoDraftForm(response: VsVideoEvidenceResponse): VsVideo
   const right = candidate ? { ...candidate.right } : blankAlliance();
   if (ourSide === "left") Object.assign(left, withAllianceIdentity(left, response.alliance));
   if (ourSide === "right") Object.assign(right, withAllianceIdentity(right, response.alliance));
-  const finalDay = candidate?.kind === "daily_totals" && vsVideoFinalDayAvailable(response) && candidate.ongoing !== true;
+  const serverToday = response.today || getServerCalendarDate(now);
+  const finalDay =
+    candidate?.kind === "daily_totals" &&
+    response.evidence.period === "daily" &&
+    vsVideoDefaultFinalDay(response.evidence.recordedDate, serverToday, now);
   return {
     source: candidate ? "screenshot" : "manual", kind: candidate?.kind ?? null,
     basisImageVersion: response.evidence.imageVersion, editOpponent: false,
@@ -209,7 +228,7 @@ export function buildVsVideoMatchSubmission(response: VsVideoEvidenceResponse, d
   }
   if (response.evidence.status !== "ready" || !response.evidence.candidate || form.basisImageVersion !== response.evidence.imageVersion || form.kind !== response.evidence.candidate.kind) throw new VsPerformanceError("stale", 409);
   if (form.ourSide === null || !form.confirmSides) throw new VsPerformanceError("capture_invalid", 400);
-  const own = form[form.ourSide];
+  const own = withAllianceIdentity(form[form.ourSide], response.alliance);
   if (response.alliance.tag != null && (own.tag == null || normalizedVsCaptureTag(own.tag) !== normalizedVsCaptureTag(response.alliance.tag))) throw new VsPerformanceError("identity_mismatch", 400);
   if (response.alliance.server != null && own.server != null && own.server !== response.alliance.server) throw new VsPerformanceError("identity_mismatch", 400);
   const common = {
@@ -237,8 +256,4 @@ export function vsVideoScreenshotOwnTotal(response: VsVideoEvidenceResponse | nu
   if (response.evidence.status !== "ready" || form.basisImageVersion !== response.evidence.imageVersion || form.ourSide === null || !vsVideoScreenshotContextMatches(response.evidence, { kind, weekStart: vsVideoWeekStart(response.evidence), day: form.day })) return { visible: true, total: null };
   try { return { visible: true, total: optionalScore(form.ourSide === "left" ? form.leftScore : form.rightScore, locale) }; }
   catch { return { visible: true, total: null }; }
-}
-
-export function vsVideoFinalDayAvailable(response: VsVideoEvidenceResponse): boolean {
-  return response.evidence.period === "daily" && response.evidence.recordedDate < (response.today || getServerCalendarDate());
 }

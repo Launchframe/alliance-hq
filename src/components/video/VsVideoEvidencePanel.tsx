@@ -16,7 +16,6 @@ import {
   hasVsVideoOpponent,
   matchKnownVsOpponent,
   mergeKnownVsOpponent,
-  vsVideoFinalDayAvailable,
 } from "@/lib/vs-performance/video-evidence-review.shared";
 import { normalizedVsCaptureTag } from "@/lib/vs-performance/vs-capture.shared";
 import { vsPerformanceDayNumberForDate } from "@/lib/video/vs-recorded-date.shared";
@@ -45,6 +44,31 @@ function knownOpponentValue(opponent: VsCaptureAlliance): string {
   ]);
 }
 
+function scoreDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function dailyOutcome(
+  ourSide: "left" | "right" | null,
+  ourScore: string,
+  foeScore: string,
+  day: number | null,
+  winners: readonly ("left" | "right" | "unknown")[],
+): "won" | "lost" | null {
+  const ours = scoreDigits(ourScore);
+  const foe = scoreDigits(foeScore);
+  if (ours && foe) {
+    const diff = BigInt(ours) - BigInt(foe);
+    if (diff > BigInt(0)) return "won";
+    if (diff < BigInt(0)) return "lost";
+    return null;
+  }
+  if (ourSide == null || day == null) return null;
+  const winner = winners[day - 1];
+  if (winner !== "left" && winner !== "right") return null;
+  return winner === ourSide ? "won" : "lost";
+}
+
 function parseServerInput(raw: string): number | null | undefined {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
@@ -62,7 +86,6 @@ export function VsVideoEvidencePanel(props: {
   const submitting = Boolean(props.submitting);
   const t = useTranslations("vsPerformance");
   const tv = useTranslations("vsPerformance.videoEvidence");
-  const tReview = useTranslations("videoReview");
   const tErrors = useTranslations("httpErrors");
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
@@ -116,11 +139,6 @@ export function VsVideoEvidencePanel(props: {
     }
     controller.setField("opponent", merged);
   }, [controller, form, knownOpponents, state?.canEditMatch]);
-
-  useEffect(() => {
-    if (!form || !state || vsVideoFinalDayAvailable(state) || !form.finalDay) return;
-    controller.setField("finalDay", false);
-  }, [controller, form, state]);
 
   const errorMessage = errorText(controller.errorCode);
   useEffect(() => {
@@ -205,8 +223,6 @@ export function VsVideoEvidencePanel(props: {
     evidence.period === "daily" && kind !== "daily_totals";
   const manualFoeScore =
     evidence.period === "daily" && kind === "daily_totals";
-  const finalDayAllowed =
-    evidence.period === "daily" && evidence.recordedDate < state.today;
   const expectedDay =
     evidence.period === "daily"
       ? vsPerformanceDayNumberForDate(evidence.recordedDate)
@@ -217,54 +233,16 @@ export function VsVideoEvidencePanel(props: {
     expectedDay != null &&
     form.day !== expectedDay;
   const showContextMismatch = !controller.contextMatches || reviewedDayMismatch;
-  const dayNeedsAttention =
-    kind === "daily_totals" &&
-    hasImage &&
-    (form.day == null || reviewedDayMismatch);
-
-  function allianceInputs(
-    side: "left" | "right",
-    value: VsCaptureAlliance,
-    editable: boolean,
-  ) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        <input
-          className={`w-24 ${inputCls}`}
-          value={value.tag ?? ""}
-          onChange={(event) =>
-            controller.setField(side, { tag: event.target.value || null })
-          }
-          placeholder={tReview("opponentTagLabel")}
-          aria-label={`${t(`capture.${side}`)} ${tReview("opponentTagLabel")}`}
-          disabled={!editable || controlsDisabled}
-        />
-        <input
-          className={`flex-1 ${inputCls}`}
-          value={value.name ?? ""}
-          onChange={(event) =>
-            controller.setField(side, { name: event.target.value || null })
-          }
-          placeholder={tReview("opponentNameLabel")}
-          aria-label={`${t(`capture.${side}`)} ${tReview("opponentNameLabel")}`}
-          disabled={!editable || controlsDisabled}
-        />
-        <input
-          className={`w-24 ${inputCls}`}
-          value={value.server != null ? String(value.server) : ""}
-          inputMode="numeric"
-          onChange={(event) => {
-            const parsed = parseServerInput(event.target.value);
-            if (parsed === undefined) return;
-            controller.setField(side, { server: parsed });
-          }}
-          placeholder={tReview("opponentServerLabel")}
-          aria-label={`${t(`capture.${side}`)} ${tReview("opponentServerLabel")}`}
-          disabled={!editable || controlsDisabled}
-        />
-      </div>
-    );
-  }
+  const ourOutcome =
+    kind === "daily_totals" && ourSide
+      ? dailyOutcome(
+          ourSide,
+          ourSide === "left" ? form.leftScore : form.rightScore,
+          foeSide === "left" ? form.leftScore : form.rightScore,
+          form.day,
+          form.winners,
+        )
+      : null;
 
   function dayField() {
     return (
@@ -452,7 +430,7 @@ export function VsVideoEvidencePanel(props: {
       {kind === "weekly_overview" && hasImage ? (
         <p className="text-xs text-hq-fg-muted">{tv("weeklyOnly")}</p>
       ) : null}
-      {kind === "daily_totals" && hasImage && !finalDayAllowed ? (
+      {kind === "daily_totals" && hasImage && !form.finalDay ? (
         <p className="text-xs text-hq-fg-muted">{t("capture.noFinals")}</p>
       ) : null}
       {showOpponentScore && form.opponentScore.trim() !== "" && !hasImage ? (
@@ -623,7 +601,7 @@ export function VsVideoEvidencePanel(props: {
         <div className="space-y-3" data-testid="vs-video-evidence-review">
           {kind === "daily_totals" && hasImage ? (
             <>
-              {dayNeedsAttention ? dayField() : null}
+              {dayField()}
               {ourSide ? (
                 <label className="block text-xs text-hq-fg-muted">
                   {t("results.ourTotal")}
@@ -642,20 +620,13 @@ export function VsVideoEvidencePanel(props: {
                     aria-label={t("results.ourTotal")}
                     disabled={!canEdit || controlsDisabled}
                   />
+                  {ourOutcome ? (
+                    <span className="ml-2 text-hq-fg">
+                      {t(`results.${ourOutcome}`)}
+                    </span>
+                  ) : null}
                 </label>
               ) : null}
-              <label className="flex items-center gap-2 text-xs text-hq-fg">
-                <input
-                  type="checkbox"
-                  checked={!finalDayAllowed || !form.finalDay}
-                  onChange={(event) =>
-                    controller.setField("finalDay", !event.target.checked)
-                  }
-                  disabled={!canEdit || !finalDayAllowed || controlsDisabled}
-                  data-testid="vs-video-finalday"
-                />
-                {tv("partialDay")}
-              </label>
             </>
           ) : null}
 
@@ -786,7 +757,7 @@ export function VsVideoEvidencePanel(props: {
         </div>
       ) : null}
 
-      {hasImage || canEdit ? (
+      {hasImage ? (
         <details
           className="rounded-lg border border-hq-border p-3"
           data-testid="vs-video-advanced"
@@ -795,74 +766,39 @@ export function VsVideoEvidencePanel(props: {
             {tv("advanced")}
           </summary>
           <div className="mt-3 space-y-3">
-            {hasImage ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(["left", "right"] as const).map((side) => {
-                    const isOwn = ourSide === side;
-                    return (
-                      <fieldset
-                        key={side}
-                        className="rounded-lg border border-hq-border p-2"
-                      >
-                        <legend className="px-1 text-xs font-medium text-hq-fg">
-                          {t(`capture.${side}`)}
-                        </legend>
-                        {allianceInputs(side, form[side], canEdit && isOwn)}
-                      </fieldset>
-                    );
-                  })}
-                </div>
-                <label className="flex items-center gap-2 text-xs text-hq-fg">
-                  {t("capture.ourSide")}
-                  <select
-                    className={inputCls}
-                    value={ourSide ?? ""}
-                    onChange={(event) => {
-                      const side = event.target.value;
-                      if (side === "left" || side === "right") {
-                        controller.chooseSide(side);
-                      }
-                    }}
-                    disabled={!canEdit || controlsDisabled}
-                    data-testid="vs-video-ourside"
-                  >
-                    <option value="" disabled>
-                      {t("capture.unknown")}
-                    </option>
-                    <option value="left">{t("capture.left")}</option>
-                    <option value="right">{t("capture.right")}</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2 text-xs text-hq-fg">
-                  <input
-                    type="checkbox"
-                    checked={form.confirmSides}
-                    onChange={(event) =>
-                      controller.setField("confirmSides", event.target.checked)
-                    }
-                    disabled={!canEdit || controlsDisabled}
-                    data-testid="vs-video-confirm-sides"
-                  />
-                  {t("capture.confirmSides")}
-                </label>
-                {kind === "daily_totals" && !dayNeedsAttention
-                  ? dayField()
-                  : null}
-              </>
-            ) : null}
-            {canEdit ? (
+            <label className="flex items-center gap-2 text-xs text-hq-fg">
+              {t("capture.ourSide")}
+              <select
+                className={inputCls}
+                value={ourSide ?? ""}
+                onChange={(event) => {
+                  const side = event.target.value;
+                  if (side === "left" || side === "right") {
+                    controller.chooseSide(side);
+                  }
+                }}
+                disabled={!canEdit || controlsDisabled}
+                data-testid="vs-video-ourside"
+              >
+                <option value="" disabled>
+                  {t("capture.unknown")}
+                </option>
+                <option value="left">{t("capture.left")}</option>
+                <option value="right">{t("capture.right")}</option>
+              </select>
+            </label>
+            {kind === "daily_totals" ? (
               <label className="flex items-center gap-2 text-xs text-hq-fg">
                 <input
                   type="checkbox"
-                  checked={controller.includeResults}
+                  checked={!form.finalDay}
                   onChange={(event) =>
-                    controller.setIncludeResults(event.target.checked)
+                    controller.setField("finalDay", !event.target.checked)
                   }
-                  disabled={controlsDisabled}
-                  data-testid="vs-video-include-results"
+                  disabled={!canEdit || controlsDisabled}
+                  data-testid="vs-video-finalday"
                 />
-                {tv("includeResults")}
+                {tv("partialDay")}
               </label>
             ) : null}
           </div>
@@ -878,7 +814,7 @@ export function VsVideoEvidencePanel(props: {
             type="button"
             disabled={
               controlsDisabled ||
-              (form.source === "screenshot" && !form.confirmSides)
+              (form.source === "screenshot" && form.ourSide === null)
             }
             onClick={() => void saveMatchOnly()}
             className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"

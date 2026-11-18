@@ -155,8 +155,14 @@ describe("seedVsVideoDraftForm", () => {
   it("keeps a completed day partial when the screenshot is still in progress", () => {
     const ongoing = response({});
     ongoing.evidence.candidate = { ...dailyCandidate, ongoing: true };
-    expect(seedVsVideoDraftForm(ongoing).finalDay).toBe(false);
-    expect(seedVsVideoDraftForm(response({ today: "2026-09-29" })).finalDay).toBe(false);
+    expect(seedVsVideoDraftForm(ongoing).finalDay).toBe(true);
+    const sameDay = response({ today: "2026-09-29" });
+    expect(
+      seedVsVideoDraftForm(sameDay, new Date("2026-09-29T23:44:00-02:00")).finalDay,
+    ).toBe(false);
+    expect(
+      seedVsVideoDraftForm(sameDay, new Date("2026-09-29T23:45:00-02:00")).finalDay,
+    ).toBe(true);
   });
 
   it("keeps the saved weekly opponent instead of the screenshot read", () => {
@@ -229,15 +235,17 @@ describe("chooseVsVideoSide / mergeVsVideoCandidate", () => {
     expect(chosen.left.server).toBe(1203);
   });
 
-  it("does not auto-correct a non-null misread own tag", () => {
+  it("replaces a misread own tag with the alliance identity", () => {
     const res = response({});
     res.evidence.candidate = {
       ...dailyCandidate,
       left: { ...dailyCandidate.left, tag: "LFyo" },
     };
-    const form = { ...seedVsVideoDraftForm(res), ourSide: null };
-    const chosen = chooseVsVideoSide(form, res, "left");
-    expect(chosen.left.tag).toBe("LFyo");
+    const form = seedVsVideoDraftForm(res);
+    expect(form.left.tag).toBe("LFgo");
+    expect(form.left.name).toBe("Lifeguard");
+    const chosen = chooseVsVideoSide({ ...form, ourSide: null }, res, "left");
+    expect(chosen.left.tag).toBe("LFgo");
   });
 
   it("preserves the chosen side and opponent across candidate merges", () => {

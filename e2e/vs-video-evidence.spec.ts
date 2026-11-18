@@ -60,14 +60,13 @@ async function openVideoAdvanced(page: Page) {
 async function reviewDailyDayTwo(page: Page) {
   await attachScreenshot(page, dayTwoPng);
   await openVideoAdvanced(page);
-  await page.getByTestId("vs-video-ourside").selectOption("left");
-  await panel(page)
-    .getByLabel("Left alliance Tag", { exact: true })
-    .fill("LFgo");
-  await panel(page)
-    .getByLabel("Opponent alliance tag", { exact: true })
-    .fill("TriV");
-  await page.getByTestId("vs-video-confirm-sides").check();
+  await expect(page.getByTestId("vs-video-ourside")).toHaveValue("left");
+  const opponentTag = panel(page).getByLabel("Opponent alliance tag", {
+    exact: true,
+  });
+  if ((await opponentTag.inputValue()) !== "TriV") {
+    await opponentTag.fill("TriV");
+  }
   await expect(page.getByTestId("vs-video-finalday")).not.toBeChecked();
 }
 
@@ -311,7 +310,6 @@ test("b) daily totals screenshot drives the totals comparison and combined save"
   const submitResponse = page.waitForResponse(
     (res) => res.url().endsWith("/submit") && res.request().method() === "POST",
   );
-  await page.getByTestId("vs-video-include-results").check();
   await saveButton.click();
   expect((await submitResponse).status()).toBe(200);
   const body = (await submitRequest).postDataJSON() as {
@@ -376,8 +374,6 @@ test("c) manual opponent score saves match results without a screenshot or sides
     .getByLabel("Opponent score", { exact: true })
     .fill("333");
 
-  await openVideoAdvanced(page);
-  await page.getByTestId("vs-video-include-results").check();
   await page
     .getByRole("button", { name: "Save 1 scores", exact: true })
     .click();
@@ -406,7 +402,7 @@ test("c) manual opponent score saves match results without a screenshot or sides
   await page.waitForURL(/\/tools\/video-upload\/[^/]+\/event/);
   const dbgRow = await evidenceRow(sql, job.jobId, f.allianceId);
   expect(dbgRow?.draft).toBeNull();
-  await expect(page.getByTestId("vs-video-include-results")).not.toBeChecked();
+  await expect(page.getByTestId("vs-video-include-results")).toHaveCount(0);
   await expect(page.getByTestId("vs-video-save-match")).toHaveCount(0);
   await expect(
     panel(page).getByText("Screenshot results have not been applied.", {
@@ -436,7 +432,6 @@ test("d) weekly overview saves reported points and preserves confirmed daily tot
 
   await gotoReview(page, dailyJob.jobId);
   await reviewDailyDayTwo(page);
-  await page.getByTestId("vs-video-include-results").check();
   await page
     .getByRole("button", { name: "Save 1 scores", exact: true })
     .click();
@@ -482,8 +477,6 @@ test("d) weekly overview saves reported points and preserves confirmed daily tot
   ).toHaveValue("0");
   await page.getByTestId("vs-video-winner-1").selectOption("left");
   await page.getByTestId("vs-video-winner-2").selectOption("left");
-  await page.getByTestId("vs-video-confirm-sides").check();
-  await page.getByTestId("vs-video-include-results").check();
 
   const submitResponse = page.waitForResponse(
     (res) => res.url().endsWith("/submit") && res.request().method() === "POST",
@@ -599,7 +592,6 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
   await expect(
     panel(page).getByLabel("Opponent alliance name", { exact: true }),
   ).toHaveValue("TriVision");
-  await expect(page.getByTestId("vs-video-confirm-sides")).toBeChecked();
 
   const uploadHold = await holdRoute(
     page,
@@ -621,7 +613,6 @@ test("e) held responses preserve in-flight edits and replay a lost save once", a
   await expect(
     panel(page).getByLabel("Opponent alliance name", { exact: true }),
   ).toHaveValue("TriVision");
-  await expect(page.getByTestId("vs-video-confirm-sides")).toBeChecked();
 
   const removeHold = await holdRoute(
     page,
@@ -905,7 +896,7 @@ test("f) session and role boundaries hold for evidence reads and writes", async 
   await expect(
     panel(page).getByLabel("Opponent alliance tag", { exact: true }),
   ).toHaveValue("DRF");
-  await expect(page.getByTestId("vs-video-include-results")).not.toBeChecked();
+  await expect(page.getByTestId("vs-video-include-results")).toHaveCount(0);
 });
 
 test("h) sync retries preserve unsaved review edits", async ({
@@ -954,11 +945,8 @@ test("h) sync retries preserve unsaved review edits", async ({
   const opponentScore = panel(page).getByLabel("Opponent score", {
     exact: true,
   });
-  const include = page.getByTestId("vs-video-include-results");
-  await openVideoAdvanced(page);
   await opponentName.fill("KeepMeName");
   await opponentScore.fill("555");
-  await include.check();
 
   const scoresRetry = panel(page)
     .locator("span", { hasText: "Player-score sync" })
@@ -972,11 +960,9 @@ test("h) sync retries preserve unsaved review edits", async ({
   await scoresRetry.click();
   await expect(opponentName).toHaveValue("KeepMeName");
   await expect(opponentScore).toHaveValue("555");
-  await expect(include).toBeChecked();
   await matchRetry.click();
   await expect(opponentName).toHaveValue("KeepMeName");
   await expect(opponentScore).toHaveValue("555");
-  await expect(include).toBeChecked();
 });
 
 test("i) a video-only save flushes the pending manual draft", async ({

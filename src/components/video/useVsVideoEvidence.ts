@@ -30,7 +30,16 @@ import {
 } from "@/lib/vs-performance/video-evidence.shared";
 
 function includeResultsForFreshSeed(response: VsVideoEvidenceResponse): boolean {
-  return response.evidence.fileName != null;
+  return response.draftIsOwn && response.evidence.fileName != null;
+}
+
+function includeResultsForDraft(
+  response: VsVideoEvidenceResponse,
+  stored: boolean | undefined,
+): boolean {
+  if (!response.draftIsOwn) return false;
+  if (response.evidence.fileName != null) return true;
+  return stored ?? false;
 }
 
 type DirtyField = VsVideoDraftForm["dirtyFields"][number];
@@ -182,7 +191,9 @@ export function useVsVideoEvidence(input: {
           restored.finalDay = false;
           applyInclude(false);
         } else {
-          applyInclude(serverDraft?.includeResults ?? false);
+          applyInclude(
+            includeResultsForDraft(response, serverDraft?.includeResults),
+          );
         }
         applyForm(restored);
       } else {
@@ -247,7 +258,9 @@ export function useVsVideoEvidence(input: {
             restored.finalDay = false;
             applyInclude(false);
           } else {
-            applyInclude(serverDraft?.includeResults ?? false);
+            applyInclude(
+              includeResultsForDraft(response, serverDraft?.includeResults),
+            );
           }
           applyForm(restored);
         } else {
@@ -787,8 +800,20 @@ export function useVsVideoEvidence(input: {
         window.clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = null;
       }
-      const include = includeRef.current || options?.forceInclude === true;
       const snapshot = stateRef.current;
+      const draftNow = formRef.current;
+      const ownEditor = snapshot?.draftIsOwn !== false && snapshot?.canEditMatch === true;
+      const manualEntry =
+        draftNow?.source === "manual" &&
+        (draftNow.opponentScore.trim() !== "" ||
+          draftNow.opponent.tag != null ||
+          draftNow.opponent.name != null ||
+          draftNow.opponent.server != null);
+      const include =
+        options?.forceInclude === true ||
+        includeRef.current ||
+        (ownEditor &&
+          (snapshot?.evidence.fileName != null || manualEntry === true));
       const pendingScreenshot =
         include &&
         options?.forceInclude !== true &&
