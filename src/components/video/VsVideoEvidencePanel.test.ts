@@ -129,14 +129,12 @@ describe("VsVideoEvidencePanel capability gating", () => {
     const remove = html.match(/<button[^>]*>\s*Remove screenshot\s*<\/button>/);
     expect(remove?.[0]).toBeTruthy();
     expect(remove?.[0]).not.toContain('disabled=""');
-    const tagInput = html.match(
-      /<input[^>]*aria-label="Left alliance Tag"[^>]*>/,
+    const side = html.match(
+      /<select[^>]*data-testid="vs-video-ourside"[^>]*>/,
     );
-    expect(tagInput?.[0]).toContain('disabled=""');
-    const include = html.match(
-      /<input[^>]*data-testid="vs-video-include-results"[^>]*>/,
-    );
-    if (include) expect(include[0]).toContain('disabled=""');
+    expect(side?.[0]).toContain('disabled=""');
+    expect(html).not.toContain('aria-label="Left alliance Tag"');
+    expect(html).not.toContain('data-testid="vs-video-include-results"');
     expect(html).not.toContain('data-testid="vs-video-save-match"');
   });
 
@@ -145,11 +143,12 @@ describe("VsVideoEvidencePanel capability gating", () => {
     expect(html).not.toContain(
       "An alliance officer must review and save match results.",
     );
-    const tagInput = html.match(
-      /<input[^>]*aria-label="Left alliance Tag"[^>]*>/,
+    const side = html.match(
+      /<select[^>]*data-testid="vs-video-ourside"[^>]*>/,
     );
-    expect(tagInput?.[0]).toBeTruthy();
-    expect(tagInput?.[0]).not.toContain('disabled=""');
+    expect(side?.[0]).toBeTruthy();
+    expect(side?.[0]).not.toContain('disabled=""');
+    expect(html).toContain("Advanced Options");
     expect(html).toContain('data-testid="vs-video-save-match"');
   });
 });

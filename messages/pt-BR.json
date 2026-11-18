@@ -8461,6 +8461,7 @@
       "loading": "Carregando…",
       "retry": "Tentar novamente"
     },
+    "moreActions": "Mais",
     "errors": {
       "load": "Não foi possível carregar o plano VS e a classificação desta semana.",
       "save": "Não foi possível salvar suas alterações. Suas edições foram mantidas.",
@@ -8560,6 +8561,12 @@
       "editIdentity": "Editar informações do oponente",
       "officerOnly": "Um oficial da aliança deve revisar e salvar os resultados do confronto.",
       "includeResults": "Salvar os resultados revisados do confronto junto com estas pontuações.",
+      "partialDay": "Estas pontuações são parciais (o dia ainda não terminou)",
+      "advanced": "Opções avançadas",
+      "tagPlaceholder": "Tag",
+      "namePlaceholder": "Nome",
+      "serverPlaceholder": "Servidor",
+      "noOpponentMatches": "Nenhum oponente correspondente.",
       "contextMismatch": "Esta captura de tela não corresponde à data do VS ou ao tipo de pontuação selecionado. Revise a data e a captura de tela antes de salvar os resultados do confronto.",
       "identityMismatch": "As tags de aliança da captura de tela não correspondem ao confronto salvo. Confirme os lados e corrija as tags antes de salvar.",
       "weeklyOnly": "Esta captura de tela mostra resultados diários e pontos de vitória semanais, não totais de pontuação diária.",

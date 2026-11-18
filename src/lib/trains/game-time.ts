@@ -22,6 +22,19 @@ export function formatServerCalendarDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Minutes since midnight in game server time (UTC−2), from 0 through 1439. */
+export function getServerMinutesOfDay(now = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: SERVER_TIME_IANA,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
 /** Day of week 0=Sun … 6=Sat in server time. */
 export function getServerDayOfWeek(dateStr: string): number {
   const anchor = new Date(`${dateStr}T12:00:00.000-02:00`);
