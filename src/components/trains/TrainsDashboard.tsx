@@ -2746,7 +2746,7 @@ export function TrainsDashboard({
   const canRoll = canRollForDate(selectedDate, data.today);
   const canPickConductor = !locked && canManualPickForDate();
   const canManualPickVip =
-    locked &&
+    Boolean(selectedRecord?.conductorMemberId) &&
     supportsManualVipPickForRule(selectedVipRule) &&
     canManualPickForDate();
   const rosterBlocking =

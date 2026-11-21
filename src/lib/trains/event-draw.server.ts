@@ -208,13 +208,13 @@ export async function rollEventForTrain(
       );
     }
 
-    // VIP draws require a locked conductor; the pure eligibility already
+    // VIP draws need a conductor (pending or locked). Eligibility already
     // excluded the conductor from candidates.
     const record = await getConductorRecord(actor.allianceId, input.date, seasonKey, tx);
-    if (input.role === "vip" && (!record?.lockedAt || !record.conductorMemberId)) {
+    if (input.role === "vip" && !record?.conductorMemberId) {
       throwEventDraw(
         "EVENT_NOT_SELECTED",
-        "Lock the conductor before spinning VIP.",
+        "Select a conductor before spinning VIP.",
       );
     }
     if (input.role === "conductor" && record?.lockedAt) {
@@ -282,17 +282,22 @@ export async function rollEventForTrain(
     });
 
     if (input.role === "vip") {
-      await assignVipOnLockedConductor({
+      const vipWrite = {
         allianceId: actor.allianceId,
         date: input.date,
         seasonKey,
         vipMemberId: winnerId,
         vipMemberName: winnerName,
-        vipMechanism: "event_scores",
+        vipMechanism: "event_scores" as const,
         vipRule: rule,
         vipEventDrawId: draw.id,
         tx,
-      });
+      };
+      if (record?.lockedAt) {
+        await assignVipOnLockedConductor(vipWrite);
+      } else {
+        await upsertConductorDraft(vipWrite);
+      }
     } else {
       await upsertConductorDraft({
         allianceId: actor.allianceId,

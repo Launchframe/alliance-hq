@@ -29,6 +29,7 @@ vi.mock("@/lib/trains/day-config-resolve.server", () => ({
 vi.mock("@/lib/trains/repository", () => ({
   getConductorRecord: vi.fn(),
   assignVipOnLockedConductor: vi.fn(),
+  upsertConductorDraft: vi.fn(),
 }));
 
 vi.mock("@/lib/trains/rank-history", () => ({
@@ -121,11 +122,24 @@ describe("VIP pick is an open roster assign", () => {
     expect(assignVipOnLockedConductor).toHaveBeenCalled();
   });
 
-  it("rejects VIP pick before lock", async () => {
-    const { getConductorRecord } = await import("@/lib/trains/repository");
+  it("saves a pending VIP on the unlocked draft", async () => {
+    const { getConductorRecord, upsertConductorDraft, assignVipOnLockedConductor } =
+      await import("@/lib/trains/repository");
+    const { resolveRollDayConfig } = await import(
+      "@/lib/trains/day-config-resolve.server"
+    );
     vi.mocked(getConductorRecord).mockResolvedValue({
       lockedAt: null,
       conductorMemberId: "m-conductor",
+      vipMemberId: null,
+    } as never);
+    vi.mocked(resolveRollDayConfig).mockResolvedValue({
+      dayConfigId: "day-1",
+      vipRule: null,
+    } as never);
+    vi.mocked(upsertConductorDraft).mockResolvedValue({
+      lockedAt: null,
+      vipMemberId: "m-alice",
     } as never);
 
     const res = await POST(
@@ -136,9 +150,34 @@ describe("VIP pick is an open roster assign", () => {
       }),
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
+    expect(upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vipMemberId: "m-alice",
+        vipMemberName: "Alice",
+      }),
+    );
+    expect(assignVipOnLockedConductor).not.toHaveBeenCalled();
+  });
+
+  it("rejects VIP pick when no conductor is set", async () => {
+    const { getConductorRecord } = await import("@/lib/trains/repository");
+    vi.mocked(getConductorRecord).mockResolvedValue({
+      lockedAt: null,
+      conductorMemberId: null,
+    } as never);
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/vip/pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(BASE_BODY),
+      }),
+    );
+
+    expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/lock/i);
+    expect(body.error).toMatch(/conductor/i);
   });
 
   it("rejects VIP pick when the day has no VIP", async () => {

@@ -128,7 +128,7 @@ export function TrainMonthToolbar({
   const singleDay = selectedCount === 1;
 
   const canManualPick = singleDay && !locked;
-  const canManualPickVip = singleDay && locked && vipNeeded;
+  const canManualPickVip = singleDay && vipNeeded && hasConductor;
   const canClearPending = singleDay && hasConductor && !locked;
   const canLockUnlock =
     singleDay &&

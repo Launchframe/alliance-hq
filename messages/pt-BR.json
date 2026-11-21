@@ -4529,12 +4529,13 @@
           "pickManual": "Escolher VIP manualmente",
           "assigned": "VIP: {name}",
           "change": "Alterar",
-          "skipped": "Deixar o condutor decidir"
+          "skipped": "Deixar o condutor decidir",
+          "lockWithoutVip": "Confirmar sem VIP"
         },
         "lock": {
           "title": "Confirmar",
           "lockCta": "Confirmar condutor",
-          "ready": "Pronto para confirmar e criar o trem de hoje. Se você confirmar, pode desbloquear até a meia-noite no horário do servidor."
+          "ready": "Pronto para confirmar e criar o trem de hoje. O VIP pendente confirma junto com o condutor. Se você confirmar, pode desbloquear até a meia-noite no horário do servidor."
         },
         "done": {
           "title": "Tudo pronto",

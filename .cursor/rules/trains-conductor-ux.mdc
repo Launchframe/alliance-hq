@@ -42,19 +42,19 @@ Canonical lists: `DAY_RULE_PALETTE` in `rules/palette.shared.ts` (day rules) vs 
 
 - Do **not** put week templates (e.g. `vs_push_week`) in single-day pickers.
 - **Event results rule (`event_scores`)** — every paint surface (day mechanism picker, long-press context menu, month toolbar, hotkeys, template editor) funnels to the same `EventRulePicker` / `applyPaint` path (`paletteEntryOpensEventPicker` — the palette entry never paints a bare `null`). Day mode binds an occurrence; **template mode binds family/series intent only — `occurrenceId` is always null** and the applied day renders `eventNotSelected` until an officer chooses the event. VIP and conductor configure independently through the same picker; the Warzone defaults action sets both in one `applyPaint`.
-- **Event readiness gates the conductor wheel** — an `event_scores` conductor rule blocks spins until the bound event's reviewed evidence is ready (`guidedFlowPrerequisitesBlocking` treats it like missing VS; unknown stays non-blocking). Legacy `event_top_x` and unbound `event_scores` days show `eventNotSelected` + Configure everywhere instead. VIP evidence never blocks the conductor draw; lock-before-VIP ordering is unchanged.
+- **Event readiness gates the conductor wheel** — an `event_scores` conductor rule blocks spins until the bound event's reviewed evidence is ready (`guidedFlowPrerequisitesBlocking` treats it like missing VS; unknown stays non-blocking). Legacy `event_top_x` and unbound `event_scores` days show `eventNotSelected` + Configure everywhere instead. VIP evidence never blocks the conductor draw; VIP may still be pending before lock.
 - **Preset resolution** maps each calendar weekday to one slot of the preset's 7-slot array in `rules/presets.shared.ts` — **not** alliance `trainWeekStartDow`. A Monday-start train week still paints Tue–Sat push and Sun–Mon R4 days on the correct calendar days.
 - Day-painted mechanism **sticks** unless impossible for that server date (e.g. TPIF on Monday bounces; Saturday **day** TPIF must not auto-rewrite to the week’s heavy-hitter segment).
 - Changing a day’s conductor mechanism **keeps** the pending or locked conductor when they are still eligible for the new rule (do not reset them). If they are **not** eligible, officers who can unlock (train owner in-window, alliance owner, or platform maintainer) confirm **Clear the conductor and change rules?**; otherwise offer **Request to unlock this conductor**. Do not leave a locked-day paint as a dead-end API error toast. A VIP-only paint can never clear or block a conductor.
 - Saturday's `takedown_week` rule is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
 
-## Lifecycle: conductor → lock → VIP
+## Lifecycle: conductor → VIP (optional pending) → lock
 
-In-game: conductor boards (lock/spawn) **before** VIP can board.
+Officers may set **pending** conductor and VIP before lock so both can be communicated, then lock them together.
 
-- Guided order: `… → conductor → lock → vip → done` (`guided-flow.shared.ts` / `currentGuidedStep`).
-- VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked. Guided VIP step shows **Pick VIP manually** next to Spin (same parity as conductor). Month toolbar Crown is VIP pick after lock. **Manual VIP pick is an open roster assign** — it must not consult or consume conductor/event pools.
-- Do **not** put VIP before lock in UI, skill, or docs.
+- Guided order: `… → conductor → vip → lock → done` (`guided-flow.shared.ts` / `currentGuidedStep`).
+- VIP assign/spin does **not** require `lockedAt`. Unlocked picks draft via `upsertConductorDraft`; locked picks use `assignVipOnLockedConductor`. Guided VIP step shows **Pick VIP manually** (and Spin when the rule wheels) plus **Lock without VIP** when still unlocked. Month toolbar Crown is VIP pick whenever a conductor is set. **Manual VIP pick is an open roster assign** — it must not consult or consume conductor/event pools.
+- Lock without VIP is allowed. After lock, officers may still add or change VIP on the locked train (`assignVipOnLockedConductor`).
 - **Clear pending conductor** — officers may unassign an unlocked draft (`POST /api/trains/conductor/clear`). This **releases** the depleting-pool slot. Distinct from **Unlock** (undoes `lockedAt` only). **Train ownership:** the locking officer may unlock until midnight Server Time of that train day (past-day locks remain unlockable by that officer). After midnight, alliance owner or platform maintainer. Show the control in guided Conductor step, advanced quick-actions, and month toolbar when `conductorMemberId` is set and `lockedAt` is null.
 
 ## Dates (server calendar)

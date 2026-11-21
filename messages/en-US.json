@@ -4582,12 +4582,13 @@
           "pickManual": "Pick VIP manually",
           "assigned": "VIP: {name}",
           "change": "Change",
-          "skipped": "Let the conductor decide"
+          "skipped": "Let the conductor decide",
+          "lockWithoutVip": "Lock without VIP"
         },
         "lock": {
           "title": "Lock",
           "lockCta": "Lock conductor",
-          "ready": "Ready to lock and spawn today’s train. If you lock it, you can unlock until midnight Server Time."
+          "ready": "Ready to lock and spawn today’s train. Pending VIP locks with the conductor. If you lock it, you can unlock until midnight Server Time."
         },
         "done": {
           "title": "All set",

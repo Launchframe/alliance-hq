@@ -126,8 +126,8 @@ const STEP_ORDER: StepId[] = [
   "roster",
   "prerequisites",
   "conductor",
-  "lock",
   "vip",
+  "lock",
   "done",
 ];
 
@@ -797,6 +797,48 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
           ) : null}
         </StepRow>
 
+        <StepRow status={vipStatus} title={t("steps.vip.title")}>
+          {vipStatus === "skipped" ? (
+            <p className="text-sm text-hq-fg-muted">{t("steps.vip.skipped")}</p>
+          ) : vipStatus === "completed" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-hq-fg-muted">
+                {t("steps.vip.assigned", { name: vipName ?? "—" })}
+              </span>
+              {canManualPickVip ? (
+                <ChangeLink label={t("steps.vip.change")} onClick={onPickVipManual} />
+              ) : null}
+            </div>
+          ) : vipStatus === "current" ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {vipAction ? (
+                <PrimaryCtaButton action={vipAction} busy={busy} />
+              ) : null}
+              {showSecondaryPickVip ? (
+                <button
+                  type="button"
+                  onClick={onPickVipManual}
+                  data-testid="trains-guided-pick-vip"
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                >
+                  {t("steps.vip.pickManual")}
+                </button>
+              ) : null}
+              {!locked ? (
+                <button
+                  type="button"
+                  onClick={onLock}
+                  disabled={busy}
+                  data-testid="trains-guided-lock-without-vip"
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface disabled:opacity-50 sm:w-auto"
+                >
+                  {t("steps.vip.lockWithoutVip")}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </StepRow>
+
         <StepRow status={lockStatus} title={t("steps.lock.title")}>
           {lockStatus === "current" ? (
             <div ref={lockStepRef} className="flex flex-col gap-2">
@@ -833,37 +875,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                   )}
                 </>
               )}
-            </div>
-          ) : null}
-        </StepRow>
-
-        <StepRow status={vipStatus} title={t("steps.vip.title")}>
-          {vipStatus === "skipped" ? (
-            <p className="text-sm text-hq-fg-muted">{t("steps.vip.skipped")}</p>
-          ) : vipStatus === "completed" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-hq-fg-muted">
-                {t("steps.vip.assigned", { name: vipName ?? "—" })}
-              </span>
-              {canManualPickVip ? (
-                <ChangeLink label={t("steps.vip.change")} onClick={onPickVipManual} />
-              ) : null}
-            </div>
-          ) : vipStatus === "current" ? (
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {vipAction ? (
-                <PrimaryCtaButton action={vipAction} busy={busy} />
-              ) : null}
-              {showSecondaryPickVip ? (
-                <button
-                  type="button"
-                  onClick={onPickVipManual}
-                  data-testid="trains-guided-pick-vip"
-                  className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
-                >
-                  {t("steps.vip.pickManual")}
-                </button>
-              ) : null}
             </div>
           ) : null}
         </StepRow>
