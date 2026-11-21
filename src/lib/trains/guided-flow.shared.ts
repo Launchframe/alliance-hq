@@ -78,13 +78,17 @@ export function guidedFlowPrerequisitesBlocking(
 
 /**
  * First incomplete step for the guided flow primary CTA.
+ *
+ * VIP may be pending before lock so officers can communicate both names,
+ * then lock conductor + VIP together. VIP remains optional: the VIP step
+ * offers lock-without-VIP when still unlocked. After lock, a missing VIP
+ * still surfaces so officers can add one on the locked train.
  */
 export function currentGuidedStep(input: GuidedFlowInput): GuidedFlowStep {
   if (guidedFlowRosterBlocking(input)) return "roster";
   if (guidedFlowPrerequisitesBlocking(input)) return "prerequisites";
   if (!input.hasConductor) return "conductor";
-  // Lock before VIP: conductor must board (lock/spawn) before VIP can board.
-  if (!input.locked) return "lock";
   if (input.vipNeeded && !input.hasVip) return "vip";
+  if (!input.locked) return "lock";
   return "done";
 }
