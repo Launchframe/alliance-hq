@@ -257,12 +257,16 @@ export function conductorRuleDrawsPairedVip(input: {
   );
 }
 
-/** VIP boards after the conductor is locked / spawned in game. */
+/**
+ * VIP wheel eligibility by rule. Manual and wheel VIP may be pending on an
+ * unlocked draft; lock freezes the conductor (and any pending VIP) together.
+ * The second argument is retained for call-site compatibility and ignored.
+ */
 export function canSpinVipForRule(
   rule: VipRule | null,
-  locked: boolean,
+  _locked?: boolean,
 ): boolean {
-  if (!locked || !rule || rule.kind === "none") return false;
+  if (!rule || rule.kind === "none") return false;
   return (
     rule.kind === "donations_second" ||
     rule.kind === "vs_top_n" ||

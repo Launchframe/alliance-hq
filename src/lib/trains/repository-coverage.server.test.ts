@@ -29,9 +29,31 @@ beforeEach(() => {
   mocks.sequence.length = 0;
 });
 
-for (const path of ["draft", "vip", "lock"] as const) describe(`transaction-bound ${path} assignment`, () => {
-  const run = () => path === "draft" ? upsertConductorDraft(input) : path === "vip" ? assignVipOnLockedConductor({ allianceId: "alliance", date: input.date, vipMemberId: "member", vipMemberName: "Commander" }) : lockConductorRecord("draft", "alliance", "officer");
-  beforeEach(() => { if (path === "vip") mocks.row.lockedAt = new Date("2099-09-09T12:00:00Z"); });
+for (const path of ["draft", "vipDraft", "vip", "lock"] as const)
+  describe(`transaction-bound ${path} assignment`, () => {
+  const run = () =>
+    path === "draft"
+      ? upsertConductorDraft(input)
+      : path === "vipDraft"
+        ? upsertConductorDraft({
+            allianceId: "alliance",
+            date: input.date,
+            vipMemberId: "member",
+            vipMemberName: "Commander",
+          })
+        : path === "vip"
+          ? assignVipOnLockedConductor({
+              allianceId: "alliance",
+              date: input.date,
+              vipMemberId: "member",
+              vipMemberName: "Commander",
+            })
+          : lockConductorRecord("draft", "alliance", "officer");
+  beforeEach(() => {
+    if (path === "vip") {
+      mocks.row.lockedAt = new Date("2099-09-09T12:00:00Z");
+    }
+  });
   it("rejects an away assignment before any draft, pool, lock or spawn write", async () => {
     await expect(run()).rejects.toBeInstanceOf(CoverageConflictError);
     expect(mocks.writes).not.toHaveBeenCalled();

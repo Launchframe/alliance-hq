@@ -1779,11 +1779,8 @@ export async function rollForVip(input: {
     input.date,
     seasonKey,
   );
-  if (!record?.lockedAt) {
-    throw new Error("Lock the conductor before assigning VIP.");
-  }
-  if (!record.conductorMemberId) {
-    throw new Error("No conductor set for this day.");
+  if (!record?.conductorMemberId) {
+    throw new Error("Select a conductor before assigning VIP.");
   }
 
   const dayConfig = await resolveRollDayConfig(
@@ -1852,7 +1849,7 @@ export async function rollForVip(input: {
         winner.memberId,
         input.date,
       );
-      await assignVipOnLockedConductor({
+      const vipWrite = {
         allianceId: input.allianceId,
         date: input.date,
         seasonKey,
@@ -1862,7 +1859,12 @@ export async function rollForVip(input: {
         vipMechanism: mechanism,
         vipRule,
         dayConfigId: dayConfig.dayConfigId,
-      });
+      };
+      if (record.lockedAt) {
+        await assignVipOnLockedConductor(vipWrite);
+      } else {
+        await upsertConductorDraft(vipWrite);
+      }
       result.draftPersisted = true;
       return { ...result, rule: vipRule };
     }

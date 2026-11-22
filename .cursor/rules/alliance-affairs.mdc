@@ -80,7 +80,7 @@ Leadership may pivot Tue–Sun to economy-style (`r3_lottery`) after assessing D
 
 - `vipConfig.eventKey`: `capitol_war`, `meteorite_war` (default `capitol_war`).
 - Event top scorers fetched from Ashed **`KillScore`** when available; falls back to dated **`VSScore`** if entity unknown.
-- The **wheel** may spin that event board (`event_top_x` pool). **Manual VIP / Guardian pick is always an open roster assign** after lock — it does not check or consume that pool.
+- The **wheel** may spin that event board (`event_top_x` pool). **Manual VIP / Guardian pick is always an open roster assign** whenever a conductor is set (pending before lock or on the locked train) — it does not check or consume that pool.
 
 ## Native vs Ashed alliances
 

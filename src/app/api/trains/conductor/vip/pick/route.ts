@@ -7,6 +7,7 @@ import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   assignVipOnLockedConductor,
   getConductorRecord,
+  upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import { getServerCalendarDate } from "@/lib/trains/service";
@@ -18,8 +19,10 @@ import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 export const dynamic = "force-dynamic";
 
 /**
- * Manual VIP / Guardian pick is an open roster assign after lock. It must not
- * seed, claim, or release depleting pools — those are conductor-wheel only.
+ * Manual VIP / Guardian pick is an open roster assign. Before lock it saves a
+ * pending VIP on the draft so officers can communicate conductor + VIP, then
+ * lock both. After lock it boards VIP on the spawned train. It must not seed,
+ * claim, or release depleting pools — those are conductor-wheel only.
  */
 import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
 export const POST = withTrainCoverage(post);
@@ -58,15 +61,9 @@ async function post(request: Request) {
     const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
       .seasonKey;
     const existing = await getConductorRecord(ctx.allianceId, date, seasonKey);
-    if (!existing?.lockedAt) {
+    if (!existing?.conductorMemberId) {
       return NextResponse.json(
-        { error: "Lock the conductor before assigning VIP." },
-        { status: 409 },
-      );
-    }
-    if (!existing.conductorMemberId) {
-      return NextResponse.json(
-        { error: "No conductor set for this day." },
+        { error: "Select a conductor before assigning VIP." },
         { status: 400 },
       );
     }
@@ -91,18 +88,32 @@ async function post(request: Request) {
       date,
     );
 
-    const record = await assignVipOnLockedConductor({
-      allianceId: ctx.allianceId,
-      date,
-      seasonKey,
-      vipMemberId: memberId,
-      vipMemberName: memberName,
-      vipRankEventId: rankEvent?.id ?? null,
-      vipMechanism: mechanism,
-      vipRule,
-      dayConfigId: dayConfig.dayConfigId,
-      guardianIsVip: body.guardianIsVip ? 1 : 0,
-    });
+    const guardianIsVip = body.guardianIsVip ? 1 : 0;
+    const record = existing.lockedAt
+      ? await assignVipOnLockedConductor({
+          allianceId: ctx.allianceId,
+          date,
+          seasonKey,
+          vipMemberId: memberId,
+          vipMemberName: memberName,
+          vipRankEventId: rankEvent?.id ?? null,
+          vipMechanism: mechanism,
+          vipRule,
+          dayConfigId: dayConfig.dayConfigId,
+          guardianIsVip,
+        })
+      : await upsertConductorDraft({
+          allianceId: ctx.allianceId,
+          date,
+          seasonKey,
+          vipMemberId: memberId,
+          vipMemberName: memberName,
+          vipRankEventId: rankEvent?.id ?? null,
+          vipMechanism: mechanism,
+          vipRule,
+          dayConfigId: dayConfig.dayConfigId,
+          guardianIsVip,
+        });
 
     await writeTrainsOfficerAudit({
       sessionId: session.id,
@@ -126,6 +137,7 @@ async function post(request: Request) {
         ),
         source: "manual",
         guardianIsVip: Boolean(body.guardianIsVip),
+        pending: !existing.lockedAt,
       },
     });
 

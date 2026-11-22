@@ -88,9 +88,9 @@ describe("VIP VS rules", () => {
     );
   });
 
-  it("spins from the prior VS day once the conductor is locked", () => {
+  it("spins from the prior VS day with or without a locked conductor", () => {
     const rule = { kind: "vs_min_score", minScore: 5_000_000 } as const;
-    expect(canSpinVipForRule(rule, false)).toBe(false);
+    expect(canSpinVipForRule(rule, false)).toBe(true);
     expect(canSpinVipForRule(rule, true)).toBe(true);
     expect(spinSourceForVipRule(rule)).toEqual({
       kind: "vs_min_score",

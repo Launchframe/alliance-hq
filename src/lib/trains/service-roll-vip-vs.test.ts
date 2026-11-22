@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getEffectiveSeasonForAlliance: vi.fn(),
   getConductorRecord: vi.fn(),
   assignVipOnLockedConductor: vi.fn(),
+  upsertConductorDraft: vi.fn(),
   resolveRollDayConfig: vi.fn(),
   fetchAllianceVsTopScorersForTrainDate: vi.fn(),
   loadAllianceTrainLeadTimeDays: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@/lib/trains/repository", async (importOriginal) => {
     ...actual,
     getConductorRecord: mocks.getConductorRecord,
     assignVipOnLockedConductor: mocks.assignVipOnLockedConductor,
+    upsertConductorDraft: mocks.upsertConductorDraft,
   };
 });
 
@@ -86,6 +88,29 @@ describe("rollForVip VS rules", () => {
     mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set() });
     mocks.getMemberRankAsOf.mockResolvedValue({ id: "rank-1" });
     mocks.assignVipOnLockedConductor.mockResolvedValue({});
+    mocks.upsertConductorDraft.mockResolvedValue({});
+  });
+
+  it("drafts a pending VIP when the conductor is not locked yet", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      lockedAt: null,
+      conductorMemberId: "cond",
+    });
+    useVipRule({ kind: "vs_top_n", topN: 1 });
+
+    const result = await rollForVip({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(result).toMatchObject({
+      memberId: "a",
+      draftPersisted: true,
+    });
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vipMemberId: "a",
+        vipMemberName: "Alpha",
+      }),
+    );
+    expect(mocks.assignVipOnLockedConductor).not.toHaveBeenCalled();
   });
 
   it("assigns Top 1 to the best non-conductor without a wheel", async () => {

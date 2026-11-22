@@ -23,7 +23,7 @@ export function canRollForDate(date: string, today: string): boolean {
   return isCalendarDateOnOrAfter(date, today);
 }
 
-/** Manual conductor/VIP pick — allowed on past when day is unlocked. */
+/** Manual conductor/VIP pick — allowed on past and future ritual days. */
 export function canManualPickForDate(): boolean {
   return true;
 }

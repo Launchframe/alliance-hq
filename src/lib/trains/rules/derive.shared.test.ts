@@ -235,8 +235,8 @@ describe("wheel and pool derivation", () => {
     ).toBe(false);
   });
 
-  it("requires a lock before the VIP spins", () => {
-    expect(canSpinVipForRule({ kind: "donations_second" }, false)).toBe(false);
+  it("allows VIP spins whether or not the conductor is locked", () => {
+    expect(canSpinVipForRule({ kind: "donations_second" }, false)).toBe(true);
     expect(canSpinVipForRule({ kind: "donations_second" }, true)).toBe(true);
     expect(canSpinVipForRule({ kind: "none" }, true)).toBe(false);
     expect(canSpinVipForRule(null, true)).toBe(false);

@@ -758,8 +758,8 @@ export async function restampConductorRules(input: {
 }
 
 /**
- * Assign or replace VIP on a locked conductor day. Draft upserts reject
- * locked rows; VIP boarding happens after lock/spawn.
+ * Assign or replace VIP on a locked conductor day. Unlocked pending VIP
+ * uses `upsertConductorDraft` instead; this path boards VIP after lock/spawn.
  */
 export async function assignVipOnLockedConductor(input: {
   allianceId: string;
