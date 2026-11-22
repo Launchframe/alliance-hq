@@ -11,7 +11,7 @@ globs:
 
 The trains dashboard has two interaction modes. Both operate on the **same underlying state** (schedule, conductor assignments, VIP, locks, pools) and share handlers; the difference is presentation and flow.
 
-See also: [trains.mdc](./trains.mdc) for week templates, pools, RBAC, and scheduling UX; [trains-conductor-ux.mdc](./trains-conductor-ux.mdc) for day-vs-week, lock-before-VIP, swap, share, and recovery invariants.
+See also: [trains.mdc](./trains.mdc) for week templates, pools, RBAC, and scheduling UX; [trains-conductor-ux.mdc](./trains-conductor-ux.mdc) for day-vs-week, conductor→VIP→lock lifecycle, swap, share, and recovery invariants.
 
 ## Guided mode (default)
 

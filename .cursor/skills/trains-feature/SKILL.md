@@ -7,7 +7,7 @@ description: Checklist-driven guide for implementing new trains features — mec
 
 Follow this checklist when implementing a new trains feature (mechanism, template, pool type, guided flow step, dashboard action, or wheel behavior). Not every section applies to every feature — skip sections that are irrelevant, but **read each heading** to confirm.
 
-**Related rules:** [trains.mdc](../rules/trains.mdc) (domain + RBAC), [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc) (guided vs advanced parity), [trains-conductor-ux.mdc](../rules/trains-conductor-ux.mdc) (day-vs-week paint, lock-before-VIP, dates, swap, share, wizard recovery — **read before UX changes**).
+**Related rules:** [trains.mdc](../rules/trains.mdc) (domain + RBAC), [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc) (guided vs advanced parity), [trains-conductor-ux.mdc](../rules/trains-conductor-ux.mdc) (day-vs-week paint, conductor→VIP→lock lifecycle, dates, swap, share, wizard recovery — **read before UX changes**).
 
 ## 1. Rule definition
 
