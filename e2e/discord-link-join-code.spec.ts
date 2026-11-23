@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
+  clearE2eBypassUidClaims,
   createAllianceJoinCodeRow,
   createAllianceMembership,
   createAllianceRosterMember,
@@ -18,6 +19,10 @@ import {
 import { redeemJoinCodeInPage } from "./fixtures/join-code";
 
 test.describe("Discord /link complete — inline join code", () => {
+  test.beforeEach(async () => {
+    await clearE2eBypassUidClaims(getE2eSql());
+  });
+
   test("redeems join code and completes commander onboarding from Discord link", async ({
     page,
   }) => {

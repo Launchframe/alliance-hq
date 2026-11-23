@@ -1157,3 +1157,34 @@ export async function createDiscordHqLink(
     SET hq_user_id = EXCLUDED.hq_user_id, linked_at = EXCLUDED.linked_at
   `;
 }
+
+/**
+ * Fixed Last War bypass UIDs are shared across specs. Clear prior claims so a
+ * earlier Discord/onboard test cannot leave `member_taken` for the next one.
+ */
+export const E2E_BYPASS_GAME_UIDS = [
+  "1234567890121203",
+  "1234567890121204",
+  "1234567890121205",
+  "1234567890121206",
+  "1234567890121288",
+  "1234567890121291",
+  "1234567890121299",
+] as const;
+
+export async function clearE2eBypassUidClaims(
+  sql: Sql,
+  uids: readonly string[] = E2E_BYPASS_GAME_UIDS,
+): Promise<void> {
+  const list = [...uids];
+  if (list.length === 0) return;
+  await sql`
+    DELETE FROM hq_user_commanders
+    WHERE commander_id IN (
+      SELECT id FROM commanders WHERE game_uid = ANY(${list})
+    )
+  `;
+  await sql`DELETE FROM hq_member_links WHERE game_uid = ANY(${list})`;
+  await sql`DELETE FROM discord_member_links WHERE game_uid = ANY(${list})`;
+  await sql`DELETE FROM commanders WHERE game_uid = ANY(${list})`;
+}
