@@ -31,7 +31,6 @@ export function ConductorInviteMessage({
 }: Props) {
   const t = useTranslations("trains.guidedFlow");
   const tCommon = useTranslations("common");
-  const tTemplates = useTranslations("trains.templates");
   const tSettings = useTranslations("trains.userSettings");
   // t.raw: the template is not ICU. Formatting it would throw on the role token.
   const defaultTemplate = String(t.raw("conductorInvite.defaultTemplate"));
@@ -105,7 +104,7 @@ export function ConductorInviteMessage({
             }}
             className="text-xs font-medium text-cyan-600 hover:underline dark:text-cyan-300"
           >
-            {tTemplates("edit")}
+            {t("conductorInvite.edit")}
           </button>
         ) : null}
       </div>
@@ -131,7 +130,7 @@ export function ConductorInviteMessage({
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             maxLength={500}
             rows={4}
-            aria-label={tTemplates("edit")}
+            aria-label={t("conductorInvite.edit")}
             data-testid="trains-conductor-invite-template"
             className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
           />
@@ -140,7 +139,7 @@ export function ConductorInviteMessage({
             disabled={saving}
             className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface disabled:opacity-50 sm:w-auto"
           >
-            {tTemplates("save")}
+            {t("conductorInvite.save")}
           </button>
           {saveError ? (
             <p className="text-xs text-hq-danger" role="alert">
