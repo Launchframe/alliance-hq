@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 
 import { eq } from "drizzle-orm";
@@ -12,6 +13,9 @@ import {
   hasConflictingGlobalGameUidPrincipal,
   type GlobalGameUidDiscordClaim,
 } from "@/lib/member-link/game-uid-global-claim.shared";
+
+/** UIDs already locked in this async call stack (nested HQ→Discord inherit). */
+const heldGameUidClaimLocks = new AsyncLocalStorage<ReadonlySet<string>>();
 
 function gameUidClaimLockPair(gameUid: string): [number, number] {
   const digest = createHash("sha256")
@@ -26,6 +30,10 @@ function gameUidClaimLockPair(gameUid: string): [number, number] {
  * Discord link paths. Two principals can otherwise both pass a non-locking
  * read and persist conflicting claims. Dedicated connection (max 1) matches
  * other cross-request claim locks so unlock cannot hit a different pool slot.
+ *
+ * Nested acquires for the same UID in one request (e.g. `linkHqMember` →
+ * Discord inherit → `linkDiscordMember`) are re-entrant: a second postgres
+ * session waiting on the same advisory lock would deadlock forever.
  */
 export async function withGameUidClaimLock<T>(
   gameUid: string,
@@ -34,24 +42,34 @@ export async function withGameUidClaimLock<T>(
   const trimmed = gameUid.trim();
   if (!trimmed) return run();
 
-  const [k1, k2] = gameUidClaimLockPair(trimmed);
-  const sql = postgres(getDatabaseUrl(), {
-    ...postgresClientOptions(),
-    max: 1,
-    idle_timeout: 0,
-    max_lifetime: 60 * 10,
-  });
-  try {
-    await sql`SELECT pg_advisory_lock(${k1}, ${k2})`;
-    return await run();
-  } finally {
-    try {
-      await sql`SELECT pg_advisory_unlock(${k1}, ${k2})`;
-    } catch {
-      // Connection drop unlocks advisory locks.
-    }
-    await sql.end({ timeout: 5 });
+  const held = heldGameUidClaimLocks.getStore();
+  if (held?.has(trimmed)) {
+    return run();
   }
+
+  const nextHeld = new Set(held);
+  nextHeld.add(trimmed);
+
+  return heldGameUidClaimLocks.run(nextHeld, async () => {
+    const [k1, k2] = gameUidClaimLockPair(trimmed);
+    const sql = postgres(getDatabaseUrl(), {
+      ...postgresClientOptions(),
+      max: 1,
+      idle_timeout: 0,
+      max_lifetime: 60 * 10,
+    });
+    try {
+      await sql`SELECT pg_advisory_lock(${k1}, ${k2})`;
+      return await run();
+    } finally {
+      try {
+        await sql`SELECT pg_advisory_unlock(${k1}, ${k2})`;
+      } catch {
+        // Connection drop unlocks advisory locks.
+      }
+      await sql.end({ timeout: 5 });
+    }
+  });
 }
 
 /**
