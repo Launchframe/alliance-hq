@@ -539,6 +539,8 @@ export async function linkDiscordMember(input: {
   memberDisplayName?: string | null;
   gameUid: string;
   replaceAll?: boolean;
+  /** Last War portrait from the lookup that authorized this link. */
+  gameAvatarUrl?: string | null;
 }): Promise<LinkDiscordMemberResult> {
   const db = getDb();
   const now = new Date();
@@ -636,6 +638,7 @@ export async function linkDiscordMember(input: {
         gameUid: input.gameUid,
         memberDisplayName: input.memberDisplayName,
         homeServerBeforeLink,
+        gameAvatarUrl: input.gameAvatarUrl,
       });
       return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
     }
@@ -694,6 +697,7 @@ export async function linkDiscordMember(input: {
       memberDisplayName: input.memberDisplayName,
       joinedAt: now,
       homeServerBeforeLink,
+      gameAvatarUrl: input.gameAvatarUrl,
     });
 
     return {

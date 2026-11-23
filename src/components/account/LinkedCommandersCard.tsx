@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link } from "@/i18n/navigation";
 import type { LinkedCommanderRow } from "@/lib/members/linked-commanders.shared";
 import { Button } from "@/components/ui/button";
@@ -92,13 +93,21 @@ export function LinkedCommandersCard({ commanders }: Props) {
                 key={key}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hq-border bg-hq-canvas px-4 py-3"
               >
-                <div>
-                  <div className="font-medium text-hq-fg">
-                    {label || alliance}
+                <div className="flex min-w-0 items-center gap-3">
+                  <ProfileAvatar
+                    displayName={label || alliance}
+                    email={row.ashedMemberId}
+                    avatarUrl={row.gameAvatarUrl}
+                    size="sm"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-medium text-hq-fg">
+                      {label || alliance}
+                    </div>
+                    {label ? (
+                      <div className="text-sm text-hq-fg-muted">{alliance}</div>
+                    ) : null}
                   </div>
-                  {label ? (
-                    <div className="text-sm text-hq-fg-muted">{alliance}</div>
-                  ) : null}
                 </div>
                 {pending?.ashedMemberId === row.ashedMemberId &&
                 pending.allianceId === row.allianceId ? (

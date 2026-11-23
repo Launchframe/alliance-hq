@@ -325,6 +325,22 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
     if (canConfirm || canWaive) action = { eventId: computed.id, confirmationBasis: computed.evaluation.confirmationBasis, canConfirm, canWaive };
   }
 
+  const [avatarRow] = await db
+    .select({ gameAvatarUrl: schema.commanders.gameAvatarUrl })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.ashedMemberId, memberId),
+      ),
+    )
+    .limit(1);
+  const gameAvatarUrl = avatarRow?.gameAvatarUrl ?? null;
+
   return {
     allianceId,
     memberId,
@@ -339,12 +355,14 @@ export async function loadVsMemberDetail(sessionId: string, allianceId: string, 
           currentRank: computed.memberSnapshot.currentRank,
           rosterStatus: computed.memberSnapshot.active ? "active" : "former",
           joinedAt: computed.memberSnapshot.joinedAt,
+          gameAvatarUrl,
         }
       : {
           name: persistedRow!.memberName,
           currentRank: null,
           rosterStatus: "former",
           joinedAt: persistedRow!.memberSnapshot.joinedAt,
+          gameAvatarUrl,
         },
     policy: {
       modelVersion: policy?.modelVersion ?? null,

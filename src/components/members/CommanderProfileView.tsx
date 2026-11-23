@@ -155,8 +155,8 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
         <div className="mb-5 flex items-center gap-4">
           <ProfileAvatar
             displayName={member.currentName}
-            email={member.gameUid ?? member.ashedMemberId}
-            avatarUrl={null}
+            email={member.ashedMemberId}
+            avatarUrl={member.gameAvatarUrl}
             size="md"
           />
           <div className="min-w-0">

@@ -99,5 +99,6 @@ export type LinkCommandResult = {
     memberDisplayName: string;
     gameUid: string;
     gameUserLevel?: number;
+    gameAvatarUrl?: string;
   };
 };

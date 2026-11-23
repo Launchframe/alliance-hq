@@ -19,6 +19,7 @@ export async function listLinkedCommandersForHqUser(
       ashedMemberId: schema.hqMemberLinks.ashedMemberId,
       rosterName: schema.allianceMembers.currentName,
       linkName: schema.hqMemberLinks.memberDisplayName,
+      gameAvatarUrl: schema.commanders.gameAvatarUrl,
     })
     .from(schema.hqMemberLinks)
     .innerJoin(
@@ -35,6 +36,23 @@ export async function listLinkedCommandersForHqUser(
         ),
       ),
     )
+    .leftJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.allianceId,
+          schema.hqMemberLinks.allianceId,
+        ),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          schema.hqMemberLinks.ashedMemberId,
+        ),
+      ),
+    )
+    .leftJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
     .where(eq(schema.hqMemberLinks.hqUserId, hqUserId))
     .orderBy(asc(schema.alliances.tag), asc(schema.allianceMembers.currentName));
 
@@ -44,5 +62,6 @@ export async function listLinkedCommandersForHqUser(
     allianceName: row.allianceName,
     ashedMemberId: row.ashedMemberId,
     memberDisplayName: row.rosterName?.trim() || row.linkName,
+    gameAvatarUrl: row.gameAvatarUrl ?? null,
   }));
 }

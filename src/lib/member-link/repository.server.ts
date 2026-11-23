@@ -256,6 +256,8 @@ export async function linkHqMember(input: {
   ashedMemberId: string;
   memberDisplayName?: string | null;
   gameUid: string;
+  /** Last War portrait from the lookup that authorized this link. */
+  gameAvatarUrl?: string | null;
 }): Promise<LinkHqMemberResult> {
   const db = getDb();
   const now = new Date();
@@ -350,6 +352,7 @@ export async function linkHqMember(input: {
           memberDisplayName: input.memberDisplayName,
           hqUserId: input.hqUserId,
           homeServerBeforeLink,
+          gameAvatarUrl: input.gameAvatarUrl,
         });
         await inheritHqMemberLinkToDiscordIfLinked({
           hqUserId: input.hqUserId,
@@ -394,6 +397,7 @@ export async function linkHqMember(input: {
         hqUserId: input.hqUserId,
         joinedAt: now,
         homeServerBeforeLink,
+        gameAvatarUrl: input.gameAvatarUrl,
       });
       await inheritHqMemberLinkToDiscordIfLinked({
         hqUserId: input.hqUserId,

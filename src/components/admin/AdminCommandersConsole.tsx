@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
   ADMIN_COMMANDERS_PAGE_SIZE_DEFAULT,
@@ -29,6 +30,7 @@ type CommanderListRow = {
   hqUserEmail: string | null;
   hqUserDisplayName: string | null;
   discordUsername: string | null;
+  gameAvatarUrl: string | null;
 };
 
 type CommanderDetail = CommanderListRow & {
@@ -231,7 +233,17 @@ export function AdminCommandersConsole() {
                       className="cursor-pointer border-b border-hq-border/60 hover:bg-hq-canvas"
                       onClick={() => void loadDetail(row)}
                     >
-                      <td className="px-2 py-2 font-medium">{row.currentName}</td>
+                      <td className="px-2 py-2 font-medium">
+                        <span className="inline-flex items-center gap-2">
+                          <ProfileAvatar
+                            displayName={row.currentName}
+                            email={row.ashedMemberId}
+                            avatarUrl={row.gameAvatarUrl}
+                            size="xs"
+                          />
+                          {row.currentName}
+                        </span>
+                      </td>
                       <td className="px-2 py-2 text-hq-fg-muted">
                         {allianceLabel(row)}
                       </td>
@@ -278,7 +290,15 @@ export function AdminCommandersConsole() {
             <dl className="mt-4 space-y-3 text-sm">
               <div>
                 <dt className="text-xs text-hq-fg-subtle">{t("colName")}</dt>
-                <dd>{selected.currentName}</dd>
+                <dd className="mt-1 flex items-center gap-2">
+                  <ProfileAvatar
+                    displayName={selected.currentName}
+                    email={selected.ashedMemberId}
+                    avatarUrl={selected.gameAvatarUrl}
+                    size="sm"
+                  />
+                  {selected.currentName}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-hq-fg-subtle">{t("colAlliance")}</dt>

@@ -46,6 +46,8 @@ export type CommanderProfilePayload = {
     canManageTipJar: boolean;
     /** Present only when the viewer is the HQ user who linked this commander. */
     gameUid: string | null;
+    /** Last War in-game portrait URL when known. */
+    gameAvatarUrl: string | null;
   };
   alliance: {
     id: string;

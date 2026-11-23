@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import {
   filterMemberScoreRowsByName,
   paginateMemberScoreRows,
@@ -14,6 +15,7 @@ export type MemberScoreListRow = {
   memberName: string;
   priorDayVsScore: number;
   isViewer?: boolean;
+  gameAvatarUrl?: string | null;
 };
 
 type Props = {
@@ -95,7 +97,15 @@ export function SearchablePaginatedMemberScoreList({
                   }`}
                 >
                   <td className="px-3 py-2 font-medium text-hq-fg">
-                    {row.memberName}
+                    <span className="inline-flex items-center gap-2">
+                      <ProfileAvatar
+                        displayName={row.memberName}
+                        email={row.memberId}
+                        avatarUrl={row.gameAvatarUrl}
+                        size="xs"
+                      />
+                      {row.memberName}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-hq-fg-muted">
                     {formatPriceIsRightVsScoreDelta(row.priorDayVsScore, locale)}

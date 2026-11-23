@@ -3317,6 +3317,12 @@ export const commanders = pgTable(
     lastrankProfileImageUrl: text("lastrank_profile_image_url"),
     /** e.g. https://lastrank.fun/p/1314754 */
     lastrankProfileUrl: text("lastrank_profile_url"),
+    /** Last War in-game portrait URL from UID lookup. */
+    gameAvatarUrl: text("game_avatar_url"),
+    /** When gameAvatarUrl was last refreshed (including failed lookups). */
+    gameAvatarRefreshedAt: timestamp("game_avatar_refreshed_at", {
+      withTimezone: true,
+    }),
     profession: text("profession"),
     professionalLevel: integer("professional_level"),
     memberLevel: integer("member_level"),

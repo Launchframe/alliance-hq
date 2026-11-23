@@ -137,6 +137,8 @@ export async function loadCommanderProfile(
       professionLevel: schema.commanders.professionalLevel,
       mainSquad: schema.commanders.mainSquad,
       mainSquadSource: schema.commanders.mainSquadSource,
+      gameAvatarUrl: schema.commanders.gameAvatarUrl,
+      gameAvatarRefreshedAt: schema.commanders.gameAvatarRefreshedAt,
       membershipStatus: schema.commanderAllianceMemberships.status,
       allianceRank: schema.commanderAllianceMemberships.allianceRank,
       allianceRankTitle: schema.commanderAllianceMemberships.allianceRankTitle,
@@ -412,6 +414,19 @@ export async function loadCommanderProfile(
   const canGiftStoreBricks = canGift && !viewerIsOwner && Boolean(gameUid);
   const canManageTipJar = canGift && viewerIsOwner && Boolean(gameUid);
 
+  let gameAvatarUrl = commanderIdentity?.gameAvatarUrl ?? null;
+  if (commanderIdentity && gameUid) {
+    const { refreshCommanderGameAvatarIfStale } = await import(
+      "@/lib/commanders/game-avatar.server"
+    );
+    gameAvatarUrl = await refreshCommanderGameAvatarIfStale({
+      commanderId: commanderIdentity.commanderId,
+      gameUid,
+      gameAvatarUrl: commanderIdentity.gameAvatarUrl,
+      gameAvatarRefreshedAt: commanderIdentity.gameAvatarRefreshedAt,
+    });
+  }
+
   return {
     member: {
       ashedMemberId,
@@ -442,6 +457,7 @@ export async function loadCommanderProfile(
       canGiftStoreBricks,
       canManageTipJar,
       gameUid: viewerIsOwner ? gameUid : null,
+      gameAvatarUrl,
     },
     alliance,
     hqUser,

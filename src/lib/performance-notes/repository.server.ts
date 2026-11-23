@@ -263,9 +263,38 @@ export async function getPerformanceNoteDto(input: { noteId: string; actor: Know
 }
 
 export async function listPerformanceNoteRoster(allianceId: string): Promise<PerformanceNoteRosterMember[]> {
-  const rows = await getDb().select({ ashedMemberId: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, previousNames: schema.allianceMembers.previousNamesJson })
-    .from(schema.allianceMembers).where(and(eq(schema.allianceMembers.allianceId, allianceId), eq(schema.allianceMembers.status, "active"))).orderBy(schema.allianceMembers.currentName);
-  return rows.map((row) => ({ ...row, previousNames: row.previousNames ?? [] }));
+  const rows = await getDb()
+    .select({
+      ashedMemberId: schema.allianceMembers.ashedMemberId,
+      name: schema.allianceMembers.currentName,
+      previousNames: schema.allianceMembers.previousNamesJson,
+      gameAvatarUrl: schema.commanders.gameAvatarUrl,
+    })
+    .from(schema.allianceMembers)
+    .leftJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, schema.allianceMembers.allianceId),
+        eq(schema.commanderAllianceMemberships.ashedMemberId, schema.allianceMembers.ashedMemberId),
+      ),
+    )
+    .leftJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        eq(schema.allianceMembers.status, "active"),
+      ),
+    )
+    .orderBy(schema.allianceMembers.currentName);
+  return rows.map((row) => ({
+    ashedMemberId: row.ashedMemberId,
+    name: row.name,
+    previousNames: row.previousNames ?? [],
+    gameAvatarUrl: row.gameAvatarUrl ?? null,
+  }));
 }
 
 export async function listPerformanceNotesForAshedMember(input: { actor: KnowledgeActor; ashedMemberId: string }): Promise<PerformanceNoteDto[]> {

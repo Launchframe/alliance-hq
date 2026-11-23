@@ -36,6 +36,7 @@ function commanderRow(
     highestBaseVr: null,
     profession: null,
     professionLevel: null,
+    gameAvatarUrl: null,
     hqLinked: false,
     oauthIdentitySplit: false,
     ...overrides,

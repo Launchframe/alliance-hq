@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
 import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link } from "@/i18n/navigation";
 import {
   MAIN_SQUAD_LABEL_KEYS,
@@ -122,7 +123,7 @@ export function RosterMemberRow({
     />
   ) : null;
 
-  const nameContent = editMode ? (
+  const nameLabel = editMode ? (
     member.current_name
   ) : (
     <Link
@@ -131,6 +132,18 @@ export function RosterMemberRow({
     >
       {member.current_name}
     </Link>
+  );
+
+  const nameContent = (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <ProfileAvatar
+        displayName={member.current_name}
+        email={member.id}
+        avatarUrl={commander?.gameAvatarUrl}
+        size="xs"
+      />
+      <span className="min-w-0 wrap-break-word">{nameLabel}</span>
+    </span>
   );
 
   const nameBadges =

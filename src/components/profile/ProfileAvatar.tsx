@@ -6,7 +6,7 @@ type Props = {
   displayName: string | null;
   email: string | null;
   avatarUrl?: string | null;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   className?: string;
 };
 
@@ -27,6 +27,7 @@ function profileInitials(
 }
 
 const sizeClasses = {
+  xs: "h-7 w-7 text-[0.65rem]",
   sm: "h-10 w-10 text-sm",
   md: "h-16 w-16 text-lg",
 } as const;

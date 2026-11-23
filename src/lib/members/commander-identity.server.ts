@@ -1159,6 +1159,8 @@ export async function syncCommanderIdentityFromMemberLink(input: {
    * tenure sync can update the server first, so the row itself cannot tell us.
    */
   homeServerBeforeLink?: number | null;
+  /** Last War portrait from the lookup that authorized this link. */
+  gameAvatarUrl?: string | null;
 }): Promise<void> {
   const { commanderId } = await upsertCommanderFromLink({
     gameUid: input.gameUid,
@@ -1167,6 +1169,17 @@ export async function syncCommanderIdentityFromMemberLink(input: {
     memberDisplayName: input.memberDisplayName,
     authorizeHqUserId: input.hqUserId,
   });
+
+  if (input.gameAvatarUrl !== undefined) {
+    const { writeCommanderGameAvatar } = await import(
+      "@/lib/commanders/game-avatar.server"
+    );
+    await writeCommanderGameAvatar({
+      commanderId,
+      avatarUrl: input.gameAvatarUrl,
+      clearMissing: !input.gameAvatarUrl,
+    });
+  }
 
   const previousGameServerNumber = input.homeServerBeforeLink ?? null;
   // Audit only when the home server actually moved (foreign owners keep the

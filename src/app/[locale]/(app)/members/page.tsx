@@ -31,6 +31,14 @@ export default async function MembersPage() {
   let initial;
   let commanderInitial;
   try {
+    if (hqAllianceId) {
+      const { refreshStaleAllianceCommanderAvatars } = await import(
+        "@/lib/commanders/game-avatar.server"
+      );
+      await refreshStaleAllianceCommanderAvatars(hqAllianceId).catch((error) => {
+        console.error("[members] commander avatar refresh failed", error);
+      });
+    }
     [initial, commanderInitial] = await Promise.all([
       loadAllianceMembers(session.id),
       loadCommanderIndex(session.id),
