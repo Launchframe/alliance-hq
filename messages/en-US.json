@@ -3569,6 +3569,7 @@
       "hqNotes": "HQ notes",
       "hqNotesEmpty": "No HQ notes on this commander.",
       "disciplineNoType": "Unspecified",
+      "violationTrainNoVip": "No VIP",
       "trainHighlights": "Train highlights",
       "locked": "locked",
       "trainRole": {
@@ -4535,6 +4536,11 @@
     },
     "guidedFlow": {
       "heading": "Today’s conductor setup",
+      "conductorInvite": {
+        "defaultTemplate": "Hey {conductor.commander.nickname}, you won the train! {vip.commander.name} will be your VIP. Please invite them as your {conductorToVipPowerDelta > 0.1 ? 'defender' : 'guest'}",
+        "edit": "Edit",
+        "save": "Save"
+      },
       "steps": {
         "roster": {
           "title": "Prepare roster",
@@ -4594,6 +4600,7 @@
         "lock": {
           "title": "Lock",
           "lockCta": "Lock conductor",
+          "lockWithVip": "Lock conductor & VIP",
           "ready": "Ready to lock and spawn today’s train. Pending VIP locks with the conductor. If you lock it, you can unlock until midnight Server Time."
         },
         "done": {

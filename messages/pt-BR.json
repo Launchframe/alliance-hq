@@ -3515,6 +3515,7 @@
       "hqNotes": "Notas do HQ",
       "hqNotesEmpty": "Nenhuma nota do HQ neste comandante.",
       "disciplineNoType": "Não especificado",
+      "violationTrainNoVip": "Sem VIP",
       "trainHighlights": "Destaques de trem",
       "locked": "bloqueado",
       "trainRole": {
@@ -4482,6 +4483,11 @@
     },
     "guidedFlow": {
       "heading": "Configuração do condutor de hoje",
+      "conductorInvite": {
+        "defaultTemplate": "Ei {conductor.commander.nickname}, você ganhou o trem! {vip.commander.name} será o seu VIP. Convide essa pessoa como {conductorToVipPowerDelta > 0.1 ? 'defensor' : 'convidado'}",
+        "edit": "Editar",
+        "save": "Salvar"
+      },
       "steps": {
         "roster": {
           "title": "Preparar roster",
@@ -4541,6 +4547,7 @@
         "lock": {
           "title": "Confirmar",
           "lockCta": "Confirmar condutor",
+          "lockWithVip": "Confirmar condutor e VIP",
           "ready": "Pronto para confirmar e criar o trem de hoje. O VIP pendente confirma junto com o condutor. Se você confirmar, pode desbloquear até a meia-noite no horário do servidor."
         },
         "done": {

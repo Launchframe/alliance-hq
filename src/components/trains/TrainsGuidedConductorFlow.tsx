@@ -61,8 +61,10 @@ export type TrainsGuidedConductorFlowProps = {
   hasConductor: boolean;
   conductorName?: string | null;
   eligibilityOverridden?: boolean;
-  vipNeeded: boolean;
+  /** A member is recorded as VIP. */
   hasVip: boolean;
+  /** Officers recorded that this train has no VIP. */
+  vipAbsent?: boolean;
   vipName?: string | null;
   locked: boolean;
   canRoll: boolean;
@@ -86,6 +88,8 @@ export type TrainsGuidedConductorFlowProps = {
   onClearPendingConductor?: () => void;
   onRollVip: () => void;
   onPickVipManual: () => void;
+  /** Record an explicit "no VIP" and a violation against the conductor. */
+  onMarkNoVip?: () => void;
   onLock: () => void;
   /** R4 confirmation gate before lock when alliance auto-nomination is enabled. */
   pendingConfirmation?: boolean;
@@ -109,6 +113,8 @@ export type TrainsGuidedConductorFlowProps = {
   /** Share image export when a conductor is already assigned. */
   onShareImage?: () => void;
   shareBusy?: boolean;
+  /** Copy-paste invite shown once both the conductor and VIP are known. */
+  conductorInvite?: ReactNode;
 };
 
 type StepId =
@@ -119,7 +125,7 @@ type StepId =
   | "vip"
   | "lock"
   | "done";
-type StepStatus = "completed" | "current" | "upcoming" | "skipped";
+type StepStatus = "completed" | "current" | "upcoming" | "skipped" | "pending";
 
 const STEP_ORDER: StepId[] = [
   "template",
@@ -134,11 +140,9 @@ const STEP_ORDER: StepId[] = [
 function stepStatus(
   step: StepId,
   current: GuidedFlowStep,
-  vipNeeded: boolean,
   vsDataRequired: boolean,
   rosterDataRequired: boolean,
 ): StepStatus {
-  if (step === "vip" && !vipNeeded) return "skipped";
   if (step === "prerequisites" && !vsDataRequired) return "skipped";
   if (step === "roster" && !rosterDataRequired) return "skipped";
   const stepIndex = STEP_ORDER.indexOf(step);
@@ -162,6 +166,13 @@ function StepMarker({ status }: { status: StepStatus }) {
     return (
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-cyan-500 bg-cyan-500/15">
         <span className="h-2 w-2 rounded-full bg-cyan-500" aria-hidden />
+      </span>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15">
+        <span className="h-2 w-2 rounded-full bg-amber-600 dark:bg-amber-300" aria-hidden />
       </span>
     );
   }
@@ -269,8 +280,8 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     hasConductor,
     conductorName,
     eligibilityOverridden = false,
-    vipNeeded,
     hasVip,
+    vipAbsent = false,
     vipName,
     locked,
     canRoll,
@@ -287,6 +298,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onClearPendingConductor,
     onRollVip,
     onPickVipManual,
+    onMarkNoVip,
     onLock,
     pendingConfirmation = false,
     canConfirmNomination = false,
@@ -304,6 +316,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onSyncRoster,
     onShareImage,
     shareBusy = false,
+    conductorInvite = null,
   } = props;
   const tWheel = useTranslations("trains.wheel");
 
@@ -341,10 +354,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     : null;
   const prerequisiteRequired = vsRequired || eventEvidenceRequired;
   const rosterRequired = Boolean(rosterDataStatus?.required);
+  const vipResolved = hasVip || vipAbsent;
   const guidedInput = {
     hasConductor,
-    vipNeeded,
-    hasVip,
+    hasVip: vipResolved,
     locked,
     rosterDataRequired: rosterDataStatus?.required,
     rosterDataReady: rosterDataStatus?.ready,
@@ -407,34 +420,44 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const prerequisitesStatus = stepStatus(
     "prerequisites",
     current,
-    vipNeeded,
     prerequisiteRequired,
     rosterRequired,
   );
   const rosterStatus = stepStatus(
     "roster",
     current,
-    vipNeeded,
     prerequisiteRequired,
     rosterRequired,
   );
   const templateStatus = stepStatus(
     "template",
     current,
-    vipNeeded,
     prerequisiteRequired,
     rosterRequired,
   );
   const conductorStatus = stepStatus(
     "conductor",
     current,
-    vipNeeded,
     prerequisiteRequired,
     rosterRequired,
   );
-  const vipStatus = stepStatus("vip", current, vipNeeded, prerequisiteRequired, rosterRequired);
-  const lockStatus = stepStatus("lock", current, vipNeeded, prerequisiteRequired, rosterRequired);
-  const doneStatus = stepStatus("done", current, vipNeeded, prerequisiteRequired, rosterRequired);
+  const vipStatus: StepStatus = !hasConductor
+    ? "upcoming"
+    : vipResolved
+      ? "completed"
+      : "current";
+  const vipDisplayStatus: StepStatus =
+    vipStatus === "completed" && !locked && hasVip && vipName ? "pending" : vipStatus;
+  const lockStatus: StepStatus = !hasConductor
+    ? "upcoming"
+    : locked
+      ? "completed"
+      : "current";
+  const doneStatus = stepStatus("done", current, prerequisiteRequired, rosterRequired);
+  const lockLabel =
+    hasVip && !vipAbsent
+      ? t("steps.lock.lockWithVip")
+      : t("steps.lock.lockCta");
 
   const rosterRankLabel =
     rosterDataStatus?.poolType != null
@@ -727,6 +750,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                     : tWheel("share.action")}
                 </button>
               ) : null}
+              {conductorInvite}
             </div>
           ) : conductorStatus === "current" ? (
             <div className="flex flex-col gap-2">
@@ -797,13 +821,17 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
           ) : null}
         </StepRow>
 
-        <StepRow status={vipStatus} title={t("steps.vip.title")}>
-          {vipStatus === "skipped" ? (
-            <p className="text-sm text-hq-fg-muted">{t("steps.vip.skipped")}</p>
+        <StepRow status={vipDisplayStatus} title={t("steps.vip.title")}>
+          {vipDisplayStatus === "pending" ? (
+            <p className="text-sm text-hq-fg" data-testid="trains-guided-vip-pending">
+              {t("steps.vip.assigned", { name: vipName ?? "—" })}
+            </p>
           ) : vipStatus === "completed" ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-hq-fg-muted">
-                {t("steps.vip.assigned", { name: vipName ?? "—" })}
+                {vipAbsent
+                  ? tRules("vipNone")
+                  : t("steps.vip.assigned", { name: vipName ?? "—" })}
               </span>
               {canManualPickVip ? (
                 <ChangeLink label={t("steps.vip.change")} onClick={onPickVipManual} />
@@ -813,6 +841,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {vipAction ? (
                 <PrimaryCtaButton action={vipAction} busy={busy} />
+              ) : null}
+              {canManualPickVip && !vipAction ? (
+                <PrimaryCtaButton
+                  action={{
+                    label: t("steps.vip.pickManual"),
+                    onClick: onPickVipManual,
+                  }}
+                  busy={busy}
+                />
               ) : null}
               {showSecondaryPickVip ? (
                 <button
@@ -824,15 +861,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                   {t("steps.vip.pickManual")}
                 </button>
               ) : null}
-              {!locked ? (
+              {onMarkNoVip ? (
                 <button
                   type="button"
-                  onClick={onLock}
                   disabled={busy}
-                  data-testid="trains-guided-lock-without-vip"
+                  onClick={onMarkNoVip}
+                  data-testid="trains-guided-no-vip"
                   className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface disabled:opacity-50 sm:w-auto"
                 >
-                  {t("steps.vip.lockWithoutVip")}
+                  {tRules("vipNone")}
                 </button>
               ) : null}
             </div>
@@ -869,7 +906,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                   <p className="text-sm text-hq-fg-muted">{t("steps.lock.ready")}</p>
                   {lockConfirm ?? (
                     <PrimaryCtaButton
-                      action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
+                      action={{ label: lockLabel, onClick: onLock }}
                       busy={busy}
                     />
                   )}

@@ -901,6 +901,8 @@ export const hqUsers = pgTable("hq_users", {
   trainsSimpleModeEnabled: boolean("trains_simple_mode_enabled")
     .notNull()
     .default(true),
+  /** Officer override of the conductor + VIP invite. Null uses the locale default. */
+  trainsConductorInviteTemplate: text("trains_conductor_invite_template"),
   /** Offer to dual-write unmatched scoreboard OCR names as new roster members */
   offerScoreboardNewMembers: boolean("offer_scoreboard_new_members")
     .notNull()
@@ -4254,6 +4256,12 @@ export const trainConductorRecords = pgTable(
     ),
     vipMemberId: text("vip_member_id"),
     vipMemberName: text("vip_member_name"),
+    /**
+     * 1 when officers recorded that this train departed with no VIP.
+     * Distinct from a VIP selection rule: the seat is always recorded,
+     * either as a member or as this explicit absence.
+     */
+    noVip: integer("no_vip").notNull().default(0),
     vipRankEventId: text("vip_rank_event_id").references(
       () => memberAllianceRankEvents.id,
       { onDelete: "set null" },

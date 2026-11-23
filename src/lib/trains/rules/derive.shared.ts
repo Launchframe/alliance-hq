@@ -258,14 +258,14 @@ export function conductorRuleDrawsPairedVip(input: {
 }
 
 /**
- * VIP wheel eligibility by rule. Manual and wheel VIP may be pending on an
- * unlocked draft; lock freezes the conductor (and any pending VIP) together.
- * The second argument is retained for call-site compatibility and ignored.
+ * VIP wheel eligibility by rule. Requires an assigned conductor; manual VIP
+ * pick uses the same gate via `hasValidConductor` at call sites.
  */
 export function canSpinVipForRule(
   rule: VipRule | null,
-  _locked?: boolean,
+  hasConductor = true,
 ): boolean {
+  if (!hasConductor) return false;
   if (!rule || rule.kind === "none") return false;
   return (
     rule.kind === "donations_second" ||
@@ -276,9 +276,13 @@ export function canSpinVipForRule(
   );
 }
 
-/** Officer manual VIP / Guardian pick — open roster assign unless skipped. */
-export function supportsManualVipPickForRule(rule: VipRule | null): boolean {
-  return rule?.kind !== "none";
+/**
+ * Officer manual VIP pick is always available once a conductor is assigned.
+ * A VIP rule only decides whether the wheel spins. Free choice and "no VIP
+ * rule" still record a member, or an explicit absence.
+ */
+export function supportsManualVipPickForRule(_rule: VipRule | null): boolean {
+  return true;
 }
 
 function rankEligibleForPool(pool: string, rank: number | null): boolean {

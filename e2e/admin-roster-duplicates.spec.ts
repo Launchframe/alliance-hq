@@ -579,8 +579,11 @@ test.describe("Caos-shaped roster duplicate cleanup", () => {
     await expect(page.getByTestId(`roster-check-${fixture.linkedLastRankId}`)).toBeChecked();
 
     await page.getByRole("button", { name: "Merge selected" }).click();
+    // Merge walks every selected synthetic/Ashed pair; mid-suite DB load can
+    // push the batch past Playwright's default 5s expect window.
     await expect(page.getByTestId("roster-duplicate-results")).toContainText(
       "This member still exists on Ashed",
+      { timeout: 60_000 },
     );
     // Both rows share the name. The LastRank copy leaves; the Ashed row stays.
     await expect(page.getByTestId(`roster-check-${fixture.linkedLastRankId}`)).toHaveCount(0);

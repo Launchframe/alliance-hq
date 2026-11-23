@@ -229,9 +229,9 @@ describe("event_scores derivation", () => {
     expect(conductorRulePoolType(legacy)).toBe("event_top_x");
   });
 
-  it("spins the wheel (never auto-assigns) and VIP may spin before lock", () => {
+  it("spins the wheel (never auto-assigns) once a conductor is assigned", () => {
     expect(conductorRuleNeedsWheel(rule())).toBe(true);
-    expect(canSpinVipForRule(rule(), false)).toBe(true);
+    expect(canSpinVipForRule(rule(), false)).toBe(false);
     expect(canSpinVipForRule(rule(), true)).toBe(true);
   });
 });

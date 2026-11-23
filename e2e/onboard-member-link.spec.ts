@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 import {
   acceptInviteViaApi,
   attachAshedConnectionToSession,
+  clearE2eBypassUidClaims,
   createAllianceJoinCodeRow,
   createAllianceRosterMember,
   createAuthenticatedHqSession,
@@ -29,7 +30,7 @@ const E2E_WRONG_SERVER_UID = "1234567890121205";
 async function clearE2eWrongServerCommander(
   sql: ReturnType<typeof getE2eSql>,
 ) {
-  await sql`DELETE FROM commanders WHERE game_uid = ${E2E_WRONG_SERVER_UID}`;
+  await clearE2eBypassUidClaims(sql, [E2E_WRONG_SERVER_UID]);
 }
 
 test.describe("Member-link onboarding gate", () => {
@@ -300,6 +301,10 @@ async function submitUidAndReachHomeServerConfirm(
 }
 
 test.describe("Member-link onboarding outcomes", () => {
+  test.beforeEach(async () => {
+    await clearE2eBypassUidClaims(getE2eSql());
+  });
+
   test("invite roster miss on mismatched position server prompts home-server confirm", async ({
     page,
   }) => {

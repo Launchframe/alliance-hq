@@ -39,6 +39,8 @@ export type WeekConductorRecordSummary = {
   conductorMemberName: string | null;
   vipMemberId: string | null;
   vipMemberName: string | null;
+  /** Officers recorded that this train has no VIP. */
+  noVip?: boolean;
   /** Rule this pick was made under — drives "is this still today's pick". */
   conductorRule: ConductorRule | null;
   vipRule: VipRule | null;

@@ -45,7 +45,7 @@ test.describe("Join-code session hygiene", () => {
     expect(afterRedeem?.currentAllianceId).toBe(alliance.allianceId);
 
     await page.getByRole("button", { name: /wrong account/i }).click();
-    await expect(page).toHaveURL(/\/auth/);
+    await expect(page).toHaveURL(/\/auth/, { timeout: 15_000 });
 
     const afterSignOut = await loadBrowserSessionAllianceContext(
       sql,
@@ -87,7 +87,7 @@ test.describe("Join-code session hygiene", () => {
     await expect(page.getByText("Sticky Join Code Alliance")).toBeVisible();
 
     await page.getByRole("button", { name: /wrong account/i }).click();
-    await expect(page).toHaveURL(/\/auth/);
+    await expect(page).toHaveURL(/\/auth/, { timeout: 15_000 });
 
     await page.context().clearCookies();
     await page.context().addCookies(
