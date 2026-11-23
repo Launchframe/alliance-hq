@@ -118,7 +118,7 @@ export function classifyPriceIsFreightEmptyReason(input: {
 }
 
 /**
- * Second draw from the same Eligible VS scores list, leaving out the
+ * Second draw from the same VS Save Days list, leaving out the
  * conductor just drawn. Weighted days keep ticket weights; uniform days
  * stay an equal draw.
  */

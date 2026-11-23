@@ -1,10 +1,11 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   formatPriceIsRightVsScore,
+  formatPriceIsRightVsScoreDelta,
   resolveChartMaxScore,
   samplePriceIsRightTicketCurve,
   samplePriceIsRightUniformCurve,
@@ -51,6 +52,7 @@ export function PriceIsRightTicketDistributionChart({
   "data-testid": dataTestId,
 }: Props) {
   const t = useTranslations("trains.priceIsRight.chart");
+  const locale = useLocale();
   const clipPathId = useId();
   const weighted = settings.weightingEnabled;
   const [yMode, setYMode] = useState<YMode>(weighted ? "tickets" : "probability");
@@ -289,7 +291,7 @@ export function PriceIsRightTicketDistributionChart({
             <p className="text-hq-fg-muted">
               {t("tooltip", {
                 name: hovered.memberName ?? t("theoreticalPoint"),
-                score: formatPriceIsRightVsScore(hovered.score),
+                score: formatPriceIsRightVsScoreDelta(hovered.score, locale),
                 tickets: hovered.tickets,
                 probability: formatProbability(hovered.winProbability),
               })}

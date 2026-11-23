@@ -27,6 +27,12 @@ import {
   type DayRulePaletteId,
 } from "@/lib/trains/rules/palette.shared";
 
+export type MonthPaintBrush = {
+  paletteId: DayRulePaletteId;
+  /** Null is Free choice — a real rule, not an empty brush. */
+  rule: ConductorRule | null;
+};
+
 type Props = {
   selectedDates: string[];
   focusDate: string;
@@ -41,7 +47,11 @@ type Props = {
   ruleLabels: Record<DayRulePaletteId, string>;
   vrReporterCount: number;
   busy?: boolean;
-  onPaint: (dates: string[], rule: ConductorRule | null) => void;
+  brush: MonthPaintBrush | null;
+  onBrushChange: (brush: MonthPaintBrush | null) => void;
+  draftCount: number;
+  onSaveDraft: () => void;
+  onDiscardDraft: () => void;
   /** Event results opens the shared event rule picker for the focus date. */
   onConfigureEvent?: (focusDate: string) => void;
   onSpinSelected: () => void;
@@ -104,7 +114,11 @@ export function TrainMonthToolbar({
   ruleLabels,
   vrReporterCount,
   busy = false,
-  onPaint,
+  brush,
+  onBrushChange,
+  draftCount,
+  onSaveDraft,
+  onDiscardDraft,
   onConfigureEvent,
   onSpinSelected,
   onManualPick,
@@ -120,11 +134,9 @@ export function TrainMonthToolbar({
   const [pendingScopeBoard, setPendingScopeBoard] = useState<
     "vs_top_n" | "vr_top_n" | null
   >(null);
-  const [activePaletteId, setActivePaletteId] =
-    useState<DayRulePaletteId | null>(null);
+  const activePaletteId = brush?.paletteId ?? null;
 
   const selectedCount = selectedDates.length;
-  const hasSelection = selectedCount > 0;
   const singleDay = selectedCount === 1;
 
   const canManualPick = singleDay && !locked;
@@ -138,30 +150,36 @@ export function TrainMonthToolbar({
   const canPool = singleDay;
 
   function handlePaletteClick(paletteId: DayRulePaletteId) {
-    if (!hasSelection) return;
-    // Scoped boards must pick a scope first — painting Top VS from the
-    // toolbar can never fall back to a default scope.
+    // Scoped boards must pick a scope first — the brush can never be a
+    // Top VS / Top VR rule without one.
     if (paletteEntryRequiresScope(paletteId)) {
       setPendingScopeBoard(paletteId as "vs_top_n" | "vr_top_n");
       return;
     }
     if (paletteEntryOpensEventPicker(paletteId)) {
-      setActivePaletteId(paletteId);
       setPaletteOpen(false);
       setPendingScopeBoard(null);
       onConfigureEvent?.(focusDate);
       return;
     }
-    setActivePaletteId(paletteId);
-    onPaint(selectedDates, ruleForPaletteSelection(paletteId));
+    if (brush?.paletteId === paletteId) {
+      onBrushChange(null);
+    } else {
+      onBrushChange({
+        paletteId,
+        rule: ruleForPaletteSelection(paletteId),
+      });
+    }
     setPaletteOpen(false);
     setPendingScopeBoard(null);
   }
 
   function handleScopeSelect(topN: number) {
-    if (!pendingScopeBoard || !hasSelection) return;
-    setActivePaletteId(pendingScopeBoard);
-    onPaint(selectedDates, ruleForPaletteSelection(pendingScopeBoard, topN));
+    if (!pendingScopeBoard) return;
+    onBrushChange({
+      paletteId: pendingScopeBoard,
+      rule: ruleForPaletteSelection(pendingScopeBoard, topN),
+    });
     setPendingScopeBoard(null);
     setPaletteOpen(false);
   }
@@ -171,14 +189,45 @@ export function TrainMonthToolbar({
       className="rounded-xl border border-hq-border bg-hq-surface/60 p-3 shadow-sm"
       data-testid="trains-month-toolbar"
     >
-      <p className="text-xs font-medium text-hq-fg-muted">{t("title")}</p>
-      <p className="mt-0.5 text-[10px] text-hq-fg-subtle">{t("hint")}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-hq-fg-muted">{t("title")}</p>
+          <p className="mt-0.5 text-[10px] text-hq-fg-subtle">{t("hint")}</p>
+        </div>
+        {draftCount > 0 ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span
+              className="text-[10px] font-medium text-hq-fg-muted"
+              data-testid="trains-month-toolbar-draft-count"
+            >
+              {t("draftCount", { count: draftCount })}
+            </span>
+            <button
+              type="button"
+              data-testid="trains-month-toolbar-discard"
+              disabled={busy}
+              onClick={onDiscardDraft}
+              className="rounded-md border border-hq-border px-2 py-1 text-[11px] font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-40"
+            >
+              {t("discard")}
+            </button>
+            <button
+              type="button"
+              data-testid="trains-month-toolbar-save"
+              disabled={busy}
+              onClick={onSaveDraft}
+              className="rounded-md bg-hq-accent px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-40"
+            >
+              {t("save")}
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <div className="relative flex items-center gap-1">
           <ToolbarIconButton
             label={t("palette")}
-            disabled={!hasSelection}
             busy={busy}
             active={paletteOpen || activePaletteId != null}
             testId="trains-month-toolbar-palette"
@@ -292,7 +341,7 @@ export function TrainMonthToolbar({
         </ToolbarIconButton>
       </div>
 
-      {paletteOpen && hasSelection ? (
+      {paletteOpen ? (
         <div
           className="mt-2 flex flex-wrap gap-1.5"
           data-testid="trains-month-toolbar-palette-menu"

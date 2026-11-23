@@ -1,6 +1,7 @@
 import type { ConductorRule, VipRule } from "@/lib/trains/rules/catalog.shared";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
+import { formatPriceIsRightVsScoreDelta } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 export type WheelShareCandidate = {
   memberId: string;
@@ -168,20 +169,23 @@ export function formatWheelShareEligibilityLine(
         formatWheelSharePoints(eligibility.score, locale),
         formatWheelSharePoints(eligibility.minimum, locale),
       );
-    case "tpif":
+    case "tpif": {
+      // Closeness to 7.2M matters more than the compact absolute (everyone is ~7.2M).
+      const scoreDelta = `${formatPriceIsRightVsScoreDelta(eligibility.score, locale)} pts`;
       if (
         eligibility.winProbability != null &&
         eligibility.winProbability > 0
       ) {
         return labels.tpifWithChance(
-          formatWheelSharePoints(eligibility.score, locale),
+          scoreDelta,
           formatWheelShareWinChance(eligibility.winProbability, locale),
         );
       }
       return labels.tpif(
-        formatWheelSharePoints(eligibility.score, locale),
+        scoreDelta,
         formatWheelSharePoints(eligibility.sweetSpot, locale),
       );
+    }
     case "vs_leaderboard":
       if (eligibility.rank != null && eligibility.rank >= 1) {
         return labels.vsLeaderboardRank(

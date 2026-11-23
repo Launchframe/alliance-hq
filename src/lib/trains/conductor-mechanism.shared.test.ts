@@ -14,7 +14,7 @@ describe("hasValidConductorPickForDay", () => {
     ).toBe(true);
   });
 
-  it("does not count a leftover R4 snapshot on an Eligible VS scores day", () => {
+  it("does not count a leftover R4 snapshot on a VS Save Days day", () => {
     expect(
       hasValidConductorPickForDay({
         conductorMemberId: "m1",
@@ -25,7 +25,7 @@ describe("hasValidConductorPickForDay", () => {
     ).toBe(false);
   });
 
-  it("counts a pick snapshotted under today's Eligible VS scores rule", () => {
+  it("counts a pick snapshotted under today's VS Save Days rule", () => {
     expect(
       hasValidConductorPickForDay({
         conductorMemberId: "m1",

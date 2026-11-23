@@ -208,7 +208,7 @@ describe("wheel and pool derivation", () => {
     expect(canSpinConductorForRule(VS_TOP_10, true)).toBe(false);
   });
 
-  it("draws a paired VIP only for Eligible VS scores with a free-choice VIP", () => {
+  it("draws a paired VIP only for VS Save Days with a free-choice VIP", () => {
     expect(
       conductorRuleDrawsPairedVip({
         conductorRule: PIF_WEEKDAY,

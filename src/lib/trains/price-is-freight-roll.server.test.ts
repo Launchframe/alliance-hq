@@ -97,7 +97,7 @@ describe("loadPriceIsFreightR3Candidates", () => {
     );
   });
 
-  it("draws a paired VIP from the weekday Eligible VS list when requested", async () => {
+  it("draws a paired VIP from the weekday VS Save Days list when requested", async () => {
     mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(null);
     mocks.loadPriceIsRightTicketSettings.mockResolvedValue({
       weightingEnabled: false,

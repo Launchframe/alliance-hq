@@ -70,7 +70,7 @@ export type TrainsGuidedConductorFlowProps = {
   canManualPickVip: boolean;
   /** Precomputed via `canSpinConductor(...)` in the dashboard — not re-derived here. */
   canSpinConductorWheel: boolean;
-  /** Eligible VS scores with a free-choice VIP: one click draws both. */
+  /** VS Save Days with a free-choice VIP: one click draws both. */
   drawsPairedVip?: boolean;
   /** Precomputed via `canSpinVip(...)` in the dashboard — not re-derived here. */
   canSpinVipWheel: boolean;

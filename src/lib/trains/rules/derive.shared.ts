@@ -243,7 +243,7 @@ export function canSpinConductorForRule(
 }
 
 /**
- * Eligible VS scores (Price Is Freight weekday) with a free-choice VIP:
+ * VS Save Days (Price Is Freight weekday) with a free-choice VIP:
  * one conductor spin also draws the VIP from that same list, before lock.
  */
 export function conductorRuleDrawsPairedVip(input: {

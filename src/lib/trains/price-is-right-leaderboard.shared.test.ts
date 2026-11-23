@@ -51,7 +51,7 @@ describe("formatPriceIsRightLeaderboardEntryLine", () => {
         memberName: "Gaby",
         priorDayVsScore: 7_250_000,
       }),
-    ).toBe("#2 Gaby — 7.3M");
+    ).toBe("#2 Gaby — +50,000");
   });
 });
 
@@ -76,8 +76,8 @@ describe("formatPriceIsRightLeaderboardDiscordMessage", () => {
       ],
       trainsUrl: "https://hq.example/trains",
     });
-    expect(message).toContain("**#1 Redd — 7.2M**");
-    expect(message).toContain("**#2 Gaby — 7.3M**");
+    expect(message).toContain("**#1 Redd — +0**");
+    expect(message).toContain("**#2 Gaby — +50,000**");
     expect(message).toContain("closest to 7.2M");
     expect(message).toContain("https://hq.example/trains");
   });

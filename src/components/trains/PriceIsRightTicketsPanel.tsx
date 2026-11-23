@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { PriceIsRightTicketDistributionChart } from "@/components/trains/PriceIsRightTicketDistributionChart";
 import { SearchablePaginatedMemberScoreList } from "@/components/trains/SearchablePaginatedMemberScoreList";
 import { Link } from "@/i18n/navigation";
 import {
   boardToChartPoints,
-  formatPriceIsRightVsScore,
+  formatPriceIsRightVsScoreDelta,
   normalizePriceIsRightTicketSettings,
   type PriceIsRightTicketBoardEntry,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
@@ -66,6 +66,7 @@ export function PriceIsRightTicketsPanel({
   uploadHref = "/tools/video-upload?scoreTarget=vs-performance",
 }: Props) {
   const t = useTranslations("trains.priceIsRight");
+  const locale = useLocale();
   const [payload, setPayload] = useState<TicketBoardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -268,7 +269,10 @@ export function PriceIsRightTicketsPanel({
                     </td>
                     {mode !== "heavy_hitter" ? (
                       <td className="px-3 py-2 text-hq-fg-muted">
-                        {formatPriceIsRightVsScore(row.priorDayVsScore)}
+                        {formatPriceIsRightVsScoreDelta(
+                          row.priorDayVsScore,
+                          locale,
+                        )}
                       </td>
                     ) : null}
                     {isWeighted ? (
@@ -312,7 +316,10 @@ export function PriceIsRightTicketsPanel({
                             probability: formatProbability(row.winProbability),
                           })
                         : t("board.rowMeta", {
-                            score: formatPriceIsRightVsScore(row.priorDayVsScore),
+                            score: formatPriceIsRightVsScoreDelta(
+                              row.priorDayVsScore,
+                              locale,
+                            ),
                             probability: formatProbability(row.winProbability),
                           })}
                     </p>

@@ -37,7 +37,8 @@ Canonical lists: `DAY_RULE_PALETTE` in `rules/palette.shared.ts` (day rules) vs 
 | Month — **one** day selected | Day rules only — **no** week templates |
 | Month — **multiple** days | Week templates |
 | Week strip — **Week template** control | Week templates |
-| Week strip — long-press / change day | Day rules for that date only (conductor side; preserves VIP) |
+| Week strip — long-press / change day | Day rules for that date: conductor → optional scope → VIP (Cancel = Free choice VIP) |
+| Month calendar | Choose a palette rule, then tap or drag days. Paints stay in a local draft until **Save**; **Discard** drops them. Event results still opens the shared picker. |
 | Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` (conductor / VIP / both scope) — never `WeekTemplatePickerDialog` |
 
 - Do **not** put week templates (e.g. `vs_push_week`) in single-day pickers.

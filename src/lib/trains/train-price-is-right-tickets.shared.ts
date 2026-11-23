@@ -374,6 +374,7 @@ export function boardToChartPoints(
   }));
 }
 
+/** Compact absolute VS for chart axes / threshold labels (e.g. 7.2M). */
 export function formatPriceIsRightVsScore(score: number): string {
   if (Math.abs(score) >= 1_000_000) {
     const millions = score / 1_000_000;
@@ -385,4 +386,18 @@ export function formatPriceIsRightVsScore(score: number): string {
     return `${Math.round(score / 1_000)}K`;
   }
   return String(score);
+}
+
+/**
+ * VS Save Days closeness display: delta from the 7.2M sweet spot.
+ * e.g. 7_200_105 → "+105", 7_200_000 → "+0", 7_187_550 → "-12,450".
+ */
+export function formatPriceIsRightVsScoreDelta(
+  score: number,
+  locale = "en-US",
+): string {
+  const delta = Math.trunc(score) - PRICE_IS_RIGHT_MIN_VS_SCORE;
+  const magnitude = Math.abs(delta).toLocaleString(locale);
+  if (delta === 0) return "+0";
+  return delta > 0 ? `+${magnitude}` : `-${magnitude}`;
 }

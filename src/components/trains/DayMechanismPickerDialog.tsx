@@ -56,6 +56,8 @@ type Props = {
   initialEventId?: string | null;
   /** Open straight into the event rule picker for this role. */
   initialEventRole?: "conductor" | "vip" | null;
+  /** Initial Change target (Conductor / VIP / Both). */
+  initialTarget?: PaintTarget;
 };
 
 export function DayMechanismPickerDialog({
@@ -72,12 +74,20 @@ export function DayMechanismPickerDialog({
   onSelect,
   initialEventId = null,
   initialEventRole = null,
+  initialTarget = "conductor",
 }: Props) {
   const t = useTranslations("trains");
   const tRules = useTranslations("trains.rules");
   const tDayMenu = useTranslations("trains.dayTemplateMenu");
   const tEventEvidence = useTranslations("eventEvidence");
-  const [target, setTarget] = useState<PaintTarget>("conductor");
+  const [target, setTarget] = useState<PaintTarget>(
+    initialTarget ??
+      (initialEventRole === "vip"
+        ? "both"
+        : initialEventRole === "conductor"
+          ? "conductor"
+          : "conductor"),
+  );
   const [selected, setSelected] = useState<ConductorRule | null>(currentRule);
   const [selectedVip, setSelectedVip] = useState<VipRule | null>(
     currentVipRule,
