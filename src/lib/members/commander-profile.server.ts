@@ -415,13 +415,14 @@ export async function loadCommanderProfile(
   const canManageTipJar = canGift && viewerIsOwner && Boolean(gameUid);
 
   let gameAvatarUrl = commanderIdentity?.gameAvatarUrl ?? null;
-  if (commanderIdentity && gameUid) {
+  const commanderGameUid = commanderIdentity?.gameUid?.trim() ?? null;
+  if (commanderIdentity && commanderGameUid) {
     const { refreshCommanderGameAvatarIfStale } = await import(
       "@/lib/commanders/game-avatar.server"
     );
     gameAvatarUrl = await refreshCommanderGameAvatarIfStale({
       commanderId: commanderIdentity.commanderId,
-      gameUid,
+      gameUid: commanderGameUid,
       gameAvatarUrl: commanderIdentity.gameAvatarUrl,
       gameAvatarRefreshedAt: commanderIdentity.gameAvatarRefreshedAt,
     });

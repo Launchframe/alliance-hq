@@ -141,15 +141,21 @@ export async function refreshStaleAllianceCommanderAvatars(
         ),
       ),
     )
+    .orderBy(
+      sql`${schema.commanders.gameAvatarUrl} nulls first`,
+      sql`${schema.commanders.gameAvatarRefreshedAt} nulls first`,
+    )
     .limit(limit);
 
-  for (const row of rows) {
-    await refreshCommanderGameAvatarIfStale({
-      commanderId: row.commanderId,
-      gameUid: row.gameUid,
-      gameAvatarUrl: row.gameAvatarUrl,
-      gameAvatarRefreshedAt: row.gameAvatarRefreshedAt,
-      force: true,
-    });
-  }
+  await Promise.all(
+    rows.map((row) =>
+      refreshCommanderGameAvatarIfStale({
+        commanderId: row.commanderId,
+        gameUid: row.gameUid,
+        gameAvatarUrl: row.gameAvatarUrl,
+        gameAvatarRefreshedAt: row.gameAvatarRefreshedAt,
+        force: true,
+      }),
+    ),
+  );
 }
