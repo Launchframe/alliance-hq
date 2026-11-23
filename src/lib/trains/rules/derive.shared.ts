@@ -276,9 +276,13 @@ export function canSpinVipForRule(
   );
 }
 
-/** Officer manual VIP / Guardian pick — open roster assign unless skipped. */
-export function supportsManualVipPickForRule(rule: VipRule | null): boolean {
-  return rule?.kind !== "none";
+/**
+ * Officer manual VIP pick is always available once a conductor is assigned.
+ * A VIP rule only decides whether the wheel spins. Free choice and "no VIP
+ * rule" still record a member, or an explicit absence.
+ */
+export function supportsManualVipPickForRule(_rule: VipRule | null): boolean {
+  return true;
 }
 
 function rankEligibleForPool(pool: string, rank: number | null): boolean {

@@ -451,8 +451,6 @@ export function TrainMonthCalendar({
     [selectionPreviewDates, selectedDate, selectedRange],
   );
   const focusRecord = recordForDate(displayPage.monthRecords, selectedDate);
-  const focusDayConfig = configForDate(displayPage.dayConfigs, selectedDate);
-  const vipNeeded = focusDayConfig?.vipRule?.kind !== "none";
 
   return (
     <div className="flex flex-col gap-3">
@@ -487,7 +485,6 @@ export function TrainMonthCalendar({
           today={monthToolbar.today}
           hasConductor={Boolean(focusRecord?.conductorMemberId)}
           locked={Boolean(focusRecord?.lockedAt)}
-          vipNeeded={vipNeeded}
           canUnlock={monthToolbar.canUnlock}
           canShareImage={monthToolbar.canShareImage}
           canSpinSelected={monthToolbar.canSpinDates(selectedDatesList)}

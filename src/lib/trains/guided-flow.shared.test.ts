@@ -9,7 +9,6 @@ import {
 
 const base: GuidedFlowInput = {
   hasConductor: true,
-  vipNeeded: true,
   hasVip: true,
   locked: true,
 };
@@ -46,7 +45,14 @@ describe("currentGuidedStep", () => {
     ).toBe("lock");
   });
 
-  it("returns vip when locked and VIP needed but missing", () => {
+  it("still asks for a VIP record when the day has no selection rule", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasVip: false,
+        locked: false,
+      }),
+    ).toBe("vip");
     expect(
       currentGuidedStep({
         ...base,
@@ -54,25 +60,6 @@ describe("currentGuidedStep", () => {
         locked: true,
       }),
     ).toBe("vip");
-  });
-
-  it("skips vip when vipNeeded is false", () => {
-    expect(
-      currentGuidedStep({
-        ...base,
-        vipNeeded: false,
-        hasVip: false,
-        locked: false,
-      }),
-    ).toBe("lock");
-    expect(
-      currentGuidedStep({
-        ...base,
-        vipNeeded: false,
-        hasVip: false,
-        locked: true,
-      }),
-    ).toBe("done");
   });
 
   it("returns done when locked and VIP complete", () => {

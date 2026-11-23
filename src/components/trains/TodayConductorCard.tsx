@@ -4,6 +4,7 @@ type Props = {
   record: {
     conductorMemberName: string | null;
     vipMemberName: string | null;
+    noVip?: boolean;
     guardianIsVip?: boolean;
     conductorMechanism: string | null;
     vipMechanism: string | null;
@@ -26,6 +27,7 @@ type Props = {
     lastConducted: string;
     conductsThisYear: string;
     noneYet: string;
+    noVip?: string;
   };
   substituteBadge?: string | null;
   overrideBadge?: string | null;
@@ -121,7 +123,9 @@ export function TodayConductorCard({
             {labels.vip}
           </div>
           <div className="mt-1 text-lg font-medium text-hq-fg">
-            {record?.vipMemberName ?? labels.noneYet}
+            {record?.noVip
+              ? (labels.noVip ?? labels.noneYet)
+              : (record?.vipMemberName ?? labels.noneYet)}
           </div>
         </div>
         <div className="rounded-xl border border-hq-border bg-hq-canvas p-3">

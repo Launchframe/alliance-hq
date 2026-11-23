@@ -136,6 +136,7 @@ function mapConductorRecord(
     conductorMemberName: string | null;
     vipMemberId: string | null;
     vipMemberName: string | null;
+    noVip?: number | null;
     conductorMechanism: string | null;
     vipMechanism: string | null;
     conductorRule?: unknown;
@@ -165,6 +166,7 @@ function mapConductorRecord(
     conductorMemberName: row.conductorMemberName,
     vipMemberId: row.vipMemberId,
     vipMemberName: row.vipMemberName,
+    noVip: row.noVip === 1,
     conductorMechanism: row.conductorMechanism,
     vipMechanism: row.vipMechanism,
     conductorRule: parseConductorRule(row.conductorRule),

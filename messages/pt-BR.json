@@ -3515,6 +3515,7 @@
       "hqNotes": "Notas do HQ",
       "hqNotesEmpty": "Nenhuma nota do HQ neste comandante.",
       "disciplineNoType": "Não especificado",
+      "violationTrainNoVip": "Sem VIP",
       "trainHighlights": "Destaques de trem",
       "locked": "bloqueado",
       "trainRole": {
@@ -4544,6 +4545,7 @@
         "lock": {
           "title": "Confirmar",
           "lockCta": "Confirmar condutor",
+          "lockWithVip": "Confirmar condutor e VIP",
           "ready": "Pronto para confirmar e criar o trem de hoje. O VIP pendente confirma junto com o condutor. Se você confirmar, pode desbloquear até a meia-noite no horário do servidor."
         },
         "done": {

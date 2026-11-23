@@ -76,7 +76,9 @@ export function MemberViolationCards({ rows }: { rows: ViolationRow[] }) {
                     : "inline-flex rounded-full border border-hq-danger/60 bg-hq-danger/10 px-2.5 py-0.5 text-xs font-medium text-hq-danger"
                 }
               >
-                {row.violationType?.trim() || t("disciplineNoType")}
+                {row.violationType === "train_no_vip"
+                  ? t("violationTrainNoVip")
+                  : row.violationType?.trim() || t("disciplineNoType")}
               </span>
               {expunged ? (
                 <span className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">

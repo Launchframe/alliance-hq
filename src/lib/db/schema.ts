@@ -4256,6 +4256,12 @@ export const trainConductorRecords = pgTable(
     ),
     vipMemberId: text("vip_member_id"),
     vipMemberName: text("vip_member_name"),
+    /**
+     * 1 when officers recorded that this train departed with no VIP.
+     * Distinct from a VIP selection rule: the seat is always recorded,
+     * either as a member or as this explicit absence.
+     */
+    noVip: integer("no_vip").notNull().default(0),
     vipRankEventId: text("vip_rank_event_id").references(
       () => memberAllianceRankEvents.id,
       { onDelete: "set null" },

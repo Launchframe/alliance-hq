@@ -1436,6 +1436,13 @@
       "when": 1791900000221,
       "tag": "0221_trains_conductor_invite_template",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1791900000222,
+      "tag": "0222_train_conductor_no_vip",
+      "breakpoints": true
     }
   ]
 }

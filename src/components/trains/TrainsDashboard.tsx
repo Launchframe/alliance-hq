@@ -178,6 +178,7 @@ import {
   applyOptimisticClearPendingConductor,
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
+  applyOptimisticNoVip,
   applyOptimisticConductorSwap,
   applyOptimisticLock,
   applyOptimisticPaint,
@@ -1838,6 +1839,24 @@ export function TrainsDashboard({
     );
   };
 
+  const markNoVip = async () => {
+    await withOptimisticMutation(
+      (snap) => applyOptimisticNoVip(snap, selectedDate),
+      async () => {
+        const res = await coverageFetch("/api/trains/conductor/vip/none", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: selectedDate }),
+        });
+        const body = (await res.json()) as { error?: string };
+        return {
+          ok: res.ok,
+          error: res.ok ? undefined : (body.error ?? t("pickVipFailed")),
+        };
+      },
+    );
+  };
+
   const executePaintDates = useCallback(
     (dates: string[], patch: DayRulePatch, options?: PaintOptions) => {
       return withOptimisticMutation(
@@ -3059,13 +3078,13 @@ export function TrainsDashboard({
   const canSpinConductorWheel =
     canRoll &&
     canSpinConductorForRule(selectedConductorRule, locked);
-  const canSpinVipWheel = canRoll && canSpinVip(selectedVipRule, locked);
-  const guidedVipNeeded = selectedVipRule?.kind !== "none";
+  const canSpinVipWheel =
+    canRoll && canSpinVip(selectedVipRule, hasValidConductor);
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
+  const guidedVipAbsent = Boolean(selectedRecord?.noVip);
   const guidedStep = currentGuidedStep({
     hasConductor: hasValidConductor,
-    vipNeeded: guidedVipNeeded,
-    hasVip: guidedHasVip,
+    hasVip: guidedHasVip || guidedVipAbsent,
     locked,
     rosterDataRequired:
       selectedDate === data.today ? data.rosterDataStatus?.required : false,
@@ -3631,6 +3650,7 @@ export function TrainsDashboard({
                 lastConducted: t("lastConducted"),
                 conductsThisYear: t("conductsThisYear"),
                 noneYet: t("noneYet"),
+                noVip: tRules("vipNone"),
               }}
               substituteBadge={
                 selectedRecord?.substituteForMemberName
@@ -3715,8 +3735,8 @@ export function TrainsDashboard({
                 eligibilityOverridden={Boolean(
                   selectedRecord?.eligibilityOverridden,
                 )}
-                vipNeeded={guidedVipNeeded}
                 hasVip={guidedHasVip}
+                vipAbsent={guidedVipAbsent}
                 vipName={selectedRecord?.vipMemberName}
                 conductorInvite={showConductorCard ? null : conductorInvite}
                 locked={locked}
@@ -3747,6 +3767,9 @@ export function TrainsDashboard({
                   setPickRole("vip");
                   setPickOpen(true);
                 }}
+                onMarkNoVip={
+                  hasValidConductor ? () => void markNoVip() : undefined
+                }
                 onLock={() => {
                   if (announceOnLock) {
                     setTrainReadyConfirm(true);
@@ -4078,7 +4101,9 @@ export function TrainsDashboard({
                     >
                       {conductorLockBusy === "lock"
                         ? t("locking")
-                        : t("lockConductor")}
+                        : guidedHasVip
+                          ? t("guidedFlow.steps.lock.lockWithVip")
+                          : t("guidedFlow.steps.lock.lockCta")}
                     </button>
                   )
                 ) : null}

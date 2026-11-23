@@ -4160,6 +4160,7 @@
       "commendations": "Penghargaan",
       "current": "current",
       "disciplineNoType": "Unspecified",
+      "violationTrainNoVip": "No VIP",
       "discord": "Discord",
       "discordUserFallback": "Discord user …{idSuffix}",
       "donateBricks": "Donate bricks",
@@ -7099,6 +7100,7 @@
         },
         "lock": {
           "lockCta": "Lock conductor",
+          "lockWithVip": "Lock conductor & VIP",
           "ready": "Ready to lock and spawn today’s train. Pending VIP locks with the conductor. If you lock it, you can unlock until midnight Server Time.",
           "title": "Lock"
         },

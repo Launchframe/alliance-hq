@@ -11,7 +11,6 @@ import {
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import { getServerCalendarDate } from "@/lib/trains/service";
-import { supportsManualVipPickForRule } from "@/lib/trains/rules/derive.shared";
 import { encodeLegacyVipMechanism } from "@/lib/trains/rules/encode.shared";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
@@ -75,12 +74,6 @@ async function post(request: Request) {
     );
     const vipRule = dayConfig.vipRule;
     const mechanism = encodeLegacyVipMechanism(vipRule);
-    if (!supportsManualVipPickForRule(vipRule)) {
-      return NextResponse.json(
-        { error: "Manual VIP pick is not allowed for this day." },
-        { status: 400 },
-      );
-    }
 
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,

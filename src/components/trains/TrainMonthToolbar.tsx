@@ -39,7 +39,6 @@ type Props = {
   today: string;
   hasConductor: boolean;
   locked: boolean;
-  vipNeeded: boolean;
   canUnlock: boolean;
   canShareImage: boolean;
   canSpinSelected: boolean;
@@ -106,7 +105,6 @@ export function TrainMonthToolbar({
   today,
   hasConductor,
   locked,
-  vipNeeded,
   canUnlock,
   canShareImage,
   canSpinSelected,
@@ -140,7 +138,7 @@ export function TrainMonthToolbar({
   const singleDay = selectedCount === 1;
 
   const canManualPick = singleDay && !locked;
-  const canManualPickVip = singleDay && vipNeeded && hasConductor;
+  const canManualPickVip = singleDay && hasConductor;
   const canClearPending = singleDay && hasConductor && !locked;
   const canLockUnlock =
     singleDay &&

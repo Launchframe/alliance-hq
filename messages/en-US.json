@@ -3569,6 +3569,7 @@
       "hqNotes": "HQ notes",
       "hqNotesEmpty": "No HQ notes on this commander.",
       "disciplineNoType": "Unspecified",
+      "violationTrainNoVip": "No VIP",
       "trainHighlights": "Train highlights",
       "locked": "locked",
       "trainRole": {
@@ -4597,6 +4598,7 @@
         "lock": {
           "title": "Lock",
           "lockCta": "Lock conductor",
+          "lockWithVip": "Lock conductor & VIP",
           "ready": "Ready to lock and spawn today’s train. Pending VIP locks with the conductor. If you lock it, you can unlock until midnight Server Time."
         },
         "done": {

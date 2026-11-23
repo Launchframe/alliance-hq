@@ -129,6 +129,7 @@ export function applyOptimisticConductorRoll(
     vipMemberName: member.memberName,
     vipRule: dayConfig?.vipRule ?? null,
     guardianIsVip: options?.guardianIsVip ?? false,
+    noVip: false,
   });
 }
 
@@ -176,6 +177,19 @@ export function applyOptimisticClearPendingConductor(
     vipMemberId: null,
     vipMemberName: null,
     guardianIsVip: false,
+    noVip: false,
+  });
+}
+
+export function applyOptimisticNoVip(
+  snap: TrainsDashboardSnapshot,
+  date: string,
+): TrainsDashboardSnapshot {
+  return patchRecordsInSnapshot(snap, date, {
+    vipMemberId: null,
+    vipMemberName: null,
+    guardianIsVip: false,
+    noVip: true,
   });
 }
 

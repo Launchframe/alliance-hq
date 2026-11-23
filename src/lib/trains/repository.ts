@@ -689,6 +689,7 @@ export async function clearConductorAssignment(
       vipMemberName: null,
       vipRankEventId: null,
       guardianIsVip: 0,
+      noVip: 0,
       vipMechanism: encodeLegacyVipMechanism(vipRule),
       updatedAt: new Date(),
     })
@@ -703,6 +704,8 @@ export async function clearConductorAssignment(
   if (cleared.length === 0) {
     throw new Error("Conductor is already locked for this day.");
   }
+
+  await expungeTrainNoVipViolation(db, existing.id);
 
   if (memberIdToRelease) {
     await releasePoolSelectionForDate(allianceId, date, memberIdToRelease, db);
@@ -799,6 +802,7 @@ export async function assignVipOnLockedConductor(input: {
     .set({
       vipMemberId: input.vipMemberId,
       vipMemberName: input.vipMemberName,
+      noVip: 0,
       vipRankEventId: input.vipRankEventId ?? null,
       vipMechanism: input.vipMechanism ?? existing.vipMechanism,
       vipRule: input.vipRule !== undefined ? input.vipRule : existing.vipRule,
@@ -825,10 +829,94 @@ export async function assignVipOnLockedConductor(input: {
     throw new Error("Lock the conductor before assigning VIP.");
   }
 
+  await expungeTrainNoVipViolation(db, existing.id);
   await recordAppliedTrainCoverage(db, input.allianceId, existing.id);
   return updated[0]!;
   };
   return input.tx ? run(input.tx) : getDb().transaction(run);
+}
+
+/** Stable member-violation id for "this train departed with no VIP". */
+export function trainNoVipViolationId(recordId: string): string {
+  return `train-no-vip:${recordId}`;
+}
+
+async function expungeTrainNoVipViolation(
+  db: AvailabilityTransaction,
+  recordId: string,
+): Promise<void> {
+  await db
+    .update(schema.memberViolations)
+    .set({ expungedAt: new Date(), updatedAt: new Date() })
+    .where(eq(schema.memberViolations.id, trainNoVipViolationId(recordId)));
+}
+
+/**
+ * Record that this train has no VIP. Clears any assigned VIP member and
+ * files a violation against the conductor (a wasted VIP seat).
+ */
+export async function markConductorNoVip(input: {
+  allianceId: string;
+  date: string;
+  seasonKey?: string | null;
+}): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
+  return getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const existing = await getConductorRecord(
+      input.allianceId,
+      input.date,
+      input.seasonKey,
+      db,
+    );
+    if (!existing?.conductorMemberId) {
+      throw new Error("No conductor set for this day.");
+    }
+
+    const [updated] = await db
+      .update(schema.trainConductorRecords)
+      .set({
+        vipMemberId: null,
+        vipMemberName: null,
+        vipRankEventId: null,
+        guardianIsVip: 0,
+        noVip: 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.trainConductorRecords.id, existing.id))
+      .returning();
+
+    if (!updated) {
+      throw new Error("No conductor set for this day.");
+    }
+
+    const violationId = trainNoVipViolationId(existing.id);
+    await db
+      .insert(schema.memberViolations)
+      .values({
+        id: violationId,
+        allianceId: input.allianceId,
+        ashedMemberId: existing.conductorMemberId,
+        memberName: existing.conductorMemberName?.trim() || existing.conductorMemberId,
+        violationType: "train_no_vip",
+        notes: null,
+        recordedDate: input.date,
+        expungedAt: null,
+      })
+      .onConflictDoUpdate({
+        target: schema.memberViolations.id,
+        set: {
+          ashedMemberId: existing.conductorMemberId,
+          memberName:
+            existing.conductorMemberName?.trim() || existing.conductorMemberId,
+          recordedDate: input.date,
+          expungedAt: null,
+          updatedAt: new Date(),
+        },
+      });
+
+    await recordAppliedTrainCoverage(db, input.allianceId, existing.id);
+    return updated;
+  });
 }
 
 export async function clearVipAssignment(
@@ -852,6 +940,7 @@ export async function clearVipAssignment(
       vipMemberId: null,
       vipMemberName: null,
       vipRankEventId: null,
+      noVip: 0,
       updatedAt: new Date(),
     })
     .where(
@@ -865,6 +954,8 @@ export async function clearVipAssignment(
   if (cleared.length === 0) {
     throw new Error("Conductor is already locked for this day.");
   }
+
+  await expungeTrainNoVipViolation(db, existing.id);
 
   if (vipToRelease) {
     await releasePoolSelectionForDate(allianceId, date, vipToRelease, db);

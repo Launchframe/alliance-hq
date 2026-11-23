@@ -17,11 +17,9 @@ export type GuidedFlowInput = {
   /** Conductor assigned for the selected day. */
   hasConductor: boolean;
   /**
-   * VIP step applies when the day's vip mechanism is set and not `"none"`.
-   * When false, the VIP step is skipped.
+   * VIP outcome recorded: a member, or an explicit "no VIP".
+   * Every train records one of those. A selection rule is not required.
    */
-  vipNeeded: boolean;
-  /** VIP member assigned, or guardian-is-VIP satisfied. */
   hasVip: boolean;
   /** Conductor record locked for the selected day. */
   locked: boolean;
@@ -79,16 +77,15 @@ export function guidedFlowPrerequisitesBlocking(
 /**
  * First incomplete step for the guided flow primary CTA.
  *
- * VIP may be pending before lock so officers can communicate both names,
- * then lock conductor + VIP together. VIP remains optional: the VIP step
- * offers lock-without-VIP when still unlocked. After lock, a missing VIP
- * still surfaces so officers can add one on the locked train.
+ * Every train records a VIP (a member, or an explicit absence). Officers can
+ * still lock while that record is open; after lock, a missing VIP still
+ * surfaces so they can finish the seat on the locked train.
  */
 export function currentGuidedStep(input: GuidedFlowInput): GuidedFlowStep {
   if (guidedFlowRosterBlocking(input)) return "roster";
   if (guidedFlowPrerequisitesBlocking(input)) return "prerequisites";
   if (!input.hasConductor) return "conductor";
-  if (input.vipNeeded && !input.hasVip) return "vip";
+  if (!input.hasVip) return "vip";
   if (!input.locked) return "lock";
   return "done";
 }

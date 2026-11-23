@@ -107,6 +107,21 @@ describe("VIP pick is an open roster assign", () => {
     );
   });
 
+  it("assigns on a day with no VIP selection rule", async () => {
+    const { assignVipOnLockedConductor } = await setupLockedDay({ kind: "none" });
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/vip/pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(BASE_BODY),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(assignVipOnLockedConductor).toHaveBeenCalled();
+  });
+
   it("assigns on conductor_pick VIP days", async () => {
     const { assignVipOnLockedConductor } = await setupLockedDay(null);
 
@@ -178,21 +193,5 @@ describe("VIP pick is an open roster assign", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/conductor/i);
-  });
-
-  it("rejects VIP pick when the day has no VIP", async () => {
-    await setupLockedDay({ kind: "none" });
-
-    const res = await POST(
-      new Request("http://localhost/api/trains/conductor/vip/pick", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(BASE_BODY),
-      }),
-    );
-
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/not allowed/i);
   });
 });
