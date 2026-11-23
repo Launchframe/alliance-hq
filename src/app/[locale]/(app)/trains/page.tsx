@@ -3,6 +3,7 @@ import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.se
 
 import { TrainsDashboard } from "@/components/trains/TrainsDashboard";
 import {
+  parseTrainsAutoSpinParam,
   parseTrainsHubDateParam,
   parseTrainsScoresReadyParam,
 } from "@/lib/trains/guided-video-upload.shared";
@@ -22,6 +23,7 @@ type Props = {
     date?: string;
     scoresReady?: string;
     eventId?: string;
+    autoSpin?: string;
   }>;
 };
 
@@ -39,6 +41,7 @@ export default async function TrainsPage({ searchParams }: Props) {
       initialSelectedDate={parseTrainsHubDateParam(sp.date)}
       initialEventId={sp.eventId?.trim() || null}
       initialScoresReady={parseTrainsScoresReadyParam(sp.scoresReady)}
+      initialAutoSpin={parseTrainsAutoSpinParam(sp.autoSpin)}
       videoUpload={{
         canProcess: canProcessVideo,
         ashedConnected: Boolean(ashedConnection),

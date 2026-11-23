@@ -237,6 +237,8 @@ type Props = {
   initialEventId?: string | null;
   /** From `?scoresReady=1` after VS scores were saved. */
   initialScoresReady?: boolean;
+  /** From `?autoSpin=1` after the post-submit spin prompt. */
+  initialAutoSpin?: boolean;
   /** Video processor + Ashed state for the inline VS score upload. */
   videoUpload?: {
     canProcess: boolean;
@@ -272,6 +274,7 @@ export function TrainsDashboard({
   initialSelectedDate = null,
   initialEventId = null,
   initialScoresReady = false,
+  initialAutoSpin = false,
   videoUpload,
 }: Props) {
   const t = useTranslations("trains");
@@ -287,7 +290,9 @@ export function TrainsDashboard({
   const [unlockConfirm, setUnlockConfirm] = useState(false);
   const [unlockRequestCopied, setUnlockRequestCopied] = useState(false);
   const [trainReadyConfirm, setTrainReadyConfirm] = useState(false);
-  const [scoresReadyOpen, setScoresReadyOpen] = useState(initialScoresReady);
+  const [scoresReadyOpen, setScoresReadyOpen] = useState(
+    initialScoresReady && !initialAutoSpin,
+  );
   const [wheelOpen, setWheelOpen] = useState(false);
   const [wheelWinner, setWheelWinner] = useState<{
     memberId: string;
@@ -1225,9 +1230,20 @@ export function TrainsDashboard({
 
   // Fresh VS status after returning from the score-upload funnel.
   useEffect(() => {
-    if (!initialScoresReady) return;
-    void refreshRef.current();
-  }, [initialScoresReady]);
+    if (!initialScoresReady && !initialAutoSpin) return;
+    void refreshRef.current().then(() => {
+      if (!initialAutoSpin) return;
+      window.setTimeout(() => {
+        const params = new URLSearchParams();
+        if (selectedDateRef.current) {
+          params.set("date", selectedDateRef.current);
+        }
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname);
+        requestConductorSpinRef.current();
+      }, 0);
+    });
+  }, [initialAutoSpin, initialScoresReady, pathname, router]);
 
   const clearScoresReadyQuery = useCallback(() => {
     setScoresReadyOpen(false);
