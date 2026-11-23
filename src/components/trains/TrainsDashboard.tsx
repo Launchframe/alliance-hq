@@ -4032,7 +4032,7 @@ export function TrainsDashboard({
                       : t("clearPendingConductor")}
                   </button>
                 ) : null}
-                {canRoll && canSpinVip(selectedVipRule, locked) ? (
+                {canRoll && canSpinVip(selectedVipRule, hasValidConductor) ? (
                   <button
                     type="button"
                     disabled={trainQuickActionBusy}
