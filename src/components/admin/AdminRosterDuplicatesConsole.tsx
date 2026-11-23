@@ -212,8 +212,11 @@ export function AdminRosterDuplicatesConsole() {
       }
       setInexactPairs(null);
       setRemoveOpen(false);
-      applyBatch(body);
+      // Refresh the scan first — loadScan clears notices — then show batch results.
       await loadScan(requestAllianceId);
+      if (requestId !== actionRequestIdRef.current) return;
+      if (allianceId !== requestAllianceId) return;
+      applyBatch(body);
     } finally {
       if (requestId === actionRequestIdRef.current) setBusy(false);
     }
