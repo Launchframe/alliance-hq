@@ -258,14 +258,14 @@ export function conductorRuleDrawsPairedVip(input: {
 }
 
 /**
- * VIP wheel eligibility by rule. Manual and wheel VIP may be pending on an
- * unlocked draft; lock freezes the conductor (and any pending VIP) together.
- * The second argument is retained for call-site compatibility and ignored.
+ * VIP wheel eligibility by rule. Requires an assigned conductor; manual VIP
+ * pick uses the same gate via `hasValidConductor` at call sites.
  */
 export function canSpinVipForRule(
   rule: VipRule | null,
-  _locked?: boolean,
+  hasConductor = true,
 ): boolean {
+  if (!hasConductor) return false;
   if (!rule || rule.kind === "none") return false;
   return (
     rule.kind === "donations_second" ||

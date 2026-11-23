@@ -518,6 +518,11 @@ export async function upsertConductorDraft(input: {
   if (existing) {
     const nextConductorMemberId =
       input.conductorMemberId ?? existing.conductorMemberId;
+    const nextVipMemberId =
+      input.vipMemberId !== undefined
+        ? input.vipMemberId
+        : existing.vipMemberId;
+    const assigningVip = Boolean(nextVipMemberId);
     const updated = await db
       .update(schema.trainConductorRecords)
       .set({
@@ -527,9 +532,10 @@ export async function upsertConductorDraft(input: {
           input.conductorMemberName ?? existing.conductorMemberName,
         conductorRankEventId:
           input.conductorRankEventId ?? existing.conductorRankEventId,
-        vipMemberId: input.vipMemberId ?? existing.vipMemberId,
+        vipMemberId: nextVipMemberId,
         vipMemberName: input.vipMemberName ?? existing.vipMemberName,
         vipRankEventId: input.vipRankEventId ?? existing.vipRankEventId,
+        ...(assigningVip ? { noVip: 0 } : {}),
         conductorMechanism:
           input.conductorMechanism ?? existing.conductorMechanism,
         vipMechanism: input.vipMechanism ?? existing.vipMechanism,
@@ -609,6 +615,9 @@ export async function upsertConductorDraft(input: {
       .from(schema.trainConductorRecords)
       .where(eq(schema.trainConductorRecords.id, existing.id))
       .limit(1);
+    if (assigningVip) {
+      await expungeTrainNoVipViolation(db, existing.id);
+    }
     await recordAppliedTrainCoverage(db, input.allianceId, existing.id);
     return row!;
   }
