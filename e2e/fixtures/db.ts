@@ -1170,6 +1170,12 @@ export const E2E_BYPASS_GAME_UIDS = [
   "1234567890121288",
   "1234567890121291",
   "1234567890121299",
+  // Owner-pattern UIDs (`1234567890` + 4-digit server) used by transfer/owner specs
+  "12345678901203",
+  "12345678901211",
+  "12345678901284",
+  "12345678901285",
+  "12345678901287",
 ] as const;
 
 export async function clearE2eBypassUidClaims(

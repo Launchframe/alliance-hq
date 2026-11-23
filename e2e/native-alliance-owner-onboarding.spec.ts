@@ -21,8 +21,15 @@ function buildE2eOwnerUid(serverNumber: number): string {
   return `1234567890${String(serverNumber).padStart(4, "0")}`;
 }
 
+/** Avoid servers reserved by onboard-server-transfer e2e fixtures. */
+const RESERVED_TRANSFER_SERVERS = new Set([1211, 1284, 1285, 1287]);
+
 function pickOwnerServerNumber(): number {
-  return randomInt(1100, 9000);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const server = randomInt(1100, 9000);
+    if (!RESERVED_TRANSFER_SERVERS.has(server)) return server;
+  }
+  return 2501;
 }
 
 function extractInviteToken(inviteUrl: string): string {

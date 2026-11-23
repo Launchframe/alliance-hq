@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   acceptInviteViaApi,
+  clearE2eBypassUidClaims,
   createAllianceRosterMember,
   createHqInviteRow,
   createNativeAlliance,
@@ -27,7 +28,7 @@ async function seedInvitedTransfer(
   sql: Sql,
   input: { allianceServer: number; gameUid: string },
 ) {
-  await sql`DELETE FROM commanders WHERE game_uid = ${input.gameUid}`;
+  await clearE2eBypassUidClaims(sql, [input.gameUid]);
   const maintainer = await createPlatformMaintainerSession(sql);
   const alliance = await createNativeAlliance(sql, {
     tag: `ST${nanoid(3)}`,
@@ -84,6 +85,10 @@ async function submitUidThenConfirm(page: Page, uid: string) {
 }
 
 test.describe("Member-link server transfer", () => {
+  test.beforeEach(async () => {
+    await clearE2eBypassUidClaims(getE2eSql());
+  });
+
   test("invited commander confirms a transfer and links on the new server", async ({
     page,
   }) => {
