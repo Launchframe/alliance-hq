@@ -122,6 +122,10 @@ import {
   VideoReviewSettingsFab,
   VideoReviewSettingsTrigger,
 } from "@/components/video/VideoReviewSettingsDialog";
+import {
+  ScoreboardMemberConfirmDialog,
+  type ScoreboardMemberConfirmDraft,
+} from "@/components/video/ScoreboardMemberConfirmDialog";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
 import {
   reviewIssueNavScrollOffsetPx,
@@ -487,10 +491,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     useVideoReviewSettings();
   const [scoreboardOffers, setScoreboardOffers] = useState({
     canOffer: false,
-    offerCreate: false,
-    offerRename: false,
+    offerCreate: true,
+    offerRename: true,
   });
   const [scoreboardMemberBusy, setScoreboardMemberBusy] = useState(false);
+  const [scoreboardConfirm, setScoreboardConfirm] = useState<{
+    action: "create" | "rename";
+    drafts: ScoreboardMemberConfirmDraft[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const [invalidMemberNames, setInvalidMemberNames] = useState<string[] | null>(
@@ -2702,94 +2710,90 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setRows((prev) => sortReviewRowsByScoreDesc(prev));
   }
 
-  async function runScoreboardMemberAction(
+  function openScoreboardMemberConfirm(
     action: "create" | "rename",
     rowIds: string[],
   ) {
     if (rowIds.length === 0 || scoreboardMemberBusy) return;
-    setScoreboardMemberBusy(true);
+    const idSet = new Set(rowIds);
+    const drafts: ScoreboardMemberConfirmDraft[] = activeRows
+      .filter((row) => idSet.has(row.id))
+      .map((row) => {
+        const member = members.find((item) => item.id === row.memberId);
+        return {
+          id: row.id,
+          ocrName: row.ocrName,
+          currentMemberName: member?.current_name ?? row.memberName,
+        };
+      });
+    if (drafts.length === 0) return;
     clearActionError();
-    try {
-      const res = await fetch(
-        `/api/tools/video-upload/${jobId}/scoreboard-members`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, rowIds }),
-        },
-      );
-      const data = (await res.json()) as {
-        error?: string;
-        members?: Array<{
-          id: string;
-          current_name: string;
-          previous_names?: string[];
-        }>;
-        rows?: Array<{
-          id: string;
-          memberId: string;
-          memberName: string;
-          matchMethod: string;
-          matchConfidence: number;
-        }>;
-      };
-      if (!res.ok) {
-        setActionError(data.error ?? tc("uploadFailed"));
-        return;
-      }
-      const nextMembers = data.members ?? [];
-      if (nextMembers.length > 0) {
-        setMembers((prev) => {
-          const byId = new Map(prev.map((member) => [member.id, member]));
-          for (const member of nextMembers) {
-            byId.set(member.id, {
-              id: member.id,
-              current_name: member.current_name,
-              previous_names: member.previous_names,
-            });
-          }
-          return [...byId.values()].sort((a, b) =>
-            a.current_name.localeCompare(b.current_name, undefined, {
-              sensitivity: "base",
-            }),
-          );
-        });
-        setRosterMembers((prev) => {
-          const byId = new Map(prev.map((member) => [member.id, member]));
-          for (const member of nextMembers) {
-            const existing = byId.get(member.id);
-            byId.set(member.id, {
-              ...existing,
-              id: member.id,
-              current_name: member.current_name,
-              previous_names: member.previous_names,
-            });
-          }
-          return [...byId.values()];
-        });
-      }
-      const patched = data.rows ?? [];
-      if (patched.length > 0) {
-        markDraftDirty();
-        const byId = new Map(patched.map((row) => [row.id, row]));
-        setRows((prev) =>
-          prev.map((row) => {
-            const next = byId.get(row.id);
-            if (!next) return row;
-            return {
-              ...row,
-              memberId: next.memberId,
-              memberName: next.memberName,
-              matchMethod: next.matchMethod,
-              matchConfidence: next.matchConfidence,
-            };
+    setScoreboardMemberBusy(true);
+    setScoreboardConfirm({ action, drafts });
+  }
+
+  function applyScoreboardMemberActionResult(data: {
+    members: Array<{
+      id: string;
+      current_name: string;
+      previous_names?: string[];
+    }>;
+    rows: Array<{
+      id: string;
+      memberId: string;
+      memberName: string;
+      matchMethod: string;
+      matchConfidence: number;
+    }>;
+  }) {
+    const nextMembers = data.members;
+    if (nextMembers.length > 0) {
+      setMembers((prev) => {
+        const byId = new Map(prev.map((member) => [member.id, member]));
+        for (const member of nextMembers) {
+          byId.set(member.id, {
+            id: member.id,
+            current_name: member.current_name,
+            previous_names: member.previous_names,
+          });
+        }
+        return [...byId.values()].sort((a, b) =>
+          a.current_name.localeCompare(b.current_name, undefined, {
+            sensitivity: "base",
           }),
         );
-      }
-    } catch {
-      setActionError(tc("uploadFailed"));
-    } finally {
-      setScoreboardMemberBusy(false);
+      });
+      setRosterMembers((prev) => {
+        const byId = new Map(prev.map((member) => [member.id, member]));
+        for (const member of nextMembers) {
+          const existing = byId.get(member.id);
+          byId.set(member.id, {
+            ...existing,
+            id: member.id,
+            current_name: member.current_name,
+            previous_names: member.previous_names,
+          });
+        }
+        return [...byId.values()];
+      });
+    }
+    const patched = data.rows;
+    if (patched.length > 0) {
+      markDraftDirty();
+      const byId = new Map(patched.map((row) => [row.id, row]));
+      setRows((prev) =>
+        prev.map((row) => {
+          const next = byId.get(row.id);
+          if (!next) return row;
+          return {
+            ...row,
+            memberId: next.memberId,
+            memberName: next.memberName,
+            matchMethod: next.matchMethod,
+            matchConfidence: next.matchConfidence,
+          };
+        }),
+      );
     }
   }
 
@@ -3615,7 +3619,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               type="button"
               disabled={scoreboardMemberBusy}
               onClick={() =>
-                void runScoreboardMemberAction("create", scoreboardCreateIds)
+                openScoreboardMemberConfirm("create", scoreboardCreateIds)
               }
               className="inline-flex items-center gap-1.5 rounded-lg border border-hq-success px-3 py-1.5 text-sm text-hq-success hover:bg-hq-success/10 disabled:opacity-50"
             >
@@ -3628,7 +3632,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               type="button"
               disabled={scoreboardMemberBusy}
               onClick={() =>
-                void runScoreboardMemberAction("rename", scoreboardRenameIds)
+                openScoreboardMemberConfirm("rename", scoreboardRenameIds)
               }
               className="inline-flex items-center gap-1.5 rounded-lg border border-[#d29922] px-3 py-1.5 text-sm text-[#e3b341] hover:bg-[#d29922]/10 disabled:opacity-50"
             >
@@ -4840,7 +4844,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                             type="button"
                             disabled={scoreboardMemberBusy}
                             onClick={() =>
-                              void runScoreboardMemberAction("create", [row.id])
+                              openScoreboardMemberConfirm("create", [row.id])
                             }
                             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-hq-success hover:bg-hq-success/10 disabled:opacity-50"
                             title={t("createAllAsMembers", { count: 1 })}
@@ -4859,7 +4863,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                             type="button"
                             disabled={scoreboardMemberBusy}
                             onClick={() =>
-                              void runScoreboardMemberAction("rename", [row.id])
+                              openScoreboardMemberConfirm("rename", [row.id])
                             }
                             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#e3b341] hover:bg-[#d29922]/10 disabled:opacity-50"
                             title={t("addNamesForMembers", { count: 1 })}
@@ -4970,6 +4974,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ) : null}
       </div>
       </form>
+
+      {scoreboardConfirm ? (
+        <ScoreboardMemberConfirmDialog
+          key={`${scoreboardConfirm.action}:${scoreboardConfirm.drafts
+            .map((draft) => draft.id)
+            .join(",")}`}
+          open
+          action={scoreboardConfirm.action}
+          drafts={scoreboardConfirm.drafts}
+          // Opening the dialog sets scoreboardMemberBusy so review actions
+          // cannot start a second confirm. That flag must not disable this form.
+          busy={false}
+          jobId={jobId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setScoreboardConfirm(null);
+              setScoreboardMemberBusy(false);
+            }
+          }}
+          onCommitted={(result) => {
+            applyScoreboardMemberActionResult(result);
+            setScoreboardConfirm(null);
+            setScoreboardMemberBusy(false);
+          }}
+          onError={(message, connectUrl) => {
+            setActionError(message, connectUrl ?? undefined);
+          }}
+        />
+      ) : null}
 
       <Dialog
         open={pendingVsContext != null}
