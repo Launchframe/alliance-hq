@@ -49,7 +49,7 @@ export function pickAvatarFromProviders(
   return { avatarUrl: null, avatarSource: null };
 }
 
-/** Exported for unit tests — true when never refreshed or past TTL. */
+/** True when never refreshed or past TTL. */
 export function isLastWarAvatarStale(
   user: Pick<HqUser, "avatarRefreshedAt">,
 ): boolean {
@@ -57,24 +57,6 @@ export function isLastWarAvatarStale(
     return true;
   }
   return Date.now() - user.avatarRefreshedAt.getTime() > LASTWAR_AVATAR_TTL_MS;
-}
-
-/**
- * Whether a Last War network lookup may be needed for the HQ user cache.
- * Alliance-scoped resolution uses the commander row's TTL; this remains for
- * callers that still gate on the hq_users cache alone.
- */
-export function needsLastWarAvatarRefresh(
-  user: Pick<
-    HqUser,
-    "primaryGameUid" | "avatarSource" | "avatarUrl" | "avatarRefreshedAt"
-  >,
-  options: { forceRefresh?: boolean } = {},
-): boolean {
-  if (options.forceRefresh) {
-    return true;
-  }
-  return isLastWarAvatarStale(user);
 }
 
 async function loadAuthProviders(hqUserId: string): Promise<AuthProviderRow[]> {
