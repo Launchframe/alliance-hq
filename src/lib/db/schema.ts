@@ -4257,6 +4257,14 @@ export const trainConductorRecords = pgTable(
     vipMemberId: text("vip_member_id"),
     vipMemberName: text("vip_member_name"),
     /**
+     * 1..N rank drawn via numbered-spin fallback when scores were not yet
+     * uploaded. Auto-backfilled once scores arrive if the slot is still null.
+     */
+    conductorNumberedRank: integer("conductor_numbered_rank"),
+    conductorNumberedPoolSize: integer("conductor_numbered_pool_size"),
+    vipNumberedRank: integer("vip_numbered_rank"),
+    vipNumberedPoolSize: integer("vip_numbered_pool_size"),
+    /**
      * 1 when officers recorded that this train departed with no VIP.
      * Distinct from a VIP selection rule: the seat is always recorded,
      * either as a member or as this explicit absence.

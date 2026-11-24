@@ -5018,7 +5018,12 @@
       "buildEligibilityAndRespin": "Montar elegibilidade e girar de novo",
       "startNewRotationAndRespin": "Iniciar nova rodada e girar de novo",
       "reseedAndRespinBusy": "Iniciando nova rodada…",
+      "spinNumberedFallback": "Girar #1–{max} em vez disso",
       "close": "Fechar"
+    },
+    "numberedSpin": {
+      "pendingBadge": "#{rank} de {total} (aguardando placares)",
+      "wheelSubtitle": "Os placares ainda não foram enviados — sorteando uma posição de #1 a #{total}"
     },
     "errorBanner": {
       "dismiss": "Dispensar"

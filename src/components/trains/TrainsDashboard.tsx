@@ -1353,7 +1353,7 @@ export function TrainsDashboard({
 
   const runRoll = async (
     role: "conductor" | "vip",
-    options?: { acknowledgePollFallback?: boolean },
+    options?: { acknowledgePollFallback?: boolean; numberedFallback?: boolean },
   ) => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     // Don't let page hotkeys / spin run "behind" open schedule dialogs.
@@ -1371,8 +1371,9 @@ export function TrainsDashboard({
       const requestBody: Record<string, unknown> = {
         role,
         date: selectedDate,
+        ...(options?.numberedFallback ? { numberedFallback: true } : {}),
       };
-      if (eventRule?.kind === "event_scores") {
+      if (!options?.numberedFallback && eventRule?.kind === "event_scores") {
         // Fenced draw: preview first for the fingerprint + wheel candidates,
         // then roll with a fresh request id.
         const previewRes = await coverageFetch(
@@ -3696,6 +3697,40 @@ export function TrainsDashboard({
             </p>
           ) : null}
 
+          {/* Pending numbered-spin rank (awaiting scores for auto-backfill) */}
+          {(selectedRecord?.conductorNumberedRank != null &&
+            selectedRecord?.conductorNumberedPoolSize != null &&
+            !selectedRecord?.conductorMemberId) ||
+          (selectedRecord?.vipNumberedRank != null &&
+            selectedRecord?.vipNumberedPoolSize != null &&
+            !selectedRecord?.vipMemberId) ? (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100"
+              data-testid="trains-numbered-spin-pending"
+            >
+              {selectedRecord?.conductorNumberedRank != null &&
+              selectedRecord?.conductorNumberedPoolSize != null &&
+              !selectedRecord?.conductorMemberId ? (
+                <span>
+                  {t("numberedSpin.pendingBadge", {
+                    rank: selectedRecord.conductorNumberedRank,
+                    total: selectedRecord.conductorNumberedPoolSize,
+                  })}
+                </span>
+              ) : null}
+              {selectedRecord?.vipNumberedRank != null &&
+              selectedRecord?.vipNumberedPoolSize != null &&
+              !selectedRecord?.vipMemberId ? (
+                <span>
+                  {t("numberedSpin.pendingBadge", {
+                    rank: selectedRecord.vipNumberedRank,
+                    total: selectedRecord.vipNumberedPoolSize,
+                  })}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
           {/* Quick actions */}
           {showQuickActions ? (
             data.simpleModeEnabled ? (
@@ -3731,13 +3766,31 @@ export function TrainsDashboard({
                   selectedDate === data.today ? data.rosterDataStatus : null
                 }
                 hasConductor={hasValidConductor}
-                conductorName={selectedRecord?.conductorMemberName}
+                conductorName={
+                  selectedRecord?.conductorMemberName ??
+                  (selectedRecord?.conductorNumberedRank != null &&
+                  selectedRecord?.conductorNumberedPoolSize != null
+                    ? t("numberedSpin.pendingBadge", {
+                        rank: selectedRecord.conductorNumberedRank,
+                        total: selectedRecord.conductorNumberedPoolSize,
+                      })
+                    : null)
+                }
                 eligibilityOverridden={Boolean(
                   selectedRecord?.eligibilityOverridden,
                 )}
                 hasVip={guidedHasVip}
                 vipAbsent={guidedVipAbsent}
-                vipName={selectedRecord?.vipMemberName}
+                vipName={
+                  selectedRecord?.vipMemberName ??
+                  (selectedRecord?.vipNumberedRank != null &&
+                  selectedRecord?.vipNumberedPoolSize != null
+                    ? t("numberedSpin.pendingBadge", {
+                        rank: selectedRecord.vipNumberedRank,
+                        total: selectedRecord.vipNumberedPoolSize,
+                      })
+                    : null)
+                }
                 conductorInvite={showConductorCard ? null : conductorInvite}
                 locked={locked}
                 canRoll={canRoll}
@@ -4469,7 +4522,9 @@ export function TrainsDashboard({
         open={wheelBlocked != null}
         details={wheelBlocked}
         uploadHref={guidedVideoUploadHref}
-        rule={selectedConductorRule}
+        rule={
+          wheelBlockedRole === "vip" ? selectedVipRule : selectedConductorRule
+        }
         eventHref={eventRuleOccurrenceHref}
         onConfigureEvent={() =>
           openEventRuleConfig(
@@ -4508,6 +4563,9 @@ export function TrainsDashboard({
           setPickOpen(true);
         }}
         onRetrySpin={() => void runRollRef.current(wheelBlockedRole)}
+        onSpinNumbered={() =>
+          void runRollRef.current(wheelBlockedRole, { numberedFallback: true })
+        }
         canSyncRoster={showWheelRosterSync}
         onSyncRoster={() => void handleRosterSync()}
       />

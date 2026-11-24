@@ -462,6 +462,10 @@ export async function upsertConductorDraft(input: {
   vipMemberId?: string | null;
   vipMemberName?: string | null;
   vipRankEventId?: string | null;
+  conductorNumberedRank?: number | null;
+  conductorNumberedPoolSize?: number | null;
+  vipNumberedRank?: number | null;
+  vipNumberedPoolSize?: number | null;
   conductorMechanism?: string | null;
   vipMechanism?: string | null;
   conductorRule?: ConductorRule | null;
@@ -535,6 +539,30 @@ export async function upsertConductorDraft(input: {
         vipMemberId: nextVipMemberId,
         vipMemberName: input.vipMemberName ?? existing.vipMemberName,
         vipRankEventId: input.vipRankEventId ?? existing.vipRankEventId,
+        conductorNumberedRank:
+          input.conductorNumberedRank !== undefined
+            ? input.conductorNumberedRank
+            : input.conductorMemberId
+              ? null
+              : existing.conductorNumberedRank,
+        conductorNumberedPoolSize:
+          input.conductorNumberedPoolSize !== undefined
+            ? input.conductorNumberedPoolSize
+            : input.conductorMemberId
+              ? null
+              : existing.conductorNumberedPoolSize,
+        vipNumberedRank:
+          input.vipNumberedRank !== undefined
+            ? input.vipNumberedRank
+            : input.vipMemberId
+              ? null
+              : existing.vipNumberedRank,
+        vipNumberedPoolSize:
+          input.vipNumberedPoolSize !== undefined
+            ? input.vipNumberedPoolSize
+            : input.vipMemberId
+              ? null
+              : existing.vipNumberedPoolSize,
         ...(assigningVip ? { noVip: 0 } : {}),
         conductorMechanism:
           input.conductorMechanism ?? existing.conductorMechanism,
@@ -634,6 +662,10 @@ export async function upsertConductorDraft(input: {
     vipMemberId: input.vipMemberId ?? null,
     vipMemberName: input.vipMemberName ?? null,
     vipRankEventId: input.vipRankEventId ?? null,
+    conductorNumberedRank: input.conductorNumberedRank ?? null,
+    conductorNumberedPoolSize: input.conductorNumberedPoolSize ?? null,
+    vipNumberedRank: input.vipNumberedRank ?? null,
+    vipNumberedPoolSize: input.vipNumberedPoolSize ?? null,
     conductorMechanism: input.conductorMechanism ?? null,
     vipMechanism: input.vipMechanism ?? null,
     conductorRule: input.conductorRule ?? null,
@@ -697,6 +729,10 @@ export async function clearConductorAssignment(
       vipMemberId: null,
       vipMemberName: null,
       vipRankEventId: null,
+      conductorNumberedRank: null,
+      conductorNumberedPoolSize: null,
+      vipNumberedRank: null,
+      vipNumberedPoolSize: null,
       guardianIsVip: 0,
       noVip: 0,
       vipMechanism: encodeLegacyVipMechanism(vipRule),
@@ -811,6 +847,8 @@ export async function assignVipOnLockedConductor(input: {
     .set({
       vipMemberId: input.vipMemberId,
       vipMemberName: input.vipMemberName,
+      vipNumberedRank: null,
+      vipNumberedPoolSize: null,
       noVip: 0,
       vipRankEventId: input.vipRankEventId ?? null,
       vipMechanism: input.vipMechanism ?? existing.vipMechanism,
@@ -887,6 +925,8 @@ export async function markConductorNoVip(input: {
         vipMemberId: null,
         vipMemberName: null,
         vipRankEventId: null,
+        vipNumberedRank: null,
+        vipNumberedPoolSize: null,
         guardianIsVip: 0,
         noVip: 1,
         updatedAt: new Date(),

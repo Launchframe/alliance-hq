@@ -136,6 +136,10 @@ function mapConductorRecord(
     conductorMemberName: string | null;
     vipMemberId: string | null;
     vipMemberName: string | null;
+    conductorNumberedRank?: number | null;
+    conductorNumberedPoolSize?: number | null;
+    vipNumberedRank?: number | null;
+    vipNumberedPoolSize?: number | null;
     noVip?: number | null;
     conductorMechanism: string | null;
     vipMechanism: string | null;
@@ -166,6 +170,10 @@ function mapConductorRecord(
     conductorMemberName: row.conductorMemberName,
     vipMemberId: row.vipMemberId,
     vipMemberName: row.vipMemberName,
+    conductorNumberedRank: row.conductorNumberedRank ?? null,
+    conductorNumberedPoolSize: row.conductorNumberedPoolSize ?? null,
+    vipNumberedRank: row.vipNumberedRank ?? null,
+    vipNumberedPoolSize: row.vipNumberedPoolSize ?? null,
     noVip: row.noVip === 1,
     conductorMechanism: row.conductorMechanism,
     vipMechanism: row.vipMechanism,

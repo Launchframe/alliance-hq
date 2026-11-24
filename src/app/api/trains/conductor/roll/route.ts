@@ -15,6 +15,7 @@ import {
 } from "@/lib/trains/service";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import { rollEventForTrain } from "@/lib/trains/event-draw.server";
+import { rollNumberedForTrain } from "@/lib/trains/numbered-spin.server";
 import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 import { trainRollErrorResponse } from "@/lib/trains/roll-errors.server";
 import { requireApiSession } from "@/lib/session";
@@ -40,10 +41,12 @@ export async function POST(request: Request) {
     requestId?: string;
     expectedEligibilityFingerprint?: string;
     acknowledgePollFallback?: boolean;
+    numberedFallback?: boolean;
   };
 
   const date = body.date?.trim() || getServerCalendarDate();
   const role = body.role ?? "conductor";
+  const numberedFallback = body.numberedFallback === true;
 
   try {
     const seasonKey = await resolveTrainSeasonKey(ctx.allianceId);
@@ -56,8 +59,14 @@ export async function POST(request: Request) {
       role === "vip" ? dayConfig.vipRule : dayConfig.conductorRule;
 
     const previous = await getConductorRecord(ctx.allianceId, date);
-    const result =
-      dayRule?.kind === "event_scores"
+    const result = numberedFallback
+      ? await rollNumberedForTrain({
+          allianceId: ctx.allianceId,
+          date,
+          role,
+          seasonKey,
+        })
+      : dayRule?.kind === "event_scores"
         ? (
             await rollEventForTrain(
               {
@@ -99,8 +108,13 @@ export async function POST(request: Request) {
       sessionId: session.id,
       allianceId: ctx.allianceId,
       hqUserId: session.hqUserId,
-      action:
-        role === "vip" ? "trains.vip_roll" : "trains.conductor_roll",
+      action: numberedFallback
+        ? role === "vip"
+          ? "trains.vip_numbered_roll"
+          : "trains.conductor_numbered_roll"
+        : role === "vip"
+          ? "trains.vip_roll"
+          : "trains.conductor_roll",
       severity: overwritten ? "update" : "routine",
       resourceType: "train_conductor_record",
       resourceId: `${ctx.allianceId}:${date}`,
@@ -110,17 +124,19 @@ export async function POST(request: Request) {
         role,
         landedMemberId: result.memberId,
         landedMemberName: result.memberName,
+        numberedRank: result.numberedRank ?? null,
+        numberedPoolSize: result.numberedPoolSize ?? null,
         previousMemberId: previousMemberId ?? null,
         previousMemberName: previousMemberName ?? null,
         overwritten,
         spinAgain: Boolean(previousMemberId && !previous?.lockedAt),
-        source: "wheel",
+        source: numberedFallback ? "numbered_wheel" : "wheel",
       },
     });
 
     const record = await getConductorRecord(ctx.allianceId, date);
     const stats =
-      result.memberId && role === "conductor"
+      !numberedFallback && result.memberId && role === "conductor"
         ? await getConductorStats(ctx.allianceId, result.memberId, {
             beforeDate: date,
           })

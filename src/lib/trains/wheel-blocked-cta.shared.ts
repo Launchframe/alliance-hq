@@ -1,5 +1,8 @@
 import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
-import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
 import type { PoolType } from "@/lib/trains/types";
 
@@ -17,10 +20,14 @@ export function resolveWheelBlockedReseedPoolType(
   details: TrainRollErrorDetails,
   fallbackPoolType?: PoolType | null,
   options?: {
-    rule?: ConductorRule | null;
+    rule?: ConductorRule | VipRule | null;
   },
 ): PoolType | null {
-  if (conductorRuleUsesPriceIsFreightRoll(options?.rule ?? null)) {
+  if (
+    options?.rule &&
+    options.rule.kind === "price_is_freight" &&
+    conductorRuleUsesPriceIsFreightRoll(options.rule)
+  ) {
     return null;
   }
 

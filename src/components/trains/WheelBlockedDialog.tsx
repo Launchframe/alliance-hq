@@ -5,7 +5,14 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
-import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  isNumberedSpinFallbackEligible,
+  resolveNumberedSpinPoolSize,
+} from "@/lib/trains/numbered-spin.shared";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
 import type { PoolType } from "@/lib/trains/types";
 import {
@@ -22,7 +29,7 @@ type Props = {
   /** Used when the error payload omitted poolType (legacy / POOL_UNAVAILABLE). */
   fallbackPoolType?: PoolType | null;
   /** Day paint — suppresses reseed for Price Is Freight with-replacement. */
-  rule?: ConductorRule | null;
+  rule?: ConductorRule | VipRule | null;
   /** Deep-link for VS score upload (vs-performance + recorded date). */
   uploadHref?: string;
   busy?: boolean;
@@ -43,6 +50,8 @@ type Props = {
   onPickManually?: () => void;
   /** Retry the spin that failed (when reseed isn't the fix). */
   onRetrySpin?: () => void;
+  /** Spin a 1..N numbered fallback wheel when Top-N scores are missing. */
+  onSpinNumbered?: () => void;
   onSyncRoster?: () => void;
 };
 
@@ -187,6 +196,7 @@ export function WheelBlockedDialog({
   onReseedAndRespin,
   onPickManually,
   onRetrySpin,
+  onSpinNumbered,
   onSyncRoster,
 }: Props) {
   const t = useTranslations("trains");
@@ -316,6 +326,25 @@ export function WheelBlockedDialog({
               className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-800 hover:bg-cyan-500/20 dark:text-cyan-100 disabled:opacity-50"
             >
               {t("wheelBlocked.retrySpin")}
+            </button>
+          ) : null}
+
+          {onSpinNumbered &&
+          isNumberedSpinFallbackEligible(details, rule) &&
+          resolveNumberedSpinPoolSize(rule) !== null ? (
+            <button
+              type="button"
+              disabled={dialogBusy}
+              onClick={() => {
+                onClose();
+                onSpinNumbered();
+              }}
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-500/20 dark:text-amber-100 disabled:opacity-50"
+              data-testid="trains-wheel-blocked-numbered-spin"
+            >
+              {t("wheelBlocked.spinNumberedFallback", {
+                max: resolveNumberedSpinPoolSize(rule)!,
+              })}
             </button>
           ) : null}
 

@@ -81,5 +81,15 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  const { backfillNumberedSpinsForScoreSource } = await import(
+    "@/lib/trains/numbered-spin-backfill.server"
+  );
+  await backfillNumberedSpinsForScoreSource({
+    allianceId,
+    source: "vr",
+  }).catch((error) => {
+    console.error("[train-numbered-spin] vr backfill failed", error);
+  });
+
   return NextResponse.json({ ok: true });
 }
