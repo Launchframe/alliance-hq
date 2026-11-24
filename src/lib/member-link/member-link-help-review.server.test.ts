@@ -27,7 +27,6 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   linkHqMember: vi.fn(),
   maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
-  syncPrimaryGameUidFromHqMemberLink: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
@@ -524,10 +523,6 @@ describe("linkMemberLinkHelpRequest", () => {
       hqUserId: "u1",
       ashedMemberId: "m1",
     });
-    expect(repository.syncPrimaryGameUidFromHqMemberLink).toHaveBeenCalledWith(
-      "u1",
-      openHelpRow.gameUid,
-    );
     expect(repository.saveHqMemberLinkPending).toHaveBeenCalledWith(
       "a1",
       "u1",

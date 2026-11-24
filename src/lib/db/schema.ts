@@ -925,8 +925,6 @@ export const hqUsers = pgTable("hq_users", {
   /** google | discord | lastwar */
   avatarSource: text("avatar_source"),
   avatarRefreshedAt: timestamp("avatar_refreshed_at", { withTimezone: true }),
-  /** Last War in-game UID when linked (Discord SSO bridge or future web link). */
-  primaryGameUid: text("primary_game_uid"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

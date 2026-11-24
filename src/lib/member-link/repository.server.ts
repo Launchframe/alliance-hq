@@ -499,20 +499,6 @@ export async function saveHqMemberLinkPending(
     });
 }
 
-export async function syncPrimaryGameUidFromHqMemberLink(
-  hqUserId: string,
-  gameUid: string,
-): Promise<void> {
-  const trimmed = gameUid.trim();
-  if (!trimmed) return;
-
-  const db = getDb();
-  await db
-    .update(schema.hqUsers)
-    .set({ primaryGameUid: trimmed, updatedAt: new Date() })
-    .where(eq(schema.hqUsers.id, hqUserId));
-}
-
 /**
  * When a user who is the alliance owner completes their first member link,
  * record their ashedMemberId on the alliance so Discord /link-alliance owner

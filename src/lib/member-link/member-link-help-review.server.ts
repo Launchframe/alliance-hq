@@ -17,7 +17,6 @@ import {
   linkHqMember,
   maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
-  syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import {
@@ -475,7 +474,6 @@ export async function linkMemberLinkHelpRequest(input: {
       console.error("[member-link-help] owner externalId sync failed", error);
     }
 
-    await syncPrimaryGameUidFromHqMemberLink(row.hqUserId, row.gameUid);
     await saveHqMemberLinkPending(row.allianceId, row.hqUserId, null);
   } catch (error) {
     await revertResolvedMemberLinkHelpClaim({

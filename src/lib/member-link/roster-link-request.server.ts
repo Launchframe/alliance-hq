@@ -23,7 +23,6 @@ import {
   linkHqMember,
   maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
-  syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import {
   materializeRosterLinkInboxItem,
@@ -680,7 +679,6 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   }
 
   await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-  await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, input.gameUid);
 
   if (input.lookup.gameUserLevel != null) {
     try {
@@ -1093,8 +1091,6 @@ export async function acceptRosterLinkRequest(input: {
         });
         return { ok: false, reason: linked.reason };
       }
-
-      await syncPrimaryGameUidFromHqMemberLink(request.hqUserId, request.gameUid);
     } else {
       await revertAcceptedRosterLinkClaim({
         requestId: request.id,

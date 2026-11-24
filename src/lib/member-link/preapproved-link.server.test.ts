@@ -19,7 +19,6 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   linkHqMember: vi.fn(),
   maybeSetOwnerMemberExternalId: vi.fn(),
   saveHqMemberLinkPending: vi.fn(),
-  syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 
 vi.mock("@/lib/native-alliance/invites", () => ({

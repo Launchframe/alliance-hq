@@ -13,7 +13,6 @@ import {
   linkHqMember,
   maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
-  syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import { recordMemberLinkHelpRequest } from "@/lib/member-link/member-link-help-queue.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
@@ -312,7 +311,6 @@ export async function runWebMemberLinkClaimConfirm(input: {
   }
 
   await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-  await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, uid);
 
   if (!honorSystem && lookup.ok && lookup.gameUserLevel != null) {
     try {
