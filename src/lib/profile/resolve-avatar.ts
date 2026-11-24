@@ -223,36 +223,6 @@ export async function resolveAndCacheHqUserAvatar(
   return lastWar;
 }
 
-async function syncPrimaryGameUidFromDiscordLink(
-  hqUserId: string,
-  discordUserId: string,
-  allianceId: string,
-): Promise<void> {
-  const db = getDb();
-  const [link] = await db
-    .select({ gameUid: schema.discordMemberLinks.gameUid })
-    .from(schema.discordMemberLinks)
-    .where(
-      and(
-        eq(schema.discordMemberLinks.discordUserId, discordUserId),
-        eq(schema.discordMemberLinks.allianceId, allianceId),
-      ),
-    )
-    .limit(1);
-
-  if (!link?.gameUid?.trim()) {
-    return;
-  }
-
-  await db
-    .update(schema.hqUsers)
-    .set({
-      primaryGameUid: link.gameUid.trim(),
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.hqUsers.id, hqUserId));
-}
-
 /**
  * Upsert OAuth provider avatar and refresh cached hq_users.avatar_url.
  * Future: call from /api/auth/[provider]/callback after SSO lands.
@@ -299,14 +269,6 @@ export async function syncOAuthProviderAvatar(
       createdAt: now,
       updatedAt: now,
     });
-  }
-
-  if (provider === "discord" && input.allianceId) {
-    await syncPrimaryGameUidFromDiscordLink(
-      hqUserId,
-      input.providerUserId,
-      input.allianceId,
-    );
   }
 
   return resolveAndCacheHqUserAvatar(hqUserId, {

@@ -47,7 +47,7 @@ vi.mock("@/lib/db", () => ({
     hqMemberLinks: { id: {}, allianceId: {}, ashedMemberId: {}, hqUserId: {}, gameUid: {} },
     hqUserCommanders: { commanderId: {}, hqUserId: {} },
     alliances: { id: {}, ownerMemberExternalId: {} },
-    hqUsers: { id: {}, primaryGameUid: {}, updatedAt: {} },
+    hqUsers: { id: {}, updatedAt: {} },
     commanderAllianceMemberships: { commanderId: {}, allianceId: {}, ashedMemberId: {} },
     discordMemberLinks: { id: {}, allianceId: {}, ashedMemberId: {}, discordUserId: {} },
     discordHqLinks: { hqUserId: {}, discordUserId: {} },

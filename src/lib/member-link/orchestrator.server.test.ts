@@ -26,7 +26,6 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
   linkHqMember: vi.fn(),
   maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
-  syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 
 vi.mock("@/lib/onboarding/onboarding-audit.server", () => ({

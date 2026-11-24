@@ -6,7 +6,6 @@ import {
   linkHqMember,
   maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
-  syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import {
   type ClaimConflictReason,
@@ -166,7 +165,6 @@ export async function tryPreApprovedMemberLink(input: {
       console.error("[member-link] preapproved honor owner sync failed", error);
     }
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-    await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, uid);
     return {
       ok: true,
       target: {
@@ -257,7 +255,6 @@ export async function tryPreApprovedMemberLink(input: {
   }
 
   await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-  await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, uid);
 
   if (input.lookup.gameUserLevel != null) {
     try {

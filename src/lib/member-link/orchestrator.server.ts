@@ -16,7 +16,6 @@ import {
   linkHqMember,
   maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
-  syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import {
   toMemberLinkApiResponse,
@@ -246,8 +245,6 @@ async function persistHqLinkTarget(
   } catch (error) {
     console.error("[member-link] owner externalId sync failed", error);
   }
-
-  await syncPrimaryGameUidFromHqMemberLink(ctx.hqUserId, linkTarget.gameUid);
 
   if (linkTarget.gameUserLevel != null) {
     try {
@@ -679,10 +676,6 @@ export async function runWebMemberLinkSubmit(input: {
         } catch (error) {
           console.error("[member-link] owner externalId sync failed", error);
         }
-        await syncPrimaryGameUidFromHqMemberLink(
-          input.hqUserId,
-          target.gameUid,
-        );
         if (target.gameUserLevel != null) {
           try {
             await syncAllianceMemberGameLevelFromLastWar({

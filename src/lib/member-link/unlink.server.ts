@@ -41,9 +41,8 @@ async function resolveCommanderId(
  * owns the seat first. This module assumes the action is already authorized
  * and records the audit trail.
  *
- * Also unwinds the `hq_user_commanders` ownership binding, clears a dangling
- * `ownerMemberExternalId` (so a re-claimer cannot inherit Discord owner proof),
- * and clears the previous owner's `primaryGameUid` when it matched this link.
+ * Also unwinds the `hq_user_commanders` ownership binding and clears a dangling
+ * `ownerMemberExternalId` (so a re-claimer cannot inherit Discord owner proof).
  */
 export async function unlinkCommanderHqAccount(input: {
   sessionId: string;
@@ -109,18 +108,6 @@ export async function unlinkCommanderHqAccount(input: {
         eq(schema.alliances.ownerMemberExternalId, input.ashedMemberId),
       ),
     );
-
-  if (link.gameUid) {
-    await db
-      .update(schema.hqUsers)
-      .set({ primaryGameUid: null, updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.hqUsers.id, link.hqUserId),
-          eq(schema.hqUsers.primaryGameUid, link.gameUid),
-        ),
-      );
-  }
 
   await writeAuditLog({
     sessionId: input.sessionId,

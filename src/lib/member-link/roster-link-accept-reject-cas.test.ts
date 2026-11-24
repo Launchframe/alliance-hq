@@ -80,7 +80,6 @@ vi.mock("@/lib/lastwar/sync-member-game-level.server", () => ({
 vi.mock("@/lib/member-link/repository.server", () => ({
   linkHqMember: vi.fn(),
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
-  syncPrimaryGameUidFromHqMemberLink: vi.fn().mockResolvedValue(undefined),
   maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
 }));
 
