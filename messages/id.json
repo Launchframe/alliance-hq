@@ -7939,10 +7939,15 @@
       "reseedAndRespinBusy": "Starting new rotation…",
       "reseedPool": "Start new rotation",
       "retrySpin": "Try spinning again",
+      "spinNumberedFallback": "Putar #1–{max} sebagai gantinya",
       "startNewRotationAndRespin": "Start new rotation & re-spin",
       "syncRoster": "Sync roster from Ashed",
       "title": "Can't spin the wheel",
       "uploadScoreVideo": "Upload score video"
+    },
+    "numberedSpin": {
+      "pendingBadge": "#{rank} dari {total} (menunggu skor)",
+      "wheelSubtitle": "Skor belum diunggah — mengundi peringkat dari #1 hingga #{total}"
     }
   },
   "uploadReminders": {

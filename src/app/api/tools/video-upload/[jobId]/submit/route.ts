@@ -79,6 +79,7 @@ import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
 import { resolveConductorSpinOfferAfterVsUpload } from "@/lib/trains/conductor-spin-after-vs-scores.server";
+import { backfillNumberedSpinsForScoreSource } from "@/lib/trains/numbered-spin-backfill.server";
 import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
@@ -1538,6 +1539,13 @@ export async function POST(request: Request, { params }: Props) {
         console.error("[train-pir-leaderboard] post-submit announce failed", error);
       });
       try {
+        if ((submitContext.vsPeriod ?? "daily") !== "weekly") {
+          await backfillNumberedSpinsForScoreSource({
+            allianceId,
+            source: "vs",
+            vsRecordedDate: submitContext.recordedDate,
+          });
+        }
         await maybeNominateConductorAfterVsUpload({
           allianceId,
           vsRecordedDate: submitContext.recordedDate,

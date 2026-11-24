@@ -39,6 +39,11 @@ export type WeekConductorRecordSummary = {
   conductorMemberName: string | null;
   vipMemberId: string | null;
   vipMemberName: string | null;
+  /** Drawn 1..N rank when spun without scores (auto-backfilled when scores arrive). */
+  conductorNumberedRank?: number | null;
+  conductorNumberedPoolSize?: number | null;
+  vipNumberedRank?: number | null;
+  vipNumberedPoolSize?: number | null;
   /** Officers recorded that this train has no VIP. */
   noVip?: boolean;
   /** Rule this pick was made under — drives "is this still today's pick". */

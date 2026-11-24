@@ -5071,7 +5071,12 @@
       "buildEligibilityAndRespin": "Build eligibility & re-spin",
       "startNewRotationAndRespin": "Start new rotation & re-spin",
       "reseedAndRespinBusy": "Starting new rotation…",
+      "spinNumberedFallback": "Spin #1–{max} instead",
       "close": "Close"
+    },
+    "numberedSpin": {
+      "pendingBadge": "#{rank} of {total} (awaiting scores)",
+      "wheelSubtitle": "Scores aren't uploaded yet — drawing a rank from #1 to #{total}"
     },
     "errorBanner": {
       "dismiss": "Dismiss"

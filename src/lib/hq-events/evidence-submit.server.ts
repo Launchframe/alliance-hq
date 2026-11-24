@@ -330,6 +330,19 @@ export async function submitEventEvidenceFromVideoJob(params: {
         boardIds: [eventContext.boardId],
       }).catch(() => null);
 
+  if (!receipt.replayed) {
+    const { backfillNumberedSpinsForScoreSource } = await import(
+      "@/lib/trains/numbered-spin-backfill.server"
+    );
+    await backfillNumberedSpinsForScoreSource({
+      allianceId: actor.allianceId,
+      source: "event",
+      occurrenceId: eventContext.eventId,
+    }).catch((error) => {
+      console.error("[train-numbered-spin] event backfill failed", error);
+    });
+  }
+
   return { receipt, rowCount: observations.length, sync };
 }
 

@@ -128,6 +128,9 @@ export type RollResult = {
    * never from the client's day config, which can be stale for the rolled day.
    */
   rule?: ConductorRule | VipRule | null;
+  /** Set when this roll was a 1..N numbered-spin fallback without scores. */
+  numberedRank?: number | null;
+  numberedPoolSize?: number | null;
 };
 
 export type PoolRefreshedInfo = {
