@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { CredentialSharesCard } from "@/components/account/CredentialSharesCard";
 import { LinkedCommandersCard } from "@/components/account/LinkedCommandersCard";
 import { AccountSettingsForm } from "@/components/AccountSettingsForm";
+import { loadUserLocaleState } from "@/lib/i18n/user-locale.server";
 import { Link } from "@/i18n/navigation";
 import { hqUserHasOAuthProvider, loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
 import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
@@ -63,6 +64,8 @@ export default async function AccountPage({ searchParams }: Props) {
     ? await listLinkedCommandersForHqUser(hqUserId)
     : [];
 
+  const languageState = hqUserId ? await loadUserLocaleState(hqUserId) : null;
+
   const discordLinked = Boolean(discordBotLink || hasDiscordOAuth);
   const canEditScoreboardOffers = canEditScoreboardReviewPreferences({
     roleName: sessionState.rbac?.roleName,
@@ -105,6 +108,11 @@ export default async function AccountPage({ searchParams }: Props) {
       <AccountSettingsForm
       initialAshed={ashed}
       initialTimezoneId={timezone}
+      initialLanguage={
+        languageState
+          ? { manual: languageState.manual, automatic: languageState.automatic }
+          : null
+      }
       discordLinked={discordLinked}
       discordAvailable={ssoAvailability.discord}
       discordLinkNotice={linkNotice}

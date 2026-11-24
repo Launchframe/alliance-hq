@@ -921,6 +921,7 @@ async function notifyInviteeOnResolve(
   try {
     await sendRosterLinkInviteeResolvedEmail({
       to: email,
+      hqUserId: request.hqUserId,
       allianceTag,
       accepted,
     });

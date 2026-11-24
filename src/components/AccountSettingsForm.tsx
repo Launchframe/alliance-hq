@@ -21,6 +21,10 @@ import { clearAshedConnectionSessionStats } from "@/lib/connect/connection-sessi
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
 import type { AppearancePreference } from "@/lib/appearance/appearance.shared";
+import {
+  NotificationLanguageSection,
+  type NotificationLanguageState,
+} from "@/components/settings/NotificationLanguageSection";
 import type { ScoreboardReviewPreferences } from "@/lib/video/scoreboard-review-preferences.shared";
 import {
   ACCOUNT_TIMEZONE_OPTION_IDS,
@@ -84,6 +88,7 @@ type SignInMethodsSnapshot = {
 type Props = {
   initialAshed: AshedConnectionMeta | null;
   initialTimezoneId?: AccountTimezoneId;
+  initialLanguage?: NotificationLanguageState | null;
   discordLinked?: boolean;
   discordAvailable?: boolean;
   discordLinkNotice?: "linked" | "unlinked" | null;
@@ -101,6 +106,7 @@ type Props = {
 export function AccountSettingsForm({
   initialAshed,
   initialTimezoneId,
+  initialLanguage = null,
   discordLinked = false,
   discordAvailable = false,
   discordLinkNotice = null,
@@ -329,6 +335,10 @@ export function AccountSettingsForm({
           />
         </label>
       </section>
+
+      {initialLanguage ? (
+        <NotificationLanguageSection initial={initialLanguage} />
+      ) : null}
 
       <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("appearanceSection")}</h2>

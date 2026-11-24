@@ -6,7 +6,12 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { buildAuthCodeEmail } from "@/lib/auth/auth-code-email.server";
 import { getDb, schema } from "@/lib/db";
+import {
+  requestLocaleFallback,
+  resolveRecipientLocale,
+} from "@/lib/notifications/locale.server";
 import { assertEmailSignInAllowed } from "@/lib/auth/email-sign-in-restriction.server";
 import {
   PRODUCTION_EMAIL_FROM,
@@ -50,31 +55,6 @@ function logAuthEmailCodeToStdout(email: string, code: string): void {
   );
 }
 
-function authEmailCodeHtml(code: string): string {
-  return `
-<body style="background: #0d1117; margin: 0; padding: 24px;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0"
-    style="max-width: 480px; margin: auto; font-family: Helvetica, Arial, sans-serif;">
-    <tr>
-      <td style="padding: 24px; background: #161b22; border: 1px solid #30363d; border-radius: 12px;">
-        <p style="margin: 0 0 8px; font-size: 18px; font-weight: 600; color: #e6edf3;">
-          Verify your email
-        </p>
-        <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.5; color: #8b949e;">
-          Enter this code on Alliance HQ to verify your email and finish creating your account.
-        </p>
-        <p style="margin: 0 0 20px; font-size: 32px; font-weight: 700; letter-spacing: 0.35em; text-align: center; color: #e6edf3;">
-          ${code}
-        </p>
-        <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #6e7681;">
-          This code expires in 10 minutes. If you did not request it, you can ignore this email.
-        </p>
-      </td>
-    </tr>
-  </table>
-</body>`;
-}
-
 async function sendAuthEmailCodeViaResend(input: {
   to: string;
   code: string;
@@ -85,6 +65,14 @@ async function sendAuthEmailCodeViaResend(input: {
   }
 
   const from = resolveEmailFromAddress();
+  const email = buildAuthCodeEmail(
+    "verify",
+    input.code,
+    await resolveRecipientLocale({
+      email: input.to,
+      fallback: await requestLocaleFallback(),
+    }),
+  );
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -94,9 +82,7 @@ async function sendAuthEmailCodeViaResend(input: {
     body: JSON.stringify({
       from,
       to: input.to,
-      subject: `${input.code} is your Alliance HQ verification code`,
-      html: authEmailCodeHtml(input.code),
-      text: `Your Alliance HQ verification code is ${input.code}. It expires in 10 minutes.`,
+      ...email,
     }),
   });
 
