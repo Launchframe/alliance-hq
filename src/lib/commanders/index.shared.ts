@@ -15,6 +15,8 @@ export type CommanderIndexRow = {
   highestBaseVr: number | null;
   profession: string | null;
   professionLevel: number | null;
+  /** Last War in-game portrait URL when known. */
+  gameAvatarUrl: string | null;
   /** Roster member bound to an HQ account via hq_member_links. */
   hqLinked: boolean;
   /** Discord OAuth is on a different HQ account than this member's commander link. */

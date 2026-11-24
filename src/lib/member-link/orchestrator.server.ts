@@ -213,6 +213,7 @@ async function persistHqLinkTarget(
     ashedMemberId: linkTarget.ashedMemberId,
     memberDisplayName: linkTarget.memberDisplayName,
     gameUid: linkTarget.gameUid,
+    gameAvatarUrl: linkTarget.gameAvatarUrl,
   });
 
   if (!linked.ok) {
@@ -663,6 +664,7 @@ export async function runWebMemberLinkSubmit(input: {
           ashedMemberId: target.ashedMemberId,
           memberDisplayName: target.memberDisplayName,
           gameUid: target.gameUid,
+          gameAvatarUrl: lookup.avatarUrl,
         });
         if (!linked.ok) {
           return { ok: false, reason: "member_taken" as const };
@@ -827,7 +829,20 @@ export async function runWebMemberLinkSubmit(input: {
     }
   }
 
-  return finishMemberLinkSubmit(ctx, await finalizeCommandResult(ctx, resolvedResult));
+  const withAvatar: LinkCommandResult =
+    resolvedResult.linkTarget && lookup.ok && lookup.avatarUrl
+      ? {
+          ...resolvedResult,
+          linkTarget: {
+            ...resolvedResult.linkTarget,
+            gameAvatarUrl: lookup.avatarUrl,
+          },
+        }
+      : resolvedResult;
+  return finishMemberLinkSubmit(
+    ctx,
+    await finalizeCommandResult(ctx, withAvatar),
+  );
 }
 
 export async function runWebMemberLinkWalkthroughDone(input: {

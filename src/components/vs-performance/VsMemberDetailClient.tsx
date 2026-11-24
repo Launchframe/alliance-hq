@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link, useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { DirtyNavigation } from "@/components/navigation/DirtyNavigation";
@@ -559,9 +560,17 @@ export function VsMemberDetailClient({ memberId, weekStart }: { memberId: string
       {data ? (
         <>
           <header className="space-y-1">
-            <h1 className="text-2xl font-semibold text-hq-fg">
-              {t("title", { name: data.member.name })}
-            </h1>
+            <div className="flex items-center gap-3">
+              <ProfileAvatar
+                displayName={data.member.name}
+                email={data.memberId}
+                avatarUrl={data.member.gameAvatarUrl}
+                size="md"
+              />
+              <h1 className="text-2xl font-semibold text-hq-fg">
+                {t("title", { name: data.member.name })}
+              </h1>
+            </div>
             <p className="text-sm text-hq-fg-muted">
               {t("weekEnding", { date: date(data.weekEnding) })}
               {" · "}

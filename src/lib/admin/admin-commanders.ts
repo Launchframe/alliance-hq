@@ -25,6 +25,7 @@ export type AdminCommanderListRow = {
   hqUserEmail: string | null;
   hqUserDisplayName: string | null;
   discordUsername: string | null;
+  gameAvatarUrl: string | null;
 };
 
 export type AdminCommanderDetail = AdminCommanderListRow & {
@@ -170,6 +171,7 @@ export async function searchAdminCommanders(params: {
       hqUserEmail: memberHqUserEmail(),
       hqUserDisplayName: memberHqUserDisplayName(),
       discordUsername: memberDiscordUsername(),
+      gameAvatarUrl: schema.commanders.gameAvatarUrl,
     })
     .from(schema.allianceMembers)
     .innerJoin(
@@ -252,6 +254,7 @@ export async function loadAdminCommanderDetail(input: {
       powerLevel: schema.commanders.powerLevel,
       currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
       memberLevel: schema.commanders.memberLevel,
+      gameAvatarUrl: schema.commanders.gameAvatarUrl,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -324,6 +327,7 @@ export async function loadAdminCommanderDetail(input: {
     hqUserDisplayName: member.hqUserDisplayName,
     discordUserId: member.discordUserId,
     discordUsername: member.discordUsername,
+    gameAvatarUrl: member.gameAvatarUrl ?? null,
     tenureHistory: tenureRows.map((row) => ({
       allianceId: row.allianceId,
       allianceTag: row.allianceTag,

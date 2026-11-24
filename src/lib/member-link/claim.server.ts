@@ -238,6 +238,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
     ashedMemberId: target.ashedMemberId,
     memberDisplayName: lookupGameUserName,
     gameUid: uid,
+    gameAvatarUrl: lookup.ok ? lookup.avatarUrl : undefined,
   });
 
   if (!linked.ok) {

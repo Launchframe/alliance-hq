@@ -4,4 +4,5 @@ export type LinkedCommanderRow = {
   allianceName: string;
   ashedMemberId: string;
   memberDisplayName: string | null;
+  gameAvatarUrl: string | null;
 };

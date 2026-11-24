@@ -53,6 +53,7 @@ export type PerformanceNoteRosterMember = {
   ashedMemberId: string;
   name: string;
   previousNames?: string[];
+  gameAvatarUrl?: string | null;
 };
 
 export type PerformanceNoteSummary = Pick<PerformanceNoteDto, "id" | "kind" | "title" | "priority" | "labels" | "notebook" | "inbox" | "archived" | "source" | "createdAt" | "updatedAt" | "version" | "canEdit" | "isOwner" | "shared" | "members"> & { excerpt: string };

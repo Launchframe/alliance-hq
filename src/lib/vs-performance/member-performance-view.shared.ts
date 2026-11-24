@@ -307,6 +307,7 @@ export type VsMemberDetailResponse = {
     currentRank: number | null;
     rosterStatus: "active" | "former";
     joinedAt: string | null;
+    gameAvatarUrl: string | null;
   };
   policy: {
     modelVersion: number | null;

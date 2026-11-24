@@ -69,6 +69,7 @@ export async function loadCommanderIndex(
         mainSquadSource: schema.commanders.mainSquadSource,
         profession: schema.commanders.profession,
         professionLevel: schema.commanders.professionalLevel,
+        gameAvatarUrl: schema.commanders.gameAvatarUrl,
       })
       .from(schema.commanderAllianceMemberships)
       .innerJoin(
@@ -125,6 +126,7 @@ export async function loadCommanderIndex(
       highestBaseVr: row.highestBaseVr,
       profession: stats?.profession ?? null,
       professionLevel: stats?.professionLevel ?? null,
+      gameAvatarUrl: stats?.gameAvatarUrl ?? null,
       hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
       oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
     };

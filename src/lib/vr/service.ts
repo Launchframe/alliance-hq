@@ -202,6 +202,7 @@ async function persistLinkTarget(input: {
     memberDisplayName: string;
     gameUid: string;
     gameUserLevel?: number;
+    gameAvatarUrl?: string;
   };
   replaceAll?: boolean;
   translate: ReturnType<typeof createDiscordTranslator>;
@@ -218,6 +219,7 @@ async function persistLinkTarget(input: {
     memberDisplayName: input.linkTarget.memberDisplayName,
     gameUid: input.linkTarget.gameUid,
     replaceAll: input.replaceAll,
+    gameAvatarUrl: input.linkTarget.gameAvatarUrl,
   });
 
   if (!linked.ok) {
@@ -702,7 +704,12 @@ async function finalizeDiscordMemberLink(input: {
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername,
-      linkTarget: resolvedResult.linkTarget,
+      linkTarget: {
+        ...resolvedResult.linkTarget,
+        ...(input.lookup.avatarUrl
+          ? { gameAvatarUrl: input.lookup.avatarUrl }
+          : {}),
+      },
       replaceAll: input.replaceAll,
       translate,
     });
@@ -762,6 +769,7 @@ async function finalizeDiscordMemberLink(input: {
           memberDisplayName: target.memberDisplayName,
           gameUid: target.gameUid,
           replaceAll: input.replaceAll,
+          gameAvatarUrl: input.lookup.avatarUrl,
         });
         if (!linked.ok) {
           return { ok: false as const, reason: "member_taken" as const };
@@ -793,6 +801,7 @@ async function finalizeDiscordMemberLink(input: {
               hqUserId: hqLink.hqUserId,
               gameUid: target.gameUid,
               memberDisplayName: target.memberDisplayName,
+              gameAvatarUrl: input.lookup.avatarUrl,
             });
           } catch (error) {
             console.error("[discord-bot] commander identity sync failed", error);
