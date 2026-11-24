@@ -62,13 +62,24 @@ describe("buildVsCaptureCommit daily", () => {
     expect(commit.weekOutcome).toBeNull();
   });
 
-  it("rejects a final day marked on a current-or-future date", () => {
+  it("rejects a final day on a future date and accepts the current server date", () => {
     expect(() =>
       buildVsCaptureCommit(
-        dailyReview({ finalDay: true, weekStart: "2026-09-28", day: 1 }),
+        dailyReview({ finalDay: true, weekStart: "2026-09-28", day: 2 }),
         TODAY,
       ),
     ).toThrow(VsPerformanceError);
+    const commit = buildVsCaptureCommit(
+      dailyReview({
+        finalDay: true,
+        weekStart: "2026-09-28",
+        day: 1,
+        leftScore: "5",
+        rightScore: "4",
+      }),
+      TODAY,
+    );
+    expect(commit.days[0]?.recordedDate).toBe("2026-09-28");
   });
 
   it("derives a won result when our side holds the higher score", () => {
@@ -267,5 +278,36 @@ describe("parseVsCaptureLines identity boundaries", () => {
     ]});
     expect(candidate.left.name).toBeNull(); expect(candidate.right.name).toBeNull();
     expect(candidate.leftScore).toBe("2241713380"); expect(candidate.rightScore).toBe("2222858900");
+    expect(candidate.dayResults[1]?.winner).toBe("left");
+  });
+
+  it("fills a missed opponent tag and score from the page text", () => {
+    const candidate = parseVsCaptureLines({
+      kind: "daily_totals",
+      imageWidth: 1000,
+      fields: { leftTag: ["[LFgo]"], rightTag: [], leftScore: ["3,288,831,707"], rightScore: [] },
+      lines: [
+        { text: "Day 1", bbox: { x0: 420, y0: 20, x1: 580, y1: 40 } },
+        { text: "[LFgo] Victory", bbox: { x0: 40, y0: 50, x1: 280, y1: 70 } },
+        { text: "Defeat [EQIL]", bbox: { x0: 620, y0: 50, x1: 900, y1: 70 } },
+        { text: "3,288,831,707", bbox: { x0: 40, y0: 80, x1: 280, y1: 100 } },
+        { text: "2,502,695,837", bbox: { x0: 620, y0: 80, x1: 900, y1: 100 } },
+      ],
+    });
+    expect(candidate.left.tag).toBe("LFgo");
+    expect(candidate.right.tag).toBe("EQIL");
+    expect(candidate.leftScore).toBe("3288831707");
+    expect(candidate.rightScore).toBe("2502695837");
+    expect(candidate.dayResults[0]?.winner).toBe("left");
+  });
+
+  it("keeps the longer score when OCR drops a trailing digit", () => {
+    const candidate = parseVsCaptureLines({
+      kind: "daily_totals",
+      imageWidth: 1000,
+      fields: { rightScore: ["250269583", "2,502,695,837"] },
+      lines: [{ text: "Day 1", bbox: { x0: 420, y0: 20, x1: 580, y1: 40 } }],
+    });
+    expect(candidate.rightScore).toBe("2502695837");
   });
 });

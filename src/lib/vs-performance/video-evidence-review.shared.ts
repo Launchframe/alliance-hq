@@ -1,4 +1,4 @@
-import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { getServerCalendarDate, getServerMinutesOfDay } from "@/lib/trains/game-time";
 import { parseLocalizedVsTotal } from "./match-results.shared";
 import { normalizedVsCaptureTag, type VsCaptureAlliance, type VsCaptureReview } from "./vs-capture.shared";
 import { VsPerformanceError, vsDatesForWeek } from "./weekly-plan.shared";
@@ -15,18 +15,152 @@ export function hasVsVideoOpponent(response: VsVideoEvidenceResponse): boolean {
   return opponent.server !== null || opponent.tag !== null || opponent.name !== null;
 }
 
-export function seedVsVideoDraftForm(response: VsVideoEvidenceResponse): VsVideoDraftForm {
+function opponentNameKey(value: string | null): string | null {
+  const name = value?.trim().toLocaleLowerCase("en-US") ?? "";
+  return name === "" ? null : name;
+}
+
+function opponentTagKey(value: string | null): string | null {
+  if (value == null) return null;
+  const tag = normalizedVsCaptureTag(value);
+  return tag === "" ? null : tag;
+}
+
+/** Same-tag history rows merge when they never disagree on a filled name or server. */
+function mergeOpponentGroup(rows: readonly VsCaptureAlliance[]): VsCaptureAlliance | null {
+  let server: number | null = null;
+  let name: string | null = null;
+  let tag: string | null = null;
+  for (const row of rows) {
+    if (tag == null && row.tag?.trim()) tag = row.tag;
+    if (row.server != null) {
+      if (server != null && server !== row.server) return null;
+      server = row.server;
+    }
+    const rowName = row.name?.trim() || null;
+    if (rowName) {
+      if (name != null && opponentNameKey(name) !== opponentNameKey(rowName)) return null;
+      if (name == null || rowName.length > name.length) name = rowName;
+    }
+  }
+  if (tag == null && name == null && server == null) return null;
+  return { server, tag, name };
+}
+
+export function consolidateKnownVsOpponents(rows: readonly VsCaptureAlliance[]): VsCaptureAlliance[] {
+  const groups = new Map<string, VsCaptureAlliance[]>();
+  const untagged: VsCaptureAlliance[] = [];
+  for (const row of rows) {
+    const tag = opponentTagKey(row.tag);
+    if (!tag) {
+      untagged.push(row);
+      continue;
+    }
+    const list = groups.get(tag) ?? [];
+    list.push(row);
+    groups.set(tag, list);
+  }
+  const out: VsCaptureAlliance[] = [];
+  for (const list of groups.values()) {
+    const merged = mergeOpponentGroup(list);
+    if (merged) out.push(merged);
+    else out.push(...list);
+  }
+  out.push(...untagged);
+  return out;
+}
+
+export function matchKnownVsOpponent(
+  parsed: VsCaptureAlliance,
+  known: readonly VsCaptureAlliance[],
+): VsCaptureAlliance | null {
+  const pool = consolidateKnownVsOpponents(known);
+  const tag = opponentTagKey(parsed.tag);
+  const name = opponentNameKey(parsed.name);
+  if (tag) {
+    const byTag = pool.filter((row) => opponentTagKey(row.tag) === tag);
+    if (byTag.length === 1) return byTag[0] ?? null;
+    if (byTag.length > 1) {
+      const narrowed = byTag.filter(
+        (row) =>
+          (parsed.server != null && row.server === parsed.server) ||
+          (name != null && opponentNameKey(row.name) === name),
+      );
+      return narrowed.length === 1 ? narrowed[0] ?? null : null;
+    }
+  }
+  if (name) {
+    const byName = pool.filter((row) => opponentNameKey(row.name) === name);
+    const narrowed =
+      parsed.server == null
+        ? byName
+        : byName.filter((row) => row.server == null || row.server === parsed.server);
+    return narrowed.length === 1 ? narrowed[0] ?? null : null;
+  }
+  return null;
+}
+
+export function mergeKnownVsOpponent(
+  parsed: VsCaptureAlliance,
+  known: VsCaptureAlliance,
+): VsCaptureAlliance {
+  return {
+    tag: parsed.tag?.trim() ? parsed.tag : known.tag,
+    name: parsed.name?.trim() ? parsed.name : known.name,
+    server: parsed.server ?? known.server,
+  };
+}
+
+function withAllianceIdentity(
+  side: VsCaptureAlliance,
+  alliance: VsVideoEvidenceResponse["alliance"],
+): VsCaptureAlliance {
+  return {
+    tag: alliance.tag ?? side.tag,
+    name: alliance.name ?? side.name,
+    server:
+      alliance.server != null && alliance.server > 0
+        ? alliance.server
+        : side.server,
+  };
+}
+
+/** Final once the target day is over, or in its last 15 server-time minutes. */
+export function vsVideoDefaultFinalDay(
+  recordedDate: string,
+  serverToday: string,
+  now = new Date(),
+): boolean {
+  if (recordedDate < serverToday) return true;
+  if (recordedDate > serverToday) return false;
+  return getServerMinutesOfDay(now) >= 23 * 60 + 45;
+}
+
+export function seedVsVideoDraftForm(
+  response: VsVideoEvidenceResponse,
+  now = new Date(),
+): VsVideoDraftForm {
   const candidate = response.evidence.status === "ready" ? response.evidence.candidate : null;
   const tag = response.alliance.tag ? normalizedVsCaptureTag(response.alliance.tag) : null;
   const leftMatches = tag !== null && candidate?.left.tag != null && normalizedVsCaptureTag(candidate.left.tag) === tag;
   const rightMatches = tag !== null && candidate?.right.tag != null && normalizedVsCaptureTag(candidate.right.tag) === tag;
-  const ourSide = leftMatches !== rightMatches ? leftMatches ? "left" : "right" : null;
+  const detectedSide = leftMatches !== rightMatches ? (leftMatches ? "left" : "right") : null;
+  const ourSide = candidate ? (detectedSide ?? "left") : null;
+  const left = candidate ? { ...candidate.left } : blankAlliance();
+  const right = candidate ? { ...candidate.right } : blankAlliance();
+  if (ourSide === "left") Object.assign(left, withAllianceIdentity(left, response.alliance));
+  if (ourSide === "right") Object.assign(right, withAllianceIdentity(right, response.alliance));
+  const serverToday = response.today || getServerCalendarDate(now);
+  const finalDay =
+    candidate?.kind === "daily_totals" &&
+    response.evidence.period === "daily" &&
+    vsVideoDefaultFinalDay(response.evidence.recordedDate, serverToday, now);
   return {
     source: candidate ? "screenshot" : "manual", kind: candidate?.kind ?? null,
     basisImageVersion: response.evidence.imageVersion, editOpponent: false,
-    opponent: hasVsVideoOpponent(response) ? savedOpponent(response) : candidate && ourSide ? { ...candidate[ourSide === "left" ? "right" : "left"] } : blankAlliance(),
-    opponentScore: "", ourSide, confirmSides: false, finalDay: false,
-    day: candidate?.day ?? null, left: candidate ? { ...candidate.left } : blankAlliance(), right: candidate ? { ...candidate.right } : blankAlliance(),
+    opponent: hasVsVideoOpponent(response) ? savedOpponent(response) : ourSide ? { ...(ourSide === "left" ? right : left) } : blankAlliance(),
+    opponentScore: "", ourSide, confirmSides: ourSide !== null, finalDay,
+    day: candidate?.day ?? null, left, right,
     leftScore: candidate?.leftScore ?? "", rightScore: candidate?.rightScore ?? "",
     leftPoints: candidate?.leftPoints == null ? "" : String(candidate.leftPoints), rightPoints: candidate?.rightPoints == null ? "" : String(candidate.rightPoints),
     winners: Array.from({ length: 6 }, (_, index) => candidate?.dayResults.find(day => day.day === index + 1)?.winner ?? "unknown"),
@@ -54,8 +188,8 @@ export function chooseVsVideoSide(form: VsVideoDraftForm, response: VsVideoEvide
   if (own.server === null && response.alliance.server != null && response.alliance.server > 0) own.server = response.alliance.server;
   const opponent = !hasVsVideoOpponent(response) && !form.dirtyFields.includes("opponent") ? { ...form[side === "left" ? "right" : "left"] } : form.opponent;
   return {
-    ...form, [side]: own, opponent, ourSide: side, confirmSides: false, finalDay: false,
-    dirtyFields: [...new Set([...form.dirtyFields, side, "opponent" as const, "ourSide" as const, "confirmSides" as const, "finalDay" as const])],
+    ...form, [side]: own, opponent, ourSide: side, confirmSides: true,
+    dirtyFields: [...new Set([...form.dirtyFields, side, "opponent" as const, "ourSide" as const, "confirmSides" as const])],
   };
 }
 
@@ -94,7 +228,7 @@ export function buildVsVideoMatchSubmission(response: VsVideoEvidenceResponse, d
   }
   if (response.evidence.status !== "ready" || !response.evidence.candidate || form.basisImageVersion !== response.evidence.imageVersion || form.kind !== response.evidence.candidate.kind) throw new VsPerformanceError("stale", 409);
   if (form.ourSide === null || !form.confirmSides) throw new VsPerformanceError("capture_invalid", 400);
-  const own = form[form.ourSide];
+  const own = withAllianceIdentity(form[form.ourSide], response.alliance);
   if (response.alliance.tag != null && (own.tag == null || normalizedVsCaptureTag(own.tag) !== normalizedVsCaptureTag(response.alliance.tag))) throw new VsPerformanceError("identity_mismatch", 400);
   if (response.alliance.server != null && own.server != null && own.server !== response.alliance.server) throw new VsPerformanceError("identity_mismatch", 400);
   const common = {
@@ -122,8 +256,4 @@ export function vsVideoScreenshotOwnTotal(response: VsVideoEvidenceResponse | nu
   if (response.evidence.status !== "ready" || form.basisImageVersion !== response.evidence.imageVersion || form.ourSide === null || !vsVideoScreenshotContextMatches(response.evidence, { kind, weekStart: vsVideoWeekStart(response.evidence), day: form.day })) return { visible: true, total: null };
   try { return { visible: true, total: optionalScore(form.ourSide === "left" ? form.leftScore : form.rightScore, locale) }; }
   catch { return { visible: true, total: null }; }
-}
-
-export function vsVideoFinalDayAvailable(response: VsVideoEvidenceResponse): boolean {
-  return response.evidence.period === "daily" && response.evidence.recordedDate < (response.today || getServerCalendarDate());
 }

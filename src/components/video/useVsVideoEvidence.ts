@@ -29,6 +29,19 @@ import {
   type VsVideoRequestedKind,
 } from "@/lib/vs-performance/video-evidence.shared";
 
+function includeResultsForFreshSeed(response: VsVideoEvidenceResponse): boolean {
+  return response.draftIsOwn && response.evidence.fileName != null;
+}
+
+function includeResultsForDraft(
+  response: VsVideoEvidenceResponse,
+  stored: boolean | undefined,
+): boolean {
+  if (!response.draftIsOwn) return false;
+  if (response.evidence.fileName != null) return true;
+  return stored ?? false;
+}
+
 type DirtyField = VsVideoDraftForm["dirtyFields"][number];
 
 type FormStringField =
@@ -178,11 +191,13 @@ export function useVsVideoEvidence(input: {
           restored.finalDay = false;
           applyInclude(false);
         } else {
-          applyInclude(serverDraft?.includeResults ?? false);
+          applyInclude(
+            includeResultsForDraft(response, serverDraft?.includeResults),
+          );
         }
         applyForm(restored);
       } else {
-        applyInclude(false);
+        applyInclude(includeResultsForFreshSeed(response));
         applyForm(seedVsVideoDraftForm(response));
       }
       persistedRevisionRef.current = editRevisionRef.current;
@@ -243,11 +258,13 @@ export function useVsVideoEvidence(input: {
             restored.finalDay = false;
             applyInclude(false);
           } else {
-            applyInclude(serverDraft?.includeResults ?? false);
+            applyInclude(
+              includeResultsForDraft(response, serverDraft?.includeResults),
+            );
           }
           applyForm(restored);
         } else {
-          applyInclude(false);
+          applyInclude(includeResultsForFreshSeed(response));
           applyForm(seedVsVideoDraftForm(response));
         }
         persistedRevisionRef.current = editRevisionRef.current;
@@ -495,7 +512,7 @@ export function useVsVideoEvidence(input: {
         if (ingestResponse(epoch, response)) {
           if (options?.resetReview) {
             applyForm(seedVsVideoDraftForm(response));
-            applyInclude(false);
+            applyInclude(includeResultsForFreshSeed(response));
             persistedRevisionRef.current = editRevisionRef.current;
           }
           autosaveBlockedRef.current = false;
@@ -676,7 +693,7 @@ export function useVsVideoEvidence(input: {
           setState(fresh);
           if (generationChanged || !local || local.dirtyFields.length === 0) {
             applyForm(seedVsVideoDraftForm(fresh));
-            applyInclude(false);
+            applyInclude(includeResultsForFreshSeed(fresh));
           }
         } catch {
           return;
@@ -737,9 +754,9 @@ export function useVsVideoEvidence(input: {
       );
       if (ingestResponse(epoch, response)) {
         const local = formRef.current;
-        applyInclude(false);
+        applyInclude(includeResultsForFreshSeed(response));
         if (local && local.dirtyFields.length > 0) {
-          applyForm({ ...local, confirmSides: false, finalDay: false });
+          applyForm({ ...local, confirmSides: true });
           markEdited();
           scheduleAutosave();
         }
@@ -783,8 +800,20 @@ export function useVsVideoEvidence(input: {
         window.clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = null;
       }
-      const include = includeRef.current || options?.forceInclude === true;
       const snapshot = stateRef.current;
+      const draftNow = formRef.current;
+      const ownEditor = snapshot?.draftIsOwn !== false && snapshot?.canEditMatch === true;
+      const manualEntry =
+        draftNow?.source === "manual" &&
+        (draftNow.opponentScore.trim() !== "" ||
+          draftNow.opponent.tag != null ||
+          draftNow.opponent.name != null ||
+          draftNow.opponent.server != null);
+      const include =
+        options?.forceInclude === true ||
+        includeRef.current ||
+        (ownEditor &&
+          (snapshot?.evidence.fileName != null || manualEntry === true));
       const pendingScreenshot =
         include &&
         options?.forceInclude !== true &&
@@ -851,7 +880,7 @@ export function useVsVideoEvidence(input: {
         setState(next);
         if (fullyApplied || !local || local.dirtyFields.length === 0) {
           applyForm(seedVsVideoDraftForm(next));
-          applyInclude(false);
+          applyInclude(includeResultsForFreshSeed(next));
           persistedRevisionRef.current = editRevisionRef.current;
         } else {
           const fresh = seedVsVideoDraftForm(next);

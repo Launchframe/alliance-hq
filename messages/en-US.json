@@ -8474,6 +8474,7 @@
       "loading": "Loading…",
       "retry": "Retry"
     },
+    "moreActions": "More",
     "errors": {
       "load": "Could not load this week’s VS plan and standings.",
       "save": "Could not save your changes. Your edits have been kept.",
@@ -8573,6 +8574,12 @@
       "editIdentity": "Edit opponent information",
       "officerOnly": "An alliance officer must review and save match results.",
       "includeResults": "Save reviewed match results with these scores.",
+      "partialDay": "These scores are partial (day is not yet over)",
+      "advanced": "Advanced Options",
+      "tagPlaceholder": "Tag",
+      "namePlaceholder": "Name",
+      "serverPlaceholder": "Server",
+      "noOpponentMatches": "No matching opponents.",
       "contextMismatch": "This screenshot does not match the selected VS date or score type. Review the date and screenshot before saving match results.",
       "identityMismatch": "The screenshot’s alliance tags do not match the saved matchup. Confirm the sides and correct the tags before saving.",
       "weeklyOnly": "This screenshot shows daily results and weekly victory points, not daily score totals.",

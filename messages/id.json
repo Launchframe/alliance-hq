@@ -8776,6 +8776,7 @@
       "saved": "Disimpan",
       "saving": "Menyimpan…"
     },
+    "moreActions": "Lainnya",
     "ashedSync": {
       "action": "Sync with Ashed",
       "conflict": "Opponent information changed in Ashed. Review it before syncing your HQ changes.",
@@ -9127,6 +9128,12 @@
       "identityMismatch": "The screenshot’s alliance tags do not match the saved matchup. Confirm the sides and correct the tags before saving.",
       "identitySaved": "Opponent information is already saved for this week.",
       "includeResults": "Save reviewed match results with these scores.",
+      "partialDay": "Skor ini masih sebagian (hari belum selesai)",
+      "advanced": "Opsi lanjutan",
+      "tagPlaceholder": "Tag",
+      "namePlaceholder": "Nama",
+      "serverPlaceholder": "Server",
+      "noOpponentMatches": "Tidak ada lawan yang cocok.",
       "matchSaved": "Match results saved in HQ.",
       "matchSyncLabel": "Opponent-info sync",
       "meanError": "Mean error",

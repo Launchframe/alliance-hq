@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildVsVideoMatchSubmission,
   chooseVsVideoSide,
+  matchKnownVsOpponent,
   mergeVsVideoCandidate,
   seedVsVideoDraftForm,
   vsVideoScreenshotMatchPending,
@@ -133,18 +134,35 @@ describe("seedVsVideoDraftForm", () => {
     expect(form.leftScore).toBe("2241713380");
     expect(form.rightScore).toBe("2222858900");
     expect(form.opponent.tag).toBe("TriV");
+    expect(form.confirmSides).toBe(true);
+    expect(form.finalDay).toBe(true);
+    expect(form.left.name).toBe("Lifeguard");
   });
 
-  it("leaves the side null when the tag matches neither or both", () => {
+  it("defaults to the left when the tag matches neither or both", () => {
     const noMatch = response({ alliance: undefined } as never);
     noMatch.alliance.tag = "ZZZZ";
-    expect(seedVsVideoDraftForm(noMatch).ourSide).toBeNull();
+    expect(seedVsVideoDraftForm(noMatch).ourSide).toBe("left");
+    expect(seedVsVideoDraftForm(noMatch).confirmSides).toBe(true);
     const both = response({});
     both.evidence.candidate = {
       ...dailyCandidate,
       right: { ...dailyCandidate.right, tag: "LFgo" },
     };
-    expect(seedVsVideoDraftForm(both).ourSide).toBeNull();
+    expect(seedVsVideoDraftForm(both).ourSide).toBe("left");
+  });
+
+  it("keeps a completed day partial when the screenshot is still in progress", () => {
+    const ongoing = response({});
+    ongoing.evidence.candidate = { ...dailyCandidate, ongoing: true };
+    expect(seedVsVideoDraftForm(ongoing).finalDay).toBe(true);
+    const sameDay = response({ today: "2026-09-29" });
+    expect(
+      seedVsVideoDraftForm(sameDay, new Date("2026-09-29T23:44:00-02:00")).finalDay,
+    ).toBe(false);
+    expect(
+      seedVsVideoDraftForm(sameDay, new Date("2026-09-29T23:45:00-02:00")).finalDay,
+    ).toBe(true);
   });
 
   it("keeps the saved weekly opponent instead of the screenshot read", () => {
@@ -217,15 +235,17 @@ describe("chooseVsVideoSide / mergeVsVideoCandidate", () => {
     expect(chosen.left.server).toBe(1203);
   });
 
-  it("does not auto-correct a non-null misread own tag", () => {
+  it("replaces a misread own tag with the alliance identity", () => {
     const res = response({});
     res.evidence.candidate = {
       ...dailyCandidate,
       left: { ...dailyCandidate.left, tag: "LFyo" },
     };
-    const form = { ...seedVsVideoDraftForm(res), ourSide: null };
-    const chosen = chooseVsVideoSide(form, res, "left");
-    expect(chosen.left.tag).toBe("LFyo");
+    const form = seedVsVideoDraftForm(res);
+    expect(form.left.tag).toBe("LFgo");
+    expect(form.left.name).toBe("Lifeguard");
+    const chosen = chooseVsVideoSide({ ...form, ourSide: null }, res, "left");
+    expect(chosen.left.tag).toBe("LFgo");
   });
 
   it("preserves the chosen side and opponent across candidate merges", () => {
@@ -267,6 +287,39 @@ describe("chooseVsVideoSide / mergeVsVideoCandidate", () => {
     const newer = response({ matchup: { ...savedMatchup, version: 9 } });
     const merged = mergeVsVideoCandidate(form, newer);
     expect(merged.expectedMatchupVersion).toBe(9);
+  });
+});
+
+describe("matchKnownVsOpponent", () => {
+  const eqil = { server: 1408, tag: "EQIL", name: "Equilibrium" };
+
+  it("fills a tag-only read from the one known alliance with that tag", () => {
+    const match = matchKnownVsOpponent(
+      { server: null, tag: "EQIL", name: null },
+      [
+        { server: null, tag: "EQIL", name: null },
+        eqil,
+      ],
+    );
+    expect(match).toEqual(eqil);
+  });
+
+  it("does not pick when the same tag belongs to two servers", () => {
+    expect(
+      matchKnownVsOpponent(
+        { server: null, tag: "EQIL", name: null },
+        [eqil, { server: 1500, tag: "EQIL", name: "Other Equilibrium" }],
+      ),
+    ).toBeNull();
+  });
+
+  it("does not match on server alone", () => {
+    expect(
+      matchKnownVsOpponent(
+        { server: 1408, tag: null, name: null },
+        [eqil],
+      ),
+    ).toBeNull();
   });
 });
 

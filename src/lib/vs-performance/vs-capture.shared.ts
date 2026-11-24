@@ -75,7 +75,7 @@ export function buildVsCaptureCommit(value: unknown, serverToday: string): VsCap
   if (review.kind === "daily_totals") {
     if (!review.finalDay) return result;
     const recordedDate = addCalendarDays(review.weekStart, review.day - 1);
-    if (recordedDate >= serverToday || review.leftScore === null || review.rightScore === null) throw new VsPerformanceError("capture_invalid", 400);
+    if (recordedDate > serverToday || review.leftScore === null || review.rightScore === null) throw new VsPerformanceError("capture_invalid", 400);
     const totals = {
       ourScore: review.ourSide === "left" ? review.leftScore : review.rightScore,
       opponentScore: review.ourSide === "left" ? review.rightScore : review.leftScore,
@@ -152,8 +152,62 @@ function parsedScore(text: string): string | null {
   return BigInt(digits).toString();
 }
 
-function fieldScore(values: readonly string[] | undefined): string | null {
-  return uniqueValue((values ?? []).map(parsedScore).filter((value): value is string => value !== null));
+function preferScore(values: readonly string[]): string | null {
+  if (values.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  const ranked = [...counts.keys()].sort((left, right) => {
+    const byCount = (counts.get(right) ?? 0) - (counts.get(left) ?? 0);
+    return byCount === 0 ? right.length - left.length : byCount;
+  });
+  const best = ranked[0];
+  if (!best) return null;
+  const bestCount = counts.get(best) ?? 0;
+  const tied = ranked.filter((value) => counts.get(value) === bestCount);
+  if (tied.length === 1) return best;
+  const longest = tied.reduce((left, right) => (left.length >= right.length ? left : right));
+  return tied.every((value) => longest.startsWith(value)) ? longest : null;
+}
+
+/** Use the crop when it parsed. Only scan the page when the crop produced no number. */
+function scoreOrLines(field: readonly string[] | undefined, lines: readonly VsCaptureOcrLine[]): string | null {
+  const parsed = (field ?? []).map(parsedScore).filter((value): value is string => value !== null);
+  const chosen = preferScore(parsed);
+  if (chosen) return chosen;
+  if (parsed.length > 0) return null;
+  return scoreFromLines(lines);
+}
+
+function scoreFromLines(lines: readonly VsCaptureOcrLine[]): string | null {
+  const found: string[] = [];
+  for (const line of lines) {
+    for (const match of line.text.matchAll(/\d{1,3}(?:[, .\u00a0\u202f]\d{3})+|\d{4,30}/g)) {
+      const score = parsedScore(match[0]);
+      if (score && score.length >= 4) found.push(score);
+    }
+  }
+  return preferScore(found);
+}
+
+function linesForScore(lines: readonly VsCaptureOcrLine[], imageWidth: number, side: "left" | "right"): VsCaptureOcrLine[] {
+  return lines.filter((line) => {
+    if (!line.bbox) return false;
+    const mid = (line.bbox.x0 + line.bbox.x1) / 2;
+    return side === "left" ? mid < imageWidth * 0.5 : mid >= imageWidth * 0.5;
+  });
+}
+
+function resolvedTag(field: readonly string[] | undefined, lines: readonly VsCaptureOcrLine[]): string | null {
+  const fromField = field && field.length > 0 ? fieldTag(field) : null;
+  return fromField ?? fieldTag(lines.map((line) => line.text));
+}
+
+function bannerResult(lines: readonly VsCaptureOcrLine[]): "victory" | "defeat" | null {
+  const text = lines.map((line) => line.text).join("\n");
+  const victory = /\b(?:victory|vit[oó]ria)\b/i.test(text);
+  const defeat = /\b(?:defeat|derrota)\b/i.test(text);
+  if (victory === defeat) return null;
+  return victory ? "victory" : "defeat";
 }
 
 function fieldPoints(values: readonly string[] | undefined): number | null {
@@ -188,8 +242,10 @@ export function parseVsCaptureLines(input: {
   const rightLines = input.lines.filter(line => line.bbox && line.bbox.x0 > input.imageWidth * .52);
   const leftIdentity = leftLines.filter(line => /#\s*\d{1,7}\b/.test(line.text));
   const rightIdentity = rightLines.filter(line => /#\s*\d{1,7}\b/.test(line.text));
-  result.left.tag = fieldTag(input.fields?.leftTag ?? (input.kind === "weekly_overview" ? leftIdentity : leftLines).map(line => line.text));
-  result.right.tag = fieldTag(input.fields?.rightTag ?? (input.kind === "weekly_overview" ? rightIdentity : rightLines).map(line => line.text));
+  const dailyLeft = linesForScore(input.lines, input.imageWidth, "left");
+  const dailyRight = linesForScore(input.lines, input.imageWidth, "right");
+  result.left.tag = resolvedTag(input.fields?.leftTag, input.kind === "weekly_overview" ? leftIdentity : dailyLeft);
+  result.right.tag = resolvedTag(input.fields?.rightTag, input.kind === "weekly_overview" ? rightIdentity : dailyRight);
   for (const [side, lines, identityLines] of [[result.left, leftLines, leftIdentity], [result.right, rightLines, rightIdentity]] as const) {
     if (input.kind !== "weekly_overview") continue;
     const servers = identityLines.flatMap(line => [...line.text.matchAll(/#\s*(\d{1,7})\b/g)].map(match => Number(match[1]))).filter(value => value > 0);
@@ -207,8 +263,14 @@ export function parseVsCaptureLines(input: {
       return match ? [Number(match[1])] : [];
     });
     result.day = uniqueValue(dayNumbers);
-    result.leftScore = fieldScore(input.fields?.leftScore);
-    result.rightScore = fieldScore(input.fields?.rightScore);
+    result.leftScore = scoreOrLines(input.fields?.leftScore, dailyLeft);
+    result.rightScore = scoreOrLines(input.fields?.rightScore, dailyRight);
+    const leftBanner = bannerResult(dailyLeft);
+    const rightBanner = bannerResult(dailyRight);
+    if (result.day != null && leftBanner && rightBanner && leftBanner !== rightBanner) {
+      const winner = leftBanner === "victory" ? "left" : "right";
+      result.dayResults[result.day - 1] = { day: result.day, winner };
+    }
     result.ongoing ||= result.leftScore === "0" && result.rightScore === "0";
     result.partial = result.day === null || result.leftScore === null || result.rightScore === null || result.left.tag === null || result.right.tag === null;
     return result;
