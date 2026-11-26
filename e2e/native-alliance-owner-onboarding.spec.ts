@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   authCookieHeader,
+  clearE2eBypassUidClaims,
   createAllianceJoinCodeRow,
   createAuthenticatedHqSession,
   createPlatformMaintainerSession,
@@ -21,8 +22,9 @@ function buildE2eOwnerUid(serverNumber: number): string {
   return `1234567890${String(serverNumber).padStart(4, "0")}`;
 }
 
-/** Avoid servers reserved by onboard-server-transfer e2e fixtures. */
-const RESERVED_TRANSFER_SERVERS = new Set([1211, 1284, 1285, 1287]);
+/** Avoid servers reserved by other e2e specs or this test's officerServer. */
+const OFFICER_SERVER = 5555;
+const RESERVED_TRANSFER_SERVERS = new Set([1203, 1211, 1284, 1285, 1286, 1287, OFFICER_SERVER]);
 
 function pickOwnerServerNumber(): number {
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -80,6 +82,9 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     const maintainer = await createPlatformMaintainerSession(sql);
     const ownerServer = pickOwnerServerNumber();
     const ownerUid = buildE2eOwnerUid(ownerServer);
+    const officerServer = OFFICER_SERVER;
+    const officerUid = buildE2eOwnerUid(officerServer);
+    await clearE2eBypassUidClaims(sql, [ownerUid, officerUid]);
     const allianceTag = `NO${nanoid(3)}`;
     const allianceName = `Native Owner Onboarding ${nanoid(4)}`;
 
@@ -142,8 +147,6 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     });
 
     // 3. Officer redeems join code before owner links — blocked when UID server mismatches alliance.
-    const officerServer = 5555;
-    const officerUid = buildE2eOwnerUid(officerServer);
     const officerEmail = `officer-early-${nanoid(6)}@e2e.test`;
     const officerAuth = await createAuthenticatedHqSession(sql, officerEmail);
     await page.context().addCookies(playwrightAuthCookies(officerAuth));

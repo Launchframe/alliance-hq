@@ -22,6 +22,7 @@ import {
   parseLastRankSectionRanks,
   resolveHqNameToRosterRow,
   resolveInteractiveHqNameAnswer,
+  isLastRankInteractiveRename,
   type LastRankAllianceMember,
   type LastRankHqRosterRow,
 } from "@/lib/lastrank/alliance-page.shared";
@@ -673,6 +674,21 @@ describe("resolveInteractiveHqNameAnswer", () => {
     });
   });
 
+  it("returns undo for u / U / undo", () => {
+    expect(resolveInteractiveHqNameAnswer("u", choices)).toEqual({
+      kind: "undo",
+    });
+    expect(resolveInteractiveHqNameAnswer("U", choices)).toEqual({
+      kind: "undo",
+    });
+    expect(resolveInteractiveHqNameAnswer("undo", choices)).toEqual({
+      kind: "undo",
+    });
+    expect(resolveInteractiveHqNameAnswer("Undo", choices)).toEqual({
+      kind: "undo",
+    });
+  });
+
   it("maps 1-based index to menu choice", () => {
     expect(resolveInteractiveHqNameAnswer("1", choices)).toEqual({
       kind: "match",
@@ -700,6 +716,14 @@ describe("resolveInteractiveHqNameAnswer", () => {
       kind: "match",
       hqName: "●モりノ",
     });
+  });
+});
+
+describe("isLastRankInteractiveRename", () => {
+  it("ignores case and surrounding whitespace", () => {
+    expect(isLastRankInteractiveRename("Alpha", "Alpha")).toBe(false);
+    expect(isLastRankInteractiveRename(" Alpha ", "alpha")).toBe(false);
+    expect(isLastRankInteractiveRename("Old", "New")).toBe(true);
   });
 });
 
