@@ -151,6 +151,31 @@ async function broadcastToProfessionChannels(
 }
 
 // ---------------------------------------------------------------------------
+// Profession switch message
+// ---------------------------------------------------------------------------
+
+async function loadCommanderDisplayName(commanderId: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ primaryName: schema.commanders.primaryName })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1);
+  return row?.primaryName?.trim() || null;
+}
+
+export function formatProfessionSwitchMessage(input: {
+  commanderName: string | null;
+  from: string;
+  to: string;
+  appUrl: string;
+}): string {
+  const change = input.commanderName
+    ? `${input.commanderName}. Changed from ${input.from} to ${input.to}.`
+    : `Your profession has been updated: ${input.from} → ${input.to}.`;
+  return `${change} Visit ${input.appUrl}/professions to get started.`;
+}
+
+// ---------------------------------------------------------------------------
 // Main event notification dispatcher
 // ---------------------------------------------------------------------------
 
@@ -269,8 +294,16 @@ async function _notifyProfessionEvent(
   }
 
   if (payload.kind === "profession_switched") {
-    const target = await resolveTargetForCommander(payload.commanderId, payload.allianceId);
-    const msg = `Your profession has been updated: ${payload.from} → ${payload.to}. Visit ${appUrl}/professions to get started.`;
+    const [target, commanderName] = await Promise.all([
+      resolveTargetForCommander(payload.commanderId, payload.allianceId),
+      loadCommanderDisplayName(payload.commanderId),
+    ]);
+    const msg = formatProfessionSwitchMessage({
+      commanderName,
+      from: payload.from,
+      to: payload.to,
+      appUrl,
+    });
 
     await Promise.all([
       target.email &&
